@@ -99,7 +99,8 @@ namespace ModelIngestion
         private void TestSqlVectorAvailability()
         {
             _logger.LogInformation("Testing SqlVector<T> availability in Microsoft.Data.SqlClient 6.1.2...");
-            TestSqlVector.VerifyAvailability();
+            // TestSqlVector moved to tests/ModelIngestion.Tests/
+            _logger.LogInformation("SqlVector test moved to test project - run: dotnet test tests/ModelIngestion.Tests/");
         }
 
         /// <summary>

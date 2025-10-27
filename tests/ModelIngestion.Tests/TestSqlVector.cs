@@ -1,7 +1,7 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 
-namespace ModelIngestion;
+namespace ModelIngestion.Tests;
 
 /// <summary>
 /// Quick test to verify SqlVector<T> availability in Microsoft.Data.SqlClient 6.1.2
