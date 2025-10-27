@@ -75,7 +75,16 @@ namespace ModelIngestion
                     services.AddScoped(sp => 
                         (EmbeddingIngestionService)sp.GetRequiredService<Hartonomous.Core.Interfaces.IEmbeddingIngestionService>());
                     
-                    services.AddScoped(sp => new AtomicStorageService(connectionString));
+                    // Register AtomicStorageService as IAtomicStorageService
+                    services.AddScoped<Hartonomous.Core.Interfaces.IAtomicStorageService>(sp =>
+                    {
+                        var logger = sp.GetRequiredService<ILogger<AtomicStorageService>>();
+                        return new AtomicStorageService(connectionString, logger);
+                    });
+                    
+                    // Also register concrete type for backward compatibility
+                    services.AddScoped(sp =>
+                        (AtomicStorageService)sp.GetRequiredService<Hartonomous.Core.Interfaces.IAtomicStorageService>());
                     
                     // Placeholder for future model ingestion
                     // services.AddScoped<ModelIngestionService>();

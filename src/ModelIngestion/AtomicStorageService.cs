@@ -1,9 +1,13 @@
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
+using Microsoft.Extensions.Logging;
+using Hartonomous.Core.Interfaces;
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace ModelIngestion
@@ -13,13 +17,15 @@ namespace ModelIngestion
     /// NEVER store the same atomic component twice - use hashing for deduplication.
     /// Examples: pixels, audio samples, vector components, tokens, waveform patterns
     /// </summary>
-    public class AtomicStorageService
+    public class AtomicStorageService : IAtomicStorageService
     {
         private readonly string _connectionString;
+        private readonly ILogger<AtomicStorageService> _logger;
 
-        public AtomicStorageService(string connectionString)
+        public AtomicStorageService(string connectionString, ILogger<AtomicStorageService> logger)
         {
-            _connectionString = connectionString;
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         // =============================================
@@ -28,31 +34,31 @@ namespace ModelIngestion
 
         /// <summary>
         /// Store atomic pixel with content-addressable deduplication
-        /// Returns: pixel_hash (existing or newly created)
+        /// Returns: pixel_id (existing or newly created)
         /// </summary>
-        public async Task<byte[]> StoreAtomicPixelAsync(byte r, byte g, byte b, byte a = 255)
+        public async Task<long> StoreAtomicPixelAsync(byte r, byte g, byte b, byte a = 255, CancellationToken cancellationToken = default)
         {
             var pixelHash = ComputePixelHash(r, g, b, a);
 
             using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
-            // Check if pixel already exists
-            var existsSql = "SELECT 1 FROM dbo.AtomicPixels WHERE pixel_hash = @hash";
+            // Check if pixel already exists and return ID
+            var existsSql = "SELECT pixel_id FROM dbo.AtomicPixels WHERE pixel_hash = @hash";
             using (var checkCmd = new SqlCommand(existsSql, connection))
             {
                 checkCmd.Parameters.AddWithValue("@hash", pixelHash);
-                var exists = await checkCmd.ExecuteScalarAsync();
+                var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
 
-                if (exists != null)
+                if (existingId != null)
                 {
                     // Increment reference count
-                    await IncrementPixelReferenceAsync(connection, pixelHash);
-                    return pixelHash;
+                    await IncrementPixelReferenceAsync(connection, pixelHash, cancellationToken);
+                    return Convert.ToInt64(existingId);
                 }
             }
 
-            // Insert new atomic pixel
+            // Insert new atomic pixel and return ID
             var insertSql = @"
                 INSERT INTO dbo.AtomicPixels (pixel_hash, r, g, b, a, color_point, reference_count)
                 VALUES (@hash, @r, @g, @b, @a,
@@ -61,6 +67,7 @@ namespace ModelIngestion
                         CAST(@g AS NVARCHAR(10)) + ' ' +
                         CAST(@b AS NVARCHAR(10)) + ')', 0),
                     1);
+                SELECT SCOPE_IDENTITY();
             ";
 
             using (var insertCmd = new SqlCommand(insertSql, connection))
@@ -70,10 +77,27 @@ namespace ModelIngestion
                 insertCmd.Parameters.AddWithValue("@g", g);
                 insertCmd.Parameters.AddWithValue("@b", b);
                 insertCmd.Parameters.AddWithValue("@a", a);
-                await insertCmd.ExecuteNonQueryAsync();
+                var result = await insertCmd.ExecuteScalarAsync(cancellationToken);
+                return Convert.ToInt64(result);
             }
+        }
 
-            return pixelHash;
+        /// <summary>
+        /// Store a batch of atomic pixels for efficient bulk operations
+        /// </summary>
+        public async Task<IEnumerable<long>> StoreBatchPixelsAsync(
+            IEnumerable<(byte r, byte g, byte b, byte a)> pixels, 
+            CancellationToken cancellationToken = default)
+        {
+            var ids = new List<long>();
+            
+            foreach (var pixel in pixels)
+            {
+                var id = await StoreAtomicPixelAsync(pixel.r, pixel.g, pixel.b, pixel.a, cancellationToken);
+                ids.Add(id);
+            }
+            
+            return ids;
         }
 
         /// <summary>
@@ -128,7 +152,7 @@ namespace ModelIngestion
             }
         }
 
-        private async Task IncrementPixelReferenceAsync(SqlConnection connection, byte[] pixelHash)
+        private async Task IncrementPixelReferenceAsync(SqlConnection connection, byte[] pixelHash, CancellationToken cancellationToken)
         {
             var sql = @"
                 UPDATE dbo.AtomicPixels
@@ -139,7 +163,7 @@ namespace ModelIngestion
 
             using var cmd = new SqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("@hash", pixelHash);
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // =============================================
@@ -148,44 +172,46 @@ namespace ModelIngestion
 
         /// <summary>
         /// Store atomic audio sample with deduplication
+        /// Interface expects normalized amplitude (-1.0 to 1.0)
         /// </summary>
-        public async Task<byte[]> StoreAtomicAudioSampleAsync(short amplitudeInt16)
+        public async Task<long> StoreAtomicAudioSampleAsync(float amplitude, CancellationToken cancellationToken = default)
         {
-            float amplitudeNormalized = amplitudeInt16 / 32768.0f;
+            // Convert normalized amplitude to int16 for storage
+            short amplitudeInt16 = (short)(amplitude * 32767.0f);
             var sampleHash = ComputeAudioSampleHash(amplitudeInt16);
 
             using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
-            // Check if sample already exists
-            var existsSql = "SELECT 1 FROM dbo.AtomicAudioSamples WHERE sample_hash = @hash";
+            // Check if sample already exists and return ID
+            var existsSql = "SELECT sample_id FROM dbo.AtomicAudioSamples WHERE sample_hash = @hash";
             using (var checkCmd = new SqlCommand(existsSql, connection))
             {
                 checkCmd.Parameters.AddWithValue("@hash", sampleHash);
-                var exists = await checkCmd.ExecuteScalarAsync();
+                var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
 
-                if (exists != null)
+                if (existingId != null)
                 {
-                    await IncrementAudioSampleReferenceAsync(connection, sampleHash);
-                    return sampleHash;
+                    await IncrementAudioSampleReferenceAsync(connection, sampleHash, cancellationToken);
+                    return Convert.ToInt64(existingId);
                 }
             }
 
-            // Insert new atomic audio sample
+            // Insert new atomic audio sample and return ID
             var insertSql = @"
                 INSERT INTO dbo.AtomicAudioSamples (sample_hash, amplitude_normalized, amplitude_int16, reference_count)
                 VALUES (@hash, @normalized, @int16, 1);
+                SELECT SCOPE_IDENTITY();
             ";
 
             using (var insertCmd = new SqlCommand(insertSql, connection))
             {
                 insertCmd.Parameters.AddWithValue("@hash", sampleHash);
-                insertCmd.Parameters.AddWithValue("@normalized", amplitudeNormalized);
+                insertCmd.Parameters.AddWithValue("@normalized", amplitude);
                 insertCmd.Parameters.AddWithValue("@int16", amplitudeInt16);
-                await insertCmd.ExecuteNonQueryAsync();
+                var result = await insertCmd.ExecuteScalarAsync(cancellationToken);
+                return Convert.ToInt64(result);
             }
-
-            return sampleHash;
         }
 
         /// <summary>
@@ -234,7 +260,7 @@ namespace ModelIngestion
             }
         }
 
-        private async Task IncrementAudioSampleReferenceAsync(SqlConnection connection, byte[] sampleHash)
+        private async Task IncrementAudioSampleReferenceAsync(SqlConnection connection, byte[] sampleHash, CancellationToken cancellationToken)
         {
             var sql = @"
                 UPDATE dbo.AtomicAudioSamples
@@ -245,32 +271,34 @@ namespace ModelIngestion
 
             using var cmd = new SqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("@hash", sampleHash);
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // =============================================
-        // VECTOR COMPONENT STORAGE
+        // VECTOR COMPONENT STORAGE (Legacy - not in interface)
         // =============================================
 
         /// <summary>
         /// Store atomic vector component (single float) with deduplication
+        /// LEGACY: Not part of IAtomicStorageService interface
         /// </summary>
-        public async Task<byte[]> StoreAtomicVectorComponentAsync(float value)
+        [Obsolete("This method is not part of IAtomicStorageService interface. Consider using batch operations instead.")]
+        public async Task<byte[]> StoreAtomicVectorComponentAsync(float value, CancellationToken cancellationToken = default)
         {
             var componentHash = ComputeFloatHash(value);
 
             using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
             var existsSql = "SELECT 1 FROM dbo.AtomicVectorComponents WHERE component_hash = @hash";
             using (var checkCmd = new SqlCommand(existsSql, connection))
             {
                 checkCmd.Parameters.AddWithValue("@hash", componentHash);
-                var exists = await checkCmd.ExecuteScalarAsync();
+                var exists = await checkCmd.ExecuteScalarAsync(cancellationToken);
 
                 if (exists != null)
                 {
-                    await IncrementVectorComponentReferenceAsync(connection, componentHash);
+                    await IncrementVectorComponentReferenceAsync(connection, componentHash, cancellationToken);
                     return componentHash;
                 }
             }
@@ -284,13 +312,13 @@ namespace ModelIngestion
             {
                 insertCmd.Parameters.AddWithValue("@hash", componentHash);
                 insertCmd.Parameters.AddWithValue("@value", value);
-                await insertCmd.ExecuteNonQueryAsync();
+                await insertCmd.ExecuteNonQueryAsync(cancellationToken);
             }
 
             return componentHash;
         }
 
-        private async Task IncrementVectorComponentReferenceAsync(SqlConnection connection, byte[] componentHash)
+        private async Task IncrementVectorComponentReferenceAsync(SqlConnection connection, byte[] componentHash, CancellationToken cancellationToken)
         {
             var sql = @"
                 UPDATE dbo.AtomicVectorComponents
@@ -301,7 +329,7 @@ namespace ModelIngestion
 
             using var cmd = new SqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("@hash", componentHash);
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // =============================================
@@ -311,29 +339,32 @@ namespace ModelIngestion
         /// <summary>
         /// Store atomic text token with deduplication
         /// </summary>
-        public async Task<byte[]> StoreAtomicTokenAsync(string tokenText, byte[]? tokenEmbedding = null, string? embeddingModel = null)
+        public async Task<long> StoreAtomicTextTokenAsync(string tokenText, int? vocabId = null, CancellationToken cancellationToken = default)
         {
             var tokenHash = ComputeTextHash(tokenText);
 
             using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync();
+            await connection.OpenAsync(cancellationToken);
 
-            var existsSql = "SELECT 1 FROM dbo.AtomicTextTokens WHERE token_hash = @hash";
+            // Check if token already exists and return ID
+            var existsSql = "SELECT token_id FROM dbo.AtomicTextTokens WHERE token_hash = @hash";
             using (var checkCmd = new SqlCommand(existsSql, connection))
             {
                 checkCmd.Parameters.AddWithValue("@hash", tokenHash);
-                var exists = await checkCmd.ExecuteScalarAsync();
+                var existingId = await checkCmd.ExecuteScalarAsync(cancellationToken);
 
-                if (exists != null)
+                if (existingId != null)
                 {
-                    await IncrementTokenReferenceAsync(connection, tokenHash);
-                    return tokenHash;
+                    await IncrementTokenReferenceAsync(connection, tokenHash, cancellationToken);
+                    return Convert.ToInt64(existingId);
                 }
             }
 
+            // Insert new atomic token and return ID
             var insertSql = @"
-                INSERT INTO dbo.AtomicTextTokens (token_hash, token_text, token_length, token_embedding, embedding_model, reference_count)
-                VALUES (@hash, @text, @length, @embedding, @model, 1);
+                INSERT INTO dbo.AtomicTextTokens (token_hash, token_text, token_length, vocab_id, reference_count)
+                VALUES (@hash, @text, @length, @vocab_id, 1);
+                SELECT SCOPE_IDENTITY();
             ";
 
             using (var insertCmd = new SqlCommand(insertSql, connection))
@@ -341,15 +372,13 @@ namespace ModelIngestion
                 insertCmd.Parameters.AddWithValue("@hash", tokenHash);
                 insertCmd.Parameters.AddWithValue("@text", tokenText);
                 insertCmd.Parameters.AddWithValue("@length", tokenText.Length);
-                insertCmd.Parameters.AddWithValue("@embedding", (object?)tokenEmbedding ?? DBNull.Value);
-                insertCmd.Parameters.AddWithValue("@model", (object?)embeddingModel ?? DBNull.Value);
-                await insertCmd.ExecuteNonQueryAsync();
+                insertCmd.Parameters.AddWithValue("@vocab_id", (object?)vocabId ?? DBNull.Value);
+                var result = await insertCmd.ExecuteScalarAsync(cancellationToken);
+                return Convert.ToInt64(result);
             }
-
-            return tokenHash;
         }
 
-        private async Task IncrementTokenReferenceAsync(SqlConnection connection, byte[] tokenHash)
+        private async Task IncrementTokenReferenceAsync(SqlConnection connection, byte[] tokenHash, CancellationToken cancellationToken)
         {
             var sql = @"
                 UPDATE dbo.AtomicTextTokens
@@ -360,7 +389,7 @@ namespace ModelIngestion
 
             using var cmd = new SqlCommand(sql, connection);
             cmd.Parameters.AddWithValue("@hash", tokenHash);
-            await cmd.ExecuteNonQueryAsync();
+            await cmd.ExecuteNonQueryAsync(cancellationToken);
         }
 
         // =============================================
