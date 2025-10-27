@@ -113,4 +113,83 @@ public class EmbeddingRepository : IEmbeddingRepository
 
         return results;
     }
+
+    // Deduplication methods (Phase 2)
+    public async Task<Embedding?> CheckDuplicateByHashAsync(string contentHash, CancellationToken cancellationToken = default)
+    {
+        return await _context.Embeddings
+            .Where(e => e.ContentHash == contentHash)
+            .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    public async Task<Embedding?> CheckDuplicateBySimilarityAsync(float[] queryVector, double threshold, CancellationToken cancellationToken = default)
+    {
+        // Use stored proc for VECTOR_DISTANCE calculation
+        // Note: This will require creating sp_CheckSimilarityAboveThreshold stored proc
+        var vectorParam = new SqlParameter("@query_vector", System.Data.SqlDbType.VarBinary)
+        {
+            Value = SerializeVectorToBytes(queryVector)
+        };
+        var thresholdParam = new SqlParameter("@threshold", threshold);
+
+        var results = await _context.Embeddings
+            .FromSqlRaw(
+                "EXEC dbo.sp_CheckSimilarityAboveThreshold @query_vector, @threshold",
+                vectorParam, thresholdParam)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return results;
+    }
+
+    public async Task IncrementAccessCountAsync(long embeddingId, CancellationToken cancellationToken = default)
+    {
+        var embedding = await _context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
+        if (embedding != null)
+        {
+            embedding.AccessCount++;
+            embedding.LastAccessed = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    public async Task<float[]> ComputeSpatialProjectionAsync(float[] fullVector, CancellationToken cancellationToken = default)
+    {
+        // Call stored proc sp_ComputeSpatialProjection
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = "EXEC dbo.sp_ComputeSpatialProjection @input_vector";
+        
+        var vectorParam = command.CreateParameter();
+        vectorParam.ParameterName = "@input_vector";
+        vectorParam.Value = SerializeVectorToBytes(fullVector);
+        command.Parameters.Add(vectorParam);
+
+        await _context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            using var result = await command.ExecuteReaderAsync(cancellationToken);
+            if (await result.ReadAsync(cancellationToken))
+            {
+                return new float[] 
+                { 
+                    result.GetFloat(0), 
+                    result.GetFloat(1), 
+                    result.GetFloat(2) 
+                };
+            }
+            
+            throw new InvalidOperationException("Failed to compute spatial projection");
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+    }
+
+    // Helper method to serialize float array to bytes for VECTOR parameter
+    private byte[] SerializeVectorToBytes(float[] vector)
+    {
+        var bytes = new byte[vector.Length * sizeof(float)];
+        Buffer.BlockCopy(vector, 0, bytes, 0, bytes.Length);
+        return bytes;
+    }
 }

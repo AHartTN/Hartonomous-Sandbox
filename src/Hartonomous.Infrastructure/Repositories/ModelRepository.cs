@@ -2,6 +2,8 @@ using Hartonomous.Core.Entities;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Data.SqlTypes;
+using Microsoft.Data.SqlClient;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
@@ -104,5 +106,58 @@ public class ModelRepository : IModelRepository
     public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
     {
         return await _context.Models.CountAsync(cancellationToken);
+    }
+
+    // Layer operations (Phase 2)
+    public async Task<ModelLayer> AddLayerAsync(int modelId, ModelLayer layer, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Adding layer to model {ModelId}: {LayerName}", modelId, layer.LayerName);
+        
+        layer.ModelId = modelId;
+        _context.ModelLayers.Add(layer);
+        await _context.SaveChangesAsync(cancellationToken);
+        
+        _logger.LogInformation("Layer added successfully with ID: {LayerId}", layer.LayerId);
+        return layer;
+    }
+
+    public async Task UpdateLayerWeightsAsync(int layerId, SqlVector<float> weights, CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation("Updating weights for layer {LayerId} - USING ADO.NET (SqlVector parameter pattern)", layerId);
+        
+        // PAINFULLY OBVIOUS: Use ADO.NET for SqlVector parameter (most efficient)
+        // This is the ONE method where direct SqlConnection is justified
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        await connection.OpenAsync(cancellationToken);
+        
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = @"
+                UPDATE ModelLayers 
+                SET Weights = @weights, 
+                    UpdatedAt = SYSUTCDATETIME() 
+                WHERE layer_id = @layerId";
+            
+            command.Parameters.AddWithValue("@layerId", layerId);
+            command.Parameters.AddWithValue("@weights", weights);
+            
+            await command.ExecuteNonQueryAsync(cancellationToken);
+            _logger.LogInformation("Layer weights updated successfully");
+        }
+        finally
+        {
+            await connection.CloseAsync();
+        }
+    }
+
+    public async Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting layers for model: {ModelId}", modelId);
+        
+        return await _context.ModelLayers
+            .Where(l => l.ModelId == modelId)
+            .OrderBy(l => l.LayerIdx)
+            .ToListAsync(cancellationToken);
     }
 }

@@ -68,4 +68,9 @@ public class Embedding
     /// Gets or sets the timestamp of the last access to this embedding.
     /// </summary>
     public DateTime? LastAccessed { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the SHA256 content hash for deduplication (Phase 2 addition).
+    /// </summary>
+    public string? ContentHash { get; set; }
 }

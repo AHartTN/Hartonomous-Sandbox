@@ -40,6 +40,13 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
         builder.Property(e => e.AccessCount)
             .HasDefaultValue(0);
 
+        // Phase 2: ContentHash for deduplication
+        builder.Property(e => e.ContentHash)
+            .HasMaxLength(64); // SHA256 hex string
+        
+        builder.HasIndex(e => e.ContentHash)
+            .HasDatabaseName("idx_content_hash");
+
         // TEMP: Commenting out computed spatial geometry column - causing EF Core type mapping issues
         // Will add this directly in migration or via raw SQL after table creation
         /*
