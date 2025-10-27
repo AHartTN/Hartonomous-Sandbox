@@ -1,5 +1,7 @@
+using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Hartonomous.Infrastructure.Repositories;
+using Hartonomous.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -49,6 +51,9 @@ public static class DependencyInjection
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
         services.AddScoped<IInferenceRepository, InferenceRepository>();
+
+        // Register services
+        services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
 
         return services;
     }
