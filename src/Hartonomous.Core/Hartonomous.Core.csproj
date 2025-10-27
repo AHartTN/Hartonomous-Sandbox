@@ -9,6 +9,7 @@
   <ItemGroup>
     <!-- Required for SqlVector<T> type in domain entities -->
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+    <PackageReference Include="NetTopologySuite" Version="2.6.0" />
   </ItemGroup>
 
 </Project>

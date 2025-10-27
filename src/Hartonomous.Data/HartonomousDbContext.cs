@@ -24,6 +24,15 @@ public class HartonomousDbContext : DbContext
     public DbSet<Embedding> Embeddings => Set<Embedding>();
     public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
 
+    // Multi-modal data
+    public DbSet<Image> Images => Set<Image>();
+    public DbSet<ImagePatch> ImagePatches => Set<ImagePatch>();
+    public DbSet<AudioData> AudioData => Set<AudioData>();
+    public DbSet<AudioFrame> AudioFrames => Set<AudioFrame>();
+    public DbSet<Video> Videos => Set<Video>();
+    public DbSet<VideoFrame> VideoFrames => Set<VideoFrame>();
+    public DbSet<TextDocument> TextDocuments => Set<TextDocument>();
+
     // Inference tracking
     public DbSet<InferenceRequest> InferenceRequests => Set<InferenceRequest>();
     public DbSet<InferenceStep> InferenceSteps => Set<InferenceStep>();
