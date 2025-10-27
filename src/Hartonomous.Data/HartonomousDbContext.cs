@@ -1,5 +1,6 @@
 using Hartonomous.Core.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.SqlServer;
 
 namespace Hartonomous.Data;
 

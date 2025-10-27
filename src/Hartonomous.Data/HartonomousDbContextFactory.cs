@@ -21,6 +21,9 @@ namespace Hartonomous.Data
                         maxRetryCount: 3,
                         maxRetryDelay: TimeSpan.FromSeconds(5),
                         errorNumbersToAdd: null);
+                    
+                    // CRITICAL: Enable NetTopologySuite for GEOMETRY columns
+                    sqlServerOptions.UseNetTopologySuite();
                 });
 
             return new HartonomousDbContext(optionsBuilder.Options);
