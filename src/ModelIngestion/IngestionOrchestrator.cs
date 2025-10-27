@@ -122,10 +122,12 @@ namespace ModelIngestion
                 var embedding = GenerateRandomEmbedding(random, 768);
                 var sourceText = $"Sample sentence number {i} with some unique content.";
 
-                var result = await _embeddingService.IngestEmbeddingWithDeduplicationAsync(
+                var result = await _embeddingService.IngestEmbeddingAsync(
                     sourceText,
                     "sentence",
-                    embedding);
+                    embedding,
+                    null,
+                    cancellationToken);
 
                 if (result.WasDuplicate)
                 {
@@ -161,16 +163,16 @@ namespace ModelIngestion
 
             // Insert first time - should be new
             _logger.LogInformation("Test 1: Inserting new embedding...");
-            var result1 = await _embeddingService.IngestEmbeddingWithDeduplicationAsync(
-                text1, "sentence", embedding1, spatial1);
+            var result1 = await _embeddingService.IngestEmbeddingAsync(
+                text1, "sentence", embedding1, spatial1, cancellationToken);
             
             _logger.LogInformation("✓ First insert: ID={Id}, Duplicate={IsDup}", 
                 result1.EmbeddingId, result1.WasDuplicate);
 
             // Insert exact same text - should detect content hash duplicate
             _logger.LogInformation("\nTest 2: Inserting same text (exact content hash match)...");
-            var result2 = await _embeddingService.IngestEmbeddingWithDeduplicationAsync(
-                text1, "sentence", embedding1, spatial1);
+            var result2 = await _embeddingService.IngestEmbeddingAsync(
+                text1, "sentence", embedding1, spatial1, cancellationToken);
             
             _logger.LogInformation("✓ Second insert (same text): ID={Id}, Duplicate={IsDup}, Reason={Reason}", 
                 result2.EmbeddingId, result2.WasDuplicate, result2.DuplicateReason);
@@ -185,8 +187,8 @@ namespace ModelIngestion
             
             var text2 = "This is a different sentence but semantically similar.";
             
-            var result3 = await _embeddingService.IngestEmbeddingWithDeduplicationAsync(
-                text2, "sentence", embedding2, spatial1);
+            var result3 = await _embeddingService.IngestEmbeddingAsync(
+                text2, "sentence", embedding2, spatial1, cancellationToken);
             
             _logger.LogInformation("✓ Third insert (similar embedding): ID={Id}, Duplicate={IsDup}, Reason={Reason}", 
                 result3.EmbeddingId, result3.WasDuplicate, result3.DuplicateReason);

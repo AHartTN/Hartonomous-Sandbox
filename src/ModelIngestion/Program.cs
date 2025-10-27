@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Infrastructure;
+using Hartonomous.Infrastructure.Repositories;
 using System;
 using System.Threading.Tasks;
 
@@ -51,13 +52,29 @@ namespace ModelIngestion
                     // Register Hartonomous infrastructure (EF Core, repositories, health checks)
                     services.AddHartonomousInfrastructure(context.Configuration);
                     
-                    // Register ingestion services with connection string and configuration
+                    // Register ingestion services with DI
                     services.AddScoped<IngestionOrchestrator>();
-                    services.AddScoped(sp => new EmbeddingIngestionService(
-                        connectionString,
-                        embeddingModel: "production-model",
-                        embeddingDimension: 768,
-                        deduplicationThreshold: deduplicationThreshold));
+                    
+                    // Register EmbeddingIngestionService as IEmbeddingIngestionService
+                    // Service requires IEmbeddingRepository (from infrastructure), ILogger, and configuration
+                    services.AddScoped<Hartonomous.Core.Interfaces.IEmbeddingIngestionService>(sp =>
+                    {
+                        var embeddingRepo = sp.GetRequiredService<IEmbeddingRepository>();
+                        var logger = sp.GetRequiredService<ILogger<EmbeddingIngestionService>>();
+                        
+                        return new EmbeddingIngestionService(
+                            embeddingRepo,
+                            logger,
+                            connectionString,
+                            embeddingModel: "production-model",
+                            embeddingDimension: 768,
+                            deduplicationThreshold: deduplicationThreshold);
+                    });
+                    
+                    // Also register concrete type for backward compatibility
+                    services.AddScoped(sp => 
+                        (EmbeddingIngestionService)sp.GetRequiredService<Hartonomous.Core.Interfaces.IEmbeddingIngestionService>());
+                    
                     services.AddScoped(sp => new AtomicStorageService(connectionString));
                     
                     // Placeholder for future model ingestion
