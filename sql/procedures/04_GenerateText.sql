@@ -1,0 +1,48 @@
+-- =============================================
+-- Generate Text Stored Procedure
+-- =============================================
+
+USE Hartonomous;
+GO
+
+CREATE OR ALTER PROCEDURE dbo.sp_GenerateText
+    @prompt NVARCHAR(MAX),
+    @max_tokens INT = 50
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @generated_text NVARCHAR(MAX) = @prompt;
+    DECLARE @current_token NVARCHAR(100) = @prompt;
+    DECLARE @next_token NVARCHAR(100);
+    DECLARE @i INT = 0;
+
+    WHILE @i < @max_tokens
+    BEGIN
+        -- Find the embedding for the current token
+        DECLARE @current_embedding VARBINARY(MAX);
+        SELECT @current_embedding = embedding FROM dbo.TokenVocabulary WHERE token = @current_token;
+
+        -- Find the most likely next token using a dot product
+        SELECT TOP 1 @next_token = v2.token
+        FROM dbo.TokenVocabulary v1
+        CROSS JOIN dbo.TokenVocabulary v2
+        WHERE v1.token = @current_token
+        ORDER BY dbo.VectorDotProduct(v1.embedding, v2.embedding) DESC;
+
+        -- Append the next token to the sequence
+        SET @generated_text = @generated_text + ' ' + @next_token;
+        SET @current_token = @next_token;
+
+        -- Check for end-of-sequence token
+        IF @next_token = '[EOS]' -- Assuming '[EOS]' is the end-of-sequence token
+        BEGIN
+            BREAK;
+        END
+
+        SET @i = @i + 1;
+    END
+
+    SELECT @generated_text AS generated_text;
+END
+GO

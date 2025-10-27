@@ -1,0 +1,238 @@
+Changed database context to 'Hartonomous'.
+================================================================
+HARTONOMOUS SYSTEM VERIFICATION
+================================================================
+Date: 2025-10-27 05:46:38
+ 
+ DATA INVENTORY
+-----------------------------------
+Embeddings (with dual representation):
+source_type                                        count       min_dim     max_dim    
+-------------------------------------------------- ----------- ----------- -----------
+sentence                                                     8         768         768
+
+(1 rows affected)
+ 
+Models ingested:
+model_id    model_name                                                                                                                                                                                               model_type                                                                                           num_layers  num_parameters       is_decomposed
+----------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ---------------------------------------------------------------------------------------------------- ----------- -------------------- -------------
+          1 DemoTransformer-Small                                                                                                                                                                                    transformer                                                                                                    5               110592             1
+          2 Student_DemoTransformer-Small_0.3                                                                                                                                                                        student_transformer                                                                                         NULL                 NULL             1
+
+(2 rows affected)
+ 
+Model weights (queryable as rows):
+model_id    model_name                                                                                                                                                                                               total_weights avg_importance          
+----------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------- ------------------------
+          1 DemoTransformer-Small                                                                                                                                                                                              144       1.5980519668923483
+          2 Student_DemoTransformer-Small_0.3                                                                                                                                                                                   43       1.6263454209926516
+
+(2 rows affected)
+ 
+ 
+ VECTOR SEARCH (EXACT)
+-----------------------------------
+embedding_id         source_text                                                                                                                                                                                                                                                      distance                
+-------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------
+                   4 Computer vision allows machines to interpret images...                                                                                                                                                                                                                 0.9766804575920105
+                   1 Machine learning is a subset of artificial intelligence...                                                                                                                                                                                                            0.97941577434539795
+                   8 Cognitive databases merge storage and computation...                                                                                                                                                                                                                   1.0055508613586426
+
+(3 rows affected)
+ 
+ 
+ SPATIAL SEARCH (APPROXIMATE)
+-----------------------------------
+embedding_id         source_text                                                                                                                                                                                                                                                      spatial_distance        
+-------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------
+                   8 Cognitive databases merge storage and computation...                                                                                                                                                                                                                   4.6669013973406379
+                   7 Database inference eliminates the need for VRAM...                                                                                                                                                                                                                     6.2645476090456844
+                   1 Machine learning is a subset of artificial intelligence...                                                                                                                                                                                                             6.4732145303318971
+
+(3 rows affected)
+ 
+ 
+ MULTI-RESOLUTION SEARCH
+-----------------------------------
+MULTI-RESOLUTION SEARCH: Coarse → Fine → Exact
+  Strategy: 3-stage funnel for billion-scale performance
+  Stage 1: 8 coarse candidates
+  Stage 2: 8 fine candidates
+embedding_id         source_text                                                                                                                                                                                                                                                      source_type                                        final_distance          
+-------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------- ------------------------
+                   8 Cognitive databases merge storage and computation                                                                                                                                                                                                                sentence                                                 4.6669013973406379
+                   7 Database inference eliminates the need for VRAM                                                                                                                                                                                                                  sentence                                                 6.2645476090456844
+                   1 Machine learning is a subset of artificial intelligence                                                                                                                                                                                                          sentence                                                 6.4732145303318971
+  Stage 3: Top 3 results
+✓ Multi-resolution search complete
+ 
+ 
+ STUDENT MODEL EXTRACTION
+-----------------------------------
+DYNAMIC STUDENT MODEL EXTRACTION
+  Strategy: importance
+  Target size: 25% of parent
+  Parent parameters: 144
+  Target parameters: 36
+  Created student model ID: 3
+  Selecting top 36 weights by importance score...
+  Copied top 36 weights
+student_model_id student_name                                                                                                                                                                                             parent_parameters student_parameters compression_ratio_pct
+---------------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ----------------- ------------------ ---------------------
+               3 Student_DemoTransformer-Small_0.25                                                                                                                                                                                     144                 36                 25.00
+✓ Student model extracted via SELECT
+ 
+ 
+ MODEL KNOWLEDGE COMPARISON
+-----------------------------------
+KNOWLEDGE COMPARISON: Model 1 vs Model 2
+model_name model_id    total_weights avg_importance           stdev_importance         min_importance           max_importance          
+---------- ----------- ------------- ------------------------ ------------------------ ------------------------ ------------------------
+Model A              1           144       1.5980519668923483      0.02471179607908652       1.5327544212341309       1.6631900072097778
+Model B              2            43       1.6263454209926516    1.2525690766937412E-2       1.6108988523483276       1.6631900072097778
+analysis_type    layer_idx   model_a_type                                       model_b_type                                       model_a_heads model_b_heads
+---------------- ----------- -------------------------------------------------- -------------------------------------------------- ------------- -------------
+Layer Comparison           0 embedding                                          embedding                                                      0             0
+Layer Comparison           0 embedding                                          embedding                                                      0             0
+Layer Comparison           0 embedding                                          embedding                                                      0             0
+Layer Comparison           0 embedding                                          embedding                                                      0             0
+Layer Comparison           0 embedding                                          embedding                                                      0             0
+Layer Comparison           1 attention                                          attention                                                     12            12
+Layer Comparison           1 attention                                          attention                                                     12            12
+Layer Comparison           1 attention                                          attention                                                     12            12
+Layer Comparison           1 attention                                          attention                                                     12            12
+Layer Comparison           1 attention                                          attention                                                     12            12
+Layer Comparison           2 attention                                          attention                                                     12            12
+Layer Comparison           2 attention                                          attention                                                     12            12
+Layer Comparison           2 attention                                          attention                                                     12            12
+Layer Comparison           2 attention                                          attention                                                     12            12
+Layer Comparison           2 attention                                          attention                                                     12            12
+Layer Comparison           3 attention                                          attention                                                     12            12
+Layer Comparison           3 attention                                          attention                                                     12            12
+Layer Comparison           3 attention                                          attention                                                     12            12
+Layer Comparison           3 attention                                          attention                                                     12            12
+Layer Comparison           3 attention                                          attention                                                     12            12
+Layer Comparison           4 output                                             output                                                         0             0
+Layer Comparison           4 output                                             output                                                         0             0
+Layer Comparison           4 output                                             output                                                         0             0
+Layer Comparison           4 output                                             output                                                         0             0
+Layer Comparison           4 output                                             output                                                         0             0
+✓ Knowledge comparison complete
+ 
+ 
+ INFERENCE HISTORY (Last 24 hours)
+-----------------------------------
+INFERENCE HISTORY ANALYSIS
+  Time window: Last 24 hours
+task_type                                          request_count avg_duration_ms min_duration_ms max_duration_ms successful_count failed_count cache_hits 
+-------------------------------------------------- ------------- --------------- --------------- --------------- ---------------- ------------ -----------
+semantic_search                                                2             158               1             315                0            2           0
+ensemble_search                                                1              11              11              11                0            1           0
+✓ Inference history analysis complete
+ 
+ 
+ CROSS-MODAL QUERY
+-----------------------------------
+CROSS-MODAL INFERENCE
+  Query modalities: spatial
+  Target modality: all
+embedding_id         source_text                                                                                                                                                                                                                                                      source_type                                        distance                
+-------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------- ------------------------
+                   8 Cognitive databases merge storage and computation                                                                                                                                                                                                                sentence                                                  4.928707807579995
+                   7 Database inference eliminates the need for VRAM                                                                                                                                                                                                                  sentence                                                 6.0836953199515182
+                   3 Natural language processing enables computers to understand text                                                                                                                                                                                                 sentence                                                  6.933956435664995
+✓ Cross-modal results returned
+ 
+ 
+ SYSTEM HEALTH CHECK
+-----------------------------------
+SQL Server Version:
+sql_version                                                                                                                                                                                                                                                                                                 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Microsoft SQL Server 2025 (RC1) - 17.0.925.4 (X64) 
+	Sep  9 2025 17:31:28 
+	Copyright (C) 2025 Microsoft Corporation
+	Enterprise Developer Edition (64-bit) on Windows 10 Pro 10.0 <X64> (Build 26200: ) (Hypervisor)
+                                                                                      
+
+(1 rows affected)
+ 
+Database Size:
+name                                                                                                                             size_mb     size_gb                 
+-------------------------------------------------------------------------------------------------------------------------------- ----------- ------------------------
+Hartonomous                                                                                                                               72             .07031250000
+Hartonomous_log                                                                                                                           72             .07031250000
+
+(2 rows affected)
+ 
+Table Row Counts:
+table_name                                                                                                                       row_count           
+-------------------------------------------------------------------------------------------------------------------------------- --------------------
+AttentionWeights                                                                                                                                  223
+TransformerLayers                                                                                                                                  15
+Embeddings_Production                                                                                                                               8
+InferenceRequests                                                                                                                                   3
+Models_Production                                                                                                                                   3
+
+(5 rows affected)
+ 
+Indexes:
+table_name                                                                                                                       index_name                                                                                                                       index_type                                                  
+-------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------------------------------------------- ------------------------------------------------------------
+AttentionWeights                                                                                                                 PK__Attentio__453932ACDF470AA2                                                                                                   CLUSTERED                                                   
+Embeddings_Production                                                                                                            PK__Embeddin__770D799383BC1B3F                                                                                                   CLUSTERED                                                   
+Models_Production                                                                                                                PK__Models_P__DC39CAF47BA5C7A4                                                                                                   CLUSTERED                                                   
+TransformerLayers                                                                                                                PK__Transfor__5CDE769C5B5486B7                                                                                                   CLUSTERED                                                   
+
+(4 rows affected)
+ 
+ 
+ NOVEL FEATURES DEMONSTRATION
+-----------------------------------
+Feature 1: Dual Representation (VECTOR + GEOMETRY)
+embedding_id         vector_dimension spatial_proj_x           spatial_proj_y           spatial_proj_z           has_full_vector has_spatial_geometry
+-------------------- ---------------- ------------------------ ------------------------ ------------------------ --------------- --------------------
+                   1              768       5.3176069259643555      -5.3229379653930664       6.5870623588562012 YES             YES                 
+
+(1 rows affected)
+ 
+Feature 2: Models as Queryable Rows
+feature                                     count      
+------------------------------------------- -----------
+Total model weights stored as database rows         223
+
+(1 rows affected)
+ 
+Feature 3: Instant Student Model Creation
+model_name                                                                                                                                                                                               model_category                     num_parameters      
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ---------------------------------- --------------------
+DemoTransformer-Small                                                                                                                                                                                    Parent Model                                     110592
+Student_DemoTransformer-Small_0.3                                                                                                                                                                        Student Model (created via SELECT)                 NULL
+Student_DemoTransformer-Small_0.25                                                                                                                                                                       Student Model (created via SELECT)                 NULL
+
+(3 rows affected)
+ 
+ 
+================================================================
+VERIFICATION COMPLETE
+================================================================
+ 
+System Status: OPERATIONAL
+ 
+Key Capabilities Verified:
+  ✓ Dual representation (VECTOR + GEOMETRY)
+  ✓ Exact vector search via VECTOR_DISTANCE
+  ✓ Approximate spatial search via STDistance
+  ✓ Multi-resolution funnel search
+  ✓ Model decomposition into queryable weights
+  ✓ Student model extraction via SELECT
+  ✓ Cross-modal queries
+  ✓ Inference history tracking
+  ✓ Knowledge comparison between models
+ 
+Services Running:
+  ✓ SQL Server 2025 RC1
+  ✓ Neo4j Desktop 2.0.5
+  ✓ .NET 10 Neo4j Sync Worker
+ 
+================================================================
