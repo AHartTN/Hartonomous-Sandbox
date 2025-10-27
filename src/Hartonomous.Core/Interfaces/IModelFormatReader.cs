@@ -29,6 +29,15 @@ public interface IModelFormatReader<TMetadata> where TMetadata : class
     Task<TMetadata> GetMetadataAsync(string modelPath, CancellationToken cancellationToken = default);
     
     /// <summary>
+    /// Validate that the file at modelPath is in the expected format.
+    /// Quick check without full parsing (e.g., magic number, header validation).
+    /// </summary>
+    /// <param name="modelPath">Absolute path to model file</param>
+    /// <param name="cancellationToken">Cancellation token</param>
+    /// <returns>True if file is valid for this format</returns>
+    Task<bool> ValidateFormatAsync(string modelPath, CancellationToken cancellationToken = default);
+    
+    /// <summary>
     /// Gets the supported file extensions for this format reader.
     /// Used by factory pattern for automatic reader selection.
     /// </summary>
@@ -59,18 +68,34 @@ public class OnnxMetadata
 /// </summary>
 public class SafetensorsMetadata
 {
+    public List<string> Files { get; set; } = new();
+    public Dictionary<string, string> GlobalMetadata { get; set; } = new();
+    public Dictionary<string, SafetensorsTensorInfo> Tensors { get; set; } = new();
+    public string? Format { get; set; }
+    public string? Architecture { get; set; }
+    public int TensorCount { get; set; }
+    public long TotalSizeBytes { get; set; }
+    
+    // Legacy compatibility
     public Dictionary<string, string>? Header { get; set; }
-    public Dictionary<string, TensorInfo>? Tensors { get; set; }
 }
 
 /// <summary>
 /// Tensor information from Safetensors format.
 /// </summary>
-public class TensorInfo
+public class SafetensorsTensorInfo
 {
     public string? DType { get; set; }
     public long[]? Shape { get; set; }
     public long[]? DataOffsets { get; set; }
+}
+
+/// <summary>
+/// Legacy alias for backward compatibility.
+/// </summary>
+[Obsolete("Use SafetensorsTensorInfo instead")]
+public class TensorInfo : SafetensorsTensorInfo
+{
 }
 
 /// <summary>
@@ -93,6 +118,27 @@ public class PyTorchMetadata
     public List<string> ShardFiles { get; set; } = new();
     public bool HasTokenizer { get; set; }
     public Dictionary<string, object>? StateDict { get; set; }
+}
+
+/// <summary>
+/// GGUF (GPT-Generated Unified Format) quantized model metadata.
+/// Used by llama.cpp, ollama, and other quantized inference engines.
+/// </summary>
+public class GGUFMetadata
+{
+    public string? FilePath { get; set; }
+    public long FileSize { get; set; }
+    public uint Version { get; set; }
+    public int TensorCount { get; set; }
+    public string? Architecture { get; set; }
+    public string? QuantizationType { get; set; }
+    public string? FileType { get; set; }
+    public int? LayerCount { get; set; }
+    public int? ContextLength { get; set; }
+    public int? EmbeddingLength { get; set; }
+    public int? AttentionHeadCount { get; set; }
+    public long? ParameterCount { get; set; }
+    public Dictionary<string, object> MetadataKV { get; set; } = new();
 }
 
 /// <summary>
