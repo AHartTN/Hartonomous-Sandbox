@@ -5,6 +5,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 
@@ -13,9 +14,11 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Data.Migrations
 {
     [DbContext(typeof(HartonomousDbContext))]
-    partial class HartonomousDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251028170847_AddTensorChunkingSupport")]
+    partial class AddTensorChunkingSupport
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -638,6 +641,11 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("float")
                         .HasDefaultValue(0.0);
 
+                    b.Property<int>("ChunkIdx")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<int>("LayerIdx")
                         .HasColumnType("int");
 
@@ -668,18 +676,13 @@ namespace Hartonomous.Data.Migrations
                     b.Property<double?>("QuantizationZeroPoint")
                         .HasColumnType("float");
 
-                    b.Property<string>("TensorDtype")
+                    b.Property<int>("TotalChunks")
                         .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("float32");
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
 
-                    b.Property<string>("TensorShape")
-                        .HasColumnType("NVARCHAR(200)");
-
-                    b.Property<LineString>("WeightsGeometry")
-                        .HasColumnType("geometry")
-                        .HasColumnName("WeightsGeometry");
+                    b.Property<SqlVector<float>?>("Weights")
+                        .HasColumnType("VECTOR(1998)");
 
                     b.HasKey("LayerId");
 
@@ -688,6 +691,9 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("ModelId", "LayerIdx")
                         .HasDatabaseName("idx_model_layer");
+
+                    b.HasIndex("ModelId", "LayerName", "ChunkIdx")
+                        .HasDatabaseName("idx_layer_chunks");
 
                     b.ToTable("ModelLayers", "dbo");
                 });

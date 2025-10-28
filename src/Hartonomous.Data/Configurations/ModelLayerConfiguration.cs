@@ -18,12 +18,23 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
         builder.Property(l => l.LayerType)
             .HasMaxLength(50);
 
-        // Layer weights as VECTOR (SQL Server 2025 native type)
-        // Small layers: VECTOR(n) where n <= 1998 (float32) or 3996 (float16)
-        // Large layers: chunk across multiple rows
-        // VECTOR is already binary, efficient, queryable, and deduplicated - no compression needed
-        builder.Property(l => l.Weights)
-            .HasColumnType("VECTOR(1998)");  // Max dimension for float32
+        // Layer weights as GEOMETRY (LINESTRING ZM) for variable-dimension tensors
+        // X = index, Y = weight, Z = importance/gradient, M = iteration/depth
+        // No dimension limits (up to 1B+ points vs VECTOR's 1998 max)
+        // Spatial indexes enable O(log n) queries for inference
+        // EF Core maps NetTopologySuite.Geometries.LineString to SQL Server GEOMETRY
+        builder.Property(l => l.WeightsGeometry)
+            .HasColumnName("WeightsGeometry")
+            .HasColumnType("geometry");  // SQL Server GEOMETRY type
+        
+        // Tensor shape as JSON array for reconstruction (e.g., "[3584, 3584]")
+        builder.Property(l => l.TensorShape)
+            .HasColumnType("NVARCHAR(200)");
+        
+        // Tensor data type (float32, float16, bfloat16)
+        builder.Property(l => l.TensorDtype)
+            .HasMaxLength(20)
+            .HasDefaultValue("float32");
 
         builder.Property(l => l.QuantizationType)
             .HasMaxLength(20);

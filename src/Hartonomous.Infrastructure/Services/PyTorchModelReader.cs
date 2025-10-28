@@ -103,7 +103,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
                 LayerName = $"shard_{shardIndex:D5}",
                 LayerType = "Weight",
                 LayerIdx = shardIndex,
-                Weights = null, // Would populate from actual tensor data
+                WeightsGeometry = null, // Would populate from actual tensor data
                 Parameters = "{}",
                 ParameterCount = 0
             };
@@ -116,13 +116,13 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
             // foreach (var (name, tensor) in torch.StateDict())
             // {
             //     var weights = tensor.data<float>().ToArray();
-            //     var vectorWeights = new SqlVector<float>(weights);
+            //     var weightsGeometry = GeometryConverter.ToLineStringZM(weights, 1.0f, layerIndex);
             //     await _modelRepository.AddLayerAsync(modelId, new ModelLayer
             //     {
             //         LayerName = name,
             //         LayerType = InferLayerType(name),
             //         LayerIdx = layerIndex++,
-            //         Weights = vectorWeights,
+            //         WeightsGeometry = weightsGeometry,
             //         Parameters = JsonSerializer.Serialize(new { shape = tensor.shape }),
             //         ParameterCount = tensor.numel()
             //     }, cancellationToken);

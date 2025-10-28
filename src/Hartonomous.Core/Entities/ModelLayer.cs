@@ -1,10 +1,12 @@
-using Microsoft.Data.SqlTypes;
+using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Core.Entities;
 
 /// <summary>
 /// Represents a single layer in a decomposed neural network model.
-/// Stores weights as VECTOR type for efficient storage and querying.
+/// Stores weights as GEOMETRY (LINESTRING ZM) for variable-dimension tensors with rich metadata.
+/// X = index, Y = weight value, Z = importance/gradient, M = iteration/depth.
+/// Exploits spatial indexes for O(log n) queries instead of O(n) VECTOR scans.
 /// </summary>
 public class ModelLayer
 {
@@ -34,12 +36,27 @@ public class ModelLayer
     public string? LayerType { get; set; }
     
     /// <summary>
-    /// Gets or sets the layer weights as a VECTOR.
-    /// Small layers (less than 1998 dimensions float32) are stored directly.
-    /// Large layers should be chunked across multiple rows.
-    /// VECTOR type provides binary storage, efficient queries, and automatic deduplication.
+    /// Gets or sets the layer weights as GEOMETRY (LINESTRING ZM).
+    /// LINESTRING stores variable-length tensors without dimension limits (up to 1B+ points).
+    /// X coordinate = index in tensor (0, 1, 2, ...)
+    /// Y coordinate = weight value (actual float value)
+    /// Z coordinate = importance score (gradient magnitude, attention weight, pruning priority)
+    /// M coordinate = temporal/structural metadata (training iteration, layer depth, update timestamp)
+    /// Supports spatial indexes for O(log n) queries instead of O(n) scans.
     /// </summary>
-    public SqlVector<float>? Weights { get; set; }
+    public LineString? WeightsGeometry { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the tensor shape as JSON array (e.g., "[3584, 3584]" for 2D matrix).
+    /// Used to reconstruct original tensor structure from flattened LINESTRING.
+    /// For 1D tensors: "[n]", for 2D: "[rows, cols]", for 3D: "[d1, d2, d3]".
+    /// </summary>
+    public string? TensorShape { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the data type of the tensor (e.g., "float32", "float16", "bfloat16").
+    /// </summary>
+    public string? TensorDtype { get; set; } = "float32";
     
     /// <summary>
     /// Gets or sets the quantization type applied to the weights (e.g., 'int8', 'int4', 'fp16').

@@ -1,18 +1,30 @@
 using Hartonomous.Core.Entities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.SqlServer;
 
 namespace Hartonomous.Data;
 
 /// <summary>
 /// Main DbContext for Hartonomous AI inference engine
-/// Supports SQL Server 2025 VECTOR types, spatial data, and FILESTREAM
+/// Supports SQL Server 2025 VECTOR types, spatial data (via NetTopologySuite), and FILESTREAM
 /// </summary>
 public class HartonomousDbContext : DbContext
 {
     public HartonomousDbContext(DbContextOptions<HartonomousDbContext> options)
         : base(options)
     {
+    }
+
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        
+        // Enable NetTopologySuite for spatial types (GEOMETRY/GEOGRAPHY)
+        // Required for EF Core 10 to map LineString, Point, Polygon, etc. to SQL Server spatial types
+        if (!optionsBuilder.IsConfigured)
+        {
+            // Configuration will be provided via DI, but ensure NTS is enabled
+            optionsBuilder.UseSqlServer(x => x.UseNetTopologySuite());
+        }
     }
 
     // Core model management

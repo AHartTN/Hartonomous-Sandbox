@@ -1,5 +1,6 @@
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Repositories;
 using Microsoft.Data.SqlTypes;
 using Microsoft.Extensions.Logging;
@@ -158,7 +159,9 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
                     LayerName = tensorName,
                     LayerType = InferLayerType(tensorName),
                     LayerIdx = currentLayerIdx++,
-                    Weights = null, // Would read tensor data here if needed
+                    WeightsGeometry = null, // Will populate below if tensor data available
+                    TensorShape = shape != null ? JsonSerializer.Serialize(shape) : null,
+                    TensorDtype = dtype,
                     Parameters = JsonSerializer.Serialize(new
                     {
                         dtype,
@@ -194,17 +197,11 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
                     
                     if (floatData.Length > 0)
                     {
-                        // SQL Server VECTOR max: 1998 float32, 3996 float16
-                        // For large tensors, store first 1998 elements (sufficient for most layer representations)
-                        var vectorSize = Math.Min(floatData.Length, 1998);
-                        var vectorData = floatData.Length <= 1998 
-                            ? floatData 
-                            : floatData.Take(vectorSize).ToArray();
+                        // Simple 2D LINESTRING
+                        layer.WeightsGeometry = GeometryConverter.ToLineString(floatData, srid: 0);
                         
-                        layer.Weights = new SqlVector<float>(vectorData);
-                        
-                        _logger.LogDebug("Stored {VectorSize} weights for {TensorName} (original size: {OriginalSize})",
-                            vectorSize, tensorName, floatData.Length);
+                        _logger.LogDebug("Stored {TensorName} with {Elements} elements as GEOMETRY ({Points} points)",
+                            tensorName, floatData.Length, GeometryConverter.GetDimension(layer.WeightsGeometry));
                     }
                 }
             }

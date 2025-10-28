@@ -5,6 +5,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using NetTopologySuite.Geometries;
 
@@ -13,9 +14,11 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Data.Migrations
 {
     [DbContext(typeof(HartonomousDbContext))]
-    partial class HartonomousDbContextModelSnapshot : ModelSnapshot
+    [Migration("20251028175210_ConvertWeightsToGeometry")]
+    partial class ConvertWeightsToGeometry
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -676,10 +679,6 @@ namespace Hartonomous.Data.Migrations
 
                     b.Property<string>("TensorShape")
                         .HasColumnType("NVARCHAR(200)");
-
-                    b.Property<LineString>("WeightsGeometry")
-                        .HasColumnType("geometry")
-                        .HasColumnName("WeightsGeometry");
 
                     b.HasKey("LayerId");
 

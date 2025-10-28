@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Data.SqlTypes;
 using Microsoft.Data.SqlClient;
+using NetTopologySuite.Geometries;
+using System.Data;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
@@ -114,11 +116,105 @@ public class ModelRepository : IModelRepository
         _logger.LogInformation("Adding layer to model {ModelId}: {LayerName}", modelId, layer.LayerName);
         
         layer.ModelId = modelId;
-        _context.ModelLayers.Add(layer);
-        await _context.SaveChangesAsync(cancellationToken);
         
-        _logger.LogInformation("Layer added successfully with ID: {LayerId}", layer.LayerId);
-        return layer;
+        // Use direct ADO.NET for entire insert to avoid EF Core's NTS binary serializer hitting array limits
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State == System.Data.ConnectionState.Closed;
+        
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+        
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandTimeout = 300; // 5 minutes for large WKT parsing
+            command.CommandText = @"
+                INSERT INTO dbo.ModelLayers (
+                    ModelId, LayerIdx, LayerName, LayerType, ParameterCount, 
+                    TensorShape, TensorDtype, QuantizationType, Parameters, 
+                    WeightsGeometry, AvgComputeTimeMs, CacheHitRate, QuantizationScale, QuantizationZeroPoint
+                )
+                OUTPUT INSERTED.LayerId
+                VALUES (
+                    @modelId, @layerIdx, @layerName, @layerType, @parameterCount,
+                    @tensorShape, @tensorDtype, @quantizationType, @parameters,
+                    geometry::STGeomFromWKB(@wkb, 0), @avgComputeTimeMs, @cacheHitRate, @quantizationScale, @quantizationZeroPoint
+                )";
+            
+            command.Parameters.AddWithValue("@modelId", modelId);
+            command.Parameters.AddWithValue("@layerIdx", layer.LayerIdx);
+            command.Parameters.AddWithValue("@layerName", (object?)layer.LayerName ?? DBNull.Value);
+            command.Parameters.AddWithValue("@layerType", (object?)layer.LayerType ?? DBNull.Value);
+            command.Parameters.AddWithValue("@parameterCount", (object?)layer.ParameterCount ?? DBNull.Value);
+            command.Parameters.AddWithValue("@tensorShape", (object?)layer.TensorShape ?? DBNull.Value);
+            command.Parameters.AddWithValue("@tensorDtype", (object?)layer.TensorDtype ?? DBNull.Value);
+            command.Parameters.AddWithValue("@quantizationType", (object?)layer.QuantizationType ?? DBNull.Value);
+            command.Parameters.AddWithValue("@parameters", (object?)layer.Parameters ?? DBNull.Value);
+            command.Parameters.AddWithValue("@avgComputeTimeMs", (object?)layer.AvgComputeTimeMs ?? DBNull.Value);
+            command.Parameters.AddWithValue("@cacheHitRate", (object?)layer.CacheHitRate ?? DBNull.Value);
+            command.Parameters.AddWithValue("@quantizationScale", (object?)layer.QuantizationScale ?? DBNull.Value);
+            command.Parameters.AddWithValue("@quantizationZeroPoint", (object?)layer.QuantizationZeroPoint ?? DBNull.Value);
+            
+            // Binary WKB format - optimized for SQL Server geometry engine
+            if (layer.WeightsGeometry != null)
+            {
+                var wkbWriter = new NetTopologySuite.IO.WKBWriter();
+                var wkb = wkbWriter.Write(layer.WeightsGeometry);
+                command.Parameters.Add("@wkb", SqlDbType.VarBinary, -1).Value = wkb;
+            }
+            else
+            {
+                command.Parameters.AddWithValue("@wkb", DBNull.Value);
+            }            var layerId = await command.ExecuteScalarAsync(cancellationToken);
+            layer.LayerId = Convert.ToInt64(layerId);
+            
+            _logger.LogInformation("Layer added successfully with ID: {LayerId}", layer.LayerId);
+            return layer;
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
+    }
+
+    public async Task UpdateLayerWeightsGeometryAsync(long layerId, LineString weightsGeometry, CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Updating WeightsGeometry for layer {LayerId} via ADO.NET (WKB binary format)", layerId);
+        
+        var connection = (SqlConnection)_context.Database.GetDbConnection();
+        var shouldClose = connection.State == System.Data.ConnectionState.Closed;
+        
+        if (shouldClose)
+            await connection.OpenAsync(cancellationToken);
+        
+        try
+        {
+            using var command = connection.CreateCommand();
+            command.CommandTimeout = 300;
+            command.CommandText = @"
+                UPDATE dbo.ModelLayers 
+                SET WeightsGeometry = geometry::STGeomFromWKB(@wkb, 0)
+                WHERE LayerId = @layerId";
+            
+            var wkbWriter = new NetTopologySuite.IO.WKBWriter();
+            var wkb = wkbWriter.Write(weightsGeometry);
+            command.Parameters.AddWithValue("@layerId", layerId);
+            command.Parameters.Add("@wkb", SqlDbType.VarBinary, -1).Value = wkb;
+            
+            var rowsAffected = await command.ExecuteNonQueryAsync(cancellationToken);
+            
+            if (rowsAffected > 0)
+                _logger.LogDebug("WeightsGeometry updated successfully for layer {LayerId} ({Points} points)", 
+                    layerId, weightsGeometry.NumPoints);
+            else
+                _logger.LogWarning("No rows updated for layer {LayerId}", layerId);
+        }
+        finally
+        {
+            if (shouldClose)
+                await connection.CloseAsync();
+        }
     }
 
     public async Task UpdateLayerWeightsAsync(int layerId, SqlVector<float> weights, CancellationToken cancellationToken = default)
