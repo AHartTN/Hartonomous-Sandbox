@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Hartonomous.Infrastructure.Repositories;
+using Hartonomous.Infrastructure.Services;
 using System;
 using System.Linq;
 using System.Threading;
@@ -17,19 +18,25 @@ namespace ModelIngestion
         private readonly IEmbeddingRepository _embeddings;
         private readonly EmbeddingIngestionService _embeddingService;
         private readonly AtomicStorageService _atomicStorage;
+        private readonly ModelIngestionService _modelIngestion;
+        private readonly ModelDownloader _downloader;
 
         public IngestionOrchestrator(
             ILogger<IngestionOrchestrator> logger,
             IModelRepository models,
             IEmbeddingRepository embeddings,
             EmbeddingIngestionService embeddingService,
-            AtomicStorageService atomicStorage)
+            AtomicStorageService atomicStorage,
+            ModelIngestionService modelIngestion,
+            ModelDownloader downloader)
         {
             _logger = logger;
             _models = models;
             _embeddings = embeddings;
             _embeddingService = embeddingService;
             _atomicStorage = atomicStorage;
+            _modelIngestion = modelIngestion;
+            _downloader = downloader;
         }
 
         public async Task RunAsync(string[] args, CancellationToken cancellationToken = default)
@@ -49,6 +56,30 @@ namespace ModelIngestion
             {
                 switch (command)
                 {
+                    case "download-hf":
+                        await DownloadHuggingFaceAsync(args, cancellationToken);
+                        break;
+
+                    case "download-ollama":
+                        await DownloadOllamaAsync(args, cancellationToken);
+                        break;
+
+                    case "download-and-ingest-hf":
+                        await DownloadAndIngestHuggingFaceAsync(args, cancellationToken);
+                        break;
+
+                    case "ingest-model":
+                        await IngestModelAsync(args, cancellationToken);
+                        break;
+
+                    case "ingest-models":
+                        await IngestModelsDirectoryAsync(args, cancellationToken);
+                        break;
+
+                    case "model-stats":
+                        await ShowModelStatsAsync(cancellationToken);
+                        break;
+
                     case "ingest-embeddings":
                         await IngestEmbeddingsAsync(args, cancellationToken);
                         break;
@@ -85,6 +116,15 @@ namespace ModelIngestion
         private void ShowUsage()
         {
             Console.WriteLine("\nUsage:");
+            Console.WriteLine("\n  Download Models:");
+            Console.WriteLine("  download-hf <model-id>         : Download from Hugging Face (e.g., TinyLlama/TinyLlama-1.1B-Chat-v1.0)");
+            Console.WriteLine("  download-ollama <model>        : Download from Ollama (e.g., llama3.2:1b)");
+            Console.WriteLine("  download-and-ingest-hf <id>    : Download from HF and ingest in one step");
+            Console.WriteLine("\n  Model Ingestion:");
+            Console.WriteLine("  ingest-model <path>            : Ingest single model (Safetensors, ONNX, PyTorch, GGUF)");
+            Console.WriteLine("  ingest-models <dir>            : Batch ingest all models from directory");
+            Console.WriteLine("  model-stats                    : Show ingestion statistics");
+            Console.WriteLine("\n  Embedding Ingestion:");
             Console.WriteLine("  ingest-embeddings <count>      : Ingest sample embeddings with deduplication");
             Console.WriteLine("  test-deduplication             : Test deduplication with duplicate embeddings");
             Console.WriteLine("  test-sqlvector                 : Test SqlVector<T> availability in SqlClient 6.1.2");
@@ -94,7 +134,204 @@ namespace ModelIngestion
         }
 
         /// <summary>
-        /// Test SqlVector availability
+        /// Ingest a single model file
+        /// </summary>
+        private async Task IngestModelAsync(string[] args, CancellationToken cancellationToken)
+        {
+            if (args.Length < 2)
+            {
+                _logger.LogError("Model path required. Usage: ingest-model <path>");
+                return;
+            }
+
+            var modelPath = args[1];
+            _logger.LogInformation("Ingesting model from: {Path}", modelPath);
+
+            try
+            {
+                var modelId = await _modelIngestion.IngestAsync(modelPath, null, cancellationToken);
+                _logger.LogInformation("✓ Model ingestion complete: ModelId={ModelId}", modelId);
+
+                // Show layers
+                var layers = await _models.GetLayersByModelIdAsync(modelId, cancellationToken);
+                _logger.LogInformation("Model has {LayerCount} layers", layers.Count());
+
+                var firstFive = layers.Take(5);
+                foreach (var layer in firstFive)
+                {
+                    _logger.LogInformation("  Layer: {Name} ({Type}), {ParamCount} parameters",
+                        layer.LayerName, layer.LayerType, layer.ParameterCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Model ingestion failed");
+            }
+        }
+
+        /// <summary>
+        /// Batch ingest models from directory
+        /// </summary>
+        private async Task IngestModelsDirectoryAsync(string[] args, CancellationToken cancellationToken)
+        {
+            if (args.Length < 2)
+            {
+                _logger.LogError("Directory path required. Usage: ingest-models <directory>");
+                return;
+            }
+
+            var directoryPath = args[1];
+            _logger.LogInformation("Batch ingesting models from: {Path}", directoryPath);
+
+            try
+            {
+                var modelIds = await _modelIngestion.IngestDirectoryAsync(directoryPath, "*", cancellationToken);
+                _logger.LogInformation("✓ Batch ingestion complete: {Count} models ingested", modelIds.Length);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Batch ingestion failed");
+            }
+        }
+
+        /// <summary>
+        /// Show model ingestion statistics
+        /// </summary>
+        private async Task ShowModelStatsAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Loading ingestion statistics...");
+
+            try
+            {
+                var stats = await _modelIngestion.GetStatsAsync(cancellationToken);
+
+                _logger.LogInformation("\n=== Model Ingestion Statistics ===");
+                _logger.LogInformation("Total Models: {Count}", stats.TotalModels);
+                _logger.LogInformation("Total Parameters: {Count:N0}", stats.TotalParameters);
+                _logger.LogInformation("Total Layers: {Count}", stats.TotalLayers);
+                
+                _logger.LogInformation("\nArchitecture Breakdown:");
+                foreach (var kvp in stats.ArchitectureBreakdown.OrderByDescending(x => x.Value))
+                {
+                    _logger.LogInformation("  {Arch}: {Count} models", kvp.Key, kvp.Value);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to load statistics");
+            }
+        }
+
+        /// <summary>
+        /// Download model from Hugging Face
+        /// </summary>
+        private async Task DownloadHuggingFaceAsync(string[] args, CancellationToken cancellationToken)
+        {
+            if (args.Length < 2)
+            {
+                _logger.LogError("Model ID required. Usage: download-hf <organization/model-name>");
+                _logger.LogInformation("Examples:");
+                _logger.LogInformation("  download-hf TinyLlama/TinyLlama-1.1B-Chat-v1.0");
+                _logger.LogInformation("  download-hf meta-llama/Llama-3.2-1B-Instruct");
+                return;
+            }
+
+            var modelId = args[1];
+
+            try
+            {
+                var modelDir = await _downloader.DownloadFromHuggingFaceAsync(modelId, cancellationToken);
+                _logger.LogInformation("✓ Model ready at: {Path}", modelDir);
+                _logger.LogInformation("\nTo ingest: dotnet run ingest-model {Path}", modelDir);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Download failed");
+            }
+        }
+
+        /// <summary>
+        /// Download model from Ollama
+        /// </summary>
+        private async Task DownloadOllamaAsync(string[] args, CancellationToken cancellationToken)
+        {
+            if (args.Length < 2)
+            {
+                _logger.LogError("Model name required. Usage: download-ollama <model-name>");
+                _logger.LogInformation("Examples:");
+                _logger.LogInformation("  download-ollama llama3.2:1b");
+                _logger.LogInformation("  download-ollama phi3:mini");
+                return;
+            }
+
+            var modelName = args[1];
+
+            try
+            {
+                var modelPath = await _downloader.DownloadFromOllamaAsync(modelName, cancellationToken);
+                _logger.LogInformation("✓ Model ready at: {Path}", modelPath);
+                _logger.LogInformation("\nTo ingest: dotnet run ingest-model {Path}", modelPath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Download failed");
+            }
+        }
+
+        /// <summary>
+        /// Download from Hugging Face and ingest in one step
+        /// </summary>
+        private async Task DownloadAndIngestHuggingFaceAsync(string[] args, CancellationToken cancellationToken)
+        {
+            if (args.Length < 2)
+            {
+                _logger.LogError("Model ID required. Usage: download-and-ingest-hf <organization/model-name>");
+                return;
+            }
+
+            var modelId = args[1];
+
+            try
+            {
+                // Download
+                _logger.LogInformation("Step 1/2: Downloading model from Hugging Face...");
+                var modelDir = await _downloader.DownloadFromHuggingFaceAsync(modelId, cancellationToken);
+                
+                // Find safetensors file
+                var modelFiles = Directory.GetFiles(modelDir, "*.safetensors");
+                if (modelFiles.Length == 0)
+                {
+                    modelFiles = Directory.GetFiles(modelDir, "*.onnx");
+                }
+                if (modelFiles.Length == 0)
+                {
+                    _logger.LogError("No compatible model files found in: {Dir}", modelDir);
+                    return;
+                }
+
+                var modelPath = modelFiles[0];
+
+                // Ingest
+                _logger.LogInformation("Step 2/2: Ingesting model...");
+                var modelIdDb = await _modelIngestion.IngestAsync(modelPath, null, cancellationToken);
+                _logger.LogInformation("✓ Complete! ModelId={ModelId}", modelIdDb);
+
+                // Show stats
+                var model = await _models.GetByIdAsync(modelIdDb, cancellationToken);
+                if (model != null)
+                {
+                    _logger.LogInformation("Model: {Name} ({Arch})", model.ModelName, model.Architecture);
+                    _logger.LogInformation("Parameters: {Count:N0}", model.ParameterCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Download and ingest failed");
+            }
+        }
+
+        /// <summary>
+        /// Ingest embeddings with deduplication testing
         /// </summary>
         private void TestSqlVectorAvailability()
         {

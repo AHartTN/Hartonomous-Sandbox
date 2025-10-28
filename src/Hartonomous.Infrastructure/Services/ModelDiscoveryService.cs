@@ -45,6 +45,7 @@ public class ModelDiscoveryService : IModelDiscoveryService
         var extension = Path.GetExtension(filePath).ToLowerInvariant();
         var fileName = Path.GetFileName(filePath);
 
+        // Try extension-based detection first (fast path)
         switch (extension)
         {
             case ".onnx":
@@ -76,10 +77,62 @@ public class ModelDiscoveryService : IModelDiscoveryService
             case ".pth":
             case ".pt":
                 return await DetectPyTorchFormatAsync(filePath, cancellationToken);
-
-            default:
-                throw new NotSupportedException($"Unknown model format: {extension}");
         }
+
+        // Extension-based detection failed, try magic number detection (content-based)
+        _logger.LogDebug("Extension {Extension} not recognized, attempting magic number detection", extension);
+        return await DetectByMagicNumberAsync(filePath, fileName, cancellationToken);
+    }
+
+    private async Task<ModelFormatInfo> DetectByMagicNumberAsync(string filePath, string fileName, CancellationToken cancellationToken)
+    {
+        // Read first 4 bytes to check magic numbers
+        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read, bufferSize: 4096, useAsync: true);
+        var magicBytes = new byte[4];
+        var bytesRead = await fileStream.ReadAsync(magicBytes.AsMemory(0, 4), cancellationToken);
+
+        if (bytesRead < 4)
+        {
+            throw new NotSupportedException($"Unknown model format: File too small ({bytesRead} bytes)");
+        }
+
+        // Check for GGUF magic number: 0x47 0x47 0x55 0x46 ("GGUF" in ASCII)
+        // In little-endian uint32: 0x46554747
+        if (magicBytes[0] == 0x47 && magicBytes[1] == 0x47 && magicBytes[2] == 0x55 && magicBytes[3] == 0x46)
+        {
+            _logger.LogInformation("Detected GGUF format via magic number for file: {FileName}", fileName);
+            return new ModelFormatInfo
+            {
+                Format = "GGUF",
+                IsMultiFile = false,
+                IsSharded = false,
+                Extensions = new[] { ".gguf" },
+                RequiredFiles = new[] { fileName },
+                Confidence = 1.0
+            };
+        }
+
+        // Check for Safetensors magic (8-byte header length as little-endian uint64, typically < 100MB)
+        if (bytesRead >= 8)
+        {
+            fileStream.Seek(0, SeekOrigin.Begin);
+            var headerLengthBytes = new byte[8];
+            var headerBytesRead = await fileStream.ReadAsync(headerLengthBytes.AsMemory(0, 8), cancellationToken);
+            
+            if (headerBytesRead == 8)
+            {
+                var headerLength = BitConverter.ToUInt64(headerLengthBytes, 0);
+
+                // Safetensors header is typically < 100MB and contains JSON
+                if (headerLength > 0 && headerLength < 100_000_000)
+                {
+                    _logger.LogInformation("Possible Safetensors format detected for file: {FileName}", fileName);
+                    return await DetectSafetensorsFormatAsync(filePath, cancellationToken);
+                }
+            }
+        }
+
+        throw new NotSupportedException($"Unknown model format: No recognized magic number found in {fileName}");
     }
 
     private async Task<ModelFormatInfo> DetectDirectoryFormatAsync(string dirPath, CancellationToken cancellationToken)

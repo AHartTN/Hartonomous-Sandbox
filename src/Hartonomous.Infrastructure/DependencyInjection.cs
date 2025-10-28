@@ -57,6 +57,11 @@ public static class DependencyInjection
         services.AddScoped<ModelIngestionOrchestrator>();
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
 
+        // Register model format readers
+        services.AddScoped<IModelFormatReader<SafetensorsMetadata>, SafetensorsModelReader>();
+        services.AddScoped<IModelFormatReader<GGUFMetadata>, GGUFModelReader>();
+        // TODO: Add ONNX, PyTorch readers when implemented
+
         return services;
     }
 

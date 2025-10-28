@@ -52,8 +52,17 @@ namespace ModelIngestion
                     // Register Hartonomous infrastructure (EF Core, repositories, health checks)
                     services.AddHartonomousInfrastructure(context.Configuration);
                     
+                    // Register HttpClient for ModelDownloader
+                    services.AddHttpClient("ModelDownloader", client =>
+                    {
+                        client.Timeout = TimeSpan.FromMinutes(30); // Large model downloads
+                        client.DefaultRequestHeaders.Add("User-Agent", "Hartonomous/1.0");
+                    });
+                    
                     // Register ingestion services with DI
                     services.AddScoped<IngestionOrchestrator>();
+                    services.AddScoped<ModelIngestionService>();
+                    services.AddScoped<Hartonomous.Infrastructure.Services.ModelDownloader>();
                     
                     // Register EmbeddingIngestionService as IEmbeddingIngestionService
                     // Service requires IEmbeddingRepository (from infrastructure), ILogger, and configuration
@@ -85,9 +94,6 @@ namespace ModelIngestion
                     // Also register concrete type for backward compatibility
                     services.AddScoped(sp =>
                         (AtomicStorageService)sp.GetRequiredService<Hartonomous.Core.Interfaces.IAtomicStorageService>());
-                    
-                    // Placeholder for future model ingestion
-                    // services.AddScoped<ModelIngestionService>();
                 })
                 .ConfigureLogging((context, logging) =>
                 {

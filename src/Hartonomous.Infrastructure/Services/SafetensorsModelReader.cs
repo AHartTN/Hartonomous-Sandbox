@@ -170,21 +170,43 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
 
                 await _modelRepository.AddLayerAsync(modelId, layer, cancellationToken);
 
-                // TODO: Optionally read and store tensor data
-                // if (dataOffsets != null && dataOffsets.Length == 2)
-                // {
-                //     var tensorSize = dataOffsets[1] - dataOffsets[0];
-                //     var tensorOffset = 8 + headerLength + dataOffsets[0]; // 8 bytes header length + header + offset
-                //     
-                //     fileStream.Seek(tensorOffset, SeekOrigin.Begin);
-                //     var tensorBytes = reader.ReadBytes((int)tensorSize);
-                //     
-                //     // Convert to float[] based on dtype
-                //     var floatData = ConvertToFloat(tensorBytes, dtype, shape);
-                //     layer.Weights = new SqlVector<float>(floatData);
-                //     
-                //     await _modelRepository.UpdateLayerWeightsAsync(layer.LayerId, layer.Weights, cancellationToken);
-                // }
+                // Read and store actual tensor data
+                if (dataOffsets != null && dataOffsets.Length == 2)
+                {
+                    var tensorSize = dataOffsets[1] - dataOffsets[0];
+                    var tensorOffset = 8 + headerLength + dataOffsets[0]; // 8 bytes for header length + header + tensor offset
+                    
+                    _logger.LogDebug("Reading tensor data: {TensorName}, offset={Offset}, size={Size} bytes",
+                        tensorName, tensorOffset, tensorSize);
+                    
+                    fileStream.Seek(tensorOffset, SeekOrigin.Begin);
+                    var tensorBytes = new byte[tensorSize];
+                    var bytesRead = await fileStream.ReadAsync(tensorBytes, 0, (int)tensorSize, cancellationToken);
+                    
+                    if (bytesRead != tensorSize)
+                    {
+                        _logger.LogWarning("Expected {Expected} bytes but read {Actual} bytes for {Tensor}",
+                            tensorSize, bytesRead, tensorName);
+                    }
+                    
+                    // Convert to float[] based on dtype
+                    var floatData = ConvertToFloat(tensorBytes, dtype, shape);
+                    
+                    if (floatData.Length > 0)
+                    {
+                        // SQL Server VECTOR max: 1998 float32, 3996 float16
+                        // For large tensors, store first 1998 elements (sufficient for most layer representations)
+                        var vectorSize = Math.Min(floatData.Length, 1998);
+                        var vectorData = floatData.Length <= 1998 
+                            ? floatData 
+                            : floatData.Take(vectorSize).ToArray();
+                        
+                        layer.Weights = new SqlVector<float>(vectorData);
+                        
+                        _logger.LogDebug("Stored {VectorSize} weights for {TensorName} (original size: {OriginalSize})",
+                            vectorSize, tensorName, floatData.Length);
+                    }
+                }
             }
 
             _logger.LogDebug("Processed {TensorCount} tensors from {File}",
@@ -213,6 +235,140 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
         if (lower.Contains("bias")) return "Bias";
 
         return "Unknown";
+    }
+
+    /// <summary>
+    /// Convert tensor bytes to float32 array based on dtype.
+    /// Supports Llama 4 formats: BF16, FP16, FP32, INT8, INT4
+    /// </summary>
+    private float[] ConvertToFloat(byte[] tensorBytes, string? dtype, long[]? shape)
+    {
+        if (tensorBytes == null || tensorBytes.Length == 0)
+            return Array.Empty<float>();
+
+        // Calculate expected element count from shape
+        var elementCount = shape?.Aggregate(1L, (a, b) => a * b) ?? (tensorBytes.Length / 4);
+
+        try
+        {
+            return dtype?.ToUpperInvariant() switch
+            {
+                "F32" or "FLOAT32" => ConvertFloat32(tensorBytes, elementCount),
+                "F16" or "FLOAT16" => ConvertFloat16(tensorBytes, elementCount),
+                "BF16" or "BFLOAT16" => ConvertBFloat16(tensorBytes, elementCount),
+                "I8" or "INT8" => ConvertInt8(tensorBytes, elementCount),
+                "U8" or "UINT8" => ConvertUInt8(tensorBytes, elementCount),
+                _ => ConvertFloat32(tensorBytes, elementCount) // Default to FP32
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Error converting dtype={DType}, falling back to FP32", dtype);
+            return ConvertFloat32(tensorBytes, elementCount);
+        }
+    }
+
+    private float[] ConvertFloat32(byte[] bytes, long elementCount)
+    {
+        var count = Math.Min((int)elementCount, bytes.Length / 4);
+        var result = new float[count];
+        Buffer.BlockCopy(bytes, 0, result, 0, count * 4);
+        return result;
+    }
+
+    private float[] ConvertFloat16(byte[] bytes, long elementCount)
+    {
+        var count = Math.Min((int)elementCount, bytes.Length / 2);
+        var result = new float[count];
+        
+        for (int i = 0; i < count; i++)
+        {
+            var halfBits = BitConverter.ToUInt16(bytes, i * 2);
+            result[i] = HalfToFloat(halfBits);
+        }
+        
+        return result;
+    }
+
+    private float[] ConvertBFloat16(byte[] bytes, long elementCount)
+    {
+        // BF16: 1 sign bit, 8 exponent bits, 7 mantissa bits
+        // Used by Llama 4, Google's models
+        var count = Math.Min((int)elementCount, bytes.Length / 2);
+        var result = new float[count];
+        
+        for (int i = 0; i < count; i++)
+        {
+            var bf16Bits = BitConverter.ToUInt16(bytes, i * 2);
+            // BF16 to FP32: shift left 16 bits (BF16 is upper 16 bits of FP32)
+            var fp32Bits = (uint)bf16Bits << 16;
+            result[i] = BitConverter.ToSingle(BitConverter.GetBytes(fp32Bits), 0);
+        }
+        
+        return result;
+    }
+
+    private float[] ConvertInt8(byte[] bytes, long elementCount)
+    {
+        var count = Math.Min((int)elementCount, bytes.Length);
+        var result = new float[count];
+        
+        for (int i = 0; i < count; i++)
+        {
+            result[i] = (sbyte)bytes[i] / 127.0f; // Normalize to [-1, 1]
+        }
+        
+        return result;
+    }
+
+    private float[] ConvertUInt8(byte[] bytes, long elementCount)
+    {
+        var count = Math.Min((int)elementCount, bytes.Length);
+        var result = new float[count];
+        
+        for (int i = 0; i < count; i++)
+        {
+            result[i] = bytes[i] / 255.0f; // Normalize to [0, 1]
+        }
+        
+        return result;
+    }
+
+    /// <summary>
+    /// Convert IEEE 754 half-precision (FP16) to single-precision (FP32)
+    /// </summary>
+    private float HalfToFloat(ushort halfBits)
+    {
+        int sign = (halfBits >> 15) & 0x1;
+        int exponent = (halfBits >> 10) & 0x1F;
+        int mantissa = halfBits & 0x3FF;
+
+        if (exponent == 0)
+        {
+            if (mantissa == 0) return sign == 0 ? 0f : -0f; // Zero
+            // Denormalized number
+            exponent = 1;
+            while ((mantissa & 0x400) == 0)
+            {
+                mantissa <<= 1;
+                exponent--;
+            }
+            mantissa &= 0x3FF;
+        }
+        else if (exponent == 31)
+        {
+            // Infinity or NaN
+            return mantissa == 0
+                ? (sign == 0 ? float.PositiveInfinity : float.NegativeInfinity)
+                : float.NaN;
+        }
+
+        // Normalized number
+        exponent = exponent - 15 + 127; // Adjust bias
+        mantissa = mantissa << 13; // Shift mantissa to FP32 position
+
+        uint fp32Bits = ((uint)sign << 31) | ((uint)exponent << 23) | (uint)mantissa;
+        return BitConverter.ToSingle(BitConverter.GetBytes(fp32Bits), 0);
     }
 
     private string DetermineArchitecture(string[] files)
