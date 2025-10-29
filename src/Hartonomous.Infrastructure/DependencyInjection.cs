@@ -63,10 +63,8 @@ public static class DependencyInjection
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
         services.AddScoped<IUnifiedEmbeddingService, UnifiedEmbeddingService>();
 
-        // Register model format readers
-        services.AddScoped<IModelFormatReader<SafetensorsMetadata>, SafetensorsModelReader>();
-        services.AddScoped<IModelFormatReader<GGUFMetadata>, GGUFModelReader>();
-        // TODO: Add ONNX, PyTorch readers when implemented
+        // Note: Model format readers are registered in ModelIngestion service DI
+        // since they are specific to that application, not shared infrastructure
 
         return services;
     }

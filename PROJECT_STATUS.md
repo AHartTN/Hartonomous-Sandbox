@@ -6,6 +6,27 @@
 
 ## ✅ Completed Components
 
+### Phase 1: Architectural Unification (COMPLETED)
+- ✅ Eliminated all direct ADO.NET usage from application services
+- ✅ Standardized on EF Core repositories with dependency injection
+- ✅ Solution builds cleanly with proper DI registration
+- ✅ All tests pass with unified patterns
+
+### Phase 2: Refactor Model Readers (COMPLETED)
+- ✅ Extensible `IModelFormatReader<TMetadata>` generic interface implemented
+- ✅ OnnxModelReader and SafetensorsModelReader output Core entities (NOT DTOs)
+- ✅ Legacy ModelDto.cs and IModelReader.cs files removed
+- ✅ ModelReaderFactory updated to use new generic interface
+- ✅ DI registration corrected (readers registered in ModelIngestion, not infrastructure)
+- ✅ Build succeeds with no references to legacy DTOs
+
+### Phase 3: Migrate Ingestion Services to EF (COMPLETED)
+- ✅ Created IEmbeddingIngestionService and IAtomicStorageService interfaces in Core
+- ✅ EmbeddingIngestionService implements IEmbeddingIngestionService and uses IEmbeddingRepository
+- ✅ AtomicStorageService implements IAtomicStorageService using atomic repositories
+- ✅ Services registered in DI with proper interfaces (ModelIngestion Program.cs)
+- ✅ Build succeeds with EF-first service architecture
+
 ### 1. SQL Server Schema (Multi-Modal AI Storage)
 
 **Core Tables** (`sql/schemas/01_CoreTables.sql`):
@@ -121,7 +142,16 @@
 4. Python script: Pre-compute common activation paths
 5. Support for: BERT, GPT, LLaMA, Stable Diffusion, Wav2Vec2
 
-### Phase 4: Complete .NET 10 Services
+### Phase 4: Extend Repository Methods (COMPLETED)
+- ✅ IEmbeddingRepository extended with deduplication methods (CheckDuplicateByHashAsync, CheckDuplicateBySimilarityAsync, IncrementAccessCountAsync)
+- ✅ Spatial projection method added (ComputeSpatialProjectionAsync)
+- ✅ All methods implemented in EmbeddingRepository using EF Core and stored procedures
+- ✅ Model layer operations properly abstracted in IModelRepository
+
+### Phase 5: Delete Obsolete Files (COMPLETED)
+- ✅ 12 obsolete SQL schema files deleted (08_AlterTokenVocabulary.sql through 20_CreateTokenVocabularyWithVector.sql)
+- ✅ Legacy ModelDto.cs and IModelReader.cs deleted (from Phase 2)
+- ✅ Duplicate repositories deleted (from Phase 2)
 1. **CES Consumer**:
    - Deserialize CloudEvents from SQL Server
    - Extract inference metadata
