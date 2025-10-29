@@ -3,191 +3,329 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Neo4j.Driver;
 using Microsoft.Data.SqlClient;
+using Azure.Messaging.EventHubs;
+using Azure.Messaging.EventHubs.Processor;
+using System.Text.Json;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.Services.AddHostedService<Neo4jSyncWorker>();
+
+// Configure Event Hub processor
+var eventHubConnectionString = Environment.GetEnvironmentVariable("EVENTHUB_CONNECTION_STRING")
+    ?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-key";
+var eventHubName = Environment.GetEnvironmentVariable("EVENTHUB_NAME") ?? "sqlserver-ces-events";
+var consumerGroup = Environment.GetEnvironmentVariable("EVENTHUB_CONSUMER_GROUP") ?? "$Default";
+
+builder.Services.AddSingleton<EventProcessorClient>(sp =>
+{
+    var storageConnectionString = Environment.GetEnvironmentVariable("AZURE_STORAGE_CONNECTION_STRING")
+        ?? "UseDevelopmentStorage=true"; // Local Azurite
+    var blobContainerName = "eventhub-checkpoints";
+
+    var blobServiceClient = new Azure.Storage.Blobs.BlobServiceClient(storageConnectionString);
+    var blobContainerClient = blobServiceClient.GetBlobContainerClient(blobContainerName);
+
+    return new EventProcessorClient(
+        blobContainerClient,
+        consumerGroup,
+        eventHubConnectionString,
+        eventHubName);
+});
+
 builder.Services.AddSingleton<IDriver>(sp =>
 {
-    var uri = "bolt://localhost:7687";
-    var user = "neo4j";
-    var password = "neo4jneo4j";
+    var uri = Environment.GetEnvironmentVariable("NEO4J_URI") ?? "bolt://localhost:7687";
+    var user = Environment.GetEnvironmentVariable("NEO4J_USER") ?? "neo4j";
+    var password = Environment.GetEnvironmentVariable("NEO4J_PASSWORD") ?? "neo4jneo4j";
     return GraphDatabase.Driver(uri, AuthTokens.Basic(user, password));
 });
+
+builder.Services.AddHostedService<CloudEventProcessor>();
+builder.Services.AddSingleton<ProvenanceGraphBuilder>();
 
 var app = builder.Build();
 await app.RunAsync();
 
-public class Neo4jSyncWorker : BackgroundService
+public class CloudEventProcessor : BackgroundService
 {
-    private readonly ILogger<Neo4jSyncWorker> _logger;
+    private readonly ILogger<CloudEventProcessor> _logger;
+    private readonly EventProcessorClient _eventProcessor;
     private readonly IDriver _neo4jDriver;
-    private readonly string _sqlConnectionString = "Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;";
+    private readonly ProvenanceGraphBuilder _graphBuilder;
 
-    public Neo4jSyncWorker(ILogger<Neo4jSyncWorker> logger, IDriver neo4jDriver)
+    public CloudEventProcessor(
+        ILogger<CloudEventProcessor> logger,
+        EventProcessorClient eventProcessor,
+        IDriver neo4jDriver,
+        ProvenanceGraphBuilder graphBuilder)
     {
         _logger = logger;
+        _eventProcessor = eventProcessor;
         _neo4jDriver = neo4jDriver;
+        _graphBuilder = graphBuilder;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("Neo4j Sync Service starting...");
+        _logger.LogInformation("CloudEvent Processor starting...");
 
-        // Test Neo4j connection
+        _eventProcessor.ProcessEventAsync += ProcessEventHandler;
+        _eventProcessor.ProcessErrorAsync += ProcessErrorHandler;
+
         try
         {
-            await using var session = _neo4jDriver.AsyncSession();
-            var result = await session.RunAsync("RETURN 'Connected' as status");
-            var record = await result.SingleAsync();
-            _logger.LogInformation("Neo4j connection successful: {Status}", record["status"].As<string>());
+            await _eventProcessor.StartProcessingAsync(stoppingToken);
+            _logger.LogInformation("Event processing started");
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to connect to Neo4j");
-            return;
+            _logger.LogError(ex, "Error in event processing");
         }
-
-        // Test SQL Server connection
-        try
+        finally
         {
-            await using var conn = new SqlConnection(_sqlConnectionString);
-            await conn.OpenAsync(stoppingToken);
-            _logger.LogInformation("SQL Server connection successful");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to connect to SQL Server");
-            return;
-        }
-
-        _logger.LogInformation("Starting sync loop - polling every 5 seconds");
-
-        while (!stoppingToken.IsCancellationRequested)
-        {
-            try
-            {
-                await SyncChanges(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error during sync cycle");
-            }
-
-            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            await _eventProcessor.StopProcessingAsync();
+            _logger.LogInformation("Event processing stopped");
         }
     }
 
-    private async Task SyncChanges(CancellationToken ct)
+    private async Task ProcessEventHandler(ProcessEventArgs eventArgs)
     {
-        await using var conn = new SqlConnection(_sqlConnectionString);
-        await conn.OpenAsync(ct);
+        try
+        {
+            var cloudEvent = JsonSerializer.Deserialize<CloudEvent>(eventArgs.Data.Body.ToString());
+            if (cloudEvent == null)
+            {
+                _logger.LogWarning("Received null or invalid CloudEvent");
+                return;
+            }
+
+            _logger.LogInformation("Processing CloudEvent: {Id} - {Type}", cloudEvent.Id, cloudEvent.Type);
+
+            // Process the event based on its type
+            await ProcessCloudEventAsync(cloudEvent, eventArgs.CancellationToken);
+
+            // Update checkpoint
+            await eventArgs.UpdateCheckpointAsync(eventArgs.CancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing CloudEvent");
+        }
+    }
+
+    private async Task ProcessCloudEventAsync(CloudEvent cloudEvent, CancellationToken cancellationToken)
+    {
         await using var session = _neo4jDriver.AsyncSession();
 
-        // Sync KnowledgeBase documents
-        var kbSynced = await SyncKnowledgeBase(conn, session, ct);
+        // Extract SQL Server extensions
+        var sqlExtensions = cloudEvent.Extensions.GetValueOrDefault("sqlserver") as Dictionary<string, object>;
+        var operation = sqlExtensions?.GetValueOrDefault("operation") as string ?? "";
+        var table = sqlExtensions?.GetValueOrDefault("table") as string ?? "";
 
-        // Sync Inference Requests (audit trail)
-        var infSynced = await SyncInferenceRequests(conn, session, ct);
-
-        if (kbSynced > 0 || infSynced > 0)
+        if (table == "dbo.Models" && operation == "insert")
         {
-            _logger.LogInformation("Synced {KB} knowledge docs, {Inf} inferences to Neo4j", kbSynced, infSynced);
+            await _graphBuilder.CreateModelNodeAsync(session, cloudEvent, cancellationToken);
+        }
+        else if (table == "dbo.InferenceRequests" && operation == "insert")
+        {
+            await _graphBuilder.CreateInferenceNodeAsync(session, cloudEvent, cancellationToken);
+        }
+        else if (table == "dbo.KnowledgeBase" && operation == "insert")
+        {
+            await _graphBuilder.CreateKnowledgeNodeAsync(session, cloudEvent, cancellationToken);
+        }
+        else
+        {
+            // Generic event processing
+            await _graphBuilder.CreateGenericEventNodeAsync(session, cloudEvent, cancellationToken);
         }
     }
 
-    private async Task<int> SyncKnowledgeBase(SqlConnection conn, IAsyncSession session, CancellationToken ct)
+    private Task ProcessErrorHandler(ProcessErrorEventArgs eventArgs)
     {
-        var query = "SELECT doc_id, content, embedding, category FROM dbo.KnowledgeBase";
-        await using var cmd = new SqlCommand(query, conn);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        _logger.LogError(eventArgs.Exception, "Error in event processing for partition {PartitionId}",
+            eventArgs.PartitionId);
+        return Task.CompletedTask;
+    }
+}
 
-        var synced = 0;
-        while (await reader.ReadAsync(ct))
+public class ProvenanceGraphBuilder
+{
+    private readonly ILogger<ProvenanceGraphBuilder> _logger;
+
+    public ProvenanceGraphBuilder(ILogger<ProvenanceGraphBuilder> logger)
+    {
+        _logger = logger;
+    }
+
+    public async Task CreateModelNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
+    {
+        var data = cloudEvent.Data as Dictionary<string, object>;
+        if (data == null) return;
+
+        var modelId = data.GetValueOrDefault("model_id")?.ToString();
+        var modelName = data.GetValueOrDefault("model_name")?.ToString();
+        var architecture = data.GetValueOrDefault("architecture")?.ToString();
+
+        if (string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(modelName)) return;
+
+        // Create model node with semantic enrichment
+        var semanticExtensions = cloudEvent.Extensions.GetValueOrDefault("semantic") as Dictionary<string, object>;
+        var capabilities = semanticExtensions?.GetValueOrDefault("inferred_capabilities") as string[];
+        var contentType = semanticExtensions?.GetValueOrDefault("content_type") as string;
+        var performance = semanticExtensions?.GetValueOrDefault("expected_performance") as double?;
+        var compliance = semanticExtensions?.GetValueOrDefault("compliance_requirements") as string[];
+
+        var cypher = @"
+            MERGE (m:Model {model_id: $modelId})
+            SET m.model_name = $modelName,
+                m.architecture = $architecture,
+                m.content_type = $contentType,
+                m.expected_performance = $performance,
+                m.capabilities = $capabilities,
+                m.compliance_requirements = $compliance,
+                m.created_at = datetime(),
+                m.source_event = $eventId";
+
+        await session.RunAsync(cypher, new
         {
-            var docId = reader.GetInt32(0);
-            var content = reader.GetString(1);
-            var embedding = reader.GetString(2);
-            var category = reader.GetString(3);
+            modelId,
+            modelName,
+            architecture,
+            contentType,
+            performance,
+            capabilities,
+            compliance,
+            eventId = cloudEvent.Id
+        });
 
-            var cypher = @"
-                MERGE (d:Document {doc_id: $docId})
-                SET d.content = $content,
-                    d.embedding = $embedding,
-                    d.category = $category,
-                    d.last_synced = datetime()";
+        _logger.LogInformation("Created model node: {ModelName} ({ModelId})", modelName, modelId);
+    }
 
-            try
+    public async Task CreateInferenceNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
+    {
+        var data = cloudEvent.Data as Dictionary<string, object>;
+        if (data == null) return;
+
+        var inferenceId = data.GetValueOrDefault("inference_id")?.ToString();
+        var taskType = data.GetValueOrDefault("task_type")?.ToString();
+        var modelsUsed = data.GetValueOrDefault("models_used")?.ToString();
+
+        if (string.IsNullOrEmpty(inferenceId)) return;
+
+        // Create inference node with reasoning context
+        var reasoningExtensions = cloudEvent.Extensions.GetValueOrDefault("reasoning") as Dictionary<string, object>;
+        var reasoningMode = reasoningExtensions?.GetValueOrDefault("reasoning_mode") as string;
+        var complexity = reasoningExtensions?.GetValueOrDefault("expected_complexity") as string;
+        var auditRequired = reasoningExtensions?.GetValueOrDefault("audit_trail_required") as bool?;
+        var performanceSla = reasoningExtensions?.GetValueOrDefault("performance_sla") as TimeSpan?;
+
+        var cypher = @"
+            MERGE (i:Inference {inference_id: $inferenceId})
+            SET i.task_type = $taskType,
+                i.models_used = $modelsUsed,
+                i.reasoning_mode = $reasoningMode,
+                i.complexity = $complexity,
+                i.audit_required = $auditRequired,
+                i.performance_sla_ms = $performanceSlaMs,
+                i.created_at = datetime(),
+                i.source_event = $eventId";
+
+        await session.RunAsync(cypher, new
+        {
+            inferenceId,
+            taskType,
+            modelsUsed,
+            reasoningMode,
+            complexity,
+            auditRequired,
+            performanceSlaMs = performanceSla?.TotalMilliseconds,
+            eventId = cloudEvent.Id
+        });
+
+        // Create relationships to models used
+        if (!string.IsNullOrEmpty(modelsUsed))
+        {
+            var modelIds = modelsUsed.Split(',', StringSplitOptions.RemoveEmptyEntries);
+            foreach (var modelId in modelIds)
             {
-                await session.RunAsync(cypher, new { docId, content, embedding, category });
-                synced++;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error syncing document {Id}", docId);
+                var relCypher = @"
+                    MATCH (i:Inference {inference_id: $inferenceId})
+                    MATCH (m:Model {model_id: $modelId})
+                    MERGE (m)-[:USED_IN {inference_id: $inferenceId}]->(i)";
+
+                await session.RunAsync(relCypher, new { inferenceId, modelId = modelId.Trim() });
             }
         }
-        return synced;
+
+        _logger.LogInformation("Created inference node: {InferenceId} ({TaskType})", inferenceId, taskType);
     }
 
-    private async Task<int> SyncInferenceRequests(SqlConnection conn, IAsyncSession session, CancellationToken ct)
+    public async Task CreateKnowledgeNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
     {
-        var query = @"
-            SELECT TOP 100
-                inference_id,
-                task_type,
-                models_used,
-                ensemble_strategy,
-                total_duration_ms,
-                output_metadata
-            FROM dbo.InferenceRequests
-            ORDER BY inference_id DESC";
+        var data = cloudEvent.Data as Dictionary<string, object>;
+        if (data == null) return;
 
-        await using var cmd = new SqlCommand(query, conn);
-        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        var docId = data.GetValueOrDefault("doc_id")?.ToString();
+        var content = data.GetValueOrDefault("content")?.ToString();
+        var category = data.GetValueOrDefault("category")?.ToString();
 
-        var synced = 0;
-        while (await reader.ReadAsync(ct))
+        if (string.IsNullOrEmpty(docId) || string.IsNullOrEmpty(content)) return;
+
+        var cypher = @"
+            MERGE (k:Knowledge {doc_id: $docId})
+            SET k.content = $content,
+                k.category = $category,
+                k.created_at = datetime(),
+                k.source_event = $eventId";
+
+        await session.RunAsync(cypher, new
         {
-            var inferenceId = reader.GetInt64(0);
-            var taskType = reader.GetString(1);
-            var modelsUsed = reader.IsDBNull(2) ? null : reader.GetString(2);
-            var ensembleStrategy = reader.IsDBNull(3) ? null : reader.GetString(3);
-            var duration = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
-            var metadata = reader.IsDBNull(5) ? "{}" : reader.GetString(5);
+            docId,
+            content,
+            category,
+            eventId = cloudEvent.Id
+        });
 
-            var cypher = @"
-                MERGE (i:Inference {inference_id: $inferenceId})
-                SET i.task_type = $taskType,
-                    i.models_used = $modelsUsed,
-                    i.ensemble_strategy = $ensembleStrategy,
-                    i.duration_ms = $duration,
-                    i.metadata = $metadata,
-                    i.last_synced = datetime()";
-
-            try
-            {
-                await session.RunAsync(cypher, new {
-                    inferenceId,
-                    taskType,
-                    modelsUsed,
-                    ensembleStrategy,
-                    duration,
-                    metadata
-                });
-                synced++;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error syncing inference {Id}", inferenceId);
-            }
-        }
-        return synced;
+        _logger.LogInformation("Created knowledge node: {DocId} ({Category})", docId, category);
     }
 
-    public override async Task StopAsync(CancellationToken cancellationToken)
+    public async Task CreateGenericEventNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
     {
-        _logger.LogInformation("Neo4j Sync Service stopping...");
-        await _neo4jDriver.DisposeAsync();
-        await base.StopAsync(cancellationToken);
+        var cypher = @"
+            MERGE (e:Event {event_id: $eventId})
+            SET e.event_type = $eventType,
+                e.subject = $subject,
+                e.source = $source,
+                e.data = $data,
+                e.extensions = $extensions,
+                e.created_at = datetime()";
+
+        await session.RunAsync(cypher, new
+        {
+            eventId = cloudEvent.Id,
+            eventType = cloudEvent.Type,
+            subject = cloudEvent.Subject,
+            source = cloudEvent.Source.ToString(),
+            data = JsonSerializer.Serialize(cloudEvent.Data),
+            extensions = JsonSerializer.Serialize(cloudEvent.Extensions)
+        });
+
+        _logger.LogInformation("Created generic event node: {EventId} ({EventType})", cloudEvent.Id, cloudEvent.Type);
     }
+}
+
+public class CloudEvent
+{
+    public string Id { get; set; } = string.Empty;
+    public Uri Source { get; set; } = null!;
+    public string Type { get; set; } = string.Empty;
+    public DateTimeOffset Time { get; set; }
+    public string? Subject { get; set; }
+    public object? Data { get; set; }
+    public Dictionary<string, object> Extensions { get; set; } = new();
 }

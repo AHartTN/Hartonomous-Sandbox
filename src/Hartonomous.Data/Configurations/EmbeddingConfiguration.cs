@@ -66,9 +66,7 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
             .HasDatabaseName("idx_spatial_fine");
         */
 
-        // NOTE: DiskANN VECTOR indexes commented out - they make tables read-only in RC1
-        // Will be enabled in GA release
-        // For now: O(n) scans with VECTOR_DISTANCE, acting as if indexes exist
-        // Queries work correctly, just slower until GA
+        // NOTE: spatial_geometry column added via migration as computed column
+        // EF Core cannot map computed geometry columns properly, so we handle this via raw SQL
     }
 }
