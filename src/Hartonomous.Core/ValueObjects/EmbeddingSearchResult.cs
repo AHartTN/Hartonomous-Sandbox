@@ -7,6 +7,7 @@ public sealed class EmbeddingSearchResult
 {
     public long EmbeddingId { get; init; }
     public string SourceText { get; init; } = string.Empty;
+    public string SourceType { get; init; } = string.Empty;
     public float SimilarityScore { get; init; }
     public float Distance { get; init; }
     public DateTime CreatedTimestamp { get; init; }

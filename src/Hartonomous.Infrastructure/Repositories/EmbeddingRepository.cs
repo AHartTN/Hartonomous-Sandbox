@@ -87,6 +87,7 @@ public class EmbeddingRepository : IEmbeddingRepository
             SELECT TOP (@top_k)
                 embedding_id,
                 source_text,
+                source_type,
                 VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector) as distance,
                 1.0 - VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector) as similarity_score,
                 created_at as created_timestamp
@@ -119,9 +120,10 @@ public class EmbeddingRepository : IEmbeddingRepository
                 {
                     EmbeddingId = reader.GetInt64(0),
                     SourceText = reader.GetString(1),
-                    Distance = reader.GetFloat(2),
-                    SimilarityScore = reader.GetFloat(3),
-                    CreatedTimestamp = reader.GetDateTime(4)
+                    SourceType = reader.GetString(2),
+                    Distance = reader.GetFloat(3),
+                    SimilarityScore = reader.GetFloat(4),
+                    CreatedTimestamp = reader.GetDateTime(5)
                 });
             }
         }
@@ -164,6 +166,7 @@ public class EmbeddingRepository : IEmbeddingRepository
             SELECT TOP (@final_top_k)
                 ep.embedding_id,
                 ep.source_text,
+                ep.source_type,
                 VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector) as distance,
                 1.0 - VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector) as similarity_score,
                 ep.created_at as created_timestamp
@@ -211,9 +214,10 @@ public class EmbeddingRepository : IEmbeddingRepository
                 {
                     EmbeddingId = reader.GetInt64(0),
                     SourceText = reader.GetString(1),
-                    Distance = reader.GetFloat(2),
-                    SimilarityScore = reader.GetFloat(3),
-                    CreatedTimestamp = reader.GetDateTime(4)
+                    SourceType = reader.GetString(2),
+                    Distance = reader.GetFloat(3),
+                    SimilarityScore = reader.GetFloat(4),
+                    CreatedTimestamp = reader.GetDateTime(5)
                 });
             }
         }

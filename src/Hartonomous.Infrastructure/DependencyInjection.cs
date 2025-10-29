@@ -54,12 +54,14 @@ public static class DependencyInjection
         services.AddScoped<IAtomicPixelRepository, AtomicPixelRepository>();
         services.AddScoped<IAtomicAudioSampleRepository, AtomicAudioSampleRepository>();
         services.AddScoped<IAtomicTextTokenRepository, AtomicTextTokenRepository>();
+        services.AddScoped<ITokenVocabularyRepository, TokenVocabularyRepository>();
         services.AddScoped<ICdcRepository, CdcRepository>();
 
         // Register services
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<ModelIngestionOrchestrator>();
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
+        services.AddScoped<IUnifiedEmbeddingService, UnifiedEmbeddingService>();
 
         // Register model format readers
         services.AddScoped<IModelFormatReader<SafetensorsMetadata>, SafetensorsModelReader>();

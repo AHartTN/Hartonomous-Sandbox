@@ -1,4 +1,5 @@
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Infrastructure.Repositories;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using Microsoft.Extensions.Configuration;
@@ -15,17 +16,22 @@ namespace Hartonomous.Infrastructure.Services;
 /// </summary>
 public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
 {
-    private readonly string _connectionString;
+    private readonly ITokenVocabularyRepository _tokenVocabularyRepository;
+    private readonly IEmbeddingRepository _embeddingRepository;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<UnifiedEmbeddingService> _logger;
     private const int EmbeddingDimension = 768;
 
     public UnifiedEmbeddingService(
+        ITokenVocabularyRepository tokenVocabularyRepository,
+        IEmbeddingRepository embeddingRepository,
         IConfiguration configuration,
         ILogger<UnifiedEmbeddingService> logger)
     {
-        _connectionString = configuration.GetConnectionString("Hartonomous")
-            ?? throw new InvalidOperationException("Connection string 'Hartonomous' not found.");
-        _logger = logger;
+        _tokenVocabularyRepository = tokenVocabularyRepository ?? throw new ArgumentNullException(nameof(tokenVocabularyRepository));
+        _embeddingRepository = embeddingRepository ?? throw new ArgumentNullException(nameof(embeddingRepository));
+        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -46,18 +52,8 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         // Initialize embedding vector
         var embedding = new float[EmbeddingDimension];
         
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        // Get vocabulary weights from database (term → embedding component mapping)
-        // For now: simple approach using TokenVocabulary table
-        await using var cmd = new SqlCommand(@"
-            SELECT token_text, token_id 
-            FROM dbo.TokenVocabulary 
-            WHERE token_text IN (SELECT value FROM STRING_SPLIT(@tokens, ','))
-            ORDER BY token_id", connection);
-
-        cmd.Parameters.AddWithValue("@tokens", string.Join(",", tokens.Distinct()));
+        // Get vocabulary information from repository
+        var vocabularyTokens = await _tokenVocabularyRepository.GetTokensByTextAsync(tokens.Distinct(), cancellationToken);
 
         var termFrequencies = new Dictionary<string, int>();
         foreach (var token in tokens)
@@ -65,13 +61,11 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
             termFrequencies[token] = termFrequencies.GetValueOrDefault(token, 0) + 1;
         }
 
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        
         int termsFound = 0;
-        while (await reader.ReadAsync(cancellationToken))
+        foreach (var kvp in vocabularyTokens)
         {
-            var tokenText = reader.GetString(0);
-            var tokenId = reader.GetInt32(1);
+            var tokenText = kvp.Key;
+            var (tokenId, _) = kvp.Value;
             
             if (termFrequencies.TryGetValue(tokenText, out var frequency))
             {
@@ -228,12 +222,6 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         if (embedding == null || embedding.Length != EmbeddingDimension)
             throw new ArgumentException($"Embedding must be {EmbeddingDimension} dimensions.", nameof(embedding));
 
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        // Convert embedding to SqlVector
-        var sqlVector = new SqlVector<float>(embedding);
-
         // Prepare source text (for text inputs) or description
         string sourceText = sourceData switch
         {
@@ -242,24 +230,22 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
             _ => sourceData?.ToString() ?? "Unknown"
         };
 
-        await using var cmd = new SqlCommand(@"
-            INSERT INTO dbo.Embeddings (embedding_full, source_text, source_type, metadata, created_at)
-            OUTPUT INSERTED.embedding_id
-            VALUES (@embedding, @sourceText, @sourceType, @metadata, GETUTCDATE())", connection);
+        // Compute spatial projection (768D → 3D)
+        var spatial3D = await _embeddingRepository.ComputeSpatialProjectionAsync(embedding, cancellationToken);
 
-        cmd.Parameters.AddWithValue("@embedding", sqlVector);
-        cmd.Parameters.AddWithValue("@sourceText", sourceText.Length > 1000 ? sourceText[..1000] : sourceText);
-        cmd.Parameters.AddWithValue("@sourceType", sourceType);
-        cmd.Parameters.AddWithValue("@metadata", (object?)metadata ?? DBNull.Value);
+        // Generate content hash for deduplication
+        var contentHash = ComputeContentHash(sourceText, sourceType);
 
-        var embeddingId = (long)(await cmd.ExecuteScalarAsync(cancellationToken) 
-            ?? throw new InvalidOperationException("Failed to insert embedding."));
+        // Store using repository (includes spatial projection)
+        var embeddingId = await _embeddingRepository.AddWithGeometryAsync(
+            sourceText.Length > 1000 ? sourceText[..1000] : sourceText,
+            sourceType,
+            embedding,
+            spatial3D,
+            contentHash,
+            cancellationToken);
 
         _logger.LogInformation("Stored embedding {EmbeddingId} for {SourceType}.", embeddingId, sourceType);
-
-        // Trigger spatial projection (768D → 3D GEOMETRY)
-        await ComputeSpatialProjectionAsync(connection, embeddingId, cancellationToken);
-
         return embeddingId;
     }
 
@@ -340,36 +326,17 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         // Generate text embedding
         var textEmbedding = await EmbedTextAsync(textDescription, cancellationToken);
         
-        await using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync(cancellationToken);
-
-        // Query images using VECTOR_DISTANCE
-        var sqlVector = new SqlVector<float>(textEmbedding);
+        // Search for similar image embeddings using repository
+        var searchResults = await _embeddingRepository.ExactSearchAsync(textEmbedding, topK, "cosine", cancellationToken);
         
-        await using var cmd = new SqlCommand(@"
-            SELECT TOP (@topK) 
-                embedding_id,
-                VECTOR_DISTANCE('cosine', embedding_full, @queryVector) AS similarity
-            FROM dbo.Embeddings
-            WHERE source_type = 'image'
-                AND embedding_full IS NOT NULL
-            ORDER BY similarity ASC", connection);
+        // Filter to images only and convert to expected format
+        var imageResults = searchResults
+            .Where(r => r.SourceType == "image")
+            .Select(r => (r.EmbeddingId, r.SimilarityScore))
+            .ToList();
 
-        cmd.Parameters.AddWithValue("@topK", topK);
-        cmd.Parameters.AddWithValue("@queryVector", sqlVector);
-
-        var results = new List<(long, float)>();
-        await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
-        
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            var imageId = reader.GetInt64(0);
-            var similarity = 1.0f - reader.GetFloat(1); // Convert distance to similarity
-            results.Add((imageId, similarity));
-        }
-
-        _logger.LogInformation("Zero-shot image retrieval found {Count} results.", results.Count);
-        return results;
+        _logger.LogInformation("Zero-shot image retrieval found {Count} results.", imageResults.Count);
+        return imageResults;
     }
 
     /// <summary>
@@ -381,7 +348,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         string? filterByType = null,
         CancellationToken cancellationToken = default)
     {
-        await using var connection = new SqlConnection(_connectionString);
+        var connectionString = _configuration.GetConnectionString("Hartonomous")
+            ?? throw new InvalidOperationException("Connection string 'Hartonomous' not found.");
+
+        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
 
         var sqlVector = new SqlVector<float>(queryEmbedding);
@@ -573,18 +543,11 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         return mfcc;
     }
 
-    private async Task ComputeSpatialProjectionAsync(
-        SqlConnection connection,
-        long embeddingId,
-        CancellationToken cancellationToken)
+    private static string ComputeContentHash(string sourceText, string sourceType)
     {
-        // Call sp_ComputeSpatialProjection to generate 3D GEOMETRY from 768D VECTOR
-        await using var cmd = new SqlCommand("dbo.sp_ComputeSpatialProjection", connection);
-        cmd.CommandType = System.Data.CommandType.StoredProcedure;
-        cmd.Parameters.AddWithValue("@embeddingId", embeddingId);
-
-        await cmd.ExecuteNonQueryAsync(cancellationToken);
-        
-        _logger.LogInformation("Computed spatial projection for embedding {EmbeddingId}.", embeddingId);
+        using var sha256 = System.Security.Cryptography.SHA256.Create();
+        var input = $"{sourceType}:{sourceText}";
+        var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
+        return Convert.ToHexString(hash).ToLowerInvariant();
     }
 }
