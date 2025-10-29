@@ -1,4 +1,4 @@
-namespace ModelIngestion
+namespace ModelIngestion.ModelFormats
 {
     public interface IModelReader
     {

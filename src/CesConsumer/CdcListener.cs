@@ -1,5 +1,7 @@
-using Microsoft.Data.SqlClient;
+using Hartonomous.Core.Interfaces;
+using Microsoft.Extensions.Logging;
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Text.Json;
@@ -16,24 +18,30 @@ namespace CesConsumer
     /// </summary>
     public class CdcListener
     {
-        private readonly string _connectionString;
+        private readonly ICdcRepository _cdcRepository;
         private readonly EventHubProducerClient _eventHubProducer;
+        private readonly ILogger<CdcListener> _logger;
         private readonly string _lastProcessedLsnKey = "LastProcessedLsn";
 
-        public CdcListener(string connectionString, string eventHubConnectionString, string eventHubName)
+        public CdcListener(
+            ICdcRepository cdcRepository,
+            ILogger<CdcListener> logger,
+            string eventHubConnectionString,
+            string eventHubName)
         {
-            _connectionString = connectionString;
+            _cdcRepository = cdcRepository;
+            _logger = logger;
             _eventHubProducer = new EventHubProducerClient(eventHubConnectionString, eventHubName);
         }
 
         public async Task StartListeningAsync(CancellationToken cancellationToken)
         {
-            Console.WriteLine("Starting CES Consumer with CloudEvent processing...");
-            Console.WriteLine("Event Hub: Connected and ready");
+            _logger.LogInformation("Starting CES Consumer with CloudEvent processing...");
+            _logger.LogInformation("Event Hub: Connected and ready");
 
             // Get last processed LSN to avoid reprocessing
             var lastLsn = await GetLastProcessedLsnAsync(cancellationToken);
-            Console.WriteLine($"Starting from LSN: {lastLsn ?? "Beginning"}");
+            _logger.LogInformation("Starting from LSN: {LastLsn}", lastLsn ?? "Beginning");
 
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -44,7 +52,7 @@ namespace CesConsumer
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error processing change events: {ex.Message}");
+                    _logger.LogError(ex, "Error processing change events");
                     await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
                 }
             }
@@ -52,54 +60,34 @@ namespace CesConsumer
 
         private async Task ProcessChangeEventsAsync(string? lastLsn, CancellationToken cancellationToken)
         {
-            using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync(cancellationToken);
-
-            // Query for new change events since last LSN
-            var query = @"
-                SELECT
-                    ct.__$start_lsn,
-                    ct.__$operation,
-                    ct.__$update_mask,
-                    ct.*,
-                    cdc.fn_cdc_get_column_ordinal(ct.__$table_name, column_name) as column_ordinal
-                FROM cdc.dbo_Models_CT ct
-                WHERE ct.__$start_lsn > @lastLsn OR @lastLsn IS NULL
-                ORDER BY ct.__$start_lsn";
-
-            using var command = new SqlCommand(query, connection);
-            command.Parameters.AddWithValue("@lastLsn", lastLsn ?? (object)DBNull.Value);
+            // Get change events from repository
+            var changeEvents = await _cdcRepository.GetChangeEventsSinceAsync(lastLsn, cancellationToken);
 
             var events = new List<CloudEvent>();
             string? maxLsn = null;
 
-            using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            while (await reader.ReadAsync(cancellationToken))
+            foreach (var changeEvent in changeEvents)
             {
-                var lsn = reader.GetSqlBinary(0).ToString();
-                maxLsn = lsn;
-
-                var operation = reader.GetInt32(1); // 1=Delete, 2=Insert, 3=Update (before), 4=Update (after)
-                var tableName = "dbo.Models"; // Inferred from CT table name
+                maxLsn = changeEvent.Lsn;
 
                 // Create CloudEvent
                 var cloudEvent = new CloudEvent
                 {
                     Id = Guid.NewGuid().ToString(),
                     Source = new Uri($"/sqlserver/{Environment.MachineName}/Hartonomous"),
-                    Type = GetCloudEventType(operation),
+                    Type = GetCloudEventType(changeEvent.Operation),
                     Time = DateTimeOffset.UtcNow,
-                    Subject = $"{tableName}/lsn:{lsn}",
+                    Subject = $"{changeEvent.TableName}/lsn:{changeEvent.Lsn}",
                     DataSchema = new Uri("https://schemas.microsoft.com/sqlserver/2025/ces"),
-                    Data = await ExtractChangeDataAsync(reader, operation, cancellationToken)
+                    Data = changeEvent.Data
                 };
 
                 // Add SQL Server specific extensions
                 cloudEvent.Extensions["sqlserver"] = new
                 {
-                    operation = GetOperationName(operation),
-                    table = tableName,
-                    lsn = lsn,
+                    operation = GetOperationName(changeEvent.Operation),
+                    table = changeEvent.TableName,
+                    lsn = changeEvent.Lsn,
                     database = "Hartonomous",
                     server = Environment.MachineName
                 };
@@ -118,7 +106,7 @@ namespace CesConsumer
                     await UpdateLastProcessedLsnAsync(maxLsn, cancellationToken);
                 }
 
-                Console.WriteLine($"Processed {events.Count} change events, new LSN: {maxLsn}");
+                _logger.LogInformation("Processed {Count} change events, new LSN: {MaxLsn}", events.Count, maxLsn);
             }
         }
 
@@ -163,7 +151,7 @@ namespace CesConsumer
                 batchCount++;
             }
 
-            Console.WriteLine($"Published {events.Count} enriched CloudEvents to Event Hub in {batchCount} batches");
+            _logger.LogInformation("Published {Count} enriched CloudEvents to Event Hub in {BatchCount} batches", events.Count, batchCount);
         }
 
         private async Task EnrichEventAsync(CloudEvent cloudEvent, CancellationToken cancellationToken)
@@ -236,24 +224,6 @@ namespace CesConsumer
                 4 => "update_after",
                 _ => "unknown"
             };
-        }
-
-        private async Task<object> ExtractChangeDataAsync(SqlDataReader reader, int operation, CancellationToken cancellationToken)
-        {
-            // Extract the actual data columns (skip CDC metadata columns)
-            var data = new Dictionary<string, object>();
-
-            for (int i = 5; i < reader.FieldCount - 1; i++) // Skip CDC columns and ordinal
-            {
-                var columnName = reader.GetName(i);
-                if (!columnName.StartsWith("__$")) // Skip CDC internal columns
-                {
-                    var value = await reader.GetFieldValueAsync<object>(i, cancellationToken);
-                    data[columnName] = value;
-                }
-            }
-
-            return data;
         }
 
         private string[] InferModelCapabilities(string modelName)

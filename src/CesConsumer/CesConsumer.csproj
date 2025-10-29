@@ -11,8 +11,15 @@
     <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.2" />
     <PackageReference Include="Azure.Messaging.EventHubs.Processor" Version="5.12.2" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.0-rc.2.25502.107" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Text.Json" Version="9.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hartonomous.Core\Hartonomous.Core.csproj" />
+    <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

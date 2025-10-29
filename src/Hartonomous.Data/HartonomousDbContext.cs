@@ -37,6 +37,11 @@ public class HartonomousDbContext : DbContext
     public DbSet<Embedding> Embeddings => Set<Embedding>();
     public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
 
+    // Atomic storage (content-addressable deduplication)
+    public DbSet<AtomicPixel> AtomicPixels => Set<AtomicPixel>();
+    public DbSet<AtomicAudioSample> AtomicAudioSamples => Set<AtomicAudioSample>();
+    public DbSet<AtomicTextToken> AtomicTextTokens => Set<AtomicTextToken>();
+
     // Multi-modal data
     public DbSet<Image> Images => Set<Image>();
     public DbSet<ImagePatch> ImagePatches => Set<ImagePatch>();

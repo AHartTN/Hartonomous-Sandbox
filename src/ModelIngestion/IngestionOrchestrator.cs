@@ -457,7 +457,7 @@ namespace ModelIngestion
 
             // Execute exact search
             _logger.LogInformation("Running exact VECTOR search...");
-            var exactResults = await _embeddingService.ExactSearchAsync(queryEmbedding, topK: 5);
+            var exactResults = await _embeddings.ExactSearchAsync(queryEmbedding, topK: 5);
 
             _logger.LogInformation("Top 5 exact matches:");
             foreach (var result in exactResults)
@@ -469,10 +469,10 @@ namespace ModelIngestion
 
             // Execute approximate spatial search
             _logger.LogInformation("Computing spatial projection...");
-            var spatial3D = await _embeddingService.ComputeSpatialProjectionAsync(queryEmbedding);
+            var spatial3D = await _embeddings.ComputeSpatialProjectionAsync(queryEmbedding);
             
             _logger.LogInformation("Running approximate spatial search...");
-            var approxResults = await _embeddingService.ApproxSearchAsync(spatial3D, topK: 5);
+            var approxResults = await _embeddings.HybridSearchAsync(queryEmbedding, spatial3D[0], spatial3D[1], spatial3D[2], spatialCandidates: 100, finalTopK: 5);
 
             _logger.LogInformation("Top 5 approximate matches:");
             foreach (var result in approxResults)

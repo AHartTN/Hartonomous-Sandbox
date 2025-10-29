@@ -64,20 +64,23 @@ namespace ModelIngestion
                     services.AddScoped<ModelIngestionService>();
                     services.AddScoped<Hartonomous.Infrastructure.Services.ModelDownloader>();
                     
+                    // Register model format readers
+                    services.AddScoped<Hartonomous.Core.Interfaces.IModelFormatReader<Hartonomous.Core.Interfaces.OnnxMetadata>, ModelFormats.OnnxModelReader>();
+                    services.AddScoped<Hartonomous.Core.Interfaces.IModelFormatReader<Hartonomous.Core.Interfaces.SafetensorsMetadata>, ModelFormats.SafetensorsModelReader>();
+                    services.AddScoped<ModelFormats.ModelReaderFactory>();
+                    
                     // Register EmbeddingIngestionService as IEmbeddingIngestionService
                     // Service requires IEmbeddingRepository (from infrastructure), ILogger, and configuration
                     services.AddScoped<Hartonomous.Core.Interfaces.IEmbeddingIngestionService>(sp =>
                     {
                         var embeddingRepo = sp.GetRequiredService<IEmbeddingRepository>();
                         var logger = sp.GetRequiredService<ILogger<EmbeddingIngestionService>>();
+                        var config = sp.GetRequiredService<IConfiguration>();
                         
                         return new EmbeddingIngestionService(
                             embeddingRepo,
                             logger,
-                            connectionString,
-                            embeddingModel: "production-model",
-                            embeddingDimension: 768,
-                            deduplicationThreshold: deduplicationThreshold);
+                            config);
                     });
                     
                     // Also register concrete type for backward compatibility
@@ -87,8 +90,11 @@ namespace ModelIngestion
                     // Register AtomicStorageService as IAtomicStorageService
                     services.AddScoped<Hartonomous.Core.Interfaces.IAtomicStorageService>(sp =>
                     {
+                        var pixelRepo = sp.GetRequiredService<IAtomicPixelRepository>();
+                        var audioSampleRepo = sp.GetRequiredService<IAtomicAudioSampleRepository>();
+                        var textTokenRepo = sp.GetRequiredService<IAtomicTextTokenRepository>();
                         var logger = sp.GetRequiredService<ILogger<AtomicStorageService>>();
-                        return new AtomicStorageService(connectionString, logger);
+                        return new AtomicStorageService(logger, pixelRepo, audioSampleRepo, textTokenRepo);
                     });
                     
                     // Also register concrete type for backward compatibility

@@ -2,27 +2,24 @@ using Microsoft.ML.OnnxRuntime;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Entities;
-using Hartonomous.Infrastructure.Repositories;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Linq;
 
-namespace ModelIngestion
+namespace ModelIngestion.ModelFormats
 {
     /// <summary>
     /// ONNX model reader - reads .onnx files and outputs Core entities
     /// </summary>
     public class OnnxModelReader : IModelFormatReader<OnnxMetadata>
     {
-        private readonly IModelRepository _modelRepository;
         private readonly ILogger<OnnxModelReader> _logger;
 
         public string FormatName => "ONNX";
         public IEnumerable<string> SupportedExtensions => new[] { ".onnx" };
 
-        public OnnxModelReader(IModelRepository modelRepository, ILogger<OnnxModelReader> logger)
+        public OnnxModelReader(ILogger<OnnxModelReader> logger)
         {
-            _modelRepository = modelRepository ?? throw new System.ArgumentNullException(nameof(modelRepository));
             _logger = logger ?? throw new System.ArgumentNullException(nameof(logger));
         }
 
@@ -33,7 +30,7 @@ namespace ModelIngestion
             using var session = new InferenceSession(modelPath);
             var metadata = await GetMetadataAsync(modelPath, cancellationToken);
 
-            // Create Core entity
+            // Create Core entity (DO NOT persist here - return for service layer)
             var model = new Hartonomous.Core.Entities.Model
             {
                 ModelName = session.ModelMetadata.GraphName ?? System.IO.Path.GetFileNameWithoutExtension(modelPath),
@@ -45,12 +42,9 @@ namespace ModelIngestion
                     outputs = session.OutputMetadata.Count,
                     producer = session.ModelMetadata.ProducerName
                 }),
-                IngestionDate = System.DateTime.UtcNow
+                IngestionDate = System.DateTime.UtcNow,
+                Layers = new List<ModelLayer>() // Initialize collection
             };
-
-            // Store model in repository
-            var storedModel = await _modelRepository.AddAsync(model, cancellationToken);
-            _logger.LogInformation("Stored model with ID: {ModelId}", storedModel.ModelId);
 
             // Add input layers
             int layerIdx = 0;
@@ -58,7 +52,6 @@ namespace ModelIngestion
             {
                 var layer = new ModelLayer
                 {
-                    ModelId = storedModel.ModelId,
                     LayerIdx = layerIdx++,
                     LayerName = input.Key,
                     LayerType = "Input",
@@ -69,7 +62,7 @@ namespace ModelIngestion
                     })
                 };
 
-                await _modelRepository.AddLayerAsync(storedModel.ModelId, layer, cancellationToken);
+                model.Layers.Add(layer);
                 _logger.LogDebug("Added input layer: {LayerName}", layer.LayerName);
             }
 
@@ -78,7 +71,6 @@ namespace ModelIngestion
             {
                 var layer = new ModelLayer
                 {
-                    ModelId = storedModel.ModelId,
                     LayerIdx = layerIdx++,
                     LayerName = output.Key,
                     LayerType = "Output",
@@ -89,12 +81,12 @@ namespace ModelIngestion
                     })
                 };
 
-                await _modelRepository.AddLayerAsync(storedModel.ModelId, layer, cancellationToken);
+                model.Layers.Add(layer);
                 _logger.LogDebug("Added output layer: {LayerName}", layer.LayerName);
             }
 
-            _logger.LogInformation("✓ ONNX model ingestion complete: {LayerCount} layers", layerIdx);
-            return storedModel;
+            _logger.LogInformation("✓ ONNX model parsed: {LayerCount} layers", layerIdx);
+            return model; // Return entity for service layer to persist
         }
 
         public async Task<OnnxMetadata> GetMetadataAsync(string modelPath, CancellationToken cancellationToken = default)

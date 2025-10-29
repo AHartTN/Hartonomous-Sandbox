@@ -1,8 +1,11 @@
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.ValueObjects;
 using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System;
+using System.Data.Common;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
@@ -69,26 +72,69 @@ public class EmbeddingRepository : IEmbeddingRepository
         return await _context.Embeddings.CountAsync(cancellationToken);
     }
 
-    public async Task<IEnumerable<Embedding>> ExactSearchAsync(
-        string queryVector, 
+    public async Task<IEnumerable<EmbeddingSearchResult>> ExactSearchAsync(
+        float[] queryVector, 
         int topK = 10, 
         string metric = "cosine", 
         CancellationToken cancellationToken = default)
     {
         _logger.LogDebug("Executing exact vector search with metric: {Metric}, topK: {TopK}", metric, topK);
 
-        // Call stored procedure sp_ExactVectorSearch
-        var results = await _context.Embeddings
-            .FromSqlRaw(
-                "EXEC dbo.sp_ExactVectorSearch @query_vector = {0}, @top_k = {1}, @distance_metric = {2}",
-                queryVector, topK, metric)
-            .ToListAsync(cancellationToken);
+        var results = new List<EmbeddingSearchResult>();
+        
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = @"
+            SELECT TOP (@top_k)
+                embedding_id,
+                source_text,
+                VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector) as distance,
+                1.0 - VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector) as similarity_score,
+                created_at as created_timestamp
+            FROM dbo.Embeddings_Production
+            WHERE embedding_full IS NOT NULL
+            ORDER BY VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector)";
+
+        var vectorParam = command.CreateParameter();
+        vectorParam.ParameterName = "@query_vector";
+        vectorParam.Value = SerializeVectorToBytes(queryVector);
+        command.Parameters.Add(vectorParam);
+
+        var topKParam = command.CreateParameter();
+        topKParam.ParameterName = "@top_k";
+        topKParam.Value = topK;
+        command.Parameters.Add(topKParam);
+
+        var metricParam = command.CreateParameter();
+        metricParam.ParameterName = "@distance_metric";
+        metricParam.Value = metric;
+        command.Parameters.Add(metricParam);
+
+        await _context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                results.Add(new EmbeddingSearchResult
+                {
+                    EmbeddingId = reader.GetInt64(0),
+                    SourceText = reader.GetString(1),
+                    Distance = reader.GetFloat(2),
+                    SimilarityScore = reader.GetFloat(3),
+                    CreatedTimestamp = reader.GetDateTime(4)
+                });
+            }
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
 
         return results;
     }
 
-    public async Task<IEnumerable<Embedding>> HybridSearchAsync(
-        string queryVector, 
+    public async Task<IEnumerable<EmbeddingSearchResult>> HybridSearchAsync(
+        float[] queryVector, 
         double queryX, 
         double queryY, 
         double queryZ, 
@@ -98,18 +144,83 @@ public class EmbeddingRepository : IEmbeddingRepository
     {
         _logger.LogDebug("Executing hybrid search with spatial candidates: {Candidates}, finalTopK: {TopK}", spatialCandidates, finalTopK);
 
-        // Call stored procedure sp_HybridSearch
-        var results = await _context.Embeddings
-            .FromSqlRaw(
-                @"EXEC dbo.sp_HybridSearch 
-                    @query_vector = {0}, 
-                    @query_spatial_x = {1}, 
-                    @query_spatial_y = {2}, 
-                    @query_spatial_z = {3},
-                    @spatial_candidates = {4},
-                    @final_top_k = {5}",
-                queryVector, queryX, queryY, queryZ, spatialCandidates, finalTopK)
-            .ToListAsync(cancellationToken);
+        var results = new List<EmbeddingSearchResult>();
+        
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = @"
+            DECLARE @query_point GEOMETRY = geometry::STGeomFromText(
+                'POINT(' + CAST(@query_spatial_x AS NVARCHAR(50)) + ' ' +
+                           CAST(@query_spatial_y AS NVARCHAR(50)) + ' ' +
+                           CAST(@query_spatial_z AS NVARCHAR(50)) + ')', 0);
+
+            DECLARE @candidates TABLE (embedding_id BIGINT);
+
+            INSERT INTO @candidates
+            SELECT TOP (@spatial_candidates) embedding_id
+            FROM dbo.Embeddings_Production WITH(INDEX(idx_spatial_fine))
+            WHERE spatial_geometry IS NOT NULL
+            ORDER BY spatial_geometry.STDistance(@query_point);
+
+            SELECT TOP (@final_top_k)
+                ep.embedding_id,
+                ep.source_text,
+                VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector) as distance,
+                1.0 - VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector) as similarity_score,
+                ep.created_at as created_timestamp
+            FROM dbo.Embeddings_Production ep
+            JOIN @candidates c ON ep.embedding_id = c.embedding_id
+            ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector)";
+
+        var vectorParam = command.CreateParameter();
+        vectorParam.ParameterName = "@query_vector";
+        vectorParam.Value = SerializeVectorToBytes(queryVector);
+        command.Parameters.Add(vectorParam);
+
+        var xParam = command.CreateParameter();
+        xParam.ParameterName = "@query_spatial_x";
+        xParam.Value = queryX;
+        command.Parameters.Add(xParam);
+
+        var yParam = command.CreateParameter();
+        yParam.ParameterName = "@query_spatial_y";
+        yParam.Value = queryY;
+        command.Parameters.Add(yParam);
+
+        var zParam = command.CreateParameter();
+        zParam.ParameterName = "@query_spatial_z";
+        zParam.Value = queryZ;
+        command.Parameters.Add(zParam);
+
+        var candidatesParam = command.CreateParameter();
+        candidatesParam.ParameterName = "@spatial_candidates";
+        candidatesParam.Value = spatialCandidates;
+        command.Parameters.Add(candidatesParam);
+
+        var topKParam = command.CreateParameter();
+        topKParam.ParameterName = "@final_top_k";
+        topKParam.Value = finalTopK;
+        command.Parameters.Add(topKParam);
+
+        await _context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                results.Add(new EmbeddingSearchResult
+                {
+                    EmbeddingId = reader.GetInt64(0),
+                    SourceText = reader.GetString(1),
+                    Distance = reader.GetFloat(2),
+                    SimilarityScore = reader.GetFloat(3),
+                    CreatedTimestamp = reader.GetDateTime(4)
+                });
+            }
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
 
         return results;
     }
@@ -191,5 +302,81 @@ public class EmbeddingRepository : IEmbeddingRepository
         var bytes = new byte[vector.Length * sizeof(float)];
         Buffer.BlockCopy(vector, 0, bytes, 0, bytes.Length);
         return bytes;
+    }
+
+    public async Task<long> AddWithGeometryAsync(string sourceText, string sourceType, float[] embeddingFull, float[] spatial3D, string contentHash, CancellationToken cancellationToken = default)
+    {
+        var sql = @"
+            INSERT INTO dbo.Embeddings_Production (
+                source_text,
+                source_type,
+                embedding_full,
+                embedding_model,
+                spatial_proj_x,
+                spatial_proj_y,
+                spatial_proj_z,
+                spatial_geometry,
+                spatial_coarse,
+                dimension,
+                content_hash,
+                access_count
+            ) VALUES (
+                @source_text,
+                @source_type,
+                @embedding_full,
+                @embedding_model,
+                @x, @y, @z,
+                geometry::STGeomFromText('POINT(' +
+                    CAST(@x AS NVARCHAR(50)) + ' ' +
+                    CAST(@y AS NVARCHAR(50)) + ')', 0),
+                geometry::STGeomFromText('POINT(' +
+                    CAST(FLOOR(@x) AS NVARCHAR(50)) + ' ' +
+                    CAST(FLOOR(@y) AS NVARCHAR(50)) + ')', 0),
+                @dimension,
+                @content_hash,
+                1
+            );
+            SELECT SCOPE_IDENTITY();
+        ";
+
+        using var command = _context.Database.GetDbConnection().CreateCommand();
+        command.CommandText = sql;
+        
+        var parameters = new[]
+        {
+            CreateParameter(command, "@source_text", sourceText),
+            CreateParameter(command, "@source_type", sourceType),
+            CreateParameter(command, "@embedding_full", SerializeVectorToBytes(embeddingFull)),
+            CreateParameter(command, "@embedding_model", "production"),
+            CreateParameter(command, "@x", spatial3D[0]),
+            CreateParameter(command, "@y", spatial3D[1]),
+            CreateParameter(command, "@z", spatial3D[2]),
+            CreateParameter(command, "@dimension", embeddingFull.Length),
+            CreateParameter(command, "@content_hash", contentHash)
+        };
+
+        foreach (var param in parameters)
+        {
+            command.Parameters.Add(param);
+        }
+
+        await _context.Database.OpenConnectionAsync(cancellationToken);
+        try
+        {
+            var result = await command.ExecuteScalarAsync(cancellationToken);
+            return Convert.ToInt64(result);
+        }
+        finally
+        {
+            await _context.Database.CloseConnectionAsync();
+        }
+    }
+
+    private DbParameter CreateParameter(System.Data.Common.DbCommand command, string name, object value)
+    {
+        var param = command.CreateParameter();
+        param.ParameterName = name;
+        param.Value = value;
+        return param;
     }
 }

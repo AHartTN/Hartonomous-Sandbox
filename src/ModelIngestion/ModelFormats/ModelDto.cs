@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace ModelIngestion
+namespace ModelIngestion.ModelFormats
 {
     public class Model
     {

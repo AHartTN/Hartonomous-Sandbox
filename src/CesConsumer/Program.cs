@@ -1,48 +1,55 @@
+using Hartonomous.Core.Interfaces;
+using Hartonomous.Infrastructure;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using System;
-using System.Threading;
 using System.Threading.Tasks;
 
-namespace CesConsumer
+namespace CesConsumer;
+
+class Program
 {
-    class Program
+    static async Task Main(string[] args)
     {
-        static async Task Main(string[] args)
-        {
-            // Configuration - in production, use appsettings.json or environment variables
-            var sqlConnectionString = "Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;";
-            var eventHubConnectionString = Environment.GetEnvironmentVariable("EVENTHUB_CONNECTION_STRING")
-                ?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-key"; // Local Event Hubs emulator
-            var eventHubName = Environment.GetEnvironmentVariable("EVENTHUB_NAME") ?? "sqlserver-ces-events";
+        var host = Host.CreateDefaultBuilder(args)
+            .ConfigureAppConfiguration((context, config) =>
+            {
+                config.AddJsonFile("appsettings.json", optional: true);
+                config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
+                config.AddEnvironmentVariables();
+            })
+            .ConfigureServices((context, services) =>
+            {
+                // Register Hartonomous infrastructure
+                services.AddHartonomousInfrastructure(context.Configuration);
 
-            Console.WriteLine("=== Hartonomous CES Consumer ===");
-            Console.WriteLine("Processing SQL Server 2025 Change Event Streaming");
-            Console.WriteLine($"SQL Server: {sqlConnectionString.Split(';')[0]}");
-            Console.WriteLine($"Event Hub: {eventHubName}");
-            Console.WriteLine();
+                // Register CES-specific services
+                var eventHubConnectionString = context.Configuration["EventHub:ConnectionString"]
+                    ?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-key";
+                var eventHubName = context.Configuration["EventHub:Name"] ?? "sqlserver-ces-events";
 
-            var cts = new CancellationTokenSource();
-            Console.CancelKeyPress += (sender, e) =>
-            {
-                Console.WriteLine("Shutdown requested...");
-                cts.Cancel();
-                e.Cancel = true;
-            };
+                services.AddSingleton<CdcListener>(sp => new CdcListener(
+                    sp.GetRequiredService<ICdcRepository>(),
+                    sp.GetRequiredService<ILogger<CdcListener>>(),
+                    eventHubConnectionString,
+                    eventHubName));
 
-            try
+                // Register hosted service
+                services.AddHostedService<CesConsumerService>();
+            })
+            .ConfigureLogging(logging =>
             {
-                var listener = new CdcListener(sqlConnectionString, eventHubConnectionString, eventHubName);
-                await listener.StartListeningAsync(cts.Token);
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Fatal error: {ex.Message}");
-                Console.WriteLine("Stack trace:");
-                Console.WriteLine(ex.StackTrace);
-            }
-            finally
-            {
-                Console.WriteLine("CES Consumer stopped.");
-            }
-        }
+                logging.ClearProviders();
+                logging.AddConsole();
+                logging.AddDebug();
+            })
+            .Build();
+
+        Console.WriteLine("=== Hartonomous CES Consumer ===");
+        Console.WriteLine("Processing SQL Server 2025 Change Event Streaming");
+
+        await host.RunAsync();
     }
 }
