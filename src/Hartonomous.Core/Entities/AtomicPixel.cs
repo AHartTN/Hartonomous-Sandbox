@@ -1,5 +1,4 @@
-using Microsoft.Data.SqlTypes;
-using Microsoft.SqlServer.Types;
+using NetTopologySuite.Geometries;
 using System;
 
 namespace Hartonomous.Core.Entities;
@@ -38,7 +37,7 @@ public class AtomicPixel
     /// <summary>
     /// Gets or sets the spatial representation in RGB color space.
     /// </summary>
-    public SqlGeometry? ColorPoint { get; set; }
+    public Point? ColorPoint { get; set; }
 
     /// <summary>
     /// Gets or sets the number of times this pixel is referenced.

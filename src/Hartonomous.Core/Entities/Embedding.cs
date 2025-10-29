@@ -1,4 +1,5 @@
 using Microsoft.Data.SqlTypes;
+using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Core.Entities;
 
@@ -48,6 +49,16 @@ public class Embedding
     /// Gets or sets the Z coordinate of the 3D spatial projection.
     /// </summary>
     public double? SpatialProjZ { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the computed spatial geometry for spatial indexing (NTS Point).
+    /// </summary>
+    public Point? SpatialGeometry { get; set; }
+    
+    /// <summary>
+    /// Gets or sets the coarse spatial geometry for hierarchical indexing (NTS Point).
+    /// </summary>
+    public Point? SpatialCoarse { get; set; }
     
     /// <summary>
     /// Gets or sets the dimensionality of the embedding vector.

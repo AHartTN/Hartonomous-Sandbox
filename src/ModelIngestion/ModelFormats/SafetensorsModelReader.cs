@@ -1,16 +1,21 @@
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Diagnostics.CodeAnalysis;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Entities;
 using Microsoft.Extensions.Logging;
 
 namespace ModelIngestion.ModelFormats
 {
+    /// <summary>
+    /// Safetensors model reader - reads .safetensors files and outputs Core entities
+    /// Safetensors is a binary format with JSON header containing tensor metadata
+    /// </summary>
     public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
     {
         private readonly ILogger<SafetensorsModelReader> _logger;
@@ -23,6 +28,8 @@ namespace ModelIngestion.ModelFormats
             _logger = logger ?? throw new System.ArgumentNullException(nameof(logger));
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
         public async Task<Hartonomous.Core.Entities.Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Reading Safetensors model from: {Path}", modelPath);
@@ -45,7 +52,13 @@ namespace ModelIngestion.ModelFormats
                     // 2. Read the header
                     var headerBytes = reader.ReadBytes((int)headerLength);
                     var headerJson = Encoding.UTF8.GetString(headerBytes);
-                    var header = JsonConvert.DeserializeObject<SafetensorsHeader>(headerJson);
+
+                    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+                    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
+                    var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
 
                     if (header?.Metadata != null && header.Metadata.TryGetValue("format", out var format))
                     {
@@ -56,21 +69,29 @@ namespace ModelIngestion.ModelFormats
                     if (header?.Tensors != null)
                     {
                         var layerIdx = 0;
-                        foreach (var tensorToken in header.Tensors)
+                        foreach (var tensorEntry in header.Tensors)
                         {
-                            var tensorInfo = tensorToken.Value.ToObject<SafetensorTensorInfo>();
+                            [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+                            [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
+                            var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            });
+
                             if (tensorInfo != null)
                             {
+                                [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+                                [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                                 var layer = new Hartonomous.Core.Entities.ModelLayer
                                 {
                                     LayerIdx = layerIdx,
-                                    LayerName = tensorToken.Key,
+                                    LayerName = tensorEntry.Key,
                                     LayerType = tensorInfo.DType ?? "Unknown",
-                                    Parameters = JsonConvert.SerializeObject(new
+                                    Parameters = JsonSerializer.Serialize(new
                                     {
                                         shape = tensorInfo.Shape,
                                         data_offsets = tensorInfo.DataOffsets
-                                    })
+                                    }, new JsonSerializerOptions { WriteIndented = false })
                                 };
 
                                 // Note: In production, weights would be stored as VECTOR columns
@@ -98,7 +119,13 @@ namespace ModelIngestion.ModelFormats
                     var headerLength = reader.ReadInt64();
                     var headerBytes = reader.ReadBytes((int)headerLength);
                     var headerJson = Encoding.UTF8.GetString(headerBytes);
-                    var header = JsonConvert.DeserializeObject<SafetensorsHeader>(headerJson);
+
+                    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+                    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
+                    var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, new JsonSerializerOptions
+                    {
+                        PropertyNameCaseInsensitive = true
+                    });
 
                     if (header?.Metadata != null)
                     {
@@ -114,12 +141,18 @@ namespace ModelIngestion.ModelFormats
                         metadata.TensorCount = header.Tensors.Count;
                         metadata.Tensors = new Dictionary<string, SafetensorsTensorInfo>();
 
-                        foreach (var tensorToken in header.Tensors)
+                        foreach (var tensorEntry in header.Tensors)
                         {
-                            var tensorInfo = tensorToken.Value.ToObject<SafetensorTensorInfo>();
+                            [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+                            [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
+                            var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            });
+
                             if (tensorInfo != null)
                             {
-                                metadata.Tensors[tensorToken.Key] = new SafetensorsTensorInfo
+                                metadata.Tensors[tensorEntry.Key] = new SafetensorsTensorInfo
                                 {
                                     DType = tensorInfo.DType,
                                     Shape = tensorInfo.Shape?.ToArray(),
@@ -151,9 +184,15 @@ namespace ModelIngestion.ModelFormats
 
                         var headerBytes = reader.ReadBytes((int)headerLength);
                         var headerJson = Encoding.UTF8.GetString(headerBytes);
-                        
+
                         // Try to parse as JSON
-                        JsonConvert.DeserializeObject(headerJson);
+                        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+                        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
+                        JsonSerializer.Deserialize<object>(headerJson, new JsonSerializerOptions
+                        {
+                            PropertyNameCaseInsensitive = true
+                        });
+
                         return await Task.FromResult(true);
                     }
                 }
@@ -167,22 +206,22 @@ namespace ModelIngestion.ModelFormats
 
     public class SafetensorsHeader
     {
-        [JsonProperty("__metadata__")]
+        [JsonPropertyName("__metadata__")]
         public Dictionary<string, string>? Metadata { get; set; }
 
         [JsonExtensionData]
-        public IDictionary<string, JToken>? Tensors { get; set; }
+        public Dictionary<string, JsonElement>? Tensors { get; set; }
     }
 
     public class SafetensorTensorInfo
     {
-        [JsonProperty("dtype")]
+        [JsonPropertyName("dtype")]
         public string? DType { get; set; }
 
-        [JsonProperty("shape")]
+        [JsonPropertyName("shape")]
         public List<long>? Shape { get; set; }
 
-        [JsonProperty("data_offsets")]
+        [JsonPropertyName("data_offsets")]
         public List<long>? DataOffsets { get; set; }
     }
 }

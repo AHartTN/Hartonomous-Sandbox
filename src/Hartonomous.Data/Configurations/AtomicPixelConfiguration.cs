@@ -1,6 +1,7 @@
 using Hartonomous.Core.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Data.Configurations;
 
@@ -31,6 +32,7 @@ public class AtomicPixelConfiguration : IEntityTypeConfiguration<AtomicPixel>
             .HasDefaultValue((byte)255)
             .IsRequired();
 
+        // NTS Point for spatial color representation
         builder.Property(p => p.ColorPoint)
             .HasColumnType("GEOMETRY");
 

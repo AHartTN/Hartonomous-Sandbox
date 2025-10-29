@@ -241,19 +241,16 @@ public class EmbeddingRepository : IEmbeddingRepository
     {
         // Use stored proc for VECTOR_DISTANCE calculation
         // Note: This will require creating sp_CheckSimilarityAboveThreshold stored proc
-        var vectorParam = new SqlParameter("@query_vector", System.Data.SqlDbType.VarBinary)
-        {
-            Value = SerializeVectorToBytes(queryVector)
-        };
+        var vectorParam = new SqlParameter("@query_vector", new Microsoft.Data.SqlTypes.SqlVector<float>(queryVector));
         var thresholdParam = new SqlParameter("@threshold", threshold);
 
         var results = await _context.Embeddings
             .FromSqlRaw(
                 "EXEC dbo.sp_CheckSimilarityAboveThreshold @query_vector, @threshold",
                 vectorParam, thresholdParam)
-            .FirstOrDefaultAsync(cancellationToken);
+            .ToListAsync(cancellationToken);  // Execute query first, then get first result
 
-        return results;
+        return results.FirstOrDefault();
     }
 
     public async Task IncrementAccessCountAsync(long embeddingId, CancellationToken cancellationToken = default)
@@ -271,28 +268,42 @@ public class EmbeddingRepository : IEmbeddingRepository
     {
         // Call stored proc sp_ComputeSpatialProjection
         using var command = _context.Database.GetDbConnection().CreateCommand();
-        command.CommandText = "EXEC dbo.sp_ComputeSpatialProjection @input_vector";
+        command.CommandText = "EXEC dbo.sp_ComputeSpatialProjection @input_vector, @output_x OUTPUT, @output_y OUTPUT, @output_z OUTPUT";
         
         var vectorParam = command.CreateParameter();
         vectorParam.ParameterName = "@input_vector";
-        vectorParam.Value = SerializeVectorToBytes(fullVector);
+        vectorParam.Value = new Microsoft.Data.SqlTypes.SqlVector<float>(fullVector);
         command.Parameters.Add(vectorParam);
+
+        var outputXParam = command.CreateParameter();
+        outputXParam.ParameterName = "@output_x";
+        outputXParam.Direction = System.Data.ParameterDirection.Output;
+        outputXParam.DbType = System.Data.DbType.Double;
+        command.Parameters.Add(outputXParam);
+
+        var outputYParam = command.CreateParameter();
+        outputYParam.ParameterName = "@output_y";
+        outputYParam.Direction = System.Data.ParameterDirection.Output;
+        outputYParam.DbType = System.Data.DbType.Double;
+        command.Parameters.Add(outputYParam);
+
+        var outputZParam = command.CreateParameter();
+        outputZParam.ParameterName = "@output_z";
+        outputZParam.Direction = System.Data.ParameterDirection.Output;
+        outputZParam.DbType = System.Data.DbType.Double;
+        command.Parameters.Add(outputZParam);
 
         await _context.Database.OpenConnectionAsync(cancellationToken);
         try
         {
-            using var result = await command.ExecuteReaderAsync(cancellationToken);
-            if (await result.ReadAsync(cancellationToken))
-            {
-                return new float[] 
-                { 
-                    result.GetFloat(0), 
-                    result.GetFloat(1), 
-                    result.GetFloat(2) 
-                };
-            }
+            await command.ExecuteNonQueryAsync(cancellationToken);
             
-            throw new InvalidOperationException("Failed to compute spatial projection");
+            return new float[] 
+            { 
+                Convert.ToSingle(outputXParam.Value),
+                Convert.ToSingle(outputYParam.Value),
+                Convert.ToSingle(outputZParam.Value)
+            };
         }
         finally
         {
@@ -312,18 +323,18 @@ public class EmbeddingRepository : IEmbeddingRepository
     {
         var sql = @"
             INSERT INTO dbo.Embeddings_Production (
-                source_text,
-                source_type,
+                SourceText,
+                SourceType,
                 embedding_full,
-                embedding_model,
-                spatial_proj_x,
-                spatial_proj_y,
-                spatial_proj_z,
+                EmbeddingModel,
+                SpatialProjX,
+                SpatialProjY,
+                SpatialProjZ,
                 spatial_geometry,
                 spatial_coarse,
                 dimension,
-                content_hash,
-                access_count
+                ContentHash,
+                AccessCount
             ) VALUES (
                 @source_text,
                 @source_type,
@@ -350,7 +361,7 @@ public class EmbeddingRepository : IEmbeddingRepository
         {
             CreateParameter(command, "@source_text", sourceText),
             CreateParameter(command, "@source_type", sourceType),
-            CreateParameter(command, "@embedding_full", SerializeVectorToBytes(embeddingFull)),
+            CreateParameter(command, "@embedding_full", new Microsoft.Data.SqlTypes.SqlVector<float>(embeddingFull)),
             CreateParameter(command, "@embedding_model", "production"),
             CreateParameter(command, "@x", spatial3D[0]),
             CreateParameter(command, "@y", spatial3D[1]),

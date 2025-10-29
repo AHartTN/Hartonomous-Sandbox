@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Data.Configurations;
 
@@ -47,26 +48,20 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
         builder.HasIndex(e => e.ContentHash)
             .HasDatabaseName("idx_content_hash");
 
-        // TEMP: Commenting out computed spatial geometry column - causing EF Core type mapping issues
-        // Will add this directly in migration or via raw SQL after table creation
-        /*
-        // Computed column for spatial geometry
-        builder.Property<string>("SpatialGeometry")
+        // Spatial geometry properties using NetTopologySuite
+        builder.Property(e => e.SpatialGeometry)
             .HasColumnName("spatial_geometry")
-            .HasColumnType("geometry")
-            .HasComputedColumnSql(
-                "geometry::STGeomFromText('POINT(' + " +
-                "CAST([spatial_proj_x] AS NVARCHAR(50)) + ' ' + " +
-                "CAST([spatial_proj_y] AS NVARCHAR(50)) + ')', 0)", 
-                stored: true);
+            .HasColumnType("geometry");
 
-        // Spatial index (will be created via migration or raw SQL)
-        // EF Core doesn't have full spatial index support, so we'll add this in migration
-        builder.HasIndex("SpatialGeometry")
+        builder.Property(e => e.SpatialCoarse)
+            .HasColumnName("spatial_coarse")
+            .HasColumnType("geometry");
+
+        // Spatial indexes for fast approximate search
+        builder.HasIndex(e => e.SpatialGeometry)
             .HasDatabaseName("idx_spatial_fine");
-        */
 
-        // NOTE: spatial_geometry column added via migration as computed column
-        // EF Core cannot map computed geometry columns properly, so we handle this via raw SQL
+        builder.HasIndex(e => e.SpatialCoarse)
+            .HasDatabaseName("idx_spatial_coarse");
     }
 }
