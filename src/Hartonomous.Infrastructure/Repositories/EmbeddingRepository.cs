@@ -9,25 +9,17 @@ using System.Data.Common;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class EmbeddingRepository : IEmbeddingRepository
+public class EmbeddingRepository : BaseLongRepository<Embedding, HartonomousDbContext>, IEmbeddingRepository
 {
-    private readonly HartonomousDbContext _context;
-    private readonly ILogger<EmbeddingRepository> _logger;
-
-    public EmbeddingRepository(HartonomousDbContext context, ILogger<EmbeddingRepository> logger)
-    {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
 
     public async Task<Embedding?> GetByIdAsync(long embeddingId, CancellationToken cancellationToken = default)
     {
-        return await _context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
+        return await Context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
     }
 
     public async Task<IEnumerable<Embedding>> GetBySourceTypeAsync(string sourceType, int limit = 100, CancellationToken cancellationToken = default)
     {
-        return await _context.Embeddings
+        return await Context.Embeddings
             .Where(e => e.SourceType == sourceType)
             .Take(limit)
             .ToListAsync(cancellationToken);
@@ -35,41 +27,41 @@ public class EmbeddingRepository : IEmbeddingRepository
 
     public async Task<Embedding> AddAsync(Embedding embedding, CancellationToken cancellationToken = default)
     {
-        _context.Embeddings.Add(embedding);
-        await _context.SaveChangesAsync(cancellationToken);
+        Context.Embeddings.Add(embedding);
+        await Context.SaveChangesAsync(cancellationToken);
         return embedding;
     }
 
     public async Task<IEnumerable<Embedding>> AddRangeAsync(IEnumerable<Embedding> embeddings, CancellationToken cancellationToken = default)
     {
         var embeddingList = embeddings.ToList();
-        _logger.LogInformation("Adding {Count} embeddings in batch", embeddingList.Count);
+        Logger.LogInformation("Adding {Count} embeddings in batch", embeddingList.Count);
         
-        _context.Embeddings.AddRange(embeddingList);
-        await _context.SaveChangesAsync(cancellationToken);
+        Context.Embeddings.AddRange(embeddingList);
+        await Context.SaveChangesAsync(cancellationToken);
         
         return embeddingList;
     }
 
     public async Task UpdateAsync(Embedding embedding, CancellationToken cancellationToken = default)
     {
-        _context.Embeddings.Update(embedding);
-        await _context.SaveChangesAsync(cancellationToken);
+        Context.Embeddings.Update(embedding);
+        await Context.SaveChangesAsync(cancellationToken);
     }
 
     public async Task DeleteAsync(long embeddingId, CancellationToken cancellationToken = default)
     {
-        var embedding = await _context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
+        var embedding = await Context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
         if (embedding != null)
         {
-            _context.Embeddings.Remove(embedding);
-            await _context.SaveChangesAsync(cancellationToken);
+            Context.Embeddings.Remove(embedding);
+            await Context.SaveChangesAsync(cancellationToken);
         }
     }
 
     public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.Embeddings.CountAsync(cancellationToken);
+        return await Context.Embeddings.CountAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<EmbeddingSearchResult>> ExactSearchAsync(
@@ -78,11 +70,11 @@ public class EmbeddingRepository : IEmbeddingRepository
         string metric = "cosine", 
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Executing exact vector search with metric: {Metric}, topK: {TopK}", metric, topK);
+        Logger.LogDebug("Executing exact vector search with metric: {Metric}, topK: {TopK}", metric, topK);
 
         var results = new List<EmbeddingSearchResult>();
         
-        using var command = _context.Database.GetDbConnection().CreateCommand();
+        using var command = Context.Database.GetDbConnection().CreateCommand();
         command.CommandText = @"
             SELECT TOP (@top_k)
                 embedding_id,
@@ -144,11 +136,11 @@ public class EmbeddingRepository : IEmbeddingRepository
         int finalTopK = 10, 
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Executing hybrid search with spatial candidates: {Candidates}, finalTopK: {TopK}", spatialCandidates, finalTopK);
+        Logger.LogDebug("Executing hybrid search with spatial candidates: {Candidates}, finalTopK: {TopK}", spatialCandidates, finalTopK);
 
         var results = new List<EmbeddingSearchResult>();
         
-        using var command = _context.Database.GetDbConnection().CreateCommand();
+        using var command = Context.Database.GetDbConnection().CreateCommand();
         command.CommandText = @"
             DECLARE @query_point GEOMETRY = geometry::STGeomFromText(
                 'POINT(' + CAST(@query_spatial_x AS NVARCHAR(50)) + ' ' +
@@ -232,7 +224,7 @@ public class EmbeddingRepository : IEmbeddingRepository
     // Deduplication methods (Phase 2)
     public async Task<Embedding?> CheckDuplicateByHashAsync(string contentHash, CancellationToken cancellationToken = default)
     {
-        return await _context.Embeddings
+        return await Context.Embeddings
             .Where(e => e.ContentHash == contentHash)
             .FirstOrDefaultAsync(cancellationToken);
     }
@@ -244,7 +236,7 @@ public class EmbeddingRepository : IEmbeddingRepository
         var vectorParam = new SqlParameter("@query_vector", new Microsoft.Data.SqlTypes.SqlVector<float>(queryVector));
         var thresholdParam = new SqlParameter("@threshold", threshold);
 
-        var results = await _context.Embeddings
+        var results = await Context.Embeddings
             .FromSqlRaw(
                 "EXEC dbo.sp_CheckSimilarityAboveThreshold @query_vector, @threshold",
                 vectorParam, thresholdParam)
@@ -255,19 +247,19 @@ public class EmbeddingRepository : IEmbeddingRepository
 
     public async Task IncrementAccessCountAsync(long embeddingId, CancellationToken cancellationToken = default)
     {
-        var embedding = await _context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
+        var embedding = await Context.Embeddings.FindAsync(new object[] { embeddingId }, cancellationToken);
         if (embedding != null)
         {
             embedding.AccessCount++;
             embedding.LastAccessed = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
         }
     }
 
     public async Task<float[]> ComputeSpatialProjectionAsync(float[] fullVector, CancellationToken cancellationToken = default)
     {
         // Call stored proc sp_ComputeSpatialProjection
-        using var command = _context.Database.GetDbConnection().CreateCommand();
+        using var command = Context.Database.GetDbConnection().CreateCommand();
         command.CommandText = "EXEC dbo.sp_ComputeSpatialProjection @input_vector, @output_x OUTPUT, @output_y OUTPUT, @output_z OUTPUT";
         
         var vectorParam = command.CreateParameter();
@@ -293,7 +285,7 @@ public class EmbeddingRepository : IEmbeddingRepository
         outputZParam.DbType = System.Data.DbType.Double;
         command.Parameters.Add(outputZParam);
 
-        await _context.Database.OpenConnectionAsync(cancellationToken);
+        await Context.Database.OpenConnectionAsync(cancellationToken);
         try
         {
             await command.ExecuteNonQueryAsync(cancellationToken);
@@ -307,7 +299,7 @@ public class EmbeddingRepository : IEmbeddingRepository
         }
         finally
         {
-            await _context.Database.CloseConnectionAsync();
+            await Context.Database.CloseConnectionAsync();
         }
     }
 
@@ -354,7 +346,7 @@ public class EmbeddingRepository : IEmbeddingRepository
             SELECT SCOPE_IDENTITY();
         ";
 
-        using var command = _context.Database.GetDbConnection().CreateCommand();
+        using var command = Context.Database.GetDbConnection().CreateCommand();
         command.CommandText = sql;
         
         var parameters = new[]
@@ -375,7 +367,7 @@ public class EmbeddingRepository : IEmbeddingRepository
             command.Parameters.Add(param);
         }
 
-        await _context.Database.OpenConnectionAsync(cancellationToken);
+        await Context.Database.OpenConnectionAsync(cancellationToken);
         try
         {
             var result = await command.ExecuteScalarAsync(cancellationToken);
@@ -383,7 +375,7 @@ public class EmbeddingRepository : IEmbeddingRepository
         }
         finally
         {
-            await _context.Database.CloseConnectionAsync();
+            await Context.Database.CloseConnectionAsync();
         }
     }
 

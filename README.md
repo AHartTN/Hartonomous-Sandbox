@@ -78,21 +78,20 @@ Every inference operation captured via Change Event Streaming (CES) and traced i
 ```
 Hartonomous/
 ├── src/
-│   ├── SqlClr/              # .NET Framework 4.8 CLR functions
-│   ├── CesConsumer/         # .NET 10 Change Event consumer
-│   ├── Neo4jSync/           # .NET 10 Neo4j synchronization
-│   ├── ModelIngestion/      # .NET 10 model ingestion utilities
-│   └── Common/              # Shared libraries
+│   ├── Hartonomous.Core/         # Domain entities, interfaces, abstractions
+│   ├── Hartonomous.Data/         # EF Core DbContext, migrations, configurations
+│   ├── Hartonomous.Infrastructure/ # Repository implementations, services
+│   ├── ModelIngestion/           # Model ingestion service
+│   ├── CesConsumer/              # Change Event Stream consumer
+│   ├── Neo4jSync/                # Neo4j synchronization service
+│   └── SqlClr/                   # SQL CLR functions (.NET Framework 4.8)
 ├── sql/
-│   ├── schemas/             # Table definitions for multi-modal data
-│   ├── procedures/          # Inference procedures (sp_GenerateText, etc.)
-│   └── indexes/             # Index creation scripts
+│   ├── procedures/               # Inference procedures (sp_GenerateText, etc.)
+│   └── indexes/                  # Index optimization scripts
 ├── neo4j/
-│   ├── schemas/             # Neo4j schema constraints
-│   └── queries/             # Common Cypher queries
-├── scripts/
-│   └── deployment/          # Deployment & setup scripts
-└── docs/                    # Documentation
+│   ├── schemas/                  # Neo4j schema constraints
+│   └── queries/                  # Common Cypher queries
+└── docs/                         # Documentation
 
 ```
 
@@ -105,28 +104,41 @@ Hartonomous/
 
 ## Getting Started
 
-### 1. Deploy SQL Schema
-```bash
-sqlcmd -S localhost -E -C -i sql/schemas/01_CoreTables.sql
-sqlcmd -S localhost -E -C -i sql/schemas/02_MultiModalData.sql
-sqlcmd -S localhost -E -C -i sql/schemas/03_ModelStorage.sql
+### 1. Configure Database Connection
+Edit `src/ModelIngestion/appsettings.json`:
+```json
+{
+  "ConnectionStrings": {
+    "HartonomousDb": "Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True"
+  }
+}
 ```
 
-### 2. Deploy SQL CLR Assembly
+### 2. Apply EF Core Migrations
+```bash
+cd src/Hartonomous.Data
+dotnet ef database update --startup-project ../ModelIngestion
+```
+
+### 3. Deploy SQL CLR Functions (Optional)
 ```bash
 cd src/SqlClr
 dotnet build -c Release
-sqlcmd -S localhost -E -C -i ../../sql/procedures/DeployCLR.sql
+# Then deploy via sqlcmd or SSMS
 ```
 
-### 3. Initialize Neo4j Schema
+### 4. Initialize Neo4j Schema
 ```bash
 # Via Neo4j Browser or cypher-shell
 cat neo4j/schemas/CoreSchema.cypher | cypher-shell -u neo4j -p neo4jneo4j
 ```
 
-### 4. Start Services
+### 5. Start Services
 ```bash
+# Model Ingestion
+cd src/ModelIngestion
+dotnet run
+
 # CES Consumer
 cd src/CesConsumer
 dotnet run
@@ -192,18 +204,6 @@ ORDER BY avg(u.contribution_weight) DESC
 - Adjusts ensemble weights based on performance
 - Learns from user feedback stored in Neo4j
 - Complete feedback loop: SQL Server ↔ Neo4j
-
-## Development Status
-
-- [x] Architecture design
-- [x] Database connections verified
-- [ ] SQL CLR functions
-- [ ] Core SQL schema
-- [ ] CES consumer service
-- [ ] Neo4j sync service
-- [ ] Model ingestion pipeline
-- [ ] Inference procedures
-- [ ] Example models
 
 ## License
 

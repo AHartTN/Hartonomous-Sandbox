@@ -1,11 +1,5 @@
 # Hartonomous - Cognitive Database System
 
-**Status:** ✅ OPERATIONAL
-**Date:** 2025-10-27
-**Version:** 1.0
-
----
-
 ## Executive Summary
 
 Hartonomous is a **cognitive database system** that treats SQL Server 2025 as an AI inference engine. Instead of storing models as binary blobs and running inference externally, the database structure itself performs inference through novel exploitation of native SQL Server capabilities.

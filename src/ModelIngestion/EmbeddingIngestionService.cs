@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Services;
 using Hartonomous.Infrastructure.Repositories;
 using System;
 using System.Collections.Generic;
@@ -17,36 +19,23 @@ namespace ModelIngestion
     /// - Full VECTOR(384/768/1536) for exact similarity
     /// - GEOMETRY(3D) for fast approximate spatial queries
     /// - Content-addressable deduplication via SHA256 hashing
+    /// Now inherits from BaseConfigurableService for better structure.
     /// </summary>
-    public class EmbeddingIngestionService : IEmbeddingIngestionService
+    public class EmbeddingIngestionService : BaseConfigurableService<EmbeddingIngestionConfig>, IEmbeddingIngestionService
     {
-        private readonly string _embeddingModel;
-        private readonly int _embeddingDimension;
-        private readonly double _deduplicationThreshold;
         private readonly IEmbeddingRepository _embeddingRepository;
-        private readonly ILogger<EmbeddingIngestionService> _logger;
 
         public EmbeddingIngestionService(
             IEmbeddingRepository embeddingRepository,
             ILogger<EmbeddingIngestionService> logger,
             IConfiguration configuration)
+            : base(logger, new EmbeddingIngestionConfig(configuration))
         {
             _embeddingRepository = embeddingRepository ?? throw new ArgumentNullException(nameof(embeddingRepository));
-            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-            
-            // Get configuration values
-            _embeddingModel = configuration.GetValue<string>("Ingestion:EmbeddingModel", "production");
-            _embeddingDimension = configuration.GetValue<int>("Ingestion:EmbeddingDimension", 768);
-            _deduplicationThreshold = configuration.GetValue<double>("Ingestion:DeduplicationThreshold", 0.95);
         }
 
-        /// <summary>
-        /// Ingest embedding with deduplication:
-        /// 1. Check content hash (SHA256 of source_text)
-        /// 2. Check embedding similarity (cosine > threshold)
-        /// 3. Skip if duplicate exists, update access_count
-        /// 4. Insert if new
-        /// </summary>
+        public override string ServiceName => "EmbeddingIngestionService";
+
         public async Task<Hartonomous.Core.Interfaces.EmbeddingIngestionResult> IngestEmbeddingAsync(
             string sourceText,
             string sourceType,
@@ -54,20 +43,20 @@ namespace ModelIngestion
             float[]? spatial3D = null,
             CancellationToken cancellationToken = default)
         {
-            if (embeddingFull.Length != _embeddingDimension)
+            if (embeddingFull.Length != Configuration.EmbeddingDimension)
             {
                 throw new ArgumentException(
-                    $"Embedding dimension mismatch. Expected {_embeddingDimension}, got {embeddingFull.Length}");
+                    $"Embedding dimension mismatch. Expected {Configuration.EmbeddingDimension}, got {embeddingFull.Length}");
             }
 
             // Step 1: Compute content hash (SHA256 as hex string)
-            var contentHashString = ComputeSHA256HashString(sourceText);
+            var contentHashString = HashUtility.ComputeSHA256Hash(sourceText);
 
             // Step 2: Check for exact content match using repository
             var existingByHash = await _embeddingRepository.CheckDuplicateByHashAsync(contentHashString, cancellationToken);
             if (existingByHash != null)
             {
-                _logger.LogInformation("Found duplicate by hash: embedding_id={EmbeddingId}", existingByHash.EmbeddingId);
+                Logger.LogInformation("Found duplicate by hash: embedding_id={EmbeddingId}", existingByHash.EmbeddingId);
                 await _embeddingRepository.IncrementAccessCountAsync(existingByHash.EmbeddingId, cancellationToken);
                 
                 return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
@@ -81,18 +70,18 @@ namespace ModelIngestion
             // Step 3: Check for semantic similarity using configured threshold
             // Default 0.95 (95% similar) catches paraphrases and near-duplicates
             var existingBySimilarity = await _embeddingRepository.CheckDuplicateBySimilarityAsync(
-                embeddingFull, _deduplicationThreshold, cancellationToken);
+                embeddingFull, Configuration.DeduplicationThreshold, cancellationToken);
             if (existingBySimilarity != null)
             {
-                _logger.LogInformation("Found duplicate by similarity: embedding_id={EmbeddingId}, threshold={Threshold}", 
-                    existingBySimilarity.EmbeddingId, _deduplicationThreshold);
+                Logger.LogInformation("Found duplicate by similarity: embedding_id={EmbeddingId}, threshold={Threshold}", 
+                    existingBySimilarity.EmbeddingId, Configuration.DeduplicationThreshold);
                 await _embeddingRepository.IncrementAccessCountAsync(existingBySimilarity.EmbeddingId, cancellationToken);
                 
                 return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
                 {
                     EmbeddingId = existingBySimilarity.EmbeddingId,
                     WasDuplicate = true,
-                    DuplicateReason = $"High semantic similarity (cosine > {_deduplicationThreshold:F2})"
+                    DuplicateReason = $"High semantic similarity (cosine > {Configuration.DeduplicationThreshold:F2})"
                 };
             }
 
@@ -146,10 +135,24 @@ namespace ModelIngestion
         /// </summary>
         private string ComputeSHA256HashString(string content)
         {
-            using var sha256 = SHA256.Create();
-            var bytes = Encoding.UTF8.GetBytes(content);
-            var hash = sha256.ComputeHash(bytes);
-            return Convert.ToHexString(hash);
+            return HashUtility.ComputeSHA256Hash(content);
+        }
+    }
+
+    /// <summary>
+    /// Configuration for embedding ingestion service.
+    /// </summary>
+    public class EmbeddingIngestionConfig
+    {
+        public string EmbeddingModel { get; set; }
+        public int EmbeddingDimension { get; set; }
+        public double DeduplicationThreshold { get; set; }
+
+        public EmbeddingIngestionConfig(IConfiguration configuration)
+        {
+            EmbeddingModel = configuration.GetValue<string>("Ingestion:EmbeddingModel", "production");
+            EmbeddingDimension = configuration.GetValue<int>("Ingestion:EmbeddingDimension", 768);
+            DeduplicationThreshold = configuration.GetValue<double>("Ingestion:DeduplicationThreshold", 0.95);
         }
     }
 }

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging;
+using Hartonomous.Core.Services;
+using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
 using System;
@@ -9,34 +11,50 @@ using System.Threading.Tasks;
 namespace ModelIngestion
 {
     /// <summary>
-    /// Production-ready orchestrator for model and embedding ingestion workflows
+    /// Refactored orchestrator for model and embedding ingestion workflows.
+    /// Now uses separate, focused services instead of monolithic implementation.
     /// </summary>
     public class IngestionOrchestrator
     {
         private readonly ILogger<IngestionOrchestrator> _logger;
         private readonly IModelRepository _models;
         private readonly IEmbeddingRepository _embeddings;
+        private readonly ModelDownloadService _downloadService;
+        private readonly EmbeddingTestService _embeddingTestService;
+        private readonly QueryService _queryService;
+        private readonly AtomicStorageTestService _atomicTestService;
+        private readonly IModelIngestionService _modelIngestion;
         private readonly EmbeddingIngestionService _embeddingService;
-        private readonly AtomicStorageService _atomicStorage;
-        private readonly ModelIngestionService _modelIngestion;
-        private readonly ModelDownloader _downloader;
+        private readonly IAtomicPixelRepository _pixelRepository;
+        private readonly IAtomicAudioSampleRepository _audioSampleRepository;
+        private readonly IAtomicTextTokenRepository _textTokenRepository;
 
         public IngestionOrchestrator(
             ILogger<IngestionOrchestrator> logger,
             IModelRepository models,
             IEmbeddingRepository embeddings,
+            ModelDownloadService downloadService,
+            EmbeddingTestService embeddingTestService,
+            QueryService queryService,
+            AtomicStorageTestService atomicTestService,
+            IModelIngestionService modelIngestion,
             EmbeddingIngestionService embeddingService,
-            AtomicStorageService atomicStorage,
-            ModelIngestionService modelIngestion,
-            ModelDownloader downloader)
+            IAtomicPixelRepository pixelRepository,
+            IAtomicAudioSampleRepository audioSampleRepository,
+            IAtomicTextTokenRepository textTokenRepository)
         {
             _logger = logger;
             _models = models;
             _embeddings = embeddings;
-            _embeddingService = embeddingService;
-            _atomicStorage = atomicStorage;
+            _downloadService = downloadService;
+            _embeddingTestService = embeddingTestService;
+            _queryService = queryService;
+            _atomicTestService = atomicTestService;
             _modelIngestion = modelIngestion;
-            _downloader = downloader;
+            _embeddingService = embeddingService;
+            _pixelRepository = pixelRepository;
+            _audioSampleRepository = audioSampleRepository;
+            _textTokenRepository = textTokenRepository;
         }
 
         public async Task RunAsync(string[] args, CancellationToken cancellationToken = default)
@@ -240,7 +258,7 @@ namespace ModelIngestion
 
             try
             {
-                var modelDir = await _downloader.DownloadFromHuggingFaceAsync(modelId, cancellationToken);
+                var modelDir = await _downloadService.DownloadFromHuggingFaceAsync(modelId, cancellationToken);
                 _logger.LogInformation("✓ Model ready at: {Path}", modelDir);
                 _logger.LogInformation("\nTo ingest: dotnet run ingest-model {Path}", modelDir);
             }
@@ -268,7 +286,7 @@ namespace ModelIngestion
 
             try
             {
-                var modelPath = await _downloader.DownloadFromOllamaAsync(modelName, cancellationToken);
+                var modelPath = await _downloadService.DownloadFromOllamaAsync(modelName, cancellationToken);
                 _logger.LogInformation("✓ Model ready at: {Path}", modelPath);
                 _logger.LogInformation("\nTo ingest: dotnet run ingest-model {Path}", modelPath);
             }
@@ -295,17 +313,17 @@ namespace ModelIngestion
             {
                 // Download
                 _logger.LogInformation("Step 1/2: Downloading model from Hugging Face...");
-                var modelDir = await _downloader.DownloadFromHuggingFaceAsync(modelId, cancellationToken);
-                
+                var downloadResult = await _downloadService.DownloadAndIngestHuggingFaceAsync(modelId, cancellationToken);
+
                 // Find safetensors file
-                var modelFiles = Directory.GetFiles(modelDir, "*.safetensors");
+                var modelFiles = Directory.GetFiles(downloadResult.ModelPath, "*.safetensors");
                 if (modelFiles.Length == 0)
                 {
-                    modelFiles = Directory.GetFiles(modelDir, "*.onnx");
+                    modelFiles = Directory.GetFiles(downloadResult.ModelPath, "*.onnx");
                 }
                 if (modelFiles.Length == 0)
                 {
-                    _logger.LogError("No compatible model files found in: {Dir}", modelDir);
+                    _logger.LogError("No compatible model files found in: {Dir}", downloadResult.ModelPath);
                     return;
                 }
 
@@ -346,44 +364,7 @@ namespace ModelIngestion
         private async Task IngestEmbeddingsAsync(string[] args, CancellationToken cancellationToken)
         {
             int count = args.Length > 1 && int.TryParse(args[1], out var c) ? c : 10;
-            
-            _logger.LogInformation("Ingesting {Count} sample embeddings with deduplication...", count);
-
-            var random = new Random(42);
-            int newCount = 0;
-            int duplicateCount = 0;
-
-            for (int i = 0; i < count; i++)
-            {
-                // Generate sample embedding (768-dimensional)
-                var embedding = GenerateRandomEmbedding(random, 768);
-                var sourceText = $"Sample sentence number {i} with some unique content.";
-
-                var result = await _embeddingService.IngestEmbeddingAsync(
-                    sourceText,
-                    "sentence",
-                    embedding,
-                    null,
-                    cancellationToken);
-
-                if (result.WasDuplicate)
-                {
-                    duplicateCount++;
-                    _logger.LogDebug("Duplicate detected: {Reason}", result.DuplicateReason);
-                }
-                else
-                {
-                    newCount++;
-                }
-
-                if ((i + 1) % 100 == 0)
-                {
-                    _logger.LogInformation("Progress: {Current}/{Total} (New: {New}, Duplicates: {Dup})", 
-                        i + 1, count, newCount, duplicateCount);
-                }
-            }
-
-            _logger.LogInformation("✓ Ingestion complete: {New} new, {Dup} duplicates", newCount, duplicateCount);
+            await _embeddingTestService.IngestSampleEmbeddingsAsync(count, cancellationToken);
         }
 
         /// <summary>
@@ -391,50 +372,7 @@ namespace ModelIngestion
         /// </summary>
         private async Task TestDeduplicationAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Testing deduplication with intentional duplicates...");
-
-            var random = new Random(42);
-            var embedding1 = GenerateRandomEmbedding(random, 768);
-            var spatial1 = new float[] { 0.1f, 0.2f, 0.3f }; // Simple spatial projection for testing
-            var text1 = "This is a unique test sentence.";
-
-            // Insert first time - should be new
-            _logger.LogInformation("Test 1: Inserting new embedding...");
-            var result1 = await _embeddingService.IngestEmbeddingAsync(
-                text1, "sentence", embedding1, spatial1, cancellationToken);
-            
-            _logger.LogInformation("✓ First insert: ID={Id}, Duplicate={IsDup}", 
-                result1.EmbeddingId, result1.WasDuplicate);
-
-            // Insert exact same text - should detect content hash duplicate
-            _logger.LogInformation("\nTest 2: Inserting same text (exact content hash match)...");
-            var result2 = await _embeddingService.IngestEmbeddingAsync(
-                text1, "sentence", embedding1, spatial1, cancellationToken);
-            
-            _logger.LogInformation("✓ Second insert (same text): ID={Id}, Duplicate={IsDup}, Reason={Reason}", 
-                result2.EmbeddingId, result2.WasDuplicate, result2.DuplicateReason);
-
-            // Insert different text but very similar embedding - should detect semantic duplicate
-            _logger.LogInformation("\nTest 3: Inserting different text but similar embedding (semantic match)...");
-            // Create embedding with 5% difference (0.95 threshold should catch this)
-            var embedding2 = embedding1.Select(v => v * 0.95f).ToArray();
-            // Normalize to unit length
-            var mag = (float)Math.Sqrt(embedding2.Sum(v => v * v));
-            embedding2 = embedding2.Select(v => v / mag).ToArray();
-            
-            var text2 = "This is a different sentence but semantically similar.";
-            
-            var result3 = await _embeddingService.IngestEmbeddingAsync(
-                text2, "sentence", embedding2, spatial1, cancellationToken);
-            
-            _logger.LogInformation("✓ Third insert (similar embedding): ID={Id}, Duplicate={IsDup}, Reason={Reason}", 
-                result3.EmbeddingId, result3.WasDuplicate, result3.DuplicateReason);
-
-            _logger.LogInformation("\n=== Deduplication Test Results ===");
-            _logger.LogInformation("Test 1 (new): Expected=false, Actual={0}", result1.WasDuplicate);
-            _logger.LogInformation("Test 2 (hash): Expected=true, Actual={0}", result2.WasDuplicate);
-            _logger.LogInformation("Test 3 (semantic): Expected=true, Actual={0}", result3.WasDuplicate);
-            _logger.LogInformation("✓ Deduplication test complete");
+            await _embeddingTestService.TestDeduplicationAsync(cancellationToken);
         }
 
         /// <summary>
@@ -449,40 +387,7 @@ namespace ModelIngestion
             }
 
             var queryText = string.Join(" ", args.Skip(1));
-            _logger.LogInformation("Executing semantic query: '{Query}'", queryText);
-
-            // Generate query embedding (in production, use actual embedding model)
-            var random = new Random(queryText.GetHashCode());
-            var queryEmbedding = GenerateRandomEmbedding(random, 768);
-
-            // Execute exact search
-            _logger.LogInformation("Running exact VECTOR search...");
-            var exactResults = await _embeddings.ExactSearchAsync(queryEmbedding, topK: 5);
-
-            _logger.LogInformation("Top 5 exact matches:");
-            foreach (var result in exactResults)
-            {
-                _logger.LogInformation("  [{Id}] Distance: {Dist:F4} | {Text}", 
-                    result.EmbeddingId, result.Distance, 
-                    result.SourceText.Length > 80 ? result.SourceText.Substring(0, 77) + "..." : result.SourceText);
-            }
-
-            // Execute approximate spatial search
-            _logger.LogInformation("Computing spatial projection...");
-            var spatial3D = await _embeddings.ComputeSpatialProjectionAsync(queryEmbedding);
-            
-            _logger.LogInformation("Running approximate spatial search...");
-            var approxResults = await _embeddings.HybridSearchAsync(queryEmbedding, spatial3D[0], spatial3D[1], spatial3D[2], spatialCandidates: 100, finalTopK: 5);
-
-            _logger.LogInformation("Top 5 approximate matches:");
-            foreach (var result in approxResults)
-            {
-                _logger.LogInformation("  [{Id}] Distance: {Dist:F4} | {Text}", 
-                    result.EmbeddingId, result.Distance, 
-                    result.SourceText.Length > 80 ? result.SourceText.Substring(0, 77) + "..." : result.SourceText);
-            }
-
-            _logger.LogInformation("✓ Query complete");
+            await _queryService.ExecuteSemanticQueryAsync(queryText, cancellationToken);
         }
 
         /// <summary>
@@ -490,72 +395,9 @@ namespace ModelIngestion
         /// </summary>
         private async Task TestAtomicStorageAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Testing atomic storage with content-addressable deduplication...");
-
-            // Test 1: Atomic pixels
-            _logger.LogInformation("\n=== Testing Atomic Pixel Storage ===");
-            var pixelId1 = await _atomicStorage.StoreAtomicPixelAsync(255, 0, 0, 255, cancellationToken); // Red
-            _logger.LogInformation("Stored red pixel: ID={Id}", pixelId1);
-
-            var pixelId2 = await _atomicStorage.StoreAtomicPixelAsync(255, 0, 0, 255, cancellationToken); // Same red - should dedupe
-            _logger.LogInformation("Stored red pixel again (duplicate): ID={Id}", pixelId2);
-            _logger.LogInformation("IDs match (deduplication): {Match}", pixelId1 == pixelId2);
-
-            var pixelId3 = await _atomicStorage.StoreAtomicPixelAsync(0, 255, 0, 255, cancellationToken); // Green - different
-            _logger.LogInformation("Stored green pixel: ID={Id}", pixelId3);
-
-            // Test 2: Atomic audio samples
-            _logger.LogInformation("\n=== Testing Atomic Audio Sample Storage ===");
-            var sampleId1 = await _atomicStorage.StoreAtomicAudioSampleAsync(0.5f, cancellationToken); // Mid-range amplitude (normalized)
-            _logger.LogInformation("Stored audio sample (0.5): ID={Id}", sampleId1);
-
-            var sampleId2 = await _atomicStorage.StoreAtomicAudioSampleAsync(0.5f, cancellationToken); // Same - should dedupe
-            _logger.LogInformation("Stored same sample again (duplicate): ID={Id}", sampleId2);
-            _logger.LogInformation("IDs match (deduplication): {Match}", sampleId1 == sampleId2);
-
-            // Test 3: Atomic tokens
-            _logger.LogInformation("\n=== Testing Atomic Token Storage ===");
-            var tokenId1 = await _atomicStorage.StoreAtomicTextTokenAsync("hello", null, cancellationToken);
-            _logger.LogInformation("Stored token 'hello': ID={Id}", tokenId1);
-
-            var tokenId2 = await _atomicStorage.StoreAtomicTextTokenAsync("hello", null, cancellationToken); // Same - should dedupe
-            _logger.LogInformation("Stored token 'hello' again (duplicate): ID={Id}", tokenId2);
-            _logger.LogInformation("IDs match (deduplication): {Match}", tokenId1 == tokenId2);
-
-            var tokenId3 = await _atomicStorage.StoreAtomicTextTokenAsync("world", null, cancellationToken); // Different
-            _logger.LogInformation("Stored token 'world': ID={Id}", tokenId3);
-
-            // Test 4: Batch pixel storage
-            _logger.LogInformation("\n=== Testing Batch Pixel Storage ===");
-            var batchPixels = new List<(byte r, byte g, byte b, byte a)>
-            {
-                (255, 0, 0, 255), // Red - duplicate
-                (0, 255, 0, 255), // Green - duplicate
-                (0, 0, 255, 255)  // Blue - new
-            };
-            var batchIds = await _atomicStorage.StoreBatchPixelsAsync(batchPixels, cancellationToken);
-            _logger.LogInformation("Batch stored {Count} pixels, got IDs: {Ids}", 
-                batchPixels.Count, string.Join(", ", batchIds));
-
-            _logger.LogInformation("\n✓ Atomic storage test complete - deduplication working!");
+            await _atomicTestService.TestAtomicStorageAsync(cancellationToken);
         }
 
-        private float[] GenerateRandomEmbedding(Random random, int dimension)
-        {
-            var embedding = new float[dimension];
-            for (int i = 0; i < dimension; i++)
-            {
-                embedding[i] = (float)(random.NextDouble() * 2.0 - 1.0); // Range: -1 to 1
-            }
-            
-            // Normalize to unit length (cosine similarity requirement)
-            var magnitude = (float)Math.Sqrt(embedding.Sum(v => v * v));
-            for (int i = 0; i < dimension; i++)
-            {
-                embedding[i] /= magnitude;
-            }
-            
-            return embedding;
-        }
+
     }
 }

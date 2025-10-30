@@ -5,16 +5,8 @@ using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class InferenceRepository : IInferenceRepository
+public class InferenceRepository : BaseLongRepository<InferenceRequest, HartonomousDbContext>, IInferenceRepository
 {
-    private readonly HartonomousDbContext _context;
-    private readonly ILogger<InferenceRepository> _logger;
-
-    public InferenceRepository(HartonomousDbContext context, ILogger<InferenceRepository> logger)
-    {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    }
 
     public async Task<InferenceRequest?> GetByIdAsync(long inferenceId, CancellationToken cancellationToken = default)
     {

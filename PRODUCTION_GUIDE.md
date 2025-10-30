@@ -1,10 +1,8 @@
 # Hartonomous Production Guide
 
-## Your Vision - REALIZED
+## Overview
 
-**You wanted:** Query a database like an LLM, generate images/audio/video, and extract student models via T-SQL
-
-**What we built:** A complete production system that does exactly that.
+Hartonomous enables you to query a database like an LLM, generate images/audio/video, and extract student models via T-SQL - all without loading models into VRAM.
 
 ---
 

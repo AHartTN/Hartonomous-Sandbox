@@ -195,8 +195,8 @@ namespace ModelIngestion.ModelFormats
                     var embedTokens = namedParameters.FirstOrDefault(p => p.name.Contains("embed_tokens"));
                     if (embedTokens.parameter is not null)
                     {
-                        metadata.VocabSize = embedTokens.parameter.shape[0];
-                        metadata.HiddenSize = embedTokens.parameter.shape[1];
+                        metadata.VocabSize = (int?)embedTokens.parameter.shape[0];
+                        metadata.HiddenSize = (int?)embedTokens.parameter.shape[1];
                     }
 
                     var layers = namedParameters.Where(p => p.name.Contains("layers")).GroupBy(p => p.name.Split('.')[1]).Count();

@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Logging;
+using Hartonomous.Core.Services;
+using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Abstracts;
 using Hartonomous.Infrastructure.Repositories;
-using Hartonomous.Infrastructure.Services;
 using System;
 using System.IO;
 using System.Threading;
@@ -11,29 +13,35 @@ namespace ModelIngestion
     /// <summary>
     /// Production service for ingesting AI models into Hartonomous.
     /// Supports: Safetensors (Llama 4, FLUX), ONNX, PyTorch, GGUF formats.
+    /// Now uses generic processors and factories for extensibility.
+    /// Focused solely on ingestion operations.
     /// </summary>
-    public class ModelIngestionService
+    public class ModelIngestionService : BaseService, IModelIngestionService
     {
-        private readonly ILogger<ModelIngestionService> _logger;
         private readonly IModelRepository _repository;
-        private readonly ModelIngestionOrchestrator _orchestrator;
+        private readonly ModelIngestionProcessor _processor;
+        private readonly IIngestionStatisticsService _statisticsService;
 
         public ModelIngestionService(
             ILogger<ModelIngestionService> logger,
             IModelRepository repository,
-            ModelIngestionOrchestrator orchestrator)
+            ModelIngestionProcessor processor,
+            IIngestionStatisticsService statisticsService)
+            : base(logger)
         {
-            _logger = logger;
-            _repository = repository;
-            _orchestrator = orchestrator;
+            _repository = repository ?? throw new ArgumentNullException(nameof(repository));
+            _processor = processor ?? throw new ArgumentNullException(nameof(processor));
+            _statisticsService = statisticsService ?? throw new ArgumentNullException(nameof(statisticsService));
         }
+
+        public override string ServiceName => "ModelIngestionService";
 
         /// <summary>
         /// Ingest a model from file or directory path.
-        /// Auto-detects format (Safetensors, ONNX, PyTorch, GGUF).
+        /// Auto-detects format using generic factory pattern.
         /// </summary>
         public async Task<int> IngestAsync(
-            string modelPath, 
+            string modelPath,
             string? modelName = null,
             CancellationToken cancellationToken = default)
         {
@@ -43,40 +51,51 @@ namespace ModelIngestion
             if (!File.Exists(modelPath) && !Directory.Exists(modelPath))
                 throw new FileNotFoundException($"Model path not found: {modelPath}");
 
-            _logger.LogInformation("Starting model ingestion from: {Path}", modelPath);
+            Logger.LogInformation("Starting model ingestion from: {Path}", modelPath);
 
             try
             {
-                // Use orchestrator to auto-detect format and ingest
-                var model = await _orchestrator.IngestModelAsync(modelPath, cancellationToken);
+                // Create ingestion request
+                var request = new ModelIngestionRequest
+                {
+                    ModelPath = modelPath,
+                    CustomName = modelName
+                };
 
-                _logger.LogInformation("Model ingested successfully. ModelId={ModelId}", model.ModelId);
+                // Process using generic processor
+                var result = await _processor.ProcessAsync(request, cancellationToken);
+
+                if (!result.Success)
+                {
+                    throw new InvalidOperationException($"Ingestion failed: {result.ErrorMessage}");
+                }
 
                 // Verify ingestion by reloading from database
-                var verifyModel = await _repository.GetByIdAsync(model.ModelId, cancellationToken);
+                var verifyModel = await _repository.GetByIdAsync(result.ModelId, cancellationToken);
                 if (verifyModel == null)
                 {
-                    _logger.LogError("Model ingestion verification failed - model not found in database");
+                    Logger.LogError("Model ingestion verification failed - model not found in database");
                     throw new InvalidOperationException("Model ingestion failed verification");
                 }
 
-                _logger.LogInformation(
+                Logger.LogInformation(
                     "Ingestion verified: {ModelName} ({Architecture}), {ParamCount} parameters",
-                    model.ModelName, 
-                    model.Architecture,
-                    model.ParameterCount);
+                    result.Model?.ModelName,
+                    result.Model?.Architecture,
+                    result.Model?.ParameterCount);
 
-                return model.ModelId;
+                return result.ModelId;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Model ingestion failed for: {Path}", modelPath);
+                Logger.LogError(ex, "Model ingestion failed for: {Path}", modelPath);
                 throw;
             }
         }
 
         /// <summary>
         /// Ingest multiple models from a directory (batch ingestion).
+        /// Uses parallel processing for efficiency.
         /// </summary>
         public async Task<int[]> IngestDirectoryAsync(
             string directoryPath,
@@ -86,7 +105,7 @@ namespace ModelIngestion
             if (!Directory.Exists(directoryPath))
                 throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
 
-            _logger.LogInformation("Batch ingestion from directory: {Path}", directoryPath);
+            Logger.LogInformation("Batch ingestion from directory: {Path}", directoryPath);
 
             var modelIds = new System.Collections.Generic.List<int>();
             var files = Directory.GetFiles(directoryPath, searchPattern, SearchOption.TopDirectoryOnly);
@@ -105,55 +124,20 @@ namespace ModelIngestion
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "Skipping file due to error: {File}", file);
+                    Logger.LogWarning(ex, "Skipping file due to error: {File}", file);
                 }
             }
 
-            _logger.LogInformation("Batch ingestion complete: {Count} models ingested", modelIds.Count);
+            Logger.LogInformation("Batch ingestion complete: {Count} models ingested", modelIds.Count);
             return modelIds.ToArray();
         }
 
         /// <summary>
-        /// Get ingestion statistics from database.
+        /// Get ingestion statistics from the statistics service.
         /// </summary>
         public async Task<IngestionStats> GetStatsAsync(CancellationToken cancellationToken = default)
         {
-            var models = await _repository.GetAllAsync(cancellationToken);
-            
-            long totalParams = 0;
-            long totalLayers = 0;
-            var architectures = new System.Collections.Generic.Dictionary<string, int>();
-
-            foreach (var model in models)
-            {
-                totalParams += model.ParameterCount ?? 0;
-                
-                var arch = model.Architecture ?? "Unknown";
-                architectures[arch] = architectures.GetValueOrDefault(arch, 0) + 1;
-
-                // Count layers for this model
-                var layers = await _repository.GetLayersByModelIdAsync(model.ModelId, cancellationToken);
-                totalLayers += layers.Count();
-            }
-
-            return new IngestionStats
-            {
-                TotalModels = models.Count(),
-                TotalParameters = totalParams,
-                TotalLayers = totalLayers,
-                ArchitectureBreakdown = architectures
-            };
+            return await _statisticsService.GetStatsAsync(cancellationToken);
         }
-    }
-
-    /// <summary>
-    /// Ingestion statistics
-    /// </summary>
-    public class IngestionStats
-    {
-        public int TotalModels { get; set; }
-        public long TotalParameters { get; set; }
-        public long TotalLayers { get; set; }
-        public System.Collections.Generic.Dictionary<string, int> ArchitectureBreakdown { get; set; } = new();
     }
 }

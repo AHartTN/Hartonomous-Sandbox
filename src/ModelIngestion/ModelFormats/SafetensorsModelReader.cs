@@ -53,8 +53,6 @@ namespace ModelIngestion.ModelFormats
                     var headerBytes = reader.ReadBytes((int)headerLength);
                     var headerJson = Encoding.UTF8.GetString(headerBytes);
 
-                    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-                    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                     var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
@@ -71,8 +69,6 @@ namespace ModelIngestion.ModelFormats
                         var layerIdx = 0;
                         foreach (var tensorEntry in header.Tensors)
                         {
-                            [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-                            [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                             var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), new JsonSerializerOptions
                             {
                                 PropertyNameCaseInsensitive = true
@@ -80,8 +76,6 @@ namespace ModelIngestion.ModelFormats
 
                             if (tensorInfo != null)
                             {
-                                [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-                                [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                                 var layer = new Hartonomous.Core.Entities.ModelLayer
                                 {
                                     LayerIdx = layerIdx,
@@ -108,6 +102,8 @@ namespace ModelIngestion.ModelFormats
             return model;
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
         public async Task<SafetensorsMetadata> GetMetadataAsync(string modelPath, CancellationToken cancellationToken = default)
         {
             var metadata = new SafetensorsMetadata();
@@ -120,8 +116,6 @@ namespace ModelIngestion.ModelFormats
                     var headerBytes = reader.ReadBytes((int)headerLength);
                     var headerJson = Encoding.UTF8.GetString(headerBytes);
 
-                    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-                    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                     var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, new JsonSerializerOptions
                     {
                         PropertyNameCaseInsensitive = true
@@ -143,8 +137,6 @@ namespace ModelIngestion.ModelFormats
 
                         foreach (var tensorEntry in header.Tensors)
                         {
-                            [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-                            [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                             var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), new JsonSerializerOptions
                             {
                                 PropertyNameCaseInsensitive = true
@@ -169,6 +161,8 @@ namespace ModelIngestion.ModelFormats
             return await Task.FromResult(metadata);
         }
 
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
         public async Task<bool> ValidateFormatAsync(string modelPath, CancellationToken cancellationToken = default)
         {
             try
@@ -186,8 +180,6 @@ namespace ModelIngestion.ModelFormats
                         var headerJson = Encoding.UTF8.GetString(headerBytes);
 
                         // Try to parse as JSON
-                        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-                        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
                         JsonSerializer.Deserialize<object>(headerJson, new JsonSerializerOptions
                         {
                             PropertyNameCaseInsensitive = true

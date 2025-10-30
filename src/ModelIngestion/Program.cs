@@ -64,6 +64,17 @@ namespace ModelIngestion
                     services.AddScoped<ModelIngestionService>();
                     services.AddScoped<Hartonomous.Infrastructure.Services.ModelDownloader>();
                     
+                    // Register new focused services
+                    services.AddScoped<ModelDownloadService>();
+                    services.AddScoped<EmbeddingTestService>();
+                    services.AddScoped<QueryService>();
+                    services.AddScoped<AtomicStorageTestService>();
+                    
+                    // Register model format readers
+                    services.AddScoped<Hartonomous.Core.Interfaces.IModelFormatReader<Hartonomous.Core.Interfaces.OnnxMetadata>, ModelFormats.OnnxModelReader>();
+                    services.AddScoped<Hartonomous.Core.Interfaces.IModelFormatReader<Hartonomous.Core.Interfaces.SafetensorsMetadata>, ModelFormats.SafetensorsModelReader>();
+                    services.AddScoped<ModelFormats.ModelReaderFactory>();
+                    
                     // Register model format readers
                     services.AddScoped<Hartonomous.Core.Interfaces.IModelFormatReader<Hartonomous.Core.Interfaces.OnnxMetadata>, ModelFormats.OnnxModelReader>();
                     services.AddScoped<Hartonomous.Core.Interfaces.IModelFormatReader<Hartonomous.Core.Interfaces.SafetensorsMetadata>, ModelFormats.SafetensorsModelReader>();

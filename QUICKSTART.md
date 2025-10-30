@@ -1,8 +1,8 @@
 # Hartonomous - Quick Start Guide
 
-## What We've Built
+## What is Hartonomous?
 
-**Hartonomous** is a revolutionary AI inference engine that turns SQL Server 2025 into a queryable multi-modal AI system with **zero VRAM requirements**. Instead of loading models into GPU memory, we store models as pre-computed indexes on disk and perform inference through SQL queries.
+**Hartonomous** is a revolutionary AI inference engine that turns SQL Server 2025 into a queryable multi-modal AI system with **zero VRAM requirements**. Instead of loading models into GPU memory, models are stored as pre-computed indexes on disk and inference is performed through SQL queries.
 
 ### Key Innovation
 
@@ -13,24 +13,6 @@
 - **Columnstore Indexes** = Temporal/sequential data with 10-100x compression
 - **Graph (Node/Edge tables)** = Neural network topology
 - **JSON Indexes** = Fast context filtering
-
-### Current Status
-
-✅ **Completed:**
-- SQL Server core schema (models, inference tracking, caching)
-- Multi-modal data storage (images, audio, video, text)
-- SQL CLR functions (.NET Framework 4.8) for vector/spatial operations
-- .NET 10 CES consumer service (skeleton)
-- .NET 10 Neo4j sync service (skeleton)
-- Neo4j semantic audit schema
-- Deployment scripts
-
-🚧 **Next Steps:**
-- Enable SQL Server 2025 VECTOR type and DiskANN indexes
-- Implement model ingestion pipeline
-- Build inference stored procedures
-- Complete CES consumer logic
-- Create example model ingests
 
 ---
 
