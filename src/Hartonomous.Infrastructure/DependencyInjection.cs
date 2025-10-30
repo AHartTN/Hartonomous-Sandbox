@@ -48,15 +48,15 @@ public static class DependencyInjection
             }
         });
 
-        // Register legacy repositories (will be phased out)
-        services.AddScoped<IModelRepository, ModelRepository>();
-        services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
-        services.AddScoped<IInferenceRepository, InferenceRepository>();
-        services.AddScoped<IAtomicPixelRepository, AtomicPixelRepository>();
-        services.AddScoped<IAtomicAudioSampleRepository, AtomicAudioSampleRepository>();
-        services.AddScoped<IAtomicTextTokenRepository, AtomicTextTokenRepository>();
-        services.AddScoped<ITokenVocabularyRepository, TokenVocabularyRepository>();
-        services.AddScoped<ICdcRepository, CdcRepository>();
+        // Legacy repositories - DISABLED pending refactor
+        // services.AddScoped<IModelRepository, ModelRepository>();
+        // services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
+        // services.AddScoped<IInferenceRepository, InferenceRepository>();
+        // services.AddScoped<IAtomicPixelRepository, AtomicPixelRepository>();
+        // services.AddScoped<IAtomicAudioSampleRepository, AtomicAudioSampleRepository>();
+        // services.AddScoped<IAtomicTextTokenRepository, AtomicTextTokenRepository>();
+        // services.AddScoped<ITokenVocabularyRepository, TokenVocabularyRepository>();
+        // services.AddScoped<ICdcRepository, CdcRepository>();
 
         // Register dimension bucket architecture (NEW)
         services.AddScoped<IWeightRepository<Weight768>, WeightRepository<Weight768>>();
@@ -66,11 +66,11 @@ public static class DependencyInjection
         services.AddScoped<IModelArchitectureService, ModelArchitectureService>();
         services.AddScoped<IWeightCatalogService, WeightCatalogService>();
 
-        // Register legacy services
-        services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
-        services.AddScoped<ModelIngestionOrchestrator>();
-        services.AddScoped<IInferenceService, InferenceOrchestrator>();
-        services.AddScoped<IUnifiedEmbeddingService, UnifiedEmbeddingService>();
+        // Legacy services - DISABLED pending refactor
+        // services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
+        // services.AddScoped<ModelIngestionOrchestrator>();
+        // services.AddScoped<IInferenceService, InferenceOrchestrator>();
+        // services.AddScoped<IUnifiedEmbeddingService, UnifiedEmbeddingService>();
 
         // Note: Model format readers are registered in ModelIngestion service DI
         // since they are specific to that application, not shared infrastructure
