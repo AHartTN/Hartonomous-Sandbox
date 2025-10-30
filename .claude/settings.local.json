@@ -12,7 +12,8 @@
       "Bash(timeout /t 10)",
       "Bash(pip install:*)",
       "Bash(rm:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

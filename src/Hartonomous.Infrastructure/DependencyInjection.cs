@@ -1,3 +1,4 @@
+using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Hartonomous.Infrastructure.Repositories;
@@ -47,7 +48,7 @@ public static class DependencyInjection
             }
         });
 
-        // Register repositories
+        // Register legacy repositories (will be phased out)
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
         services.AddScoped<IInferenceRepository, InferenceRepository>();
@@ -57,7 +58,15 @@ public static class DependencyInjection
         services.AddScoped<ITokenVocabularyRepository, TokenVocabularyRepository>();
         services.AddScoped<ICdcRepository, CdcRepository>();
 
-        // Register services
+        // Register dimension bucket architecture (NEW)
+        services.AddScoped<IWeightRepository<Weight768>, WeightRepository<Weight768>>();
+        services.AddScoped<IWeightRepository<Weight1536>, WeightRepository<Weight1536>>();
+        services.AddScoped<IWeightRepository<Weight1998>, WeightRepository<Weight1998>>();
+        services.AddScoped<IWeightRepository<Weight3996>, WeightRepository<Weight3996>>();
+        services.AddScoped<IModelArchitectureService, ModelArchitectureService>();
+        services.AddScoped<IWeightCatalogService, WeightCatalogService>();
+
+        // Register legacy services
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<ModelIngestionOrchestrator>();
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
