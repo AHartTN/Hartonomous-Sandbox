@@ -21,7 +21,6 @@ namespace CesConsumer
         private readonly ICdcRepository _cdcRepository;
         private readonly EventHubProducerClient _eventHubProducer;
         private readonly ILogger<CdcListener> _logger;
-        private readonly string _lastProcessedLsnKey = "LastProcessedLsn";
 
         public CdcListener(
             ICdcRepository cdcRepository,

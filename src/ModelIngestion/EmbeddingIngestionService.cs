@@ -1,9 +1,8 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Services;
-using Hartonomous.Infrastructure.Repositories;
+using Hartonomous.Core.Utilities;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,10 +42,10 @@ namespace ModelIngestion
             float[]? spatial3D = null,
             CancellationToken cancellationToken = default)
         {
-            if (embeddingFull.Length != Configuration.EmbeddingDimension)
+            if (embeddingFull.Length != Config.EmbeddingDimension)
             {
                 throw new ArgumentException(
-                    $"Embedding dimension mismatch. Expected {Configuration.EmbeddingDimension}, got {embeddingFull.Length}");
+                    $"Embedding dimension mismatch. Expected {Config.EmbeddingDimension}, got {embeddingFull.Length}");
             }
 
             // Step 1: Compute content hash (SHA256 as hex string)
@@ -70,18 +69,18 @@ namespace ModelIngestion
             // Step 3: Check for semantic similarity using configured threshold
             // Default 0.95 (95% similar) catches paraphrases and near-duplicates
             var existingBySimilarity = await _embeddingRepository.CheckDuplicateBySimilarityAsync(
-                embeddingFull, Configuration.DeduplicationThreshold, cancellationToken);
+                embeddingFull, Config.DeduplicationThreshold, cancellationToken);
             if (existingBySimilarity != null)
             {
-                Logger.LogInformation("Found duplicate by similarity: embedding_id={EmbeddingId}, threshold={Threshold}", 
-                    existingBySimilarity.EmbeddingId, Configuration.DeduplicationThreshold);
+                Logger.LogInformation("Found duplicate by similarity: embedding_id={EmbeddingId}, threshold={Threshold}",
+                    existingBySimilarity.EmbeddingId, Config.DeduplicationThreshold);
                 await _embeddingRepository.IncrementAccessCountAsync(existingBySimilarity.EmbeddingId, cancellationToken);
                 
                 return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
                 {
                     EmbeddingId = existingBySimilarity.EmbeddingId,
                     WasDuplicate = true,
-                    DuplicateReason = $"High semantic similarity (cosine > {Configuration.DeduplicationThreshold:F2})"
+                    DuplicateReason = $"High semantic similarity (cosine > {Config.DeduplicationThreshold:F2})"
                 };
             }
 
@@ -100,7 +99,7 @@ namespace ModelIngestion
             var embeddingId = await _embeddingRepository.AddWithGeometryAsync(
                 sourceText, sourceType, embeddingFull, spatial3D, contentHashString, cancellationToken);
 
-            _logger.LogInformation("Inserted new embedding: embedding_id={EmbeddingId}", embeddingId);
+            Logger.LogInformation("Inserted new embedding: embedding_id={EmbeddingId}", embeddingId);
             
             return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
             {

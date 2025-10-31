@@ -22,7 +22,7 @@ public class EmbeddingRepositoryIntegrationTests : IDisposable
 
         _context = new HartonomousDbContext(options);
         _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EmbeddingRepository>();
-        _repository = new EmbeddingRepository(_context, _logger);
+        _repository = new EmbeddingRepository(_context);
     }
 
     [Fact]

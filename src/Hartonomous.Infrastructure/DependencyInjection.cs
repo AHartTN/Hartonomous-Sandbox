@@ -54,9 +54,11 @@ public static class DependencyInjection
         services.AddScoped<ISpatialInferenceService, SpatialInferenceService>();
         services.AddScoped<IStudentModelService, StudentModelService>();
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
+        services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
 
         services.AddScoped<ModelIngestionProcessor>();
         services.AddScoped<ModelIngestionOrchestrator>();
+        services.AddScoped<ModelDownloadService>();
 
         services.AddScoped<IModelFormatReader<SafetensorsMetadata>, Services.SafetensorsModelReader>();
         services.AddScoped<IModelFormatReader<PyTorchMetadata>, Services.PyTorchModelReader>();

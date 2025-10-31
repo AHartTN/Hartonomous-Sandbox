@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core.Services;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Core.Abstracts;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
 using System;
