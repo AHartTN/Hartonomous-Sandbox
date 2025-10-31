@@ -48,29 +48,10 @@ public static class DependencyInjection
             }
         });
 
-        // Legacy repositories - DISABLED pending refactor
-        // services.AddScoped<IModelRepository, ModelRepository>();
-        // services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
-        // services.AddScoped<IInferenceRepository, InferenceRepository>();
-        // services.AddScoped<IAtomicPixelRepository, AtomicPixelRepository>();
-        // services.AddScoped<IAtomicAudioSampleRepository, AtomicAudioSampleRepository>();
-        // services.AddScoped<IAtomicTextTokenRepository, AtomicTextTokenRepository>();
-        // services.AddScoped<ITokenVocabularyRepository, TokenVocabularyRepository>();
-        // services.AddScoped<ICdcRepository, CdcRepository>();
-
-        // Register dimension bucket architecture (NEW)
-        services.AddScoped<IWeightRepository<Weight768>, WeightRepository<Weight768>>();
-        services.AddScoped<IWeightRepository<Weight1536>, WeightRepository<Weight1536>>();
-        services.AddScoped<IWeightRepository<Weight1998>, WeightRepository<Weight1998>>();
-        services.AddScoped<IWeightRepository<Weight3996>, WeightRepository<Weight3996>>();
-        services.AddScoped<IModelArchitectureService, ModelArchitectureService>();
-        services.AddScoped<IWeightCatalogService, WeightCatalogService>();
-
-        // Legacy services - DISABLED pending refactor
-        // services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
-        // services.AddScoped<ModelIngestionOrchestrator>();
-        // services.AddScoped<IInferenceService, InferenceOrchestrator>();
-        // services.AddScoped<IUnifiedEmbeddingService, UnifiedEmbeddingService>();
+        services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
+        services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
+        services.AddScoped<ISpatialInferenceService, SpatialInferenceService>();
+        services.AddScoped<IStudentModelService, StudentModelService>();
 
         // Note: Model format readers are registered in ModelIngestion service DI
         // since they are specific to that application, not shared infrastructure

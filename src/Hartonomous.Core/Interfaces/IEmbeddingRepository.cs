@@ -1,7 +1,7 @@
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.ValueObjects;
 
-namespace Hartonomous.Infrastructure.Repositories;
+namespace Hartonomous.Core.Interfaces;
 
 /// <summary>
 /// Repository interface for Embedding entity operations

@@ -55,14 +55,6 @@ public class HartonomousDbContext : DbContext
     public DbSet<InferenceRequest> InferenceRequests => Set<InferenceRequest>();
     public DbSet<InferenceStep> InferenceSteps => Set<InferenceStep>();
 
-    // Dimension bucket architecture
-    public DbSet<ModelArchitecture> ModelArchitectures => Set<ModelArchitecture>();
-    public DbSet<Weight768> Weights768 => Set<Weight768>();
-    public DbSet<Weight1536> Weights1536 => Set<Weight1536>();
-    public DbSet<Weight1998> Weights1998 => Set<Weight1998>();
-    public DbSet<Weight3996> Weights3996 => Set<Weight3996>();
-    public DbSet<WeightCatalog> WeightCatalogs => Set<WeightCatalog>();
-
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
