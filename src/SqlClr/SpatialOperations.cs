@@ -1,5 +1,6 @@
 using System;
 using System.Data.SqlTypes;
+using System.Globalization;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
 
@@ -32,11 +33,27 @@ namespace SqlClrFunctions
                 string[] coords = point.Trim().Split(' ');
                 if (coords.Length >= 2)
                 {
-                    double x = double.Parse(coords[0]);
-                    double y = double.Parse(coords[1]);
+                    double x = double.Parse(coords[0], CultureInfo.InvariantCulture);
+                    double y = double.Parse(coords[1], CultureInfo.InvariantCulture);
+                    double? z = coords.Length >= 3 ? double.Parse(coords[2], CultureInfo.InvariantCulture) : null;
+                    double? m = coords.Length >= 4 ? double.Parse(coords[3], CultureInfo.InvariantCulture) : null;
 
                     builder.BeginGeometry(OpenGisGeometryType.Point);
-                    builder.BeginFigure(x, y);
+                    if (z.HasValue)
+                    {
+                        if (m.HasValue)
+                        {
+                            builder.BeginFigure(x, y, z.Value, m.Value);
+                        }
+                        else
+                        {
+                            builder.BeginFigure(x, y, z.Value, null);
+                        }
+                    }
+                    else
+                    {
+                        builder.BeginFigure(x, y);
+                    }
                     builder.EndFigure();
                     builder.EndGeometry();
                 }

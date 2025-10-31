@@ -42,9 +42,7 @@
     <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="VectorOperations.cs" />
-    <!-- Spatial operations temporarily disabled until assembly reference is resolved -->
-    <!-- <Compile Include="SpatialOperations.cs" /> -->
+    <Compile Include="SpatialOperations.cs" />
     <!-- <Compile Include="ImageProcessing.cs" /> -->
     <!-- <Compile Include="AudioProcessing.cs" /> -->
     <Compile Include="Properties\AssemblyInfo.cs" />

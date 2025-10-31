@@ -14,8 +14,8 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Data.Migrations
 {
     [DbContext(typeof(HartonomousDbContext))]
-    [Migration("20251027234713_AddMultiModalTablesAndProcedures")]
-    partial class AddMultiModalTablesAndProcedures
+    [Migration("20251031210015_InitialMigration")]
+    partial class InitialMigration
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -26,6 +26,331 @@ namespace Hartonomous.Data.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 128);
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.Atom", b =>
+                {
+                    b.Property<long>("AtomId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AtomId"));
+
+                    b.Property<string>("CanonicalText")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("ContentHash")
+                        .IsRequired()
+                        .HasColumnType("binary(32)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("JSON");
+
+                    b.Property<string>("Modality")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("PayloadLocator")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<long>("ReferenceCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<string>("SourceType")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("SourceUri")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<Point>("SpatialKey")
+                        .HasColumnType("geometry");
+
+                    b.Property<string>("Subtype")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("AtomId");
+
+                    b.HasIndex("ContentHash")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Atoms_ContentHash");
+
+                    b.ToTable("Atoms", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomEmbedding", b =>
+                {
+                    b.Property<long>("AtomEmbeddingId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AtomEmbeddingId"));
+
+                    b.Property<long>("AtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<int>("Dimension")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("EmbeddingType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<SqlVector<float>?>("EmbeddingVector")
+                        .HasColumnType("VECTOR(1998)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("JSON");
+
+                    b.Property<int?>("ModelId")
+                        .HasColumnType("int");
+
+                    b.Property<Point>("SpatialCoarse")
+                        .HasColumnType("geometry");
+
+                    b.Property<Point>("SpatialGeometry")
+                        .HasColumnType("geometry");
+
+                    b.Property<bool>("UsesMaxDimensionPadding")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.HasKey("AtomEmbeddingId");
+
+                    b.HasIndex("ModelId");
+
+                    b.HasIndex("AtomId", "EmbeddingType", "ModelId")
+                        .HasDatabaseName("IX_AtomEmbeddings_Atom_Model_Type");
+
+                    b.ToTable("AtomEmbeddings", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomEmbeddingComponent", b =>
+                {
+                    b.Property<long>("AtomEmbeddingComponentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AtomEmbeddingComponentId"));
+
+                    b.Property<long>("AtomEmbeddingId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ComponentIndex")
+                        .HasColumnType("int");
+
+                    b.Property<float>("ComponentValue")
+                        .HasColumnType("real");
+
+                    b.HasKey("AtomEmbeddingComponentId");
+
+                    b.HasIndex("AtomEmbeddingId", "ComponentIndex")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AtomEmbeddingComponents_Embedding_Index");
+
+                    b.ToTable("AtomEmbeddingComponents", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomRelation", b =>
+                {
+                    b.Property<long>("AtomRelationId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AtomRelationId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("JSON");
+
+                    b.Property<string>("RelationType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<long>("SourceAtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Geometry>("SpatialExpression")
+                        .HasColumnType("geometry");
+
+                    b.Property<long>("TargetAtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<float?>("Weight")
+                        .HasColumnType("real");
+
+                    b.HasKey("AtomRelationId");
+
+                    b.HasIndex("TargetAtomId");
+
+                    b.HasIndex("SourceAtomId", "TargetAtomId", "RelationType")
+                        .HasDatabaseName("IX_AtomRelations_Source_Target_Type");
+
+                    b.ToTable("AtomRelations", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomicAudioSample", b =>
+                {
+                    b.Property<byte[]>("SampleHash")
+                        .HasColumnType("BINARY(32)");
+
+                    b.Property<short>("AmplitudeInt16")
+                        .HasColumnType("SMALLINT");
+
+                    b.Property<double>("AmplitudeNormalized")
+                        .HasColumnType("FLOAT");
+
+                    b.Property<DateTime>("FirstSeen")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<DateTime>("LastReferenced")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long>("ReferenceCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("BIGINT")
+                        .HasDefaultValue(0L);
+
+                    b.HasKey("SampleHash");
+
+                    b.HasIndex("AmplitudeNormalized")
+                        .HasDatabaseName("idx_amplitude");
+
+                    b.ToTable("AtomicAudioSamples", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomicPixel", b =>
+                {
+                    b.Property<byte[]>("PixelHash")
+                        .HasColumnType("BINARY(32)");
+
+                    b.Property<byte>("A")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TINYINT")
+                        .HasDefaultValue((byte)255);
+
+                    b.Property<byte>("B")
+                        .HasColumnType("TINYINT");
+
+                    b.Property<Point>("ColorPoint")
+                        .HasColumnType("GEOMETRY");
+
+                    b.Property<DateTime>("FirstSeen")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<byte>("G")
+                        .HasColumnType("TINYINT");
+
+                    b.Property<DateTime>("LastReferenced")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<byte>("R")
+                        .HasColumnType("TINYINT");
+
+                    b.Property<long>("ReferenceCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("BIGINT")
+                        .HasDefaultValue(0L);
+
+                    b.HasKey("PixelHash");
+
+                    b.ToTable("AtomicPixels", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomicTextToken", b =>
+                {
+                    b.Property<long>("TokenId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("TokenId"));
+
+                    b.Property<string>("EmbeddingModel")
+                        .HasColumnType("NVARCHAR(100)");
+
+                    b.Property<DateTime>("FirstSeen")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<DateTime>("LastReferenced")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<long>("ReferenceCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("BIGINT")
+                        .HasDefaultValue(0L);
+
+                    b.Property<SqlVector<float>?>("TokenEmbedding")
+                        .HasColumnType("VECTOR(768)");
+
+                    b.Property<byte[]>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("BINARY(32)");
+
+                    b.Property<int>("TokenLength")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TokenText")
+                        .IsRequired()
+                        .HasColumnType("NVARCHAR(200)");
+
+                    b.Property<int?>("VocabId")
+                        .HasColumnType("int");
+
+                    b.HasKey("TokenId");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("TokenText")
+                        .IsUnique()
+                        .HasDatabaseName("idx_token_text");
+
+                    b.ToTable("AtomicTextTokens", "dbo");
+                });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.AudioData", b =>
                 {
@@ -220,6 +545,47 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("CachedActivations", "dbo");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.DeduplicationPolicy", b =>
+                {
+                    b.Property<int>("DeduplicationPolicyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("DeduplicationPolicyId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("JSON");
+
+                    b.Property<string>("PolicyName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<double?>("SemanticThreshold")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("SpatialThreshold")
+                        .HasColumnType("float");
+
+                    b.HasKey("DeduplicationPolicyId");
+
+                    b.HasIndex("PolicyName")
+                        .IsUnique()
+                        .HasDatabaseName("UX_DeduplicationPolicies_PolicyName");
+
+                    b.ToTable("DeduplicationPolicies", "dbo");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.Embedding", b =>
                 {
                     b.Property<long>("EmbeddingId")
@@ -265,6 +631,14 @@ namespace Hartonomous.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<Point>("SpatialCoarse")
+                        .HasColumnType("geometry")
+                        .HasColumnName("spatial_coarse");
+
+                    b.Property<Point>("SpatialGeometry")
+                        .HasColumnType("geometry")
+                        .HasColumnName("spatial_geometry");
 
                     b.Property<double?>("SpatialProjX")
                         .HasColumnType("float");
@@ -570,6 +944,74 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("InferenceSteps", "dbo");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.IngestionJob", b =>
+                {
+                    b.Property<long>("IngestionJobId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("IngestionJobId"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("JSON");
+
+                    b.Property<string>("PipelineName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("SourceUri")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Status")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("IngestionJobId");
+
+                    b.ToTable("IngestionJobs", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.IngestionJobAtom", b =>
+                {
+                    b.Property<long>("IngestionJobAtomId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("IngestionJobAtomId"));
+
+                    b.Property<long>("AtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("IngestionJobId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<bool>("WasDuplicate")
+                        .HasColumnType("bit");
+
+                    b.HasKey("IngestionJobAtomId");
+
+                    b.HasIndex("AtomId");
+
+                    b.HasIndex("IngestionJobId", "AtomId")
+                        .HasDatabaseName("IX_IngestionJobAtoms_Job_Atom");
+
+                    b.ToTable("IngestionJobAtoms", "dbo");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.Model", b =>
                 {
                     b.Property<int>("ModelId")
@@ -671,8 +1113,18 @@ namespace Hartonomous.Data.Migrations
                     b.Property<double?>("QuantizationZeroPoint")
                         .HasColumnType("float");
 
-                    b.Property<SqlVector<float>?>("Weights")
-                        .HasColumnType("VECTOR(1998)");
+                    b.Property<string>("TensorDtype")
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("float32");
+
+                    b.Property<string>("TensorShape")
+                        .HasColumnType("NVARCHAR(200)");
+
+                    b.Property<LineString>("WeightsGeometry")
+                        .HasColumnType("geometry")
+                        .HasColumnName("WeightsGeometry");
 
                     b.HasKey("LayerId");
 
@@ -735,6 +1187,88 @@ namespace Hartonomous.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("ModelMetadata", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtom", b =>
+                {
+                    b.Property<long>("TensorAtomId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("TensorAtomId"));
+
+                    b.Property<long>("AtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AtomType")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Geometry>("GeometryFootprint")
+                        .HasColumnType("geometry");
+
+                    b.Property<float?>("ImportanceScore")
+                        .HasColumnType("real");
+
+                    b.Property<long?>("LayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("JSON");
+
+                    b.Property<int?>("ModelId")
+                        .HasColumnType("int");
+
+                    b.Property<Point>("SpatialSignature")
+                        .HasColumnType("geometry");
+
+                    b.HasKey("TensorAtomId");
+
+                    b.HasIndex("AtomId");
+
+                    b.HasIndex("LayerId");
+
+                    b.HasIndex("ModelId", "LayerId", "AtomType")
+                        .HasDatabaseName("IX_TensorAtoms_Model_Layer_Type");
+
+                    b.ToTable("TensorAtoms", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtomCoefficient", b =>
+                {
+                    b.Property<long>("TensorAtomCoefficientId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("TensorAtomCoefficientId"));
+
+                    b.Property<float>("Coefficient")
+                        .HasColumnType("real");
+
+                    b.Property<long>("ParentLayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("TensorAtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("TensorRole")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("TensorAtomCoefficientId");
+
+                    b.HasIndex("ParentLayerId");
+
+                    b.HasIndex("TensorAtomId", "ParentLayerId", "TensorRole")
+                        .HasDatabaseName("IX_TensorAtomCoefficients_Lookup");
+
+                    b.ToTable("TensorAtomCoefficients", "dbo");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.TextDocument", b =>
@@ -999,6 +1533,54 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("VideoFrames", "dbo");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomEmbedding", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "Atom")
+                        .WithMany("Embeddings")
+                        .HasForeignKey("AtomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hartonomous.Core.Entities.Model", "Model")
+                        .WithMany("AtomEmbeddings")
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Atom");
+
+                    b.Navigation("Model");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomEmbeddingComponent", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.AtomEmbedding", "AtomEmbedding")
+                        .WithMany("Components")
+                        .HasForeignKey("AtomEmbeddingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AtomEmbedding");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomRelation", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "SourceAtom")
+                        .WithMany("SourceRelations")
+                        .HasForeignKey("SourceAtomId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "TargetAtom")
+                        .WithMany("TargetRelations")
+                        .HasForeignKey("TargetAtomId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("SourceAtom");
+
+                    b.Navigation("TargetAtom");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.AudioFrame", b =>
                 {
                     b.HasOne("Hartonomous.Core.Entities.AudioData", "Audio")
@@ -1065,6 +1647,25 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("Model");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.IngestionJobAtom", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "Atom")
+                        .WithMany()
+                        .HasForeignKey("AtomId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Hartonomous.Core.Entities.IngestionJob", "IngestionJob")
+                        .WithMany("JobAtoms")
+                        .HasForeignKey("IngestionJobId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Atom");
+
+                    b.Navigation("IngestionJob");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.ModelLayer", b =>
                 {
                     b.HasOne("Hartonomous.Core.Entities.Model", "Model")
@@ -1085,6 +1686,50 @@ namespace Hartonomous.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Model");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtom", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "Atom")
+                        .WithMany("TensorAtoms")
+                        .HasForeignKey("AtomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hartonomous.Core.Entities.ModelLayer", "Layer")
+                        .WithMany("TensorAtoms")
+                        .HasForeignKey("LayerId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Hartonomous.Core.Entities.Model", "Model")
+                        .WithMany("TensorAtoms")
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Atom");
+
+                    b.Navigation("Layer");
+
+                    b.Navigation("Model");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtomCoefficient", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.ModelLayer", "ParentLayer")
+                        .WithMany("TensorAtomCoefficients")
+                        .HasForeignKey("ParentLayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Hartonomous.Core.Entities.TensorAtom", "TensorAtom")
+                        .WithMany("Coefficients")
+                        .HasForeignKey("TensorAtomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ParentLayer");
+
+                    b.Navigation("TensorAtom");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.TokenVocabulary", b =>
@@ -1109,6 +1754,22 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("Video");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.Atom", b =>
+                {
+                    b.Navigation("Embeddings");
+
+                    b.Navigation("SourceRelations");
+
+                    b.Navigation("TargetRelations");
+
+                    b.Navigation("TensorAtoms");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomEmbedding", b =>
+                {
+                    b.Navigation("Components");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.AudioData", b =>
                 {
                     b.Navigation("Frames");
@@ -1124,18 +1785,36 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("Steps");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.IngestionJob", b =>
+                {
+                    b.Navigation("JobAtoms");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.Model", b =>
                 {
+                    b.Navigation("AtomEmbeddings");
+
                     b.Navigation("InferenceRequests");
 
                     b.Navigation("Layers");
 
                     b.Navigation("Metadata");
+
+                    b.Navigation("TensorAtoms");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.ModelLayer", b =>
                 {
                     b.Navigation("CachedActivations");
+
+                    b.Navigation("TensorAtomCoefficients");
+
+                    b.Navigation("TensorAtoms");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtom", b =>
+                {
+                    b.Navigation("Coefficients");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.Video", b =>
