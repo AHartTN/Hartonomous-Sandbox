@@ -35,8 +35,8 @@ namespace SqlClrFunctions
                 {
                     double x = double.Parse(coords[0], CultureInfo.InvariantCulture);
                     double y = double.Parse(coords[1], CultureInfo.InvariantCulture);
-                    double? z = coords.Length >= 3 ? double.Parse(coords[2], CultureInfo.InvariantCulture) : null;
-                    double? m = coords.Length >= 4 ? double.Parse(coords[3], CultureInfo.InvariantCulture) : null;
+                    double? z = coords.Length >= 3 ? (double?)double.Parse(coords[2], CultureInfo.InvariantCulture) : null;
+                    double? m = coords.Length >= 4 ? (double?)double.Parse(coords[3], CultureInfo.InvariantCulture) : null;
 
                     builder.BeginGeometry(OpenGisGeometryType.Point);
                     if (z.HasValue)

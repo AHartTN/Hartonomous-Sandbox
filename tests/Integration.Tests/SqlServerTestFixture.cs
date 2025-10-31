@@ -200,33 +200,6 @@ public sealed class SqlServerTestFixture : IAsyncLifetime
 
         var database = DbContext.Database;
 
-        const string dropTokenTableSql = """
-IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NOT NULL
-BEGIN
-    DROP TABLE dbo.TokenEmbeddingsGeo;
-END;
-""";
-        await database.ExecuteSqlRawAsync(dropTokenTableSql, cancellationToken).ConfigureAwait(false);
-
-        const string tokenTableSql = """
-IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NULL
-BEGIN
-    EXEC(N'
-        CREATE TABLE dbo.TokenEmbeddingsGeo (
-            token_id INT IDENTITY(1,1) PRIMARY KEY,
-            token_text NVARCHAR(100) NOT NULL,
-            embedding_vector VECTOR(768) NULL,
-            spatial_projection GEOMETRY NULL,
-            coarse_spatial GEOMETRY NULL,
-            fine_spatial GEOMETRY NULL,
-            frequency INT NOT NULL DEFAULT 0,
-            last_used DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
-        );
-    ');
-END;
-""";
-        await database.ExecuteSqlRawAsync(tokenTableSql, cancellationToken).ConfigureAwait(false);
-
         const string spatialIndexSql = """
 IF NOT EXISTS (
     SELECT 1
@@ -237,7 +210,7 @@ IF NOT EXISTS (
 BEGIN
     DECLARE @sql NVARCHAR(MAX) = N'
         CREATE SPATIAL INDEX idx_spatial_embedding
-        ON dbo.TokenEmbeddingsGeo(spatial_projection)
+        ON dbo.TokenEmbeddingsGeo(SpatialProjection)
         USING GEOMETRY_GRID
         WITH (
             BOUNDING_BOX = (-100, -100, 100, 100),
@@ -249,46 +222,31 @@ END;
 """;
         await database.ExecuteSqlRawAsync(spatialIndexSql, cancellationToken).ConfigureAwait(false);
 
-    const string seedTokensSql = """
+        const string seedTokensSql = """
 IF NOT EXISTS (SELECT 1 FROM dbo.TokenEmbeddingsGeo)
 BEGIN
-    INSERT INTO dbo.TokenEmbeddingsGeo (token_text, embedding_vector, spatial_projection, coarse_spatial, fine_spatial, frequency)
+    INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
     VALUES
-    ('the', NULL, geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), 512),
-    ('is', NULL, geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), 384),
-    ('machine', NULL, geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), 120),
-    ('learning', NULL, geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), 110),
-    ('database', NULL, geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), 95),
-    ('query', NULL, geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), 88),
-    ('neural', NULL, geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), 140),
-    ('network', NULL, geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), 135);
+    ('the', geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), 512),
+    ('is', geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), 384),
+    ('machine', geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), 120),
+    ('learning', geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), 110),
+    ('database', geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), 95),
+    ('query', geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), 88),
+    ('neural', geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), 140),
+    ('network', geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), 135);
 END;
 """;
         await database.ExecuteSqlRawAsync(seedTokensSql, cancellationToken).ConfigureAwait(false);
 
-        await EnsureCoreStoredProceduresAsync(cancellationToken).ConfigureAwait(false);
-    }
+        const string ensureAnchorsSql = """
+IF NOT EXISTS (SELECT 1 FROM dbo.SpatialAnchors)
+BEGIN
+    EXEC dbo.sp_InitializeSpatialAnchors;
+END;
+""";
+        await database.ExecuteSqlRawAsync(ensureAnchorsSql, cancellationToken).ConfigureAwait(false);
 
-    private async Task EnsureCoreStoredProceduresAsync(CancellationToken cancellationToken)
-    {
-        if (DbContext is null)
-        {
-            throw new InvalidOperationException("DbContext must be initialised before creating stored procedures.");
-        }
-
-        var database = DbContext.Database;
-        var scriptPaths = new[]
-        {
-            @"sql\procedures\05_SpatialInference.sql",
-            @"sql\procedures\06_ProductionSystem.sql",
-            @"sql\procedures\07_AdvancedInference.sql",
-            @"sql\procedures\08_SpatialProjection.sql"
-        };
-
-        foreach (var scriptPath in scriptPaths)
-        {
-            await SqlScriptLoader.ExecuteSqlFileAsync(database, scriptPath, cancellationToken).ConfigureAwait(false);
-        }
     }
 
     private async Task EnsureIntegrationSeedDataAsync(CancellationToken cancellationToken)

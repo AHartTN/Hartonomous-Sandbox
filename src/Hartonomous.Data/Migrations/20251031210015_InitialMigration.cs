@@ -175,6 +175,42 @@ namespace Hartonomous.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SpatialAnchors",
+                schema: "dbo",
+                columns: table => new
+                {
+                    AnchorId = table.Column<int>(type: "int", nullable: false),
+                    AnchorName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    AnchorVector = table.Column<SqlVector<float>>(type: "VECTOR(1998)", nullable: false),
+                    SelectionMethod = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SpatialAnchors", x => x.AnchorId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TokenEmbeddingsGeo",
+                schema: "dbo",
+                columns: table => new
+                {
+                    TokenId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TokenText = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    EmbeddingVector = table.Column<SqlVector<float>>(type: "VECTOR(768)", nullable: true),
+                    SpatialProjection = table.Column<Point>(type: "geometry", nullable: true),
+                    CoarseSpatial = table.Column<Point>(type: "geometry", nullable: true),
+                    FineSpatial = table.Column<Point>(type: "geometry", nullable: true),
+                    Frequency = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    LastUsed = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TokenEmbeddingsGeo", x => x.TokenId);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Images",
                 schema: "dbo",
                 columns: table => new
@@ -1056,7 +1092,32 @@ namespace Hartonomous.Data.Migrations
                 table: "Videos",
                 columns: new[] { "resolution_width", "resolution_height" });
 
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenEmbeddingsGeo_TokenText",
+                schema: "dbo",
+                table: "TokenEmbeddingsGeo",
+                column: "TokenText");
+
             // Spatial indexes for hybrid vector search and atom substrate acceleration
+            migrationBuilder.Sql(@"
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.indexes
+                    WHERE name = 'idx_spatial_embedding'
+                      AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo'))
+                BEGIN
+                    DECLARE @sql NVARCHAR(MAX) = N'
+                        CREATE SPATIAL INDEX idx_spatial_embedding
+                        ON dbo.TokenEmbeddingsGeo(SpatialProjection)
+                        USING GEOMETRY_GRID
+                        WITH (
+                            BOUNDING_BOX = (-100, -100, 100, 100),
+                            GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = MEDIUM, LEVEL_4 = LOW),
+                            CELLS_PER_OBJECT = 16
+                        );';
+                    EXEC(@sql);
+                END;
+            ");
+
             migrationBuilder.Sql(@"
                 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'idx_spatial_coarse' AND object_id = OBJECT_ID('dbo.Embeddings_Production'))
                 BEGIN
@@ -1105,68 +1166,694 @@ namespace Hartonomous.Data.Migrations
                 END;
             ");
 
-            // Core stored procedures for hybrid search and feedback loops
+            migrationBuilder.Sql(@"
+                IF NOT EXISTS (SELECT 1 FROM dbo.TokenEmbeddingsGeo)
+                BEGIN
+                    INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
+                    VALUES
+                        ('the', geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0), geometry::STGeomFromText('POINT(0 0 0)', 0), geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0), 512),
+                        ('is', geometry::STGeomFromText('POINT(0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT(0 0 0)', 0), geometry::STGeomFromText('POINT(0.15 0.18 0.12)', 0), 384),
+                        ('machine', geometry::STGeomFromText('POINT(5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.2 3.1 1.8)', 0), 120),
+                        ('learning', geometry::STGeomFromText('POINT(5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.5 3.3 2.1)', 0), 110),
+                        ('database', geometry::STGeomFromText('POINT(-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT(-3 4 -2)', 0), geometry::STGeomFromText('POINT(-3.1 4.2 -1.5)', 0), 95),
+                        ('query', geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT(-3 4 -2)', 0), geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0), 88),
+                        ('neural', geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0), 140),
+                        ('network', geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0), 135);
+                END;
+            ");
+
+            // Stored procedures required by the atom substrate and spatial inference pipeline
             migrationBuilder.Sql(@"
                 CREATE OR ALTER PROCEDURE dbo.sp_ExactVectorSearch
-                    @query_vector VECTOR(768),
+                    @query_vector VECTOR(1998),
                     @top_k INT = 10,
-                    @distance_metric NVARCHAR(20) = 'cosine'
+                    @distance_metric NVARCHAR(20) = 'cosine',
+                    @embedding_type NVARCHAR(128) = NULL,
+                    @model_id INT = NULL
                 AS
                 BEGIN
                     SET NOCOUNT ON;
 
                     SELECT TOP (@top_k)
-                        EmbeddingId AS embedding_id,
-                        SourceText AS source_text,
-                        SourceType AS source_type,
-                        VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector) AS distance,
-                        1.0 - VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector) AS similarity
-                    FROM dbo.Embeddings_Production
-                    WHERE embedding_full IS NOT NULL
-                    ORDER BY VECTOR_DISTANCE(@distance_metric, embedding_full, @query_vector);
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceUri,
+                        a.SourceType,
+                        a.CanonicalText,
+                        ae.EmbeddingType,
+                        ae.ModelId,
+                        ae.Dimension,
+                        VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS distance,
+                        1.0 - VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS similarity,
+                        ae.CreatedAt
+                    FROM dbo.AtomEmbeddings AS ae
+                    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+                    WHERE ae.EmbeddingVector IS NOT NULL
+                      AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
+                      AND (@model_id IS NULL OR ae.ModelId = @model_id)
+                    ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
                 END;
             ");
 
             migrationBuilder.Sql(@"
-               CREATE OR ALTER PROCEDURE dbo.sp_HybridSearch
-                    @query_vector VECTOR(768),
+                CREATE OR ALTER PROCEDURE dbo.sp_ApproxSpatialSearch
+                    @query_x FLOAT,
+                    @query_y FLOAT,
+                    @query_z FLOAT,
+                    @top_k INT = 10,
+                    @use_coarse BIT = 0,
+                    @embedding_type NVARCHAR(128) = NULL,
+                    @model_id INT = NULL,
+                    @srid INT = 0
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DECLARE @wkt NVARCHAR(200) = CONCAT('POINT (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+                    DECLARE @query_point GEOMETRY = geometry::STGeomFromText(@wkt, @srid);
+
+                    IF @use_coarse = 1
+                    BEGIN
+                        SELECT TOP (@top_k)
+                            ae.AtomEmbeddingId,
+                            ae.AtomId,
+                            a.Modality,
+                            a.Subtype,
+                            a.SourceUri,
+                            a.SourceType,
+                            ae.EmbeddingType,
+                            ae.ModelId,
+                            ae.SpatialCoarse.STDistance(@query_point) AS spatial_distance
+                        FROM dbo.AtomEmbeddings AS ae
+                        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+                        WHERE ae.SpatialCoarse IS NOT NULL
+                          AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
+                          AND (@model_id IS NULL OR ae.ModelId = @model_id)
+                        ORDER BY ae.SpatialCoarse.STDistance(@query_point);
+                    END
+                    ELSE
+                    BEGIN
+                        SELECT TOP (@top_k)
+                            ae.AtomEmbeddingId,
+                            ae.AtomId,
+                            a.Modality,
+                            a.Subtype,
+                            a.SourceUri,
+                            a.SourceType,
+                            ae.EmbeddingType,
+                            ae.ModelId,
+                            ae.SpatialGeometry.STDistance(@query_point) AS spatial_distance
+                        FROM dbo.AtomEmbeddings AS ae
+                        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+                        WHERE ae.SpatialGeometry IS NOT NULL
+                          AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
+                          AND (@model_id IS NULL OR ae.ModelId = @model_id)
+                        ORDER BY ae.SpatialGeometry.STDistance(@query_point);
+                    END;
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_HybridSearch
+                    @query_vector VECTOR(1998),
                     @query_spatial_x FLOAT,
                     @query_spatial_y FLOAT,
                     @query_spatial_z FLOAT,
                     @spatial_candidates INT = 100,
+                    @final_top_k INT = 10,
+                    @distance_metric NVARCHAR(20) = 'cosine',
+                    @embedding_type NVARCHAR(128) = NULL,
+                    @model_id INT = NULL,
+                    @srid INT = 0
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DECLARE @wkt NVARCHAR(200) = CONCAT('POINT (', @query_spatial_x, ' ', @query_spatial_y, ' ', @query_spatial_z, ')');
+                    DECLARE @query_point GEOMETRY = geometry::STGeomFromText(@wkt, @srid);
+
+                    DECLARE @candidates TABLE (
+                        AtomEmbeddingId BIGINT PRIMARY KEY,
+                        SpatialDistance FLOAT
+                    );
+
+                    INSERT INTO @candidates (AtomEmbeddingId, SpatialDistance)
+                    SELECT TOP (@spatial_candidates)
+                        ae.AtomEmbeddingId,
+                        ae.SpatialGeometry.STDistance(@query_point) AS spatial_distance
+                    FROM dbo.AtomEmbeddings AS ae
+                    WHERE ae.SpatialGeometry IS NOT NULL
+                      AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
+                      AND (@model_id IS NULL OR ae.ModelId = @model_id)
+                    ORDER BY ae.SpatialGeometry.STDistance(@query_point);
+
+                    SELECT TOP (@final_top_k)
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceUri,
+                        a.SourceType,
+                        a.CanonicalText,
+                        ae.EmbeddingType,
+                        ae.ModelId,
+                        VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS exact_distance,
+                        c.SpatialDistance AS spatial_distance
+                    FROM dbo.AtomEmbeddings AS ae
+                    INNER JOIN @candidates AS c ON c.AtomEmbeddingId = ae.AtomEmbeddingId
+                    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+                    WHERE ae.EmbeddingVector IS NOT NULL
+                    ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_MultiResolutionSearch
+                    @query_x FLOAT,
+                    @query_y FLOAT,
+                    @query_z FLOAT,
+                    @coarse_candidates INT = 1000,
+                    @fine_candidates INT = 100,
                     @final_top_k INT = 10
                 AS
                 BEGIN
                     SET NOCOUNT ON;
 
-                    DECLARE @candidates TABLE (embedding_id BIGINT);
+                    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT Z (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+                    DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
-                    DECLARE @query_point GEOMETRY = geometry::STGeomFromText(
-                        'POINT(' + CAST(@query_spatial_x AS NVARCHAR(50)) + ' ' +
-                                   CAST(@query_spatial_y AS NVARCHAR(50)) + ' ' +
-                                   CAST(@query_spatial_z AS NVARCHAR(50)) + ')', 0);
+                    DECLARE @coarse_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
 
-                    INSERT INTO @candidates
-                    SELECT TOP (@spatial_candidates) EmbeddingId
-                    FROM dbo.Embeddings_Production
-                    WHERE SpatialProjX IS NOT NULL
-                    ORDER BY 
-                        SQRT(POWER(SpatialProjX - @query_spatial_x, 2) + 
-                             POWER(SpatialProjY - @query_spatial_y, 2) + 
-                             POWER(SpatialProjZ - @query_spatial_z, 2));
+                    INSERT INTO @coarse_results (AtomEmbeddingId)
+                    SELECT TOP (@coarse_candidates) ae.AtomEmbeddingId
+                    FROM dbo.AtomEmbeddings AS ae
+                    WHERE ae.SpatialCoarse IS NOT NULL
+                    ORDER BY ae.SpatialCoarse.STDistance(@query_pt);
+
+                    DECLARE @fine_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
+
+                    INSERT INTO @fine_results (AtomEmbeddingId)
+                    SELECT TOP (@fine_candidates) ae.AtomEmbeddingId
+                    FROM dbo.AtomEmbeddings AS ae
+                    INNER JOIN @coarse_results AS cr ON cr.AtomEmbeddingId = ae.AtomEmbeddingId
+                    WHERE ae.SpatialGeometry IS NOT NULL
+                    ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
 
                     SELECT TOP (@final_top_k)
-                        ep.EmbeddingId AS embedding_id,
-                        ep.SourceText AS source_text,
-                        ep.SourceType AS source_type,
-                        VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector) AS distance,
-                        1.0 - VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector) AS similarity,
-                        SQRT(POWER(ep.SpatialProjX - @query_spatial_x, 2) + 
-                             POWER(ep.SpatialProjY - @query_spatial_y, 2) + 
-                             POWER(ep.SpatialProjZ - @query_spatial_z, 2)) AS spatial_distance
-                    FROM dbo.Embeddings_Production ep
-                    JOIN @candidates c ON ep.EmbeddingId = c.embedding_id
-                    ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @query_vector);
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceType,
+                        a.SourceUri,
+                        a.CanonicalText,
+                        ae.EmbeddingType,
+                        ae.ModelId,
+                        ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance,
+                        ae.SpatialCoarse.STDistance(@query_pt) AS CoarseDistance
+                    FROM dbo.AtomEmbeddings AS ae
+                    INNER JOIN @fine_results AS fr ON fr.AtomEmbeddingId = ae.AtomEmbeddingId
+                    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+                    ORDER BY SpatialDistance ASC;
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_CognitiveActivation
+                    @query_embedding VECTOR(1998),
+                    @activation_threshold FLOAT = 0.8,
+                    @max_activated INT = 50
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    IF @query_embedding IS NULL
+                    BEGIN
+                        RAISERROR('Query embedding cannot be NULL.', 16, 1);
+                        RETURN;
+                    END;
+
+                    IF @activation_threshold IS NULL OR @activation_threshold <= -1.0 OR @activation_threshold > 1.0
+                    BEGIN
+                        RAISERROR('Activation threshold must be within (-1, 1].', 16, 1);
+                        RETURN;
+                    END;
+
+                    DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
+                    DECLARE @max_distance FLOAT = 1.0 - @activation_threshold;
+
+                    IF @max_distance <= 0
+                    BEGIN
+                        RAISERROR('Activation threshold too high for cosine similarity search.', 16, 1);
+                        RETURN;
+                    END;
+
+                    DECLARE @activated TABLE (
+                        AtomEmbeddingId BIGINT PRIMARY KEY,
+                        AtomId BIGINT NOT NULL,
+                        ActivationStrength FLOAT NOT NULL
+                    );
+
+                    INSERT INTO @activated (AtomEmbeddingId, AtomId, ActivationStrength)
+                    SELECT TOP (@max_activated)
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS ActivationStrength
+                    FROM dbo.AtomEmbeddings AS ae
+                    WHERE ae.EmbeddingVector IS NOT NULL
+                      AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) <= @max_distance
+                    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding);
+
+                    DECLARE @activated_count INT = @@ROWCOUNT;
+                    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+
+                    SELECT
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceType,
+                        a.SourceUri,
+                        a.CanonicalText,
+                        act.ActivationStrength,
+                        CASE
+                            WHEN act.ActivationStrength >= 0.95 THEN 'VERY_HIGH'
+                            WHEN act.ActivationStrength >= 0.90 THEN 'HIGH'
+                            WHEN act.ActivationStrength >= 0.85 THEN 'MEDIUM'
+                            ELSE 'LOW'
+                        END AS ActivationLevel
+                    FROM @activated AS act
+                    INNER JOIN dbo.AtomEmbeddings AS ae ON ae.AtomEmbeddingId = act.AtomEmbeddingId
+                    INNER JOIN dbo.Atoms AS a ON a.AtomId = act.AtomId
+                    ORDER BY act.ActivationStrength DESC;
+
+                    DECLARE @input_json NVARCHAR(MAX) = JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated);
+                    DECLARE @output_json NVARCHAR(MAX) = JSON_OBJECT('activatedCount': @activated_count);
+                    DECLARE @output_metadata NVARCHAR(MAX) = JSON_OBJECT('status': 'completed', 'durationMs': @duration_ms);
+
+                    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
+                    VALUES (
+                        'cognitive_activation',
+                        CAST(@input_json AS JSON),
+                        CAST('""atom_embeddings""' AS JSON),
+                        'cognitive_activation',
+                        CAST(@output_json AS JSON),
+                        CAST(@output_metadata AS JSON),
+                        @duration_ms
+                    );
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_SpatialAttention
+                    @query_token_id INT,
+                    @context_size INT = 5
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DECLARE @query_spatial GEOMETRY;
+                    SELECT @query_spatial = SpatialProjection
+                    FROM dbo.TokenEmbeddingsGeo
+                    WHERE TokenId = @query_token_id;
+
+                    IF @query_spatial IS NULL
+                    BEGIN
+                        RETURN;
+                    END;
+
+                                        SELECT TOP (@context_size)
+                                                te.TokenId,
+                                                te.TokenText,
+                                                te.SpatialProjection.STDistance(@query_spatial) AS spatial_distance,
+                                                1.0 / (1.0 + te.SpatialProjection.STDistance(@query_spatial)) AS attention_weight,
+                                                CASE
+                                                        WHEN te.CoarseSpatial.STDistance(@query_spatial) < 2.0 THEN 'COARSE_MATCH'
+                                                        WHEN te.FineSpatial.STDistance(@query_spatial) < 0.5 THEN 'FINE_MATCH'
+                            ELSE 'MID_MATCH'
+                        END AS resolution_level
+                    FROM dbo.TokenEmbeddingsGeo AS te WITH (INDEX(idx_spatial_embedding))
+                                        WHERE te.TokenId <> @query_token_id
+                                            AND te.SpatialProjection.STDistance(@query_spatial) IS NOT NULL
+                                        ORDER BY te.SpatialProjection.STDistance(@query_spatial);
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_SpatialNextToken
+                    @context_tokens NVARCHAR(MAX),
+                    @temperature FLOAT = 1.0
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DECLARE @context_centroid GEOMETRY;
+
+                    SELECT @context_centroid = geometry::STGeomFromText(
+                        'POINT(' +
+                            CAST(AVG(SpatialProjection.STX) AS NVARCHAR(50)) + ' ' +
+                            CAST(AVG(SpatialProjection.STY) AS NVARCHAR(50)) + ' ' +
+                            CAST(AVG(CAST(COALESCE(SpatialProjection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+                        0)
+                    FROM dbo.TokenEmbeddingsGeo
+                    WHERE TokenId IN (SELECT value FROM STRING_SPLIT(@context_tokens, ','));
+
+                    IF @context_centroid IS NULL
+                    BEGIN
+                        RETURN;
+                    END;
+
+                    SELECT TOP 3
+                        TokenId,
+                        TokenText,
+                        SpatialProjection.STDistance(@context_centroid) AS distance,
+                        EXP(-1 * SpatialProjection.STDistance(@context_centroid) / NULLIF(@temperature, 0.0)) AS probability_score
+                    FROM dbo.TokenEmbeddingsGeo WITH (INDEX(idx_spatial_embedding))
+                    WHERE SpatialProjection.STDistance(@context_centroid) IS NOT NULL
+                    ORDER BY SpatialProjection.STDistance(@context_centroid);
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_GenerateTextSpatial
+                    @prompt NVARCHAR(MAX),
+                    @max_tokens INT = 10
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DECLARE @context TABLE (token_id INT, token_text NVARCHAR(100));
+
+                    INSERT INTO @context (token_text)
+                    SELECT LTRIM(RTRIM(value))
+                    FROM STRING_SPLIT(@prompt, ' ');
+
+                    UPDATE c
+                    SET c.token_id = te.TokenId
+                    FROM @context c
+                    INNER JOIN dbo.TokenEmbeddingsGeo te ON LOWER(c.token_text) = LOWER(te.TokenText);
+
+                    DECLARE @generated_text NVARCHAR(MAX) = @prompt;
+                    DECLARE @iteration INT = 0;
+                    DECLARE @context_ids NVARCHAR(MAX);
+
+                    WHILE @iteration < @max_tokens
+                    BEGIN
+                        SELECT @context_ids = STRING_AGG(CAST(token_id AS NVARCHAR), ',')
+                        FROM @context
+                        WHERE token_id IS NOT NULL;
+
+                        IF @context_ids IS NULL
+                        BEGIN
+                            BREAK;
+                        END;
+
+                        DECLARE @next_token_id INT;
+                        DECLARE @next_token_text NVARCHAR(100);
+
+                        SELECT TOP 1
+                            @next_token_id = TokenId,
+                            @next_token_text = TokenText
+                        FROM (
+                            SELECT TOP 3
+                                TokenId,
+                                TokenText,
+                                SpatialProjection.STDistance(
+                                    (SELECT geometry::STGeomFromText(
+                                        'POINT(' +
+                                        CAST(AVG(SpatialProjection.STX) AS NVARCHAR(50)) + ' ' +
+                                        CAST(AVG(SpatialProjection.STY) AS NVARCHAR(50)) + ' ' +
+                                        CAST(AVG(CAST(COALESCE(SpatialProjection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+                                        0)
+                                     FROM dbo.TokenEmbeddingsGeo
+                                     WHERE TokenId IN (SELECT value FROM STRING_SPLIT(@context_ids, ',')))
+                                ) AS distance
+                            FROM dbo.TokenEmbeddingsGeo WITH (INDEX(idx_spatial_embedding))
+                            WHERE TokenId NOT IN (SELECT value FROM STRING_SPLIT(@context_ids, ','))
+                            ORDER BY distance ASC
+                        ) ranked
+                        ORDER BY NEWID();
+
+                        IF @next_token_id IS NULL
+                        BEGIN
+                            BREAK;
+                        END;
+
+                        INSERT INTO @context (token_id, token_text)
+                        VALUES (@next_token_id, @next_token_text);
+
+                        SET @generated_text = CONCAT(@generated_text, ' ', @next_token_text);
+                        SET @iteration += 1;
+                    END;
+
+                    SELECT
+                        @prompt AS original_prompt,
+                        @generated_text AS generated_text,
+                        @max_tokens AS tokens_generated,
+                        'SPATIAL_GEOMETRY' AS method;
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_InitializeSpatialAnchors
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DELETE FROM dbo.SpatialAnchors;
+
+                    DECLARE @available INT = (
+                        SELECT COUNT(*)
+                        FROM dbo.AtomEmbeddings
+                        WHERE EmbeddingVector IS NOT NULL
+                    );
+
+                    IF @available < 3
+                    BEGIN
+                        RAISERROR('Spatial anchor initialization requires at least three AtomEmbeddings rows with stored vectors.', 16, 1);
+                        RETURN;
+                    END;
+
+                    DECLARE @anchor1Id BIGINT, @anchor2Id BIGINT, @anchor3Id BIGINT;
+                    DECLARE @anchor1 VECTOR(1998), @anchor2 VECTOR(1998), @anchor3 VECTOR(1998);
+
+                    SELECT TOP (1)
+                        @anchor1Id = AtomEmbeddingId,
+                        @anchor1 = EmbeddingVector
+                    FROM dbo.AtomEmbeddings
+                    WHERE EmbeddingVector IS NOT NULL
+                    ORDER BY NEWID();
+
+                    INSERT INTO dbo.SpatialAnchors (AnchorId, AnchorName, AnchorVector, SelectionMethod)
+                    VALUES (1, 'Primary Anchor', @anchor1, 'random');
+
+                    SELECT TOP (1)
+                        @anchor2Id = AtomEmbeddingId,
+                        @anchor2 = EmbeddingVector
+                    FROM dbo.AtomEmbeddings
+                    WHERE EmbeddingVector IS NOT NULL
+                      AND AtomEmbeddingId <> @anchor1Id
+                    ORDER BY VECTOR_DISTANCE('euclidean', EmbeddingVector, @anchor1) DESC;
+
+                    IF @anchor2Id IS NULL
+                    BEGIN
+                        RAISERROR('Unable to select a second spatial anchor.', 16, 1);
+                        RETURN;
+                    END;
+
+                    INSERT INTO dbo.SpatialAnchors (AnchorId, AnchorName, AnchorVector, SelectionMethod)
+                    VALUES (2, 'Distant Anchor', @anchor2, 'maximal_distance');
+
+                    SELECT TOP (1)
+                        @anchor3Id = AtomEmbeddingId,
+                        @anchor3 = EmbeddingVector
+                    FROM dbo.AtomEmbeddings
+                    WHERE EmbeddingVector IS NOT NULL
+                      AND AtomEmbeddingId NOT IN (@anchor1Id, @anchor2Id)
+                    ORDER BY VECTOR_DISTANCE('euclidean', EmbeddingVector, @anchor1) +
+                             VECTOR_DISTANCE('euclidean', EmbeddingVector, @anchor2) DESC;
+
+                    IF @anchor3Id IS NULL
+                    BEGIN
+                        RAISERROR('Unable to select a third spatial anchor.', 16, 1);
+                        RETURN;
+                    END;
+
+                    INSERT INTO dbo.SpatialAnchors (AnchorId, AnchorName, AnchorVector, SelectionMethod)
+                    VALUES (3, 'Triangulation Anchor', @anchor3, 'maximal_combined_distance');
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_ComputeSpatialProjection
+                    @input_vector VECTOR(1998),
+                    @input_dimension INT,
+                    @output_x FLOAT OUTPUT,
+                    @output_y FLOAT OUTPUT,
+                    @output_z FLOAT OUTPUT
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    IF (@input_dimension <= 0 OR @input_dimension > 1998)
+                    BEGIN
+                        RAISERROR('Input dimension %d is outside the supported range (1-1998).', 16, 1, @input_dimension);
+                        RETURN;
+                    END;
+
+                    DECLARE @anchor1 VECTOR(1998), @anchor2 VECTOR(1998), @anchor3 VECTOR(1998);
+
+                    SELECT @anchor1 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 1;
+                    SELECT @anchor2 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 2;
+                    SELECT @anchor3 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 3;
+
+                    IF @anchor1 IS NULL OR @anchor2 IS NULL OR @anchor3 IS NULL
+                    BEGIN
+                        EXEC dbo.sp_InitializeSpatialAnchors;
+                        SELECT @anchor1 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 1;
+                        SELECT @anchor2 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 2;
+                        SELECT @anchor3 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 3;
+
+                        IF @anchor1 IS NULL OR @anchor2 IS NULL OR @anchor3 IS NULL
+                        BEGIN
+                            RAISERROR('Spatial anchors are not available.', 16, 1);
+                            RETURN;
+                        END;
+                    END;
+
+                    DECLARE @distance1 FLOAT = VECTOR_DISTANCE('euclidean', @input_vector, @anchor1);
+                    DECLARE @distance2 FLOAT = VECTOR_DISTANCE('euclidean', @input_vector, @anchor2);
+                    DECLARE @distance3 FLOAT = VECTOR_DISTANCE('euclidean', @input_vector, @anchor3);
+
+                    DECLARE @a12 FLOAT = VECTOR_DISTANCE('euclidean', @anchor1, @anchor2);
+                    DECLARE @a13 FLOAT = VECTOR_DISTANCE('euclidean', @anchor1, @anchor3);
+                    DECLARE @a23 FLOAT = VECTOR_DISTANCE('euclidean', @anchor2, @anchor3);
+
+                    DECLARE @scale FLOAT = (
+                        SELECT MAX(v)
+                        FROM (VALUES (@a12), (@a13), (@a23), (1.0)) AS distances(v)
+                    );
+
+                    IF @scale IS NULL OR @scale = 0
+                    BEGIN
+                        SET @scale = 1.0;
+                    END;
+
+                    SET @output_x = @distance1 / @scale;
+                    SET @output_y = @distance2 / @scale;
+                    SET @output_z = @distance3 / @scale;
+
+                    SELECT @output_x AS x, @output_y AS y, @output_z AS z;
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_RecomputeAllSpatialProjections
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    EXEC dbo.sp_InitializeSpatialAnchors;
+
+                    DECLARE @embeddingId BIGINT;
+                    DECLARE @vector VECTOR(1998);
+                    DECLARE @dimension INT;
+                    DECLARE @x FLOAT, @y FLOAT, @z FLOAT;
+
+                    DECLARE embedding_cursor CURSOR LOCAL FAST_FORWARD FOR
+                        SELECT AtomEmbeddingId, EmbeddingVector, Dimension
+                        FROM dbo.AtomEmbeddings
+                        WHERE EmbeddingVector IS NOT NULL;
+
+                    OPEN embedding_cursor;
+                    FETCH NEXT FROM embedding_cursor INTO @embeddingId, @vector, @dimension;
+
+                    WHILE @@FETCH_STATUS = 0
+                    BEGIN
+                        IF (@dimension <= 0 OR @dimension > 1998)
+                        BEGIN
+                            SET @dimension = 1998;
+                        END;
+
+                        EXEC dbo.sp_ComputeSpatialProjection
+                            @input_vector = @vector,
+                            @input_dimension = @dimension,
+                            @output_x = @x OUTPUT,
+                            @output_y = @y OUTPUT,
+                            @output_z = @z OUTPUT;
+
+                        DECLARE @geometryWkt NVARCHAR(200) =
+                            'POINT (' + CONVERT(NVARCHAR(50), @x) + ' ' +
+                                            CONVERT(NVARCHAR(50), @y) + ' ' +
+                                            CONVERT(NVARCHAR(50), @z) + ')';
+
+                        DECLARE @coarseWkt NVARCHAR(200) =
+                            'POINT (' + CONVERT(NVARCHAR(50), FLOOR(@x)) + ' ' +
+                                            CONVERT(NVARCHAR(50), FLOOR(@y)) + ' ' +
+                                            CONVERT(NVARCHAR(50), FLOOR(@z)) + ')';
+
+                        UPDATE dbo.AtomEmbeddings
+                        SET
+                            SpatialGeometry = geometry::STGeomFromText(@geometryWkt, 0),
+                            SpatialCoarse = geometry::STGeomFromText(@coarseWkt, 0)
+                        WHERE AtomEmbeddingId = @embeddingId;
+
+                        FETCH NEXT FROM embedding_cursor INTO @embeddingId, @vector, @dimension;
+                    END;
+
+                    CLOSE embedding_cursor;
+                    DEALLOCATE embedding_cursor;
+                END;
+            ");
+
+            migrationBuilder.Sql(@"
+                CREATE OR ALTER PROCEDURE dbo.sp_EnsembleInference
+                    @inputData NVARCHAR(MAX),
+                    @modelIds NVARCHAR(MAX),
+                    @taskType NVARCHAR(50)
+                AS
+                BEGIN
+                    SET NOCOUNT ON;
+
+                    DECLARE @input_json NVARCHAR(MAX) = CASE
+                        WHEN @inputData IS NULL OR LTRIM(RTRIM(@inputData)) = '' THEN JSON_OBJECT('payload': '')
+                        WHEN ISJSON(@inputData) = 1 THEN @inputData
+                        ELSE JSON_OBJECT('payload': @inputData)
+                    END;
+
+                    DECLARE @models_json NVARCHAR(MAX) = CASE
+                        WHEN @modelIds IS NULL OR LTRIM(RTRIM(@modelIds)) = '' THEN '[]'
+                        ELSE '[''' + REPLACE(@modelIds, ',', ''',''') + ''']'
+                    END;
+
+                    DECLARE @inference_id BIGINT;
+
+                    INSERT INTO dbo.InferenceRequests
+                    (
+                        TaskType,
+                        InputData,
+                        ModelsUsed,
+                        EnsembleStrategy,
+                        OutputData,
+                        OutputMetadata,
+                        TotalDurationMs
+                    )
+                    VALUES
+                    (
+                        COALESCE(@taskType, 'ensemble_search'),
+                        CAST(@input_json AS JSON),
+                        CAST(@models_json AS JSON),
+                        'weighted_average',
+                        CAST(JSON_OBJECT('status': 'queued') AS JSON),
+                        CAST(JSON_OBJECT('models': @models_json) AS JSON),
+                        0
+                    );
+
+                    SET @inference_id = SCOPE_IDENTITY();
+
+                    SELECT JSON_OBJECT('inferenceId': @inference_id, 'models': @modelIds) AS result;
                 END;
             ");
 
@@ -1233,11 +1920,10 @@ namespace Hartonomous.Data.Migrations
                     FROM dbo.InferenceRequests ir
                     JOIN dbo.InferenceSteps ist ON ir.InferenceId = ist.InferenceId
                     WHERE ir.ModelId = @model_id
+                      AND ir.UserRating IS NOT NULL
                       AND ir.UserRating >= @min_rating;
 
-                    DECLARE @update_count INT = @@ROWCOUNT;
-
-                    IF @update_count > 0
+                    IF EXISTS (SELECT 1 FROM @good_inferences)
                     BEGIN
                         SELECT
                             ml.LayerName,
@@ -1257,6 +1943,16 @@ namespace Hartonomous.Data.Migrations
         {
             migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_UpdateModelWeightsFromFeedback;");
             migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_QueryModelWeights;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_EnsembleInference;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_RecomputeAllSpatialProjections;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_ComputeSpatialProjection;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_InitializeSpatialAnchors;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_GenerateTextSpatial;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_SpatialNextToken;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_SpatialAttention;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_CognitiveActivation;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_MultiResolutionSearch;");
+            migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_ApproxSpatialSearch;");
             migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_HybridSearch;");
             migrationBuilder.Sql("DROP PROCEDURE IF EXISTS dbo.sp_ExactVectorSearch;");
 
@@ -1274,6 +1970,14 @@ namespace Hartonomous.Data.Migrations
 
             migrationBuilder.DropTable(
                 name: "AtomicTextTokens",
+                schema: "dbo");
+
+            migrationBuilder.DropTable(
+                name: "TokenEmbeddingsGeo",
+                schema: "dbo");
+
+            migrationBuilder.DropTable(
+                name: "SpatialAnchors",
                 schema: "dbo");
 
             migrationBuilder.DropTable(
