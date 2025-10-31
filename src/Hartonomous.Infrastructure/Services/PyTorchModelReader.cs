@@ -13,6 +13,7 @@ namespace Hartonomous.Infrastructure.Services;
 public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
 {
     private readonly IModelRepository _modelRepository;
+    private readonly IModelLayerRepository _layerRepository;
     private readonly IModelDiscoveryService _discoveryService;
     private readonly ILogger<PyTorchModelReader> _logger;
 
@@ -21,10 +22,12 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
 
     public PyTorchModelReader(
         IModelRepository modelRepository,
+        IModelLayerRepository layerRepository,
         IModelDiscoveryService discoveryService,
         ILogger<PyTorchModelReader> logger)
     {
         _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
+        _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
         _discoveryService = discoveryService ?? throw new ArgumentNullException(nameof(discoveryService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }

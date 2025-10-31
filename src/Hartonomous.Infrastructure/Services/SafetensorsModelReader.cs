@@ -16,6 +16,7 @@ namespace Hartonomous.Infrastructure.Services;
 public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
 {
     private readonly IModelRepository _modelRepository;
+    private readonly IModelLayerRepository _layerRepository;
     private readonly IModelDiscoveryService _discoveryService;
     private readonly ILogger<SafetensorsModelReader> _logger;
 
@@ -24,10 +25,12 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
 
     public SafetensorsModelReader(
         IModelRepository modelRepository,
+        IModelLayerRepository layerRepository,
         IModelDiscoveryService discoveryService,
         ILogger<SafetensorsModelReader> logger)
     {
         _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
+        _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
         _discoveryService = discoveryService ?? throw new ArgumentNullException(nameof(discoveryService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -194,14 +197,13 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
                     
                     // Convert to float[] based on dtype
                     var floatData = ConvertToFloat(tensorBytes, dtype, shape);
-                    
+
                     if (floatData.Length > 0)
                     {
-                        // Simple 2D LINESTRING
-                        layer.WeightsGeometry = GeometryConverter.ToLineString(floatData, srid: 0);
-                        
-                        _logger.LogDebug("Stored {TensorName} with {Elements} elements as GEOMETRY ({Points} points)",
-                            tensorName, floatData.Length, GeometryConverter.GetDimension(layer.WeightsGeometry));
+                        layer.WeightsGeometry = _layerRepository.CreateGeometryFromWeights(floatData);
+
+                        _logger.LogDebug("Stored {TensorName} with {Elements} elements as GEOMETRY LINESTRING ZM",
+                            tensorName, floatData.Length);
                     }
                 }
             }

@@ -32,3 +32,14 @@ public class ModelIngestionRequest
     public string ModelPath { get; set; } = string.Empty;
     public string? CustomName { get; set; }
 }
+
+/// <summary>
+/// Result of model ingestion operation.
+/// </summary>
+public class ModelIngestionResult
+{
+    public bool Success { get; set; }
+    public int ModelId { get; set; }
+    public Entities.Model? Model { get; set; }
+    public string? ErrorMessage { get; set; }
+}

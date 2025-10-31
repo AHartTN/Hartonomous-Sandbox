@@ -17,13 +17,15 @@ namespace ModelIngestion.ModelFormats
     public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
     {
         private readonly ILogger<PyTorchModelReader> _logger;
+        private readonly IModelLayerRepository _layerRepository;
 
         public string FormatName => "PyTorch";
         public IEnumerable<string> SupportedExtensions => new[] { ".pt", ".pth" };
 
-        public PyTorchModelReader(ILogger<PyTorchModelReader> logger)
+        public PyTorchModelReader(ILogger<PyTorchModelReader> logger, IModelLayerRepository layerRepository)
         {
             _logger = logger ?? throw new System.ArgumentNullException(nameof(logger));
+            _layerRepository = layerRepository ?? throw new System.ArgumentNullException(nameof(layerRepository));
         }
 
         public async Task<Hartonomous.Core.Entities.Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
@@ -77,21 +79,33 @@ namespace ModelIngestion.ModelFormats
                     var namedParameters = torchModel.named_parameters();
                     foreach (var param in namedParameters)
                     {
+                        var tensorShape = $"[{string.Join(",", param.parameter.shape)}]";
+                        var dtype = param.parameter.dtype.ToString();
+
                         var layer = new ModelLayer
                         {
                             LayerIdx = layerIdx++,
                             LayerName = param.name,
                             LayerType = "Parameter",
+                            TensorShape = tensorShape,
+                            TensorDtype = dtype,
                             Parameters = System.Text.Json.JsonSerializer.Serialize(new
                             {
                                 shape = param.parameter.shape,
-                                dtype = param.parameter.dtype.ToString(),
+                                dtype = dtype,
                                 requires_grad = param.parameter.requires_grad
                             })
                         };
 
+                        var weights = ExtractTensorWeights(param.parameter);
+                        if (weights != null && weights.Length > 0)
+                        {
+                            layer.WeightsGeometry = _layerRepository.CreateGeometryFromWeights(weights);
+                            layer.ParameterCount = weights.Length;
+                        }
+
                         model.Layers.Add(layer);
-                        _logger.LogDebug("Added parameter layer: {LayerName}", layer.LayerName);
+                        _logger.LogDebug("Added parameter layer: {LayerName} with {Count} weights", layer.LayerName, weights?.Length ?? 0);
                     }
 
                     // Get named modules (layers)
@@ -235,6 +249,39 @@ namespace ModelIngestion.ModelFormats
             {
                 _logger.LogWarning(ex, "PyTorch validation failed for: {Path}", modelPath);
                 return await Task.FromResult(false);
+            }
+        }
+
+        private float[]? ExtractTensorWeights(torch.Tensor tensor)
+        {
+            try
+            {
+                var flatTensor = tensor.flatten();
+                var numElements = flatTensor.numel();
+
+                if (numElements <= 0 || numElements > int.MaxValue)
+                {
+                    _logger.LogWarning("Tensor too large or empty: {Size} elements", numElements);
+                    return null;
+                }
+
+                var weights = new float[numElements];
+                var cpuTensor = flatTensor.cpu();
+
+                using (var dataPtr = cpuTensor.data<float>())
+                {
+                    for (int i = 0; i < numElements; i++)
+                    {
+                        weights[i] = dataPtr[i];
+                    }
+                }
+
+                return weights;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to extract tensor weights");
+                return null;
             }
         }
     }

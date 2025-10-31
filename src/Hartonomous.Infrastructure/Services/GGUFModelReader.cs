@@ -32,6 +32,7 @@ namespace Hartonomous.Infrastructure.Services;
 public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
 {
     private readonly IModelRepository _modelRepository;
+    private readonly IModelLayerRepository _layerRepository;
     private readonly ILogger<GGUFModelReader> _logger;
 
     private const uint GGUF_MAGIC = 0x46554747; // "GGUF" in little-endian
@@ -48,9 +49,11 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
 
     public GGUFModelReader(
         IModelRepository modelRepository,
+        IModelLayerRepository layerRepository,
         ILogger<GGUFModelReader> logger)
     {
         _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
+        _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 

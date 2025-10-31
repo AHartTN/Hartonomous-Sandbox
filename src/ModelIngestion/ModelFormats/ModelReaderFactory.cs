@@ -13,13 +13,16 @@ namespace ModelIngestion.ModelFormats
     {
         private readonly ILogger<OnnxModelReader> _onnxLogger;
         private readonly ILogger<SafetensorsModelReader> _safetensorsLogger;
+        private readonly IModelLayerRepository _layerRepository;
 
         public ModelReaderFactory(
             ILogger<OnnxModelReader> onnxLogger,
-            ILogger<SafetensorsModelReader> safetensorsLogger)
+            ILogger<SafetensorsModelReader> safetensorsLogger,
+            IModelLayerRepository layerRepository)
         {
             _onnxLogger = onnxLogger ?? throw new System.ArgumentNullException(nameof(onnxLogger));
             _safetensorsLogger = safetensorsLogger ?? throw new System.ArgumentNullException(nameof(safetensorsLogger));
+            _layerRepository = layerRepository ?? throw new System.ArgumentNullException(nameof(layerRepository));
         }
 
         public IModelFormatReader<OnnxMetadata> GetOnnxReader()
@@ -29,7 +32,7 @@ namespace ModelIngestion.ModelFormats
 
         public IModelFormatReader<SafetensorsMetadata> GetSafetensorsReader()
         {
-            return new SafetensorsModelReader(_safetensorsLogger);
+            return new SafetensorsModelReader(_safetensorsLogger, _layerRepository);
         }
 
         /// <summary>

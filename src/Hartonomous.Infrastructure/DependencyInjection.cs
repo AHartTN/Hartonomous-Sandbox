@@ -50,11 +50,17 @@ public static class DependencyInjection
 
         services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
         services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
+        services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<ISpatialInferenceService, SpatialInferenceService>();
         services.AddScoped<IStudentModelService, StudentModelService>();
+        services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
 
-        // Note: Model format readers are registered in ModelIngestion service DI
-        // since they are specific to that application, not shared infrastructure
+        services.AddScoped<ModelIngestionProcessor>();
+        services.AddScoped<ModelIngestionOrchestrator>();
+
+        services.AddScoped<IModelFormatReader<SafetensorsMetadata>, Services.SafetensorsModelReader>();
+        services.AddScoped<IModelFormatReader<PyTorchMetadata>, Services.PyTorchModelReader>();
+        services.AddScoped<IModelFormatReader<GGUFMetadata>, Services.GGUFModelReader>();
 
         return services;
     }
