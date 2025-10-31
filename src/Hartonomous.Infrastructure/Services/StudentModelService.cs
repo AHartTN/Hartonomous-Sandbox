@@ -186,10 +186,18 @@ public class StudentModelService : IStudentModelService
             var modelBParams = reader.GetInt32(1);
             var sharedLayers = reader.GetInt32(2);
 
+            double compressionRatio = 0d;
+            if (modelAParams > 0)
+            {
+                compressionRatio = modelBParams > 0
+                    ? (double)modelAParams / modelBParams
+                    : modelAParams;
+            }
+
             return new ModelComparisonResult(
                 modelAParams,
                 modelBParams,
-                modelAParams > 0 ? (double)modelBParams / modelAParams : 0,
+                compressionRatio,
                 0,
                 0,
                 sharedLayers,

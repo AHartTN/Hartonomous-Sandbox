@@ -57,5 +57,15 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
         builder.HasMany(l => l.CachedActivations)
             .WithOne(ca => ca.Layer)
             .HasForeignKey(ca => ca.LayerId);
+
+        builder.HasMany(l => l.TensorAtoms)
+            .WithOne(t => t.Layer)
+            .HasForeignKey(t => t.LayerId)
+            .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasMany(l => l.TensorAtomCoefficients)
+            .WithOne(c => c.ParentLayer)
+            .HasForeignKey(c => c.ParentLayerId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

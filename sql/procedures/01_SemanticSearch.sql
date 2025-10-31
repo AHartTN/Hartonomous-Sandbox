@@ -15,111 +15,214 @@ BEGIN
 
     DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
     DECLARE @inference_id BIGINT;
+    DECLARE @result_count INT = 0;
 
-    -- Generate embedding if needed (placeholder - would call actual inference)
-    IF @query_text IS NOT NULL AND @query_embedding IS NULL
+    IF @query_embedding IS NULL
     BEGIN
-        -- TODO: Call actual text-to-embedding inference
-        -- For now, return error indicating embedding is required
+        IF @query_text IS NULL
+        BEGIN
+            RAISERROR('Either @query_embedding or @query_text must be provided.', 16, 1);
+            RETURN;
+        END;
+
         RAISERROR('Text-to-embedding inference not implemented. Please provide @query_embedding parameter.', 16, 1);
         RETURN;
-    END
+    END;
 
-    -- Log inference request
+    DECLARE @input_data JSON = CASE
+        WHEN @query_text IS NULL THEN NULL
+        ELSE CAST(JSON_OBJECT('queryText': @query_text) AS JSON)
+    END;
+
+    DECLARE @input_hash BINARY(32) = CASE
+        WHEN @query_text IS NULL THEN NULL
+        ELSE HASHBYTES('SHA2_256', CONVERT(VARBINARY(MAX), @query_text))
+    END;
+
+    DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
+
     INSERT INTO dbo.InferenceRequests (
         TaskType,
         InputData,
+        InputHash,
         ModelsUsed,
         EnsembleStrategy
     )
     VALUES (
         'semantic_search',
-        @query_text,
-        CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END,
+        @input_data,
+        @input_hash,
+        @search_method,
         'spatial_filter_vector_rerank'
     );
+
     SET @inference_id = SCOPE_IDENTITY();
+
+    DECLARE @Results TABLE
+    (
+        AtomEmbeddingId BIGINT NOT NULL,
+        AtomId BIGINT NOT NULL,
+        Modality NVARCHAR(128) NULL,
+        Subtype NVARCHAR(128) NULL,
+        SourceType NVARCHAR(128) NULL,
+        SourceUri NVARCHAR(2048) NULL,
+        CanonicalText NVARCHAR(MAX) NULL,
+        EmbeddingType NVARCHAR(128) NULL,
+        ModelId INT NULL,
+        ExactDistance FLOAT NULL,
+        SimilarityScore FLOAT NULL,
+        SpatialDistance FLOAT NULL,
+        SearchMethod NVARCHAR(50) NOT NULL
+    );
 
     IF @use_hybrid = 1
     BEGIN
-        -- NOVEL APPROACH: Spatial filter + vector rerank
-        -- Step 1: Use spatial index for O(log n) filtering (get ~100 candidates)
-        -- Step 2: Exact vector similarity on candidates (O(k) where k << n)
+        DECLARE @spatial_x FLOAT = 0.0;
+        DECLARE @spatial_y FLOAT = 0.0;
+        DECLARE @spatial_z FLOAT = 0.0;
+        DECLARE @spatial_candidates INT = CASE WHEN @top_k IS NULL OR @top_k <= 0 THEN 10 ELSE @top_k * 10 END;
 
-        -- For demo purposes, we'll use a simplified spatial query
-        -- In production, this would compute proper spatial coordinates for the query vector
-        WITH SpatialCandidates AS (
-            SELECT TOP (@top_k * 10)
-                EmbeddingId,
-                SourceText,
-                SourceType,
-                embedding_full,
-                spatial_geometry.STDistance(geometry::STGeomFromText('POINT(0 0)', 0)) as spatial_distance
-            FROM dbo.Embeddings_Production
-            WHERE (@category IS NULL OR SourceType = @category)
-              AND embedding_full IS NOT NULL
-              AND spatial_geometry IS NOT NULL
-            ORDER BY spatial_geometry.STDistance(geometry::STGeomFromText('POINT(0 0)', 0))
-        ),
-        VectorRerank AS (
-            SELECT TOP (@top_k)
-                EmbeddingId,
-                SourceText,
-                SourceType,
-                embedding_full,
-                VECTOR_DISTANCE('cosine', embedding_full, @query_embedding) as vector_distance,
-                (1.0 - VECTOR_DISTANCE('cosine', embedding_full, @query_embedding)) as similarity_score,
-                spatial_distance,
-                'HYBRID_SPATIAL_VECTOR' as search_method
-            FROM SpatialCandidates
-            ORDER BY VECTOR_DISTANCE('cosine', embedding_full, @query_embedding) ASC
+        EXEC dbo.sp_ComputeSpatialProjection
+            @input_vector = @query_embedding,
+            @input_dimension = 768,
+            @output_x = @spatial_x OUTPUT,
+            @output_y = @spatial_y OUTPUT,
+            @output_z = @spatial_z OUTPUT;
+
+        DECLARE @Hybrid TABLE
+        (
+            AtomEmbeddingId BIGINT,
+            AtomId BIGINT,
+            Modality NVARCHAR(128),
+            Subtype NVARCHAR(128),
+            SourceUri NVARCHAR(2048),
+            SourceType NVARCHAR(128),
+            EmbeddingType NVARCHAR(128),
+            ModelId INT,
+            exact_distance FLOAT,
+            spatial_distance FLOAT
+        );
+
+        INSERT INTO @Hybrid
+        EXEC dbo.sp_HybridSearch
+            @query_vector = @query_embedding,
+            @query_spatial_x = @spatial_x,
+            @query_spatial_y = @spatial_y,
+            @query_spatial_z = @spatial_z,
+            @spatial_candidates = @spatial_candidates,
+            @final_top_k = @top_k;
+
+        INSERT INTO @Results
+        (
+            AtomEmbeddingId,
+            AtomId,
+            Modality,
+            Subtype,
+            SourceType,
+            SourceUri,
+            CanonicalText,
+            EmbeddingType,
+            ModelId,
+            ExactDistance,
+            SimilarityScore,
+            SpatialDistance,
+            SearchMethod
         )
         SELECT
-            EmbeddingId as embedding_id,
-            SourceText as source_text,
-            SourceType as source_type,
-            embedding_full as embedding_full,
-            similarity_score,
-            spatial_distance,
-            search_method,
-            @inference_id as inference_id
-        FROM VectorRerank
-        WHERE similarity_score > 0.0;
+            h.AtomEmbeddingId,
+            h.AtomId,
+            h.Modality,
+            h.Subtype,
+            h.SourceType,
+            h.SourceUri,
+            a.CanonicalText,
+            h.EmbeddingType,
+            h.ModelId,
+            h.exact_distance,
+            CASE WHEN h.exact_distance IS NULL THEN NULL ELSE 1.0 - h.exact_distance END,
+            h.spatial_distance,
+            'HYBRID_SPATIAL_VECTOR'
+        FROM @Hybrid AS h
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = h.AtomId
+        WHERE @category IS NULL
+           OR a.SourceType = @category
+           OR a.Subtype = @category;
     END
     ELSE
     BEGIN
-        -- Pure vector search using native VECTOR_DISTANCE (O(n) scan)
+        INSERT INTO @Results
+        (
+            AtomEmbeddingId,
+            AtomId,
+            Modality,
+            Subtype,
+            SourceType,
+            SourceUri,
+            CanonicalText,
+            EmbeddingType,
+            ModelId,
+            ExactDistance,
+            SimilarityScore,
+            SpatialDistance,
+            SearchMethod
+        )
         SELECT TOP (@top_k)
-            EmbeddingId as embedding_id,
-            SourceText as source_text,
-            SourceType as source_type,
-            EmbeddingFull as embedding_full,
-            VECTOR_DISTANCE('cosine', EmbeddingFull, @query_embedding) as distance,
-            (1.0 - VECTOR_DISTANCE('cosine', EmbeddingFull, @query_embedding)) as similarity_score,
-            'VECTOR_ONLY' as search_method,
-            @inference_id as inference_id
-        FROM dbo.Embeddings_Production
-        WHERE (@category IS NULL OR SourceType = @category)
-          AND EmbeddingFull IS NOT NULL
+            ae.AtomEmbeddingId,
+            ae.AtomId,
+            a.Modality,
+            a.Subtype,
+            a.SourceType,
+            a.SourceUri,
+            a.CanonicalText,
+            ae.EmbeddingType,
+            ae.ModelId,
+            VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS distance,
+            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS similarity,
+            NULL,
+            'VECTOR_ONLY'
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE ae.EmbeddingVector IS NOT NULL
+          AND (@category IS NULL OR a.SourceType = @category OR a.Subtype = @category)
         ORDER BY distance ASC;
-    END
+    END;
 
-    -- Update audit trail with completion
     DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    SET @result_count = (SELECT COUNT(*) FROM @Results);
+
+    DECLARE @output_metadata JSON = CAST(JSON_OBJECT(
+        'status': 'completed',
+        'results_count': @result_count,
+        'search_method': @search_method,
+        'duration_ms': @duration_ms
+    ) AS JSON);
+
     UPDATE dbo.InferenceRequests
     SET
-        total_duration_ms = @duration_ms,
-        output_metadata = JSON_OBJECT(
-            'status': 'completed',
-            'results_count': @@ROWCOUNT,
-            'search_method': CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END,
-            'duration_ms': @duration_ms
-        ),
-        cache_hit = 0
-    WHERE inference_id = @inference_id;
+        TotalDurationMs = @duration_ms,
+        OutputMetadata = @output_metadata,
+        CacheHit = 0
+    WHERE InferenceId = @inference_id;
 
-    -- Return tracking info
-    SELECT @inference_id as inference_id, @duration_ms as duration_ms, @@ROWCOUNT as results_count;
+    SELECT
+        r.AtomEmbeddingId AS atom_embedding_id,
+        r.AtomId AS atom_id,
+        r.Modality,
+        r.Subtype,
+        r.SourceType,
+        r.SourceUri,
+        r.CanonicalText,
+        r.EmbeddingType,
+        r.ModelId,
+        r.ExactDistance AS cosine_distance,
+        r.SimilarityScore,
+        r.SpatialDistance,
+        r.SearchMethod,
+        @inference_id AS inference_id
+    FROM @Results AS r
+    ORDER BY r.ExactDistance;
+
+    SELECT @inference_id AS inference_id, @duration_ms AS duration_ms, @result_count AS results_count;
 END;
 GO
 

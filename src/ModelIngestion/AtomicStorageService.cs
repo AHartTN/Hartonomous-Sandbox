@@ -4,6 +4,7 @@ using Hartonomous.Core.Entities;
 using Hartonomous.Infrastructure.Repositories;
 using System;
 using System.Linq;
+using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
@@ -54,7 +55,7 @@ namespace ModelIngestion
             {
                 // Increment reference count
                 await _pixelRepository.UpdateReferenceCountAsync(pixelHash, cancellationToken);
-                return existingPixel.PixelHash.GetHashCode(); // Return hash code as ID for now
+                return ConvertHashToKey(existingPixel.PixelHash);
             }
 
             // Create new atomic pixel
@@ -69,7 +70,7 @@ namespace ModelIngestion
             };
 
             await _pixelRepository.AddAsync(pixel, cancellationToken);
-            return pixel.PixelHash.GetHashCode(); // Return hash code as ID for now
+            return ConvertHashToKey(pixel.PixelHash);
         }
 
         /// <summary>
@@ -105,7 +106,7 @@ namespace ModelIngestion
             if (existingSample != null)
             {
                 await _audioSampleRepository.UpdateReferenceCountAsync(sampleHash, cancellationToken);
-                return existingSample.SampleHash.GetHashCode(); // Return hash code as ID for now
+                return ConvertHashToKey(existingSample.SampleHash);
             }
 
             // Create new atomic audio sample
@@ -118,7 +119,7 @@ namespace ModelIngestion
             };
 
             await _audioSampleRepository.AddAsync(sample, cancellationToken);
-            return sample.SampleHash.GetHashCode(); // Return hash code as ID for now
+            return ConvertHashToKey(sample.SampleHash);
         }
 
         /// <summary>
@@ -153,6 +154,17 @@ namespace ModelIngestion
         // =============================================
         // HASHING UTILITIES
         // =============================================
+
+        private static long ConvertHashToKey(ReadOnlySpan<byte> hash)
+        {
+            if (hash.Length < sizeof(long))
+            {
+                throw new ArgumentException("Hash length must be at least 8 bytes", nameof(hash));
+            }
+
+            var value = BinaryPrimitives.ReadInt64BigEndian(hash[..sizeof(long)]);
+            return value & long.MaxValue;
+        }
 
         private byte[] ComputePixelHash(byte r, byte g, byte b, byte a)
         {

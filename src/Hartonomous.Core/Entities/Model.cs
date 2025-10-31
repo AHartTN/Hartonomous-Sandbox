@@ -69,4 +69,14 @@ public class Model
     /// Gets or sets the extended metadata for this model.
     /// </summary>
     public ModelMetadata? Metadata { get; set; }
+
+    /// <summary>
+    /// Gets or sets the collection of atom embeddings produced by this model.
+    /// </summary>
+    public ICollection<AtomEmbedding> AtomEmbeddings { get; set; } = new List<AtomEmbedding>();
+
+    /// <summary>
+    /// Gets or sets the collection of tensor atoms associated with this model.
+    /// </summary>
+    public ICollection<TensorAtom> TensorAtoms { get; set; } = new List<TensorAtom>();
 }

@@ -26,45 +26,53 @@ BEGIN
     PRINT 'MULTI-RESOLUTION SEARCH: Coarse → Fine → Exact';
     PRINT '  Strategy: 3-stage funnel for billion-scale performance';
 
-    DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(
-        'POINT(' + CAST(@query_x AS NVARCHAR(50)) + ' ' +
-                   CAST(@query_y AS NVARCHAR(50)) + ')', 0);
+    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT Z (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+    DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
     -- Stage 1: Coarse spatial filter (quantized grid)
-    DECLARE @coarse_results TABLE (embedding_id BIGINT);
+    DECLARE @coarse_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
 
-    INSERT INTO @coarse_results
-    SELECT TOP (@coarse_candidates) embedding_id
-    FROM dbo.Embeddings_Production
-    WHERE spatial_coarse IS NOT NULL
-    ORDER BY spatial_coarse.STDistance(@query_pt);
+    INSERT INTO @coarse_results (AtomEmbeddingId)
+    SELECT TOP (@coarse_candidates) ae.AtomEmbeddingId
+    FROM dbo.AtomEmbeddings AS ae
+    WHERE ae.SpatialCoarse IS NOT NULL
+    ORDER BY ae.SpatialCoarse.STDistance(@query_pt);
 
-    PRINT '  Stage 1: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' coarse candidates';
+    DECLARE @coarse_count INT = @@ROWCOUNT;
+    PRINT '  Stage 1: ' + CAST(@coarse_count AS NVARCHAR(10)) + ' coarse candidates';
 
     -- Stage 2: Fine spatial refinement
-    DECLARE @fine_results TABLE (embedding_id BIGINT);
+    DECLARE @fine_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
 
-    INSERT INTO @fine_results
-    SELECT TOP (@fine_candidates) ep.embedding_id
-    FROM dbo.Embeddings_Production ep
-    JOIN @coarse_results cc ON ep.embedding_id = cc.embedding_id
-    WHERE ep.spatial_geometry IS NOT NULL
-    ORDER BY ep.spatial_geometry.STDistance(@query_pt);
+    INSERT INTO @fine_results (AtomEmbeddingId)
+    SELECT TOP (@fine_candidates) ae.AtomEmbeddingId
+    FROM dbo.AtomEmbeddings AS ae
+    INNER JOIN @coarse_results AS cr ON cr.AtomEmbeddingId = ae.AtomEmbeddingId
+    WHERE ae.SpatialGeometry IS NOT NULL
+    ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
 
-    PRINT '  Stage 2: ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' fine candidates';
+    DECLARE @fine_count INT = @@ROWCOUNT;
+    PRINT '  Stage 2: ' + CAST(@fine_count AS NVARCHAR(10)) + ' fine candidates';
 
-    -- Stage 3: Exact vector rerank
-    -- Note: This would use the full VECTOR if we had the query vector
+    -- Stage 3: Exact vector rerank (spatial distance ranking shown)
     SELECT TOP (@final_top_k)
-        ep.embedding_id,
-        ep.source_text,
-        ep.source_type,
-        ep.spatial_geometry.STDistance(@query_pt) as final_distance
-    FROM dbo.Embeddings_Production ep
-    JOIN @fine_results fc ON ep.embedding_id = fc.embedding_id
-    ORDER BY ep.spatial_geometry.STDistance(@query_pt);
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        a.Modality,
+        a.Subtype,
+        a.SourceType,
+        a.SourceUri,
+        a.CanonicalText,
+        ae.EmbeddingType,
+        ae.ModelId,
+        ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance,
+        ae.SpatialCoarse.STDistance(@query_pt) AS CoarseDistance
+    FROM dbo.AtomEmbeddings AS ae
+    INNER JOIN @fine_results AS fr ON fr.AtomEmbeddingId = ae.AtomEmbeddingId
+    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    ORDER BY SpatialDistance ASC;
 
-    PRINT '  Stage 3: Top ' + CAST(@final_top_k AS VARCHAR(10)) + ' results';
+    PRINT '  Stage 3: Top ' + CAST(@final_top_k AS NVARCHAR(10)) + ' results';
     PRINT '✓ Multi-resolution search complete';
 END;
 GO
@@ -74,59 +82,95 @@ GO
 -- ==========================================
 
 CREATE OR ALTER PROCEDURE dbo.sp_CognitiveActivation
-    @query_embedding VECTOR(768),
+    @query_embedding VECTOR(1998),
     @activation_threshold FLOAT = 0.8,
     @max_activated INT = 50
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    PRINT 'COGNITIVE ACTIVATION: Query ripples through knowledge graph';
-    PRINT '  Concept: Nodes "activate" based on similarity, like neurons firing';
+    IF @query_embedding IS NULL
+    BEGIN
+        RAISERROR('Query embedding cannot be NULL.', 16, 1);
+        RETURN;
+    END;
 
-    -- Step 1: Find strongly activated nodes
+    IF @activation_threshold IS NULL OR @activation_threshold <= -1.0 OR @activation_threshold > 1.0
+    BEGIN
+        RAISERROR('Activation threshold must be within (-1, 1].', 16, 1);
+        RETURN;
+    END;
+
+    DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
+    DECLARE @max_distance FLOAT = 1.0 - @activation_threshold;
+
+    IF @max_distance <= 0
+    BEGIN
+        RAISERROR('Activation threshold too high for cosine similarity search.', 16, 1);
+        RETURN;
+    END;
+
+    PRINT 'COGNITIVE ACTIVATION: Atom embeddings firing based on cosine similarity';
+    PRINT '  Threshold: ' + CAST(@activation_threshold AS NVARCHAR(10)) + ' | Max candidates: ' + CAST(@max_activated AS NVARCHAR(10));
+
     DECLARE @activated TABLE (
-        embedding_id BIGINT,
-        activation_strength FLOAT
+        AtomEmbeddingId BIGINT PRIMARY KEY,
+        AtomId BIGINT NOT NULL,
+        ActivationStrength FLOAT NOT NULL
     );
 
-    INSERT INTO @activated
+    INSERT INTO @activated (AtomEmbeddingId, AtomId, ActivationStrength)
     SELECT TOP (@max_activated)
-        embedding_id,
-        1.0 - VECTOR_DISTANCE('cosine', embedding_full, @query_embedding) as activation_strength
-    FROM dbo.Embeddings_Production
-    WHERE embedding_full IS NOT NULL
-        AND VECTOR_DISTANCE('cosine', embedding_full, @query_embedding) < (1.0 - @activation_threshold)
-    ORDER BY VECTOR_DISTANCE('cosine', embedding_full, @query_embedding);
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS ActivationStrength
+    FROM dbo.AtomEmbeddings AS ae
+    WHERE ae.EmbeddingVector IS NOT NULL
+      AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) <= @max_distance
+    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) ASC;
 
-    PRINT '  Activated nodes: ' + CAST(@@ROWCOUNT AS VARCHAR(10));
+    DECLARE @activated_count INT = @@ROWCOUNT;
+    PRINT '  Activated nodes: ' + CAST(@activated_count AS NVARCHAR(10));
 
-    -- Step 2: Return activation pattern
     SELECT
-        ep.embedding_id,
-        ep.source_text,
-        ep.source_type,
-        a.activation_strength,
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        a.Modality,
+        a.Subtype,
+        a.SourceType,
+        a.SourceUri,
+        a.CanonicalText,
+        act.ActivationStrength,
         CASE
-            WHEN a.activation_strength > 0.95 THEN 'VERY_HIGH'
-            WHEN a.activation_strength > 0.90 THEN 'HIGH'
-            WHEN a.activation_strength > 0.85 THEN 'MEDIUM'
+            WHEN act.ActivationStrength >= 0.95 THEN 'VERY_HIGH'
+            WHEN act.ActivationStrength >= 0.90 THEN 'HIGH'
+            WHEN act.ActivationStrength >= 0.85 THEN 'MEDIUM'
             ELSE 'LOW'
-        END as activation_level
-    FROM dbo.Embeddings_Production ep
-    JOIN @activated a ON ep.embedding_id = a.embedding_id
-    ORDER BY a.activation_strength DESC;
+        END AS ActivationLevel
+    FROM @activated AS act
+    INNER JOIN dbo.AtomEmbeddings AS ae ON ae.AtomEmbeddingId = act.AtomEmbeddingId
+    INNER JOIN dbo.Atoms AS a ON a.AtomId = act.AtomId
+    ORDER BY act.ActivationStrength DESC;
 
-    -- Step 3: Log inference with activated nodes
+    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    DECLARE @input_json JSON = CAST(JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated) AS JSON);
+    DECLARE @output_json JSON = CAST(JSON_OBJECT('activatedCount': @activated_count) AS JSON);
+    DECLARE @output_metadata JSON = CAST(JSON_OBJECT('status': 'completed', 'durationMs': @duration_ms) AS JSON);
     DECLARE @inference_id BIGINT;
-    DECLARE @activated_count INT = (SELECT COUNT(*) FROM @activated);
 
-    INSERT INTO dbo.InferenceRequests (task_type, input_data, models_used, output_data)
-    VALUES ('cognitive_activation', 'vector_query', 'embeddings_production',
-            'Activated ' + CAST(@activated_count AS VARCHAR(10)) + ' nodes');
+    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
+    VALUES (
+        'cognitive_activation',
+        @input_json,
+        'atom_embeddings',
+        'cognitive_activation',
+        @output_json,
+        @output_metadata,
+        @duration_ms
+    );
+
     SET @inference_id = SCOPE_IDENTITY();
-
-    PRINT '✓ Cognitive activation complete - Inference ID: ' + CAST(@inference_id AS VARCHAR(20));
+    PRINT '✓ Cognitive activation complete - Inference ID: ' + CAST(@inference_id AS NVARCHAR(20));
 END;
 GO
 
@@ -136,130 +180,131 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_DynamicStudentExtraction
     @parent_model_id INT,
-    @target_size_ratio FLOAT = 0.5,  -- Extract 50% of parameters
-    @selection_strategy NVARCHAR(20) = 'importance' -- 'importance', 'layer', 'random'
+    @target_size_ratio FLOAT = 0.5,
+    @selection_strategy NVARCHAR(20) = 'importance'
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    PRINT 'DYNAMIC STUDENT MODEL EXTRACTION';
-    PRINT '  Strategy: ' + @selection_strategy;
-    PRINT '  Target size: ' + CAST(@target_size_ratio * 100 AS VARCHAR(10)) + '% of parent';
-
-    -- Calculate total parameters in parent model
-    DECLARE @total_params INT;
-    SELECT @total_params = COUNT(*)
-    FROM dbo.AttentionWeights aw
-    JOIN dbo.TransformerLayers tl ON aw.layer_id = tl.layer_id
-    WHERE tl.model_id = @parent_model_id;
-
-    DECLARE @target_params INT = CAST(@total_params * @target_size_ratio AS INT);
-    PRINT '  Parent parameters: ' + CAST(@total_params AS VARCHAR(20));
-    PRINT '  Target parameters: ' + CAST(@target_params AS VARCHAR(20));
-
-    -- Create student model
-    DECLARE @student_model_id INT;
-    INSERT INTO dbo.Models_Production (
-        model_name, model_type, architecture,
-        input_dim, output_dim, is_decomposed
-    )
-    SELECT
-        'Student_' + model_name + '_' + CAST(@target_size_ratio AS VARCHAR(10)),
-        'student_' + model_type,
-        'distilled_' + architecture,
-        input_dim,
-        output_dim,
-        1
-    FROM dbo.Models_Production
-    WHERE model_id = @parent_model_id;
-
-    SET @student_model_id = SCOPE_IDENTITY();
-    PRINT '  Created student model ID: ' + CAST(@student_model_id AS VARCHAR(10));
-
-    -- Selection strategy
-    IF @selection_strategy = 'importance'
+    IF @target_size_ratio <= 0 OR @target_size_ratio > 1
     BEGIN
-        PRINT '  Selecting top ' + CAST(@target_params AS VARCHAR(10)) + ' weights by importance score...';
-
-        -- Copy layers first
-        INSERT INTO dbo.TransformerLayers (model_id, layer_idx, layer_type, num_heads, head_dim)
-        SELECT DISTINCT
-            @student_model_id,
-            layer_idx,
-            layer_type,
-            num_heads,
-            head_dim
-        FROM dbo.TransformerLayers
-        WHERE model_id = @parent_model_id;
-
-        -- Copy top weights by importance
-        INSERT INTO dbo.AttentionWeights (layer_id, head_idx, weight_type, weight_vector, importance_score)
-        SELECT TOP (@target_params)
-            (SELECT layer_id FROM dbo.TransformerLayers
-             WHERE model_id = @student_model_id AND layer_idx = tl_old.layer_idx),
-            aw.head_idx,
-            aw.weight_type,
-            aw.weight_vector,
-            aw.importance_score
-        FROM dbo.AttentionWeights aw
-        JOIN dbo.TransformerLayers tl_old ON aw.layer_id = tl_old.layer_id
-        WHERE tl_old.model_id = @parent_model_id
-        ORDER BY aw.importance_score DESC;
-
-        PRINT '  Copied top ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' weights';
-    END
-    ELSE IF @selection_strategy = 'layer'
-    BEGIN
-        -- Copy first N layers
-        DECLARE @num_layers INT = (
-            SELECT COUNT(DISTINCT layer_idx)
-            FROM dbo.TransformerLayers
-            WHERE model_id = @parent_model_id
-        );
-        DECLARE @target_layers INT = CAST(@num_layers * @target_size_ratio AS INT);
-
-        PRINT '  Selecting first ' + CAST(@target_layers AS VARCHAR(10)) + ' layers...';
-
-        INSERT INTO dbo.TransformerLayers (model_id, layer_idx, layer_type, num_heads, head_dim)
-        SELECT
-            @student_model_id,
-            layer_idx,
-            layer_type,
-            num_heads,
-            head_dim
-        FROM dbo.TransformerLayers
-        WHERE model_id = @parent_model_id
-            AND layer_idx < @target_layers;
-
-        INSERT INTO dbo.AttentionWeights (layer_id, head_idx, weight_type, weight_vector, importance_score)
-        SELECT
-            (SELECT layer_id FROM dbo.TransformerLayers
-             WHERE model_id = @student_model_id AND layer_idx = tl_old.layer_idx),
-            aw.head_idx,
-            aw.weight_type,
-            aw.weight_vector,
-            aw.importance_score
-        FROM dbo.AttentionWeights aw
-        JOIN dbo.TransformerLayers tl_old ON aw.layer_id = tl_old.layer_id
-        WHERE tl_old.model_id = @parent_model_id
-            AND tl_old.layer_idx < @target_layers;
-
-        PRINT '  Copied ' + CAST(@@ROWCOUNT AS VARCHAR(10)) + ' weights';
+        RAISERROR('Target size ratio must be within (0, 1].', 16, 1);
+        RETURN;
     END;
 
-    -- Report statistics
-    SELECT
-        @student_model_id as student_model_id,
-        (SELECT model_name FROM dbo.Models_Production WHERE model_id = @student_model_id) as student_name,
-        @total_params as parent_parameters,
-        (SELECT COUNT(*) FROM dbo.AttentionWeights aw
-         JOIN dbo.TransformerLayers tl ON aw.layer_id = tl.layer_id
-         WHERE tl.model_id = @student_model_id) as student_parameters,
-        CAST(100.0 * (SELECT COUNT(*) FROM dbo.AttentionWeights aw
-                      JOIN dbo.TransformerLayers tl ON aw.layer_id = tl.layer_id
-                      WHERE tl.model_id = @student_model_id) / @total_params AS DECIMAL(5,2)) as compression_ratio_pct;
+    DECLARE @parent_exists INT = (
+        SELECT COUNT(*)
+        FROM dbo.Models
+        WHERE ModelId = @parent_model_id
+    );
 
-    PRINT '✓ Student model extracted via SELECT';
+    IF @parent_exists = 0
+    BEGIN
+        RAISERROR('Parent model does not exist.', 16, 1);
+        RETURN;
+    END;
+
+    DECLARE @ratio_percent INT = CEILING(@target_size_ratio * 100);
+    IF @ratio_percent < 1 SET @ratio_percent = 1;
+    DECLARE @new_model_name NVARCHAR(200) = CONCAT('Student_', @parent_model_id, '_', @selection_strategy, '_', @ratio_percent, 'pct');
+    DECLARE @layer_subset NVARCHAR(MAX) = NULL;
+    DECLARE @importance_threshold FLOAT = NULL;
+
+    IF @selection_strategy = 'layer'
+    BEGIN
+        DECLARE @total_layers INT = (
+            SELECT COUNT(*)
+            FROM dbo.ModelLayers
+            WHERE ModelId = @parent_model_id
+        );
+
+        IF @total_layers = 0
+        BEGIN
+            RAISERROR('Parent model has no layers to extract.', 16, 1);
+            RETURN;
+        END;
+
+        DECLARE @layers_to_take INT = CEILING(@total_layers * @target_size_ratio);
+        IF @layers_to_take < 1 SET @layers_to_take = 1;
+
+        SELECT @layer_subset = STRING_AGG(CAST(LayerIdx AS NVARCHAR(10)), ',') WITHIN GROUP (ORDER BY LayerIdx)
+        FROM (
+            SELECT TOP (@layers_to_take) LayerIdx
+            FROM dbo.ModelLayers
+            WHERE ModelId = @parent_model_id
+            ORDER BY LayerIdx
+        ) AS layer_selection;
+
+        PRINT 'DYNAMIC EXTRACTION → Layer subset: ' + ISNULL(@layer_subset, '(empty)');
+    END
+    ELSE IF @selection_strategy = 'random'
+    BEGIN
+        DECLARE @total_layers_random INT = (
+            SELECT COUNT(*)
+            FROM dbo.ModelLayers
+            WHERE ModelId = @parent_model_id
+        );
+
+        IF @total_layers_random = 0
+        BEGIN
+            RAISERROR('Parent model has no layers to extract.', 16, 1);
+            RETURN;
+        END;
+
+        DECLARE @random_take INT = CEILING(@total_layers_random * @target_size_ratio);
+        IF @random_take < 1 SET @random_take = 1;
+
+        SELECT @layer_subset = STRING_AGG(CAST(LayerIdx AS NVARCHAR(10)), ',')
+        FROM (
+            SELECT TOP (@random_take) LayerIdx
+            FROM dbo.ModelLayers
+            WHERE ModelId = @parent_model_id
+            ORDER BY NEWID()
+        ) AS random_layers;
+
+        PRINT 'DYNAMIC EXTRACTION → Random layer subset: ' + ISNULL(@layer_subset, '(empty)');
+    END
+    ELSE -- default to importance-based filtering
+    BEGIN
+        DECLARE @total_atoms INT = (
+            SELECT COUNT(*)
+            FROM dbo.TensorAtoms
+            WHERE ModelId = @parent_model_id
+        );
+
+        IF @total_atoms = 0
+        BEGIN
+            PRINT 'Parent model has no tensor atoms; falling back to full copy.';
+            SET @importance_threshold = NULL;
+        END
+        ELSE
+        BEGIN
+            DECLARE @atoms_to_take INT = CEILING(@total_atoms * @target_size_ratio);
+            IF @atoms_to_take < 1 SET @atoms_to_take = 1;
+
+            SELECT @importance_threshold = MIN(ImportanceScore)
+            FROM (
+                SELECT TOP (@atoms_to_take) ImportanceScore
+                FROM dbo.TensorAtoms
+                WHERE ModelId = @parent_model_id
+                  AND ImportanceScore IS NOT NULL
+                ORDER BY ImportanceScore DESC
+            ) AS ranked;
+
+            IF @importance_threshold IS NULL
+            BEGIN
+                PRINT 'Importance scores missing; no threshold applied.';
+            END
+        END
+
+        PRINT 'DYNAMIC EXTRACTION → Importance threshold: ' + COALESCE(CAST(@importance_threshold AS NVARCHAR(32)), 'none');
+    END;
+
+    EXEC dbo.sp_ExtractStudentModel
+        @parent_model_id = @parent_model_id,
+        @layer_subset = @layer_subset,
+        @importance_threshold = @importance_threshold,
+        @new_model_name = @new_model_name;
 END;
 GO
 
@@ -271,43 +316,58 @@ CREATE OR ALTER PROCEDURE dbo.sp_CrossModalQuery
     @text_query NVARCHAR(MAX) = NULL,
     @spatial_query_x FLOAT = NULL,
     @spatial_query_y FLOAT = NULL,
-    @modality_filter NVARCHAR(50) = NULL, -- 'sentence', 'image', 'audio', NULL (all)
+    @spatial_query_z FLOAT = NULL,
+    @modality_filter NVARCHAR(50) = NULL,
     @top_k INT = 10
 AS
 BEGIN
     SET NOCOUNT ON;
 
     PRINT 'CROSS-MODAL INFERENCE';
-    PRINT '  Query modalities: ' + ISNULL(@text_query, 'spatial');
+    PRINT '  Text filter: ' + ISNULL(@text_query, '(none)');
     PRINT '  Target modality: ' + ISNULL(@modality_filter, 'all');
 
-    -- If spatial query provided, use it
     IF @spatial_query_x IS NOT NULL AND @spatial_query_y IS NOT NULL
     BEGIN
-        DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(
-            'POINT(' + CAST(@spatial_query_x AS NVARCHAR(50)) + ' ' +
-                       CAST(@spatial_query_y AS NVARCHAR(50)) + ')', 0);
+        DECLARE @z FLOAT = ISNULL(@spatial_query_z, 0);
+        DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT Z (', @spatial_query_x, ' ', @spatial_query_y, ' ', @z, ')');
+        DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
         SELECT TOP (@top_k)
-            embedding_id,
-            source_text,
-            source_type,
-            spatial_geometry.STDistance(@query_pt) as distance
-        FROM dbo.Embeddings_Production
-        WHERE (@modality_filter IS NULL OR source_type = @modality_filter)
-            AND spatial_geometry IS NOT NULL
-        ORDER BY spatial_geometry.STDistance(@query_pt);
+            ae.AtomEmbeddingId,
+            ae.AtomId,
+            a.Modality,
+            a.Subtype,
+            a.SourceType,
+            a.SourceUri,
+            a.CanonicalText,
+            ae.EmbeddingType,
+            ae.ModelId,
+            ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE ae.SpatialGeometry IS NOT NULL
+          AND (@modality_filter IS NULL OR a.SourceType = @modality_filter OR a.Modality = @modality_filter)
+          AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
+        ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
     END
     ELSE
     BEGIN
-        -- Text-only query - return diverse results
         SELECT TOP (@top_k)
-            embedding_id,
-            source_text,
-            source_type
-        FROM dbo.Embeddings_Production
-        WHERE (@modality_filter IS NULL OR source_type = @modality_filter)
-        ORDER BY NEWID(); -- Random for demonstration
+            ae.AtomEmbeddingId,
+            ae.AtomId,
+            a.Modality,
+            a.Subtype,
+            a.SourceType,
+            a.SourceUri,
+            a.CanonicalText,
+            ae.EmbeddingType,
+            ae.ModelId
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE (@modality_filter IS NULL OR a.SourceType = @modality_filter OR a.Modality = @modality_filter)
+          AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
+        ORDER BY NEWID();
     END;
 
     PRINT '✓ Cross-modal results returned';
@@ -325,48 +385,73 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    PRINT 'KNOWLEDGE COMPARISON: Model ' + CAST(@model_a_id AS VARCHAR) + ' vs Model ' + CAST(@model_b_id AS VARCHAR);
+    PRINT 'KNOWLEDGE COMPARISON: Model ' + CAST(@model_a_id AS NVARCHAR(20)) + ' vs Model ' + CAST(@model_b_id AS NVARCHAR(20));
 
-    -- Compare weight distributions
+    -- Compare tensor atom distributions
     SELECT
-        'Model A' as model_name,
-        @model_a_id as model_id,
-        COUNT(*) as total_weights,
-        AVG(importance_score) as avg_importance,
-        STDEV(importance_score) as stdev_importance,
-        MIN(importance_score) as min_importance,
-        MAX(importance_score) as max_importance
-    FROM dbo.AttentionWeights aw
-    JOIN dbo.TransformerLayers tl ON aw.layer_id = tl.layer_id
-    WHERE tl.model_id = @model_a_id
+        'Model A' AS model_name,
+        @model_a_id AS model_id,
+        COUNT(*) AS total_tensor_atoms,
+        AVG(CAST(ImportanceScore AS FLOAT)) AS avg_importance,
+        STDEV(CAST(ImportanceScore AS FLOAT)) AS stdev_importance,
+        MIN(ImportanceScore) AS min_importance,
+        MAX(ImportanceScore) AS max_importance
+    FROM dbo.TensorAtoms
+    WHERE ModelId = @model_a_id
 
     UNION ALL
 
     SELECT
-        'Model B' as model_name,
-        @model_b_id as model_id,
-        COUNT(*) as total_weights,
-        AVG(importance_score) as avg_importance,
-        STDEV(importance_score) as stdev_importance,
-        MIN(importance_score) as min_importance,
-        MAX(importance_score) as max_importance
-    FROM dbo.AttentionWeights aw
-    JOIN dbo.TransformerLayers tl ON aw.layer_id = tl.layer_id
-    WHERE tl.model_id = @model_b_id;
+        'Model B' AS model_name,
+        @model_b_id AS model_id,
+        COUNT(*) AS total_tensor_atoms,
+        AVG(CAST(ImportanceScore AS FLOAT)) AS avg_importance,
+        STDEV(CAST(ImportanceScore AS FLOAT)) AS stdev_importance,
+        MIN(ImportanceScore) AS min_importance,
+        MAX(ImportanceScore) AS max_importance
+    FROM dbo.TensorAtoms
+    WHERE ModelId = @model_b_id;
 
-    -- Compare layer structures
+    -- Compare layer structures using ModelLayers metadata
     SELECT
-        'Layer Comparison' as analysis_type,
-        a.layer_idx,
-        a.layer_type as model_a_type,
-        b.layer_type as model_b_type,
-        ISNULL(a.num_heads, 0) as model_a_heads,
-        ISNULL(b.num_heads, 0) as model_b_heads
-    FROM dbo.TransformerLayers a
-    FULL OUTER JOIN dbo.TransformerLayers b ON a.layer_idx = b.layer_idx
-    WHERE a.model_id = @model_a_id
-        OR b.model_id = @model_b_id
-    ORDER BY ISNULL(a.layer_idx, b.layer_idx);
+        'Layer Comparison' AS analysis_type,
+        COALESCE(a.LayerIdx, b.LayerIdx) AS layer_idx,
+        a.LayerType AS model_a_type,
+        b.LayerType AS model_b_type,
+        a.ParameterCount AS model_a_parameters,
+        b.ParameterCount AS model_b_parameters,
+        a.TensorShape AS model_a_shape,
+        b.TensorShape AS model_b_shape
+    FROM dbo.ModelLayers AS a
+    FULL OUTER JOIN dbo.ModelLayers AS b
+        ON a.LayerIdx = b.LayerIdx
+       AND a.ModelId = @model_a_id
+       AND b.ModelId = @model_b_id
+    WHERE a.ModelId = @model_a_id
+       OR b.ModelId = @model_b_id
+    ORDER BY COALESCE(a.LayerIdx, b.LayerIdx);
+
+    -- Compare tensor atom coefficient counts
+    SELECT
+        'Coefficient Coverage' AS analysis_type,
+        stats.model_id,
+        stats.total_coefficients,
+        stats.avg_value,
+        stats.max_value,
+        stats.min_value
+    FROM (
+        SELECT
+            ta.ModelId AS model_id,
+            COUNT(tc.Coefficient) AS total_coefficients,
+            AVG(CAST(tc.Coefficient AS FLOAT)) AS avg_value,
+            MAX(tc.Coefficient) AS max_value,
+            MIN(tc.Coefficient) AS min_value
+        FROM dbo.TensorAtoms AS ta
+        LEFT JOIN dbo.TensorAtomCoefficients AS tc ON tc.TensorAtomId = ta.TensorAtomId
+        WHERE ta.ModelId IN (@model_a_id, @model_b_id)
+        GROUP BY ta.ModelId
+    ) AS stats
+    ORDER BY stats.model_id;
 
     PRINT '✓ Knowledge comparison complete';
 END;
@@ -384,23 +469,23 @@ BEGIN
     SET NOCOUNT ON;
 
     PRINT 'INFERENCE HISTORY ANALYSIS';
-    PRINT '  Time window: Last ' + CAST(@time_window_hours AS VARCHAR) + ' hours';
+    PRINT '  Time window: Last ' + CAST(@time_window_hours AS VARCHAR(10)) + ' hours';
 
     DECLARE @cutoff_time DATETIME2 = DATEADD(HOUR, -@time_window_hours, SYSUTCDATETIME());
 
     SELECT
-        task_type,
-        COUNT(*) as request_count,
-        AVG(total_duration_ms) as avg_duration_ms,
-        MIN(total_duration_ms) as min_duration_ms,
-        MAX(total_duration_ms) as max_duration_ms,
-        SUM(CASE WHEN output_data IS NOT NULL THEN 1 ELSE 0 END) as successful_count,
-        SUM(CASE WHEN output_data IS NULL THEN 1 ELSE 0 END) as failed_count,
-        SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END) as cache_hits
+        TaskType,
+        COUNT(*) AS request_count,
+        AVG(TotalDurationMs) AS avg_duration_ms,
+        MIN(TotalDurationMs) AS min_duration_ms,
+        MAX(TotalDurationMs) AS max_duration_ms,
+        SUM(CASE WHEN OutputData IS NOT NULL THEN 1 ELSE 0 END) AS successful_count,
+        SUM(CASE WHEN OutputData IS NULL THEN 1 ELSE 0 END) AS failed_count,
+        SUM(CASE WHEN CacheHit = 1 THEN 1 ELSE 0 END) AS cache_hits
     FROM dbo.InferenceRequests
-    WHERE request_timestamp >= @cutoff_time
-        AND (@task_type IS NULL OR task_type = @task_type)
-    GROUP BY task_type
+    WHERE RequestTimestamp >= @cutoff_time
+        AND (@task_type IS NULL OR TaskType = @task_type)
+    GROUP BY TaskType
     ORDER BY request_count DESC;
 
     PRINT '✓ Inference history analysis complete';

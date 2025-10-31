@@ -43,9 +43,18 @@ public interface IEmbeddingIngestionService
 public class EmbeddingIngestionResult
 {
     /// <summary>
-    /// Gets or sets the embedding ID (new or existing).
+    /// Gets or sets the atom embedding identifier created or reused during ingestion.
     /// </summary>
-    public long EmbeddingId { get; set; }
+    public long? AtomEmbeddingId { get; set; }
+
+    /// <summary>
+    /// Backward compatible alias for <see cref="AtomEmbeddingId"/>.
+    /// </summary>
+    public long? EmbeddingId
+    {
+        get => AtomEmbeddingId;
+        set => AtomEmbeddingId = value;
+    }
     
     /// <summary>
     /// Gets or sets whether this was a duplicate (true) or new embedding (false).
@@ -56,4 +65,14 @@ public class EmbeddingIngestionResult
     /// Gets or sets the reason for duplication if WasDuplicate is true.
     /// </summary>
     public string? DuplicateReason { get; set; }
+
+    /// <summary>
+    /// Gets or sets the associated atom identifier.
+    /// </summary>
+    public long AtomId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the semantic similarity (cosine) when deduplication matched an existing embedding.
+    /// </summary>
+    public double? SemanticSimilarity { get; set; }
 }

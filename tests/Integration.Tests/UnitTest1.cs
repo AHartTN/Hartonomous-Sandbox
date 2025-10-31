@@ -1,102 +1,90 @@
-﻿using Hartonomous.Core.Entities;
-using Hartonomous.Data;
-using Hartonomous.Infrastructure.Repositories;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using Hartonomous.Core.Utilities;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 using Xunit;
 
 namespace Integration.Tests;
 
-public class EmbeddingRepositoryIntegrationTests : IDisposable
+/// <summary>
+/// Database-level smoke tests that validate the Hartonomous SQL Server instance is provisioned as expected.
+/// </summary>
+public sealed class DatabaseSmokeTests : IntegrationTestBase
 {
-    private readonly HartonomousDbContext _context;
-    private readonly EmbeddingRepository _repository;
-    private readonly ILogger<EmbeddingRepository> _logger;
-
-    public EmbeddingRepositoryIntegrationTests()
+    public DatabaseSmokeTests(SqlServerTestFixture fixture)
+        : base(fixture)
     {
-        var options = new DbContextOptionsBuilder<HartonomousDbContext>()
-            .UseSqlServer("Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;", 
-                sqlOptions => sqlOptions.UseNetTopologySuite())
-            .Options;
-
-        _context = new HartonomousDbContext(options);
-        _logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger<EmbeddingRepository>();
-        _repository = new EmbeddingRepository(_context);
     }
 
     [Fact]
-    public async Task ComputeSpatialProjectionAsync_ReturnsValidCoordinates()
+    public async Task RequiredStoredProcedures_Exist()
     {
-        // Arrange
-        var testVector = new float[768];
-        for (int i = 0; i < 768; i++)
+        var expected = new[]
         {
-            testVector[i] = (float)i / 768.0f; // Simple gradient vector
-        }
-
-        // Act
-        var result = await _repository.ComputeSpatialProjectionAsync(testVector);
-
-        // Assert
-        Assert.NotNull(result);
-        Assert.Equal(3, result.Length);
-        Assert.All(result, coord => Assert.True(coord >= 0)); // Distances should be non-negative
-    }
-
-    [Fact]
-    public async Task CheckDuplicateBySimilarityAsync_NoMatch_ReturnsNull()
-    {
-        // Arrange - Use a truly unique vector pattern that's very different from existing test data
-        var uniqueVector = new float[768];
-        for (int i = 0; i < 768; i++)
-        {
-            uniqueVector[i] = (i % 2 == 0) ? 1000.0f : -500.0f; // Alternating large positive/negative values
-        }
-
-        // Act
-        var result = await _repository.CheckDuplicateBySimilarityAsync(uniqueVector, 0.95);
-
-        // Assert
-        Assert.Null(result);
-    }
-
-    [Fact]
-    public async Task AddAndRetrieveEmbedding_WorksCorrectly()
-    {
-        // Arrange
-        var testVector = new float[768];
-        for (int i = 0; i < 768; i++)
-        {
-            testVector[i] = (float)i / 768.0f;
-        }
-
-        var embedding = new Embedding
-        {
-            SourceText = "Test embedding for integration test",
-            SourceType = "test",
-            EmbeddingFull = new Microsoft.Data.SqlTypes.SqlVector<float>(testVector),
-            EmbeddingModel = "test-model",
-            Dimension = 768,
-            ContentHash = Guid.NewGuid().ToString(),
-            AccessCount = 1
+            "sp_ExactVectorSearch",
+            "sp_ApproxSpatialSearch",
+            "sp_MultiResolutionSearch",
+            "sp_SpatialAttention",
+            "sp_SpatialNextToken",
+            "sp_CognitiveActivation",
+            "sp_ComputeSpatialProjection"
         };
 
-        // Act
-        var added = await _repository.AddAsync(embedding);
-        var retrieved = await _repository.GetByIdAsync(added.EmbeddingId);
+        var parameters = expected
+            .Select((name, index) => new SqlParameter($"@p{index}", name))
+            .ToArray();
 
-        // Assert
-        Assert.NotNull(retrieved);
-        Assert.Equal(added.EmbeddingId, retrieved.EmbeddingId);
-        Assert.Equal("Test embedding for integration test", retrieved.SourceText);
+        var inClause = string.Join(", ", parameters.Select(p => p.ParameterName));
+        var sql = $"SELECT name FROM sys.procedures WHERE name IN ({inClause})";
 
-        // Cleanup
-        await _repository.DeleteAsync(added.EmbeddingId);
+        await using var connection = new SqlConnection(Fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand(sql, connection);
+        command.Parameters.AddRange(parameters);
+
+        var found = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            found.Add(reader.GetString(0));
+        }
+
+        var missing = expected.Where(name => !found.Contains(name)).ToArray();
+        Assert.True(missing.Length == 0, $"Missing stored procedures: {string.Join(", ", missing)}");
     }
 
-    public void Dispose()
+    [Fact]
+    public async Task VectorDistance_CompletesSuccessfully()
     {
-        _context.Dispose();
+        const string sql = "SELECT VECTOR_DISTANCE('cosine', CAST('[1.0,0.0,0.0]' AS VECTOR(3)), CAST('[0.5,0.5,0.0]' AS VECTOR(3)))";
+
+        await using var connection = new SqlConnection(Fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand(sql, connection);
+        var result = await command.ExecuteScalarAsync();
+
+        var distance = Convert.ToDouble(result);
+        Assert.InRange(distance, 0d, 2d);
+    }
+
+    [Fact]
+    public async Task AtomEmbeddings_ArePresent()
+    {
+        var count = await Fixture.DbContext!.AtomEmbeddings.CountAsync();
+        Assert.True(count > 0, "Database contains no atom embeddings; run ingestion before executing integration tests.");
+    }
+
+    [Fact]
+    public void VectorUtility_ComputesCosineDistance()
+    {
+        var vectorA = new[] { 1f, 0f, 0f };
+        var vectorB = new[] { 0f, 1f, 0f };
+
+        var distance = VectorUtility.ComputeCosineDistance(vectorA, vectorB);
+        Assert.Equal(1d, distance, 3);
     }
 }

@@ -8,38 +8,53 @@ PRINT 'Spatial AI Inference - Novel Paradigm';
 PRINT '========================================';
 GO
 
--- Store token embeddings as GEOMETRY points in high-dimensional space
-CREATE TABLE dbo.TokenEmbeddingsGeo (
-    token_id INT PRIMARY KEY IDENTITY(1,1),
-    token_text NVARCHAR(100),
+IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NULL
+BEGIN
+    EXEC(N'
+        CREATE TABLE dbo.TokenEmbeddingsGeo (
+            token_id INT PRIMARY KEY IDENTITY(1,1),
+            token_text NVARCHAR(100),
 
-    -- Traditional vector storage
-    embedding_vector VECTOR(768),
+            -- Traditional vector storage
+            embedding_vector VECTOR(768),
 
-    -- NOVEL: Store as spatial geometry (project 768D -> 3D for spatial index)
-    -- In production: Use dimensionality reduction (PCA/UMAP) to map high-D to 3D
-    spatial_projection GEOMETRY,
+            -- NOVEL: Store as spatial geometry (project 768D -> 3D for spatial index)
+            -- In production: Use dimensionality reduction (PCA/UMAP) to map high-D to 3D
+            spatial_projection GEOMETRY,
 
-    -- Store in multiple spatial "layers" for multi-resolution
-    coarse_spatial GEOMETRY,  -- Level 1: Coarse features
-    fine_spatial GEOMETRY,    -- Level 4: Fine features
+            -- Store in multiple spatial "layers" for multi-resolution
+            coarse_spatial GEOMETRY,
+            fine_spatial GEOMETRY,
 
-    frequency INT DEFAULT 0,
-    last_used DATETIME2 DEFAULT SYSUTCDATETIME()
-);
+            frequency INT DEFAULT 0,
+            last_used DATETIME2 DEFAULT SYSUTCDATETIME()
+        );
+    ');
+END;
 GO
 
 -- Create spatial index with 4-level hierarchy = 4 resolution scales!
-CREATE SPATIAL INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo(spatial_projection)
-WITH (
-    BOUNDING_BOX = (-100, -100, 100, 100),
-    GRIDS = (
-        LEVEL_1 = HIGH,    -- Coarse: Like early transformer layers
-        LEVEL_2 = HIGH,    -- Mid: Like middle layers
-        LEVEL_3 = MEDIUM,  -- Fine: Like late layers
-        LEVEL_4 = LOW      -- Finest: Like output layer
-    )
-);
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'idx_spatial_embedding'
+      AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
+)
+BEGIN
+    EXEC(N'
+        CREATE SPATIAL INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo(spatial_projection)
+        WITH (
+            BOUNDING_BOX = (-100, -100, 100, 100),
+            GRIDS = (
+                LEVEL_1 = HIGH,
+                LEVEL_2 = HIGH,
+                LEVEL_3 = MEDIUM,
+                LEVEL_4 = LOW
+            ),
+            CELLS_PER_OBJECT = 16
+        );
+    ');
+END;
 GO
 
 PRINT 'Spatial index created with 4-level hierarchy!';
@@ -48,31 +63,23 @@ GO
 -- Insert sample tokens (in reality, these come from model ingestion)
 -- For demo: Using 3D projections of common tokens
 INSERT INTO dbo.TokenEmbeddingsGeo (token_text, spatial_projection, coarse_spatial, fine_spatial)
-VALUES
-    ('the', geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0),
-            geometry::STGeomFromText('POINT(0 0 0)', 0),
-            geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0)),
-    ('is', geometry::STGeomFromText('POINT(0.15 0.18 0.12)', 0),
-           geometry::STGeomFromText('POINT(0 0 0)', 0),
-           geometry::STGeomFromText('POINT(0.15 0.18 0.12)', 0)),
-    ('machine', geometry::STGeomFromText('POINT(5.2 3.1 1.8)', 0),
-                geometry::STGeomFromText('POINT(5 3 2)', 0),
-                geometry::STGeomFromText('POINT(5.2 3.1 1.8)', 0)),
-    ('learning', geometry::STGeomFromText('POINT(5.5 3.3 2.1)', 0),
-                 geometry::STGeomFromText('POINT(5 3 2)', 0),
-                 geometry::STGeomFromText('POINT(5.5 3.3 2.1)', 0)),
-    ('database', geometry::STGeomFromText('POINT(-3.1 4.2 -1.5)', 0),
-                 geometry::STGeomFromText('POINT(-3 4 -2)', 0),
-                 geometry::STGeomFromText('POINT(-3.1 4.2 -1.5)', 0)),
-    ('query', geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0),
-              geometry::STGeomFromText('POINT(-3 4 -2)', 0),
-              geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0)),
-    ('neural', geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0),
-               geometry::STGeomFromText('POINT(5 3 2)', 0),
-               geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0)),
-    ('network', geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0),
-                geometry::STGeomFromText('POINT(5 3 2)', 0),
-                geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0));
+SELECT seed.token_text, seed.spatial_projection, seed.coarse_spatial, seed.fine_spatial
+FROM (
+    VALUES
+        ('the', geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0), geometry::STGeomFromText('POINT(0 0 0)', 0), geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0)),
+        ('is', geometry::STGeomFromText('POINT(0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT(0 0 0)', 0), geometry::STGeomFromText('POINT(0.15 0.18 0.12)', 0)),
+        ('machine', geometry::STGeomFromText('POINT(5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.2 3.1 1.8)', 0)),
+        ('learning', geometry::STGeomFromText('POINT(5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.5 3.3 2.1)', 0)),
+        ('database', geometry::STGeomFromText('POINT(-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT(-3 4 -2)', 0), geometry::STGeomFromText('POINT(-3.1 4.2 -1.5)', 0)),
+        ('query', geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT(-3 4 -2)', 0), geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0)),
+        ('neural', geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0)),
+        ('network', geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0))
+) AS seed(token_text, spatial_projection, coarse_spatial, fine_spatial)
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM dbo.TokenEmbeddingsGeo existing
+    WHERE existing.token_text = seed.token_text
+);
 GO
 
 PRINT 'Sample tokens inserted with spatial projections!';
@@ -132,9 +139,9 @@ BEGIN
 
     SELECT @context_centroid = geometry::STGeomFromText(
         'POINT(' +
-        CAST(AVG(spatial_projection.STX) AS NVARCHAR(50)) + ' ' +
-        CAST(AVG(spatial_projection.STY) AS NVARCHAR(50)) + ' ' +
-        CAST(AVG(spatial_projection.STZ) AS NVARCHAR(50)) + ')',
+    CAST(AVG(spatial_projection.STX) AS NVARCHAR(50)) + ' ' +
+    CAST(AVG(spatial_projection.STY) AS NVARCHAR(50)) + ' ' +
+    CAST(AVG(CAST(COALESCE(spatial_projection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
         0
     )
     FROM dbo.TokenEmbeddingsGeo
@@ -208,7 +215,7 @@ BEGIN
                         'POINT(' +
                         CAST(AVG(spatial_projection.STX) AS NVARCHAR(50)) + ' ' +
                         CAST(AVG(spatial_projection.STY) AS NVARCHAR(50)) + ' ' +
-                        CAST(AVG(spatial_projection.STZ) AS NVARCHAR(50)) + ')',
+                        CAST(AVG(CAST(COALESCE(spatial_projection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
                         0
                     )
                     FROM dbo.TokenEmbeddingsGeo

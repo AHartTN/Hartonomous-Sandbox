@@ -21,42 +21,48 @@ BEGIN
 
     -- Log the inference request
     INSERT INTO dbo.InferenceRequests (
-        task_type,
-        input_data,
-        models_used,
-        input_metadata
+        TaskType,
+        InputData,
+        ModelsUsed,
+        OutputMetadata
     )
     VALUES (
         'image_generation',
-        @prompt,
-        'spatial_diffusion',
         JSON_OBJECT(
+            'prompt': @prompt,
             'width': @width,
             'height': @height,
             'steps': @steps,
             'guidance_scale': @guidance_scale,
             'output_format': @output_format
-        )
+        ),
+        'spatial_diffusion',
+        NULL
     );
     SET @inference_id = SCOPE_IDENTITY();
 
     -- Get text embedding for the prompt
-    DECLARE @prompt_embedding VECTOR(768);
-    SELECT @prompt_embedding = embedding
-    FROM dbo.Embeddings_Production
-    WHERE source_text = @prompt AND source_type = 'text'
-    ORDER BY created_at DESC;
+        DECLARE @prompt_embedding VECTOR(1998);
+        SELECT TOP 1 @prompt_embedding = ae.EmbeddingVector
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE a.CanonicalText = @prompt
+            AND a.Modality = 'text'
+            AND ae.EmbeddingVector IS NOT NULL
+        ORDER BY ae.CreatedAt DESC;
 
-    -- If no exact match, find closest text embedding
-    IF @prompt_embedding IS NULL
-    BEGIN
-        SELECT TOP 1 @prompt_embedding = embedding_full
-        FROM dbo.Embeddings_Production
-        WHERE source_type = 'text'
-        ORDER BY VECTOR_DISTANCE('cosine', embedding_full,
-            (SELECT TOP 1 embedding_full FROM dbo.Embeddings_Production
-             WHERE CHARINDEX(@prompt, source_text) > 0)) ASC;
-    END
+        -- If no exact match, fall back to the most recent text atom containing the prompt
+        IF @prompt_embedding IS NULL
+        BEGIN
+                SELECT TOP 1 @prompt_embedding = ae.EmbeddingVector
+                FROM dbo.AtomEmbeddings AS ae
+                INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+                WHERE a.Modality = 'text'
+                    AND a.CanonicalText IS NOT NULL
+                    AND a.CanonicalText LIKE '%' + @prompt + '%'
+                    AND ae.EmbeddingVector IS NOT NULL
+                ORDER BY ae.CreatedAt DESC;
+        END
 
     -- Initialize noise (random spatial points)
     DECLARE @noise_points TABLE (
@@ -92,30 +98,42 @@ BEGIN
     WHILE @step < @steps
     BEGIN
         -- For each noise point, find semantically similar image patches
-        UPDATE np
-        SET geometry = geometry::STGeomFromText(
-            'POINT(' +
-            CAST(np.noise_x + @guidance_scale * (
-                SELECT TOP 1 spatial_proj_x
-                FROM dbo.Embeddings_Production ep
-                WHERE ep.source_type = 'image_patch'
-                ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @prompt_embedding) ASC
-            ) AS NVARCHAR) + ' ' +
-            CAST(np.noise_y + @guidance_scale * (
-                SELECT TOP 1 spatial_proj_y
-                FROM dbo.Embeddings_Production ep
-                WHERE ep.source_type = 'image_patch'
-                ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @prompt_embedding) ASC
-            ) AS NVARCHAR) + ' ' +
-            CAST(np.noise_z + @guidance_scale * (
-                SELECT TOP 1 spatial_proj_z
-                FROM dbo.Embeddings_Production ep
-                WHERE ep.source_type = 'image_patch'
-                ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @prompt_embedding) ASC
-            ) AS NVARCHAR) + ')',
-            0
-        )
-        FROM @noise_points np;
+        IF @prompt_embedding IS NOT NULL
+        BEGIN
+            DECLARE @guidance_geometry GEOMETRY;
+            DECLARE @guide_x FLOAT = 0;
+            DECLARE @guide_y FLOAT = 0;
+            DECLARE @guide_z FLOAT = 0;
+
+                        SELECT TOP 1
+                                @guidance_geometry = ae.SpatialGeometry
+            FROM dbo.AtomEmbeddings AS ae
+            INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+            WHERE a.Modality = 'image'
+                            AND (a.Subtype IN ('image_patch', 'patch', 'tile') OR a.Subtype IS NULL)
+              AND ae.EmbeddingVector IS NOT NULL
+            ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @prompt_embedding);
+
+            IF @guidance_geometry IS NOT NULL
+            BEGIN
+                SELECT
+                    @guide_x = @guidance_geometry.STX,
+                    @guide_y = @guidance_geometry.STY,
+                    @guide_z = COALESCE(@guidance_geometry.STPointN(1).Z, 0);
+            END
+
+            UPDATE np
+            SET geometry = geometry::STGeomFromText(
+                'POINT(' +
+                CAST(np.geometry.STX + (@guidance_scale * (@guide_x - np.geometry.STX)) AS NVARCHAR(64)) + ' ' +
+                CAST(np.geometry.STY + (@guidance_scale * (@guide_y - np.geometry.STY)) AS NVARCHAR(64)) + ' ' +
+                CAST(np.geometry.STPointN(1).Z + (@guidance_scale * (@guide_z - np.geometry.STPointN(1).Z)) AS NVARCHAR(64)) + ')',
+                0
+            )
+            FROM @noise_points AS np;
+        END
+
+        -- If no prompt embedding is available, keep existing noise geometry (no-op)
 
         SET @step = @step + 1;
     END
@@ -128,7 +146,7 @@ BEGIN
             x, y,
             geometry.STX as spatial_x,
             geometry.STY as spatial_y,
-            geometry.STZ as spatial_z,
+            geometry.STPointN(1).Z as spatial_z,
             geometry
         FROM @noise_points
         ORDER BY x, y;
@@ -139,9 +157,9 @@ BEGIN
         DECLARE @result_geometry GEOMETRY;
         SELECT @result_geometry = geometry::STGeomCollFromText(
             'GEOMETRYCOLLECTION(' +
-            STRING_AGG('POINT(' + CAST(geometry.STX AS NVARCHAR) + ' ' +
-                       CAST(geometry.STY AS NVARCHAR) + ' ' +
-                       CAST(geometry.STZ AS NVARCHAR) + ')', ',') +
+            STRING_AGG('POINT(' + CAST(geometry.STX AS NVARCHAR(64)) + ' ' +
+                       CAST(geometry.STY AS NVARCHAR(64)) + ' ' +
+                       CAST(geometry.STPointN(1).Z AS NVARCHAR(64)) + ')', ',') +
             ')', 0)
         FROM @noise_points;
 
@@ -152,20 +170,25 @@ BEGIN
     DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
 
     UPDATE dbo.InferenceRequests
-    SET total_duration_ms = @duration_ms,
-        output_metadata = JSON_OBJECT(
+    SET TotalDurationMs = @duration_ms,
+        OutputMetadata = JSON_OBJECT(
             'status': 'completed',
             'patches_generated': (SELECT COUNT(*) FROM @noise_points),
             'width': @width,
             'height': @height,
             'steps': @steps
         )
-    WHERE inference_id = @inference_id;
+    WHERE InferenceId = @inference_id;
 
     -- Log inference step
-    INSERT INTO dbo.InferenceSteps (inference_id, step_number, operation_type, duration_ms, metadata)
-    VALUES (@inference_id, 1, 'spatial_diffusion', @duration_ms,
-        JSON_OBJECT('diffusion_steps': @steps, 'patches': (SELECT COUNT(*) FROM @noise_points)));
+    INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, QueryText)
+    VALUES (
+        @inference_id,
+        1,
+        'spatial_diffusion',
+        @duration_ms,
+        'spatial diffusion with semantic guidance'
+    );
 
     -- Return metadata
     SELECT

@@ -33,8 +33,7 @@ public class HartonomousDbContext : DbContext
     public DbSet<CachedActivation> CachedActivations => Set<CachedActivation>();
     public DbSet<ModelMetadata> ModelMetadata => Set<ModelMetadata>();
 
-    // Embeddings and vectors
-    public DbSet<Embedding> Embeddings => Set<Embedding>();
+    // Vocabulary (token-level embeddings stored via atom substrate views)
     public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
 
     // Atomic storage (content-addressable deduplication)
@@ -54,6 +53,17 @@ public class HartonomousDbContext : DbContext
     // Inference tracking
     public DbSet<InferenceRequest> InferenceRequests => Set<InferenceRequest>();
     public DbSet<InferenceStep> InferenceSteps => Set<InferenceStep>();
+
+    // Atom substrate
+    public DbSet<Atom> Atoms => Set<Atom>();
+    public DbSet<AtomEmbedding> AtomEmbeddings => Set<AtomEmbedding>();
+    public DbSet<AtomEmbeddingComponent> AtomEmbeddingComponents => Set<AtomEmbeddingComponent>();
+    public DbSet<TensorAtom> TensorAtoms => Set<TensorAtom>();
+    public DbSet<TensorAtomCoefficient> TensorAtomCoefficients => Set<TensorAtomCoefficient>();
+    public DbSet<AtomRelation> AtomRelations => Set<AtomRelation>();
+    public DbSet<IngestionJob> IngestionJobs => Set<IngestionJob>();
+    public DbSet<IngestionJobAtom> IngestionJobAtoms => Set<IngestionJobAtom>();
+    public DbSet<DeduplicationPolicy> DeduplicationPolicies => Set<DeduplicationPolicy>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

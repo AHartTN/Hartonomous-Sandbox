@@ -1,10 +1,14 @@
+using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Models;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Core.ValueObjects;
 using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NetTopologySuite.Geometries;
 using System.Data;
 
 namespace Hartonomous.Infrastructure.Services;
@@ -16,87 +20,68 @@ namespace Hartonomous.Infrastructure.Services;
 public sealed class InferenceOrchestrator : IInferenceService
 {
     private readonly HartonomousDbContext _context;
+    private readonly IAtomEmbeddingRepository _atomEmbeddings;
+    private readonly ISqlCommandExecutor _sql;
     private readonly ILogger<InferenceOrchestrator> _logger;
 
     public InferenceOrchestrator(
         HartonomousDbContext context,
+        IAtomEmbeddingRepository atomEmbeddings,
+        ISqlCommandExecutor sqlCommandExecutor,
         ILogger<InferenceOrchestrator> logger)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
+        _atomEmbeddings = atomEmbeddings ?? throw new ArgumentNullException(nameof(atomEmbeddings));
+        _sql = sqlCommandExecutor ?? throw new ArgumentNullException(nameof(sqlCommandExecutor));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<IReadOnlyList<EmbeddingSearchResult>> SemanticSearchAsync(
+    public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> SemanticSearchAsync(
         float[] queryVector,
         int topK = 10,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing semantic search with topK={TopK}", topK);
 
-        var vectorParam = new SqlParameter("@queryVector", SqlDbType.Udt)
+        var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+        var vectorParam = new SqlParameter("@query_vector", new SqlVector<float>(padded));
+
+        return await _sql.ExecuteAsync(async (command, token) =>
         {
-            UdtTypeName = "VECTOR",
-            Value = new SqlVector<float>(queryVector)
-        };
-        var topKParam = new SqlParameter("@topK", topK);
+            command.CommandText = "dbo.sp_ExactVectorSearch";
+            command.CommandType = CommandType.StoredProcedure;
+            command.Parameters.Add(vectorParam);
+            command.Parameters.Add(new SqlParameter("@top_k", topK));
 
-        var results = await _context.Embeddings
-            .FromSqlRaw(@"
-                EXEC dbo.sp_SemanticSearch 
-                    @queryVector = @queryVector, 
-                    @topK = @topK",
-                vectorParam,
-                topKParam)
-            .Select(e => new EmbeddingSearchResult
+            var results = new List<AtomEmbeddingSearchResult>();
+            await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await reader.ReadAsync(token).ConfigureAwait(false))
             {
-                EmbeddingId = e.EmbeddingId,
-                SourceText = e.SourceText ?? string.Empty,
-                SimilarityScore = 1.0f, // Placeholder - would come from procedure output
-                Distance = 0.0f,
-                CreatedTimestamp = e.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
+                results.Add(MapSearchResult(reader));
+            }
 
-        _logger.LogInformation("Semantic search returned {Count} results", results.Count);
-        return results;
+            _logger.LogInformation("Semantic search returned {Count} results", results.Count);
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<EmbeddingSearchResult>> SpatialSearchAsync(
+    public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> SpatialSearchAsync(
         float[] queryVector,
         int topK = 10,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Executing spatial search with topK={TopK}", topK);
 
-        var vectorParam = new SqlParameter("@queryVector", SqlDbType.Udt)
-        {
-            UdtTypeName = "VECTOR",
-            Value = new SqlVector<float>(queryVector)
-        };
-        var topKParam = new SqlParameter("@topK", topK);
+        var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+        var sqlVector = new SqlVector<float>(padded);
+        var spatialPoint = await _atomEmbeddings
+            .ComputeSpatialProjectionAsync(sqlVector, queryVector.Length, cancellationToken)
+            .ConfigureAwait(false);
 
-        var results = await _context.Embeddings
-            .FromSqlRaw(@"
-                EXEC dbo.sp_ApproxSpatialSearch 
-                    @queryVector = @queryVector, 
-                    @topK = @topK",
-                vectorParam,
-                topKParam)
-            .Select(e => new EmbeddingSearchResult
-            {
-                EmbeddingId = e.EmbeddingId,
-                SourceText = e.SourceText ?? string.Empty,
-                SimilarityScore = 0.0f,
-                Distance = 0.0f,
-                CreatedTimestamp = e.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        _logger.LogInformation("Spatial search returned {Count} results", results.Count);
-        return results;
+        return await ExecuteSpatialSearchAsync(spatialPoint, topK, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task<IReadOnlyList<EmbeddingSearchResult>> HybridSearchAsync(
+    public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> HybridSearchAsync(
         float[] queryVector,
         int topK = 10,
         int candidateCount = 100,
@@ -107,32 +92,15 @@ public sealed class InferenceOrchestrator : IInferenceService
             topK,
             candidateCount);
 
-        var vectorParam = new SqlParameter("@queryVector", SqlDbType.Udt)
-        {
-            UdtTypeName = "VECTOR",
-            Value = new SqlVector<float>(queryVector)
-        };
-        var topKParam = new SqlParameter("@topK", topK);
-        var candidateParam = new SqlParameter("@candidateCount", candidateCount);
+        var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+        var sqlVector = new SqlVector<float>(padded);
+        var spatialPoint = await _atomEmbeddings
+            .ComputeSpatialProjectionAsync(sqlVector, queryVector.Length, cancellationToken)
+            .ConfigureAwait(false);
 
-        var results = await _context.Embeddings
-            .FromSqlRaw(@"
-                EXEC dbo.sp_HybridSearch 
-                    @queryVector = @queryVector, 
-                    @topK = @topK,
-                    @candidateCount = @candidateCount",
-                vectorParam,
-                topKParam,
-                candidateParam)
-            .Select(e => new EmbeddingSearchResult
-            {
-                EmbeddingId = e.EmbeddingId,
-                SourceText = e.SourceText ?? string.Empty,
-                SimilarityScore = 0.0f,
-                Distance = 0.0f,
-                CreatedTimestamp = e.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
+        var results = await _atomEmbeddings
+            .HybridSearchAsync(queryVector, spatialPoint, candidateCount, topK, cancellationToken)
+            .ConfigureAwait(false);
 
         _logger.LogInformation("Hybrid search returned {Count} results", results.Count);
         return results;
@@ -195,11 +163,8 @@ public sealed class InferenceOrchestrator : IInferenceService
         command.CommandText = "dbo.sp_GenerateViaSpatial";
         command.CommandType = System.Data.CommandType.StoredProcedure;
 
-        command.Parameters.Add(new SqlParameter("@promptEmbedding", SqlDbType.Udt)
-        {
-            UdtTypeName = "VECTOR",
-            Value = new SqlVector<float>(promptEmbedding)
-        });
+        var paddedPrompt = VectorUtility.PadToSqlLength(promptEmbedding, out _);
+        command.Parameters.Add(new SqlParameter("@promptEmbedding", new SqlVector<float>(paddedPrompt)));
         command.Parameters.Add(new SqlParameter("@maxTokens", maxTokens));
         command.Parameters.Add(new SqlParameter("@temperature", temperature));
 
@@ -219,25 +184,26 @@ public sealed class InferenceOrchestrator : IInferenceService
     }
 
     public async Task<SemanticFeatures> ComputeSemanticFeaturesAsync(
-        IReadOnlyList<long> embeddingIds,
+        IReadOnlyList<long> atomEmbeddingIds,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
             "Computing semantic features for {Count} embeddings",
-            embeddingIds.Count);
+            atomEmbeddingIds.Count);
 
-        var connection = _context.Database.GetDbConnection();
-        await connection.OpenAsync(cancellationToken);
+        foreach (var atomEmbeddingId in atomEmbeddingIds)
+        {
+            await _sql.ExecuteAsync(async (command, token) =>
+            {
+                command.CommandText = "dbo.sp_ComputeSemanticFeatures";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@atom_embedding_id", atomEmbeddingId));
 
-        using var command = connection.CreateCommand();
-        command.CommandText = "dbo.sp_ComputeSemanticFeatures";
-        command.CommandType = System.Data.CommandType.StoredProcedure;
+                await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+            }, cancellationToken).ConfigureAwait(false);
+        }
 
-        command.Parameters.Add(new SqlParameter("@embeddingIds", string.Join(",", embeddingIds)));
-
-        await command.ExecuteNonQueryAsync(cancellationToken);
-
-        _logger.LogInformation("Semantic features computed");
+    _logger.LogInformation("Semantic features computed");
 
         // Placeholder - real implementation would parse procedure output
         return new SemanticFeatures
@@ -251,7 +217,7 @@ public sealed class InferenceOrchestrator : IInferenceService
         };
     }
 
-    public async Task<IReadOnlyList<EmbeddingSearchResult>> SemanticFilteredSearchAsync(
+    public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> SemanticFilteredSearchAsync(
         float[] queryVector,
         int topK = 10,
         string? topicFilter = null,
@@ -264,41 +230,28 @@ public sealed class InferenceOrchestrator : IInferenceService
             topK,
             topicFilter);
 
-        var vectorParam = new SqlParameter("@queryVector", SqlDbType.Udt)
+        var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+
+        return await _sql.ExecuteAsync(async (command, token) =>
         {
-            UdtTypeName = "VECTOR",
-            Value = new SqlVector<float>(queryVector)
-        };
-        var topKParam = new SqlParameter("@topK", topK);
-        var topicParam = new SqlParameter("@topicFilter", (object?)topicFilter ?? DBNull.Value);
-        var sentimentParam = new SqlParameter("@minSentiment", (object?)minSentiment ?? DBNull.Value);
-        var ageParam = new SqlParameter("@maxAge", (object?)maxAge ?? DBNull.Value);
+            command.CommandText = "dbo.sp_SemanticSearch";
+            command.CommandType = CommandType.StoredProcedure;
+            command.Parameters.Add(new SqlParameter("@query_embedding", new SqlVector<float>(padded)));
+            command.Parameters.Add(new SqlParameter("@query_text", DBNull.Value));
+            command.Parameters.Add(new SqlParameter("@top_k", topK));
+            command.Parameters.Add(new SqlParameter("@category", (object?)topicFilter ?? DBNull.Value));
+            command.Parameters.Add(new SqlParameter("@use_hybrid", minSentiment.HasValue || maxAge.HasValue ? 1 : 0));
 
-        var results = await _context.Embeddings
-            .FromSqlRaw(@"
-                EXEC dbo.sp_SemanticFilteredSearch 
-                    @queryVector = @queryVector, 
-                    @topK = @topK,
-                    @topicFilter = @topicFilter,
-                    @minSentiment = @minSentiment,
-                    @maxAge = @maxAge",
-                vectorParam,
-                topKParam,
-                topicParam,
-                sentimentParam,
-                ageParam)
-            .Select(e => new EmbeddingSearchResult
+            var results = new List<AtomEmbeddingSearchResult>();
+            await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await reader.ReadAsync(token).ConfigureAwait(false))
             {
-                EmbeddingId = e.EmbeddingId,
-                SourceText = e.SourceText ?? string.Empty,
-                SimilarityScore = 0.0f,
-                Distance = 0.0f,
-                CreatedTimestamp = e.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
+                results.Add(MapSearchResult(reader));
+            }
 
-        _logger.LogInformation("Filtered search returned {Count} results", results.Count);
-        return results;
+            _logger.LogInformation("Filtered search returned {Count} results", results.Count);
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     public async Task SubmitFeedbackAsync(
@@ -356,4 +309,121 @@ public sealed class InferenceOrchestrator : IInferenceService
 
         return count;
     }
+
+        private async Task<IReadOnlyList<AtomEmbeddingSearchResult>> ExecuteSpatialSearchAsync(
+            Point spatialPoint,
+            int topK,
+            CancellationToken cancellationToken)
+        {
+            return await _sql.ExecuteAsync(async (command, token) =>
+            {
+                command.CommandText = "dbo.sp_ApproxSpatialSearch";
+                command.CommandType = CommandType.StoredProcedure;
+                command.Parameters.Add(new SqlParameter("@query_x", spatialPoint.X));
+                command.Parameters.Add(new SqlParameter("@query_y", spatialPoint.Y));
+                command.Parameters.Add(new SqlParameter("@query_z", spatialPoint.Z));
+                command.Parameters.Add(new SqlParameter("@top_k", topK));
+
+                var results = new List<AtomEmbeddingSearchResult>();
+                await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+                while (await reader.ReadAsync(token).ConfigureAwait(false))
+                {
+                    results.Add(MapSearchResult(reader));
+                }
+
+                _logger.LogInformation("Spatial search returned {Count} results", results.Count);
+                return results;
+            }, cancellationToken).ConfigureAwait(false);
+        }
+
+        private static AtomEmbeddingSearchResult MapSearchResult(IDataRecord record)
+        {
+            var atomEmbeddingId = GetInt64(record, "AtomEmbeddingId");
+            var atomId = GetInt64(record, "AtomId");
+
+            var atom = new Atom
+            {
+                AtomId = atomId,
+                ContentHash = Array.Empty<byte>(),
+                Modality = GetString(record, "Modality") ?? "unknown",
+                Subtype = GetString(record, "Subtype"),
+                SourceUri = GetString(record, "SourceUri"),
+                SourceType = GetString(record, "SourceType"),
+                CanonicalText = GetString(record, "CanonicalText"),
+                Metadata = null,
+                CreatedAt = DateTime.UtcNow,
+                ReferenceCount = 0,
+                IsActive = true
+            };
+
+            var embedding = new AtomEmbedding
+            {
+                AtomEmbeddingId = atomEmbeddingId,
+                AtomId = atomId,
+                Atom = atom,
+                EmbeddingType = GetString(record, "EmbeddingType") ?? "default",
+                ModelId = GetNullableInt(record, "ModelId"),
+                Dimension = GetNullableInt(record, "Dimension") ?? 0,
+                CreatedAt = GetNullableDateTime(record, "CreatedAt") ?? DateTime.UtcNow
+            };
+
+            var cosineDistance = GetNullableDouble(record, "distance")
+                ?? GetNullableDouble(record, "ExactDistance")
+                ?? GetNullableDouble(record, "exact_distance")
+                ?? double.NaN;
+
+            var spatialDistance = GetNullableDouble(record, "SpatialDistance")
+                ?? GetNullableDouble(record, "spatial_distance")
+                ?? double.NaN;
+
+            return new AtomEmbeddingSearchResult
+            {
+                Embedding = embedding,
+                CosineDistance = cosineDistance,
+                SpatialDistance = spatialDistance
+            };
+        }
+
+        private static long GetInt64(IDataRecord record, string columnName)
+        {
+            var ordinal = GetOrdinal(record, columnName);
+            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt64(ordinal) : 0;
+        }
+
+        private static string? GetString(IDataRecord record, string columnName)
+        {
+            var ordinal = GetOrdinal(record, columnName);
+            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetString(ordinal) : null;
+        }
+
+        private static int? GetNullableInt(IDataRecord record, string columnName)
+        {
+            var ordinal = GetOrdinal(record, columnName);
+            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt32(ordinal) : null;
+        }
+
+        private static double? GetNullableDouble(IDataRecord record, string columnName)
+        {
+            var ordinal = GetOrdinal(record, columnName);
+            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDouble(ordinal) : null;
+        }
+
+        private static DateTime? GetNullableDateTime(IDataRecord record, string columnName)
+        {
+            var ordinal = GetOrdinal(record, columnName);
+            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDateTime(ordinal) : null;
+        }
+
+        private static int GetOrdinal(IDataRecord record, string columnName)
+        {
+            for (var i = 0; i < record.FieldCount; i++)
+            {
+                if (string.Equals(record.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
 }

@@ -102,4 +102,14 @@ public class ModelLayer
     /// Gets or sets the collection of cached activations for this layer.
     /// </summary>
     public ICollection<CachedActivation> CachedActivations { get; set; } = new List<CachedActivation>();
+
+    /// <summary>
+    /// Gets or sets the collection of tensor atoms derived from this layer.
+    /// </summary>
+    public ICollection<TensorAtom> TensorAtoms { get; set; } = new List<TensorAtom>();
+
+    /// <summary>
+    /// Gets or sets the collection of tensor atom coefficients referencing this layer.
+    /// </summary>
+    public ICollection<TensorAtomCoefficient> TensorAtomCoefficients { get; set; } = new List<TensorAtomCoefficient>();
 }

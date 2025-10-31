@@ -1,15 +1,11 @@
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Configuration;
-using Hartonomous.Core.Interfaces;
-using Hartonomous.Core.Services;
-using Hartonomous.Core.Utilities;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Services;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace ModelIngestion
 {
@@ -22,15 +18,15 @@ namespace ModelIngestion
     /// </summary>
     public class EmbeddingIngestionService : BaseConfigurableService<EmbeddingIngestionConfig>, IEmbeddingIngestionService
     {
-        private readonly IEmbeddingRepository _embeddingRepository;
+    private readonly IAtomIngestionService _atomIngestionService;
 
         public EmbeddingIngestionService(
-            IEmbeddingRepository embeddingRepository,
+            IAtomIngestionService atomIngestionService,
             ILogger<EmbeddingIngestionService> logger,
             IConfiguration configuration)
             : base(logger, new EmbeddingIngestionConfig(configuration))
         {
-            _embeddingRepository = embeddingRepository ?? throw new ArgumentNullException(nameof(embeddingRepository));
+            _atomIngestionService = atomIngestionService ?? throw new ArgumentNullException(nameof(atomIngestionService));
         }
 
         public override string ServiceName => "EmbeddingIngestionService";
@@ -42,70 +38,60 @@ namespace ModelIngestion
             float[]? spatial3D = null,
             CancellationToken cancellationToken = default)
         {
+            if (embeddingFull is null)
+            {
+                throw new ArgumentNullException(nameof(embeddingFull));
+            }
+
             if (embeddingFull.Length != Config.EmbeddingDimension)
             {
                 throw new ArgumentException(
                     $"Embedding dimension mismatch. Expected {Config.EmbeddingDimension}, got {embeddingFull.Length}");
             }
 
-            // Step 1: Compute content hash (SHA256 as hex string)
-            var contentHashString = HashUtility.ComputeSHA256Hash(sourceText);
+            var modality = string.IsNullOrWhiteSpace(Config.DefaultModality) ? "text" : Config.DefaultModality;
+            var policyName = string.IsNullOrWhiteSpace(Config.DeduplicationPolicy) ? "default" : Config.DeduplicationPolicy;
 
-            // Step 2: Check for exact content match using repository
-            var existingByHash = await _embeddingRepository.CheckDuplicateByHashAsync(contentHashString, cancellationToken);
-            if (existingByHash != null)
+            var atomRequest = new AtomIngestionRequest
             {
-                Logger.LogInformation("Found duplicate by hash: embedding_id={EmbeddingId}", existingByHash.EmbeddingId);
-                await _embeddingRepository.IncrementAccessCountAsync(existingByHash.EmbeddingId, cancellationToken);
-                
-                return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
-                {
-                    EmbeddingId = existingByHash.EmbeddingId,
-                    WasDuplicate = true,
-                    DuplicateReason = "Exact content hash match"
-                };
+                HashInput = sourceText,
+                Modality = modality,
+                Subtype = sourceType,
+                SourceType = sourceType,
+                CanonicalText = sourceText,
+                Metadata = null,
+                Embedding = embeddingFull,
+                EmbeddingType = Config.EmbeddingModel,
+                ModelId = Config.DefaultModelId,
+                PolicyName = policyName
+            };
+
+            var atomResult = await _atomIngestionService
+                .IngestAsync(atomRequest, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (atomResult.WasDuplicate)
+            {
+                Logger.LogInformation(
+                    "Reused existing atom {AtomId} for embedding (Reason: {Reason})",
+                    atomResult.Atom.AtomId,
+                    atomResult.DuplicateReason ?? "semantic match");
+            }
+            else
+            {
+                Logger.LogInformation(
+                    "Stored new atom {AtomId} with embedding {EmbeddingId}",
+                    atomResult.Atom.AtomId,
+                    atomResult.Embedding?.AtomEmbeddingId);
             }
 
-            // Step 3: Check for semantic similarity using configured threshold
-            // Default 0.95 (95% similar) catches paraphrases and near-duplicates
-            var existingBySimilarity = await _embeddingRepository.CheckDuplicateBySimilarityAsync(
-                embeddingFull, Config.DeduplicationThreshold, cancellationToken);
-            if (existingBySimilarity != null)
-            {
-                Logger.LogInformation("Found duplicate by similarity: embedding_id={EmbeddingId}, threshold={Threshold}",
-                    existingBySimilarity.EmbeddingId, Config.DeduplicationThreshold);
-                await _embeddingRepository.IncrementAccessCountAsync(existingBySimilarity.EmbeddingId, cancellationToken);
-                
-                return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
-                {
-                    EmbeddingId = existingBySimilarity.EmbeddingId,
-                    WasDuplicate = true,
-                    DuplicateReason = $"High semantic similarity (cosine > {Config.DeduplicationThreshold:F2})"
-                };
-            }
-
-            // Step 4: Compute spatial projection if not provided
-            if (spatial3D == null)
-            {
-                spatial3D = await _embeddingRepository.ComputeSpatialProjectionAsync(embeddingFull, cancellationToken);
-            }
-
-            if (spatial3D.Length != 3)
-            {
-                throw new ArgumentException("Spatial projection must be 3D");
-            }
-
-            // Step 5: Insert new embedding using repository
-            var embeddingId = await _embeddingRepository.AddWithGeometryAsync(
-                sourceText, sourceType, embeddingFull, spatial3D, contentHashString, cancellationToken);
-
-            Logger.LogInformation("Inserted new embedding: embedding_id={EmbeddingId}", embeddingId);
-            
             return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
             {
-                EmbeddingId = embeddingId,
-                WasDuplicate = false,
-                DuplicateReason = null
+                AtomId = atomResult.Atom.AtomId,
+                AtomEmbeddingId = atomResult.Embedding?.AtomEmbeddingId,
+                WasDuplicate = atomResult.WasDuplicate,
+                DuplicateReason = atomResult.DuplicateReason,
+                SemanticSimilarity = atomResult.SemanticSimilarity
             };
         }
 
@@ -128,14 +114,6 @@ namespace ModelIngestion
         }
 
 
-
-        /// <summary>
-        /// Compute SHA256 hash of content and return as hex string
-        /// </summary>
-        private string ComputeSHA256HashString(string content)
-        {
-            return HashUtility.ComputeSHA256Hash(content);
-        }
     }
 
     /// <summary>
@@ -143,15 +121,19 @@ namespace ModelIngestion
     /// </summary>
     public class EmbeddingIngestionConfig
     {
-        public string EmbeddingModel { get; set; }
-        public int EmbeddingDimension { get; set; }
-        public double DeduplicationThreshold { get; set; }
+        public string EmbeddingModel { get; }
+        public int EmbeddingDimension { get; }
+        public string DeduplicationPolicy { get; }
+        public string DefaultModality { get; }
+        public int? DefaultModelId { get; }
 
         public EmbeddingIngestionConfig(IConfiguration configuration)
         {
             EmbeddingModel = configuration.GetValue<string>("Ingestion:EmbeddingModel", "production");
             EmbeddingDimension = configuration.GetValue<int>("Ingestion:EmbeddingDimension", 768);
-            DeduplicationThreshold = configuration.GetValue<double>("Ingestion:DeduplicationThreshold", 0.95);
+            DeduplicationPolicy = configuration.GetValue<string>("Ingestion:DeduplicationPolicy", "default");
+            DefaultModality = configuration.GetValue<string>("Ingestion:DefaultModality", "text");
+            DefaultModelId = configuration.GetValue<int?>("Ingestion:DefaultModelId");
         }
     }
 }

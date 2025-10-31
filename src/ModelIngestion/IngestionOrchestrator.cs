@@ -18,7 +18,6 @@ namespace ModelIngestion
     {
         private readonly ILogger<IngestionOrchestrator> _logger;
         private readonly IModelRepository _models;
-        private readonly IEmbeddingRepository _embeddings;
         private readonly ModelDownloadService _downloadService;
         private readonly EmbeddingTestService _embeddingTestService;
         private readonly QueryService _queryService;
@@ -32,7 +31,6 @@ namespace ModelIngestion
         public IngestionOrchestrator(
             ILogger<IngestionOrchestrator> logger,
             IModelRepository models,
-            IEmbeddingRepository embeddings,
             ModelDownloadService downloadService,
             EmbeddingTestService embeddingTestService,
             QueryService queryService,
@@ -45,7 +43,6 @@ namespace ModelIngestion
         {
             _logger = logger;
             _models = models;
-            _embeddings = embeddings;
             _downloadService = downloadService;
             _embeddingTestService = embeddingTestService;
             _queryService = queryService;

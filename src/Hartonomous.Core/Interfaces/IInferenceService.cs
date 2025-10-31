@@ -1,4 +1,5 @@
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Models;
 using Hartonomous.Core.ValueObjects;
 
 namespace Hartonomous.Core.Interfaces;
@@ -17,7 +18,7 @@ public interface IInferenceService
     /// <param name="topK">Number of results to return</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of embeddings with similarity scores, sorted by distance ascending</returns>
-    Task<IReadOnlyList<EmbeddingSearchResult>> SemanticSearchAsync(
+    Task<IReadOnlyList<AtomEmbeddingSearchResult>> SemanticSearchAsync(
         float[] queryVector,
         int topK = 10,
         CancellationToken cancellationToken = default);
@@ -30,7 +31,7 @@ public interface IInferenceService
     /// <param name="topK">Number of results to return</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of embeddings with spatial distance scores</returns>
-    Task<IReadOnlyList<EmbeddingSearchResult>> SpatialSearchAsync(
+    Task<IReadOnlyList<AtomEmbeddingSearchResult>> SpatialSearchAsync(
         float[] queryVector,
         int topK = 10,
         CancellationToken cancellationToken = default);
@@ -44,7 +45,7 @@ public interface IInferenceService
     /// <param name="candidateCount">Number of spatial candidates to filter (default 100)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>List of embeddings with exact similarity scores, spatial pre-filtered</returns>
-    Task<IReadOnlyList<EmbeddingSearchResult>> HybridSearchAsync(
+    Task<IReadOnlyList<AtomEmbeddingSearchResult>> HybridSearchAsync(
         float[] queryVector,
         int topK = 10,
         int candidateCount = 100,
@@ -88,7 +89,7 @@ public interface IInferenceService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Semantic features with confidence scores</returns>
     Task<SemanticFeatures> ComputeSemanticFeaturesAsync(
-        IReadOnlyList<long> embeddingIds,
+        IReadOnlyList<long> atomEmbeddingIds,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -102,7 +103,7 @@ public interface IInferenceService
     /// <param name="maxAge">Optional maximum age in days</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Filtered search results</returns>
-    Task<IReadOnlyList<EmbeddingSearchResult>> SemanticFilteredSearchAsync(
+    Task<IReadOnlyList<AtomEmbeddingSearchResult>> SemanticFilteredSearchAsync(
         float[] queryVector,
         int topK = 10,
         string? topicFilter = null,

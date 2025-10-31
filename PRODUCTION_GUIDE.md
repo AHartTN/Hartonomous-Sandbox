@@ -354,6 +354,18 @@ END;
 
 ---
 
+## Validation & Testing
+
+- **Integration fixtures use on-disk SQL**: `tests/Integration.Tests/SqlServerTestFixture` executes the production stored procedures directly from `sql/procedures`. When adding or editing a procedure, keep the file path consistent so the fixture can deploy it before tests run.
+- **Deterministic atomic IDs**: `AtomicStorageService` now derives non-negative `BIGINT` keys from SHA256 hashes. Any ingestion component relying on atomic IDs will see stable values across machines and test runs.
+- **Unit coverage for ingestion semantics**: `AtomIngestionServiceTests` verify new atom creation, hash-based deduplication, and semantic deduplication thresholds. Run them as part of the standard test suite.
+
+```powershell
+dotnet test Hartonomous.Tests.sln
+```
+
+Run integration tests whenever stored procedures or ingestion logic change to ensure the fixture can deploy updated scripts successfully.
+
 ## Neo4j Audit Trail
 
 Every operation is tracked:

@@ -3,7 +3,9 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
-using Hartonomous.Core;
+using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Utilities;
+using Microsoft.Data.SqlTypes;
 
 namespace ModelIngestion;
 
@@ -12,14 +14,14 @@ namespace ModelIngestion;
 /// </summary>
 public class QueryService
 {
-    private readonly IEmbeddingRepository _embeddings;
+    private readonly IAtomEmbeddingRepository _atomEmbeddings;
     private readonly ILogger<QueryService> _logger;
 
     public QueryService(
-        IEmbeddingRepository embeddings,
+        IAtomEmbeddingRepository atomEmbeddings,
         ILogger<QueryService> logger)
     {
-        _embeddings = embeddings ?? throw new ArgumentNullException(nameof(embeddings));
+        _atomEmbeddings = atomEmbeddings ?? throw new ArgumentNullException(nameof(atomEmbeddings));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -35,30 +37,42 @@ public class QueryService
         var queryEmbedding = GenerateRandomEmbedding(random, 768);
 
         // Execute exact search
-        _logger.LogInformation("Running exact VECTOR search...");
-        var exactResults = await _embeddings.ExactSearchAsync(queryEmbedding, topK: 5);
+        var padded = VectorUtility.PadToSqlLength(queryEmbedding, out _);
+        var sqlVector = new SqlVector<float>(padded);
+        var spatialPoint = await _atomEmbeddings
+            .ComputeSpatialProjectionAsync(sqlVector, queryEmbedding.Length, cancellationToken)
+            .ConfigureAwait(false);
 
-        _logger.LogInformation("Top 5 exact matches:");
-        foreach (var result in exactResults)
+        _logger.LogInformation("Running hybrid AtomEmbeddings search (spatial + cosine)...");
+        var hybridResults = await _atomEmbeddings
+            .HybridSearchAsync(queryEmbedding, spatialPoint, spatialCandidates: 256, finalTopK: 5, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (hybridResults.Count == 0)
         {
-            _logger.LogInformation("  [{Id}] Distance: {Dist:F4} | {Text}",
-                result.EmbeddingId, result.Distance,
-                result.SourceText.Length > 80 ? result.SourceText.Substring(0, 77) + "..." : result.SourceText);
+            _logger.LogWarning("No atom embeddings matched the query.");
         }
-
-        // Execute approximate spatial search
-        _logger.LogInformation("Computing spatial projection...");
-        var spatial3D = await _embeddings.ComputeSpatialProjectionAsync(queryEmbedding);
-
-        _logger.LogInformation("Running approximate spatial search...");
-        var approxResults = await _embeddings.HybridSearchAsync(queryEmbedding, spatial3D[0], spatial3D[1], spatial3D[2], spatialCandidates: 100, finalTopK: 5);
-
-        _logger.LogInformation("Top 5 approximate matches:");
-        foreach (var result in approxResults)
+        else
         {
-            _logger.LogInformation("  [{Id}] Distance: {Dist:F4} | {Text}",
-                result.EmbeddingId, result.Distance,
-                result.SourceText.Length > 80 ? result.SourceText.Substring(0, 77) + "..." : result.SourceText);
+            _logger.LogInformation("Top {Count} matches:", hybridResults.Count);
+            foreach (var entry in hybridResults)
+            {
+                var similarity = 1d - entry.CosineDistance;
+                var atom = entry.Embedding.Atom;
+                var preview = atom.CanonicalText;
+                if (!string.IsNullOrEmpty(preview) && preview.Length > 80)
+                {
+                    preview = preview[..77] + "...";
+                }
+
+                _logger.LogInformation(
+                    "  [Atom {AtomId} | Embedding {EmbeddingId}] Modality={Modality} Similarity={Sim:F4} Text={Preview}",
+                    atom.AtomId,
+                    entry.Embedding.AtomEmbeddingId,
+                    atom.Modality,
+                    similarity,
+                    preview ?? "<no-text>");
+            }
         }
 
         _logger.LogInformation("✓ Query complete");
@@ -66,7 +80,7 @@ public class QueryService
 
     private float[] GenerateRandomEmbedding(Random random, int dimension)
     {
-        var embedding = new float[dimension];
+    var embedding = new float[dimension];
         for (int i = 0; i < dimension; i++)
         {
             embedding[i] = (float)(random.NextDouble() * 2.0 - 1.0); // Range: -1 to 1

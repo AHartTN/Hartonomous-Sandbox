@@ -1,10 +1,9 @@
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Infrastructure.Repositories;
+using Hartonomous.Core.Utilities;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
-using System.Text;
 using System.Text.RegularExpressions;
 
 namespace Hartonomous.Infrastructure.Services;
@@ -17,19 +16,22 @@ namespace Hartonomous.Infrastructure.Services;
 public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
 {
     private readonly ITokenVocabularyRepository _tokenVocabularyRepository;
-    private readonly IEmbeddingRepository _embeddingRepository;
+    private readonly IAtomEmbeddingRepository _atomEmbeddingRepository;
+    private readonly IAtomIngestionService _atomIngestionService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<UnifiedEmbeddingService> _logger;
     private const int EmbeddingDimension = 768;
 
     public UnifiedEmbeddingService(
         ITokenVocabularyRepository tokenVocabularyRepository,
-        IEmbeddingRepository embeddingRepository,
+        IAtomEmbeddingRepository atomEmbeddingRepository,
+        IAtomIngestionService atomIngestionService,
         IConfiguration configuration,
         ILogger<UnifiedEmbeddingService> logger)
     {
         _tokenVocabularyRepository = tokenVocabularyRepository ?? throw new ArgumentNullException(nameof(tokenVocabularyRepository));
-        _embeddingRepository = embeddingRepository ?? throw new ArgumentNullException(nameof(embeddingRepository));
+        _atomEmbeddingRepository = atomEmbeddingRepository ?? throw new ArgumentNullException(nameof(atomEmbeddingRepository));
+        _atomIngestionService = atomIngestionService ?? throw new ArgumentNullException(nameof(atomIngestionService));
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -219,34 +221,53 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         string? metadata = null,
         CancellationToken cancellationToken = default)
     {
-        if (embedding == null || embedding.Length != EmbeddingDimension)
-            throw new ArgumentException($"Embedding must be {EmbeddingDimension} dimensions.", nameof(embedding));
-
-        // Prepare source text (for text inputs) or description
-        string sourceText = sourceData switch
+        if (embedding is null || embedding.Length != EmbeddingDimension)
         {
-            string text => text,
-            byte[] bytes => $"Binary data ({bytes.Length} bytes)",
-            _ => sourceData?.ToString() ?? "Unknown"
+            throw new ArgumentException($"Embedding must be {EmbeddingDimension} dimensions.", nameof(embedding));
+        }
+
+        var normalisedType = string.IsNullOrWhiteSpace(sourceType)
+            ? "unknown"
+            : sourceType.Trim().ToLowerInvariant();
+
+        var (hashInput, canonicalText) = BuildHashInput(sourceData, normalisedType);
+
+        var request = new AtomIngestionRequest
+        {
+            HashInput = hashInput,
+            Modality = normalisedType,
+            Subtype = normalisedType,
+            SourceType = sourceType,
+            CanonicalText = canonicalText,
+            Metadata = metadata,
+            Embedding = embedding,
+            EmbeddingType = "unified",
+            ModelId = null,
+            PolicyName = "default"
         };
 
-        // Compute spatial projection (768D → 3D)
-        var spatial3D = await _embeddingRepository.ComputeSpatialProjectionAsync(embedding, cancellationToken);
+        var result = await _atomIngestionService
+            .IngestAsync(request, cancellationToken)
+            .ConfigureAwait(false);
 
-        // Generate content hash for deduplication
-        var contentHash = ComputeContentHash(sourceText, sourceType);
+        if (result.WasDuplicate)
+        {
+            _logger.LogInformation(
+                "Reused atom {AtomId} for {SourceType} input (Reason: {Reason})",
+                result.Atom.AtomId,
+                sourceType,
+                result.DuplicateReason ?? "deduplicated");
+        }
+        else
+        {
+            _logger.LogInformation(
+                "Stored new atom {AtomId} with embedding {EmbeddingId} for {SourceType}",
+                result.Atom.AtomId,
+                result.Embedding?.AtomEmbeddingId,
+                sourceType);
+        }
 
-        // Store using repository (includes spatial projection)
-        var embeddingId = await _embeddingRepository.AddWithGeometryAsync(
-            sourceText.Length > 1000 ? sourceText[..1000] : sourceText,
-            sourceType,
-            embedding,
-            spatial3D,
-            contentHash,
-            cancellationToken);
-
-        _logger.LogInformation("Stored embedding {EmbeddingId} for {SourceType}.", embeddingId, sourceType);
-        return embeddingId;
+        return result.Embedding?.AtomEmbeddingId ?? result.Atom.AtomId;
     }
 
     /// <summary>
@@ -324,15 +345,22 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         CancellationToken cancellationToken = default)
     {
         // Generate text embedding
-        var textEmbedding = await EmbedTextAsync(textDescription, cancellationToken);
-        
-        // Search for similar image embeddings using repository
-        var searchResults = await _embeddingRepository.ExactSearchAsync(textEmbedding, topK, "cosine", cancellationToken);
-        
-        // Filter to images only and convert to expected format
-        var imageResults = searchResults
-            .Where(r => r.SourceType == "image")
-            .Select(r => (r.EmbeddingId, r.SimilarityScore))
+        var textEmbedding = await EmbedTextAsync(textDescription, cancellationToken).ConfigureAwait(false);
+
+        // Compute spatial projection for hybrid search
+        var padded = VectorUtility.PadToSqlLength(textEmbedding, out _);
+        var sqlVector = new SqlVector<float>(padded);
+        var spatialPoint = await _atomEmbeddingRepository
+            .ComputeSpatialProjectionAsync(sqlVector, textEmbedding.Length, cancellationToken)
+            .ConfigureAwait(false);
+
+        var hybridResults = await _atomEmbeddingRepository
+            .HybridSearchAsync(textEmbedding, spatialPoint, spatialCandidates: Math.Max(topK * 10, 100), finalTopK: topK, cancellationToken)
+            .ConfigureAwait(false);
+
+        var imageResults = hybridResults
+            .Where(r => string.Equals(r.Embedding.Atom.Modality, "image", StringComparison.OrdinalIgnoreCase))
+            .Select(r => (r.Embedding.Atom.AtomId, (float)(1d - r.CosineDistance)))
             .ToList();
 
         _logger.LogInformation("Zero-shot image retrieval found {Count} results.", imageResults.Count);
@@ -406,6 +434,16 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
                 vector[i] /= (float)magnitude;
             }
         }
+    }
+
+    private static (string HashInput, string CanonicalText) BuildHashInput(object sourceData, string sourceType)
+    {
+        return sourceData switch
+        {
+            string text => ($"{sourceType}:{text}", text),
+            byte[] bytes => ($"{sourceType}:{Convert.ToBase64String(bytes)}", $"Binary data ({bytes.Length} bytes)"),
+            _ => ($"{sourceType}:{sourceData?.ToString() ?? "Unknown"}", sourceData?.ToString() ?? "Unknown")
+        };
     }
 
     private static float CosineSimilarity(float[] a, float[] b)
@@ -543,11 +581,4 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         return mfcc;
     }
 
-    private static string ComputeContentHash(string sourceText, string sourceType)
-    {
-        using var sha256 = System.Security.Cryptography.SHA256.Create();
-        var input = $"{sourceType}:{sourceText}";
-        var hash = sha256.ComputeHash(System.Text.Encoding.UTF8.GetBytes(input));
-        return Convert.ToHexString(hash).ToLowerInvariant();
-    }
 }
