@@ -4,7 +4,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core;
-using Hartonomous.Core.Entities;
 using Hartonomous.Infrastructure.Repositories;
 
 namespace ModelIngestion;
