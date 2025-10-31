@@ -47,8 +47,5 @@ public class AtomicPixelConfiguration : IEntityTypeConfiguration<AtomicPixel>
         builder.Property(p => p.LastReferenced)
             .HasColumnType("DATETIME2")
             .HasDefaultValueSql("SYSUTCDATETIME()");
-
-        builder.HasIndex(p => p.ColorPoint)
-            .HasDatabaseName("idx_color_space");
     }
 }

@@ -57,11 +57,7 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
             .HasColumnName("spatial_coarse")
             .HasColumnType("geometry");
 
-        // Spatial indexes for fast approximate search
-        builder.HasIndex(e => e.SpatialGeometry)
-            .HasDatabaseName("idx_spatial_fine");
-
-        builder.HasIndex(e => e.SpatialCoarse)
-            .HasDatabaseName("idx_spatial_coarse");
+        // Note: Spatial indexes must be created via raw SQL migrations,
+        // not EF Core HasIndex() which creates B-tree indexes incompatible with GEOMETRY
     }
 }
