@@ -36,6 +36,9 @@ public class HartonomousDbContext : DbContext
     // Vocabulary (token-level embeddings stored via atom substrate views)
     public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
 
+    // Embeddings storage (production-ready vector table)
+    public DbSet<Embedding> Embeddings => Set<Embedding>();
+
     // Atomic storage (content-addressable deduplication)
     public DbSet<AtomicPixel> AtomicPixels => Set<AtomicPixel>();
     public DbSet<AtomicAudioSample> AtomicAudioSamples => Set<AtomicAudioSample>();

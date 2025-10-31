@@ -1,4 +1,5 @@
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Data;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
@@ -86,11 +87,34 @@ public class ModelRepository : IModelRepository
 
     public async Task UpdateLayerWeightsAsync(int layerId, SqlVector<float> weights, CancellationToken cancellationToken = default)
     {
-        var layer = await _context.ModelLayers.FindAsync([layerId], cancellationToken);
-        if (layer != null)
+        if (weights.IsNull)
         {
-            await _context.SaveChangesAsync(cancellationToken);
+            return;
         }
+
+        var layer = await _context.ModelLayers
+            .FirstOrDefaultAsync(l => l.LayerId == layerId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (layer is null)
+        {
+            return;
+        }
+
+        var expectedDimension = layer.ParameterCount.HasValue && layer.ParameterCount.Value > 0
+            ? (int)Math.Min(layer.ParameterCount.Value, VectorUtility.SqlVectorMaxDimensions)
+            : Math.Min(weights.Memory.Length, VectorUtility.SqlVectorMaxDimensions);
+
+        var dense = VectorUtility.Materialize(weights, expectedDimension);
+        if (dense.Length == 0)
+        {
+            return;
+        }
+
+        layer.WeightsGeometry = GeometryConverter.ToLineString(dense, srid: 0);
+        layer.ParameterCount = dense.Length;
+
+        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default)

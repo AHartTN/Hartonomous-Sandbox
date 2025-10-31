@@ -70,6 +70,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAtomRepository, AtomRepository>();
         services.AddScoped<IAtomEmbeddingRepository, AtomEmbeddingRepository>();
+    services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
         services.AddScoped<ITensorAtomRepository, TensorAtomRepository>();
         services.AddScoped<IAtomRelationRepository, AtomRelationRepository>();
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
