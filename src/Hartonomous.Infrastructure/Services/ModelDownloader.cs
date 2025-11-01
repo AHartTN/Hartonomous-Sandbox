@@ -6,14 +6,30 @@ using System.Text.Json.Serialization;
 namespace Hartonomous.Infrastructure.Services;
 
 /// <summary>
-/// Downloads models from Hugging Face, Ollama, and other sources
+/// Downloads models from Hugging Face, Ollama, and other sources.
 /// </summary>
 public class ModelDownloader
 {
+    /// <summary>
+    /// Logger used to record download progress and failures.
+    /// </summary>
     private readonly ILogger<ModelDownloader> _logger;
+
+    /// <summary>
+    /// HTTP client configured for interacting with model registries.
+    /// </summary>
     private readonly HttpClient _httpClient;
+
+    /// <summary>
+    /// Root directory where downloaded models are cached.
+    /// </summary>
     private readonly string _cacheDirectory;
 
+    /// <summary>
+    /// Initializes a new <see cref="ModelDownloader"/> with a named HTTP client and cache directory.
+    /// </summary>
+    /// <param name="logger">Logger for diagnostics.</param>
+    /// <param name="httpClientFactory">Factory that provides the configured HTTP client.</param>
     public ModelDownloader(ILogger<ModelDownloader> logger, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
@@ -23,11 +39,11 @@ public class ModelDownloader
     }
 
     /// <summary>
-    /// Download model from Hugging Face
+    /// Download model from Hugging Face.
     /// </summary>
     /// <param name="modelId">Format: "organization/model-name" (e.g., "TinyLlama/TinyLlama-1.1B-Chat-v1.0")</param>
-    /// <param name="cancellationToken"></param>
-    /// <returns>Path to downloaded model directory</returns>
+    /// <param name="cancellationToken">Token used to cancel ongoing requests.</param>
+    /// <returns>Path to downloaded model directory.</returns>
     public async Task<string> DownloadFromHuggingFaceAsync(string modelId, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Downloading model from Hugging Face: {ModelId}", modelId);
@@ -123,11 +139,11 @@ public class ModelDownloader
     }
 
     /// <summary>
-    /// Download model from Ollama local instance
+    /// Download model from Ollama local instance.
     /// </summary>
     /// <param name="modelName">Ollama model name (e.g., "llama3.2:1b")</param>
-    /// <param name="cancellationToken"></param>
-    /// <returns>Path to exported model file</returns>
+    /// <param name="cancellationToken">Token used to cancel ongoing requests.</param>
+    /// <returns>Path to exported model file.</returns>
     public async Task<string> DownloadFromOllamaAsync(string modelName, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Exporting model from Ollama: {ModelName}", modelName);
@@ -204,10 +220,17 @@ public class ModelDownloader
     }
 
     /// <summary>
-    /// Get the local cache directory path
+    /// Get the local cache directory path.
     /// </summary>
     public string GetCacheDirectory() => _cacheDirectory;
 
+    /// <summary>
+    /// Downloads a file while logging progress milestones.
+    /// </summary>
+    /// <param name="url">Remote file location.</param>
+    /// <param name="destinationPath">Local file path to write.</param>
+    /// <param name="totalSize">Expected file size when known.</param>
+    /// <param name="cancellationToken">Token to cancel the download.</param>
     private async Task DownloadFileWithProgressAsync(string url, string destinationPath, long? totalSize, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -243,6 +266,12 @@ public class ModelDownloader
         }
     }
 
+    /// <summary>
+    /// Downloads a file without emitting progress updates.
+    /// </summary>
+    /// <param name="url">Remote file location.</param>
+    /// <param name="destinationPath">Local file path to write.</param>
+    /// <param name="cancellationToken">Token to cancel the download.</param>
     private async Task DownloadFileAsync(string url, string destinationPath, CancellationToken cancellationToken)
     {
         using var response = await _httpClient.GetAsync(url, cancellationToken);
@@ -254,12 +283,21 @@ public class ModelDownloader
 
     #region DTOs
 
+    /// <summary>
+    /// Represents model metadata returned from the Hugging Face API.
+    /// </summary>
     private class HuggingFaceModelInfo
     {
+        /// <summary>
+        /// Files available for download alongside the model.
+        /// </summary>
         [JsonPropertyName("siblings")]
         public List<HuggingFaceFile>? Siblings { get; set; }
     }
 
+    /// <summary>
+    /// Describes a single file entry in a Hugging Face model response.
+    /// </summary>
     private class HuggingFaceFile
     {
         [JsonPropertyName("rfilename")]
@@ -269,18 +307,27 @@ public class ModelDownloader
         public long Size { get; set; }
     }
 
+    /// <summary>
+    /// Envelope containing Ollama model listings.
+    /// </summary>
     private class OllamaModelsResponse
     {
         [JsonPropertyName("models")]
         public List<OllamaModel>? Models { get; set; }
     }
 
+    /// <summary>
+    /// Represents an individual model entry in the Ollama tags response.
+    /// </summary>
     private class OllamaModel
     {
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Response payload returned by the Ollama show endpoint.
+    /// </summary>
     private class OllamaShowResponse
     {
         [JsonPropertyName("modelinfo")]

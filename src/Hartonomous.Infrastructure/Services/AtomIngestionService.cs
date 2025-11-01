@@ -16,12 +16,39 @@ namespace Hartonomous.Infrastructure.Services;
 /// </summary>
 public class AtomIngestionService : IAtomIngestionService
 {
+    /// <summary>
+    /// Repository used to persist and query atoms from durable storage.
+    /// </summary>
     private readonly IAtomRepository _atomRepository;
+
+    /// <summary>
+    /// Repository that manages embeddings associated with stored atoms.
+    /// </summary>
     private readonly IAtomEmbeddingRepository _atomEmbeddingRepository;
+
+    /// <summary>
+    /// Repository responsible for loading active deduplication policies.
+    /// </summary>
     private readonly IDeduplicationPolicyRepository _policyRepository;
+
+    /// <summary>
+    /// Logger for operational diagnostics and duplicate detection traces.
+    /// </summary>
     private readonly ILogger<AtomIngestionService> _logger;
+
+    /// <summary>
+    /// Default policy name pulled from configuration when requests omit one.
+    /// </summary>
     private readonly string _defaultPolicyName;
 
+    /// <summary>
+    /// Creates a new ingestion service that performs deduplication and embedding persistence.
+    /// </summary>
+    /// <param name="atomRepository">Repository that manages atom entities.</param>
+    /// <param name="atomEmbeddingRepository">Repository that handles atom embeddings and similarity lookups.</param>
+    /// <param name="policyRepository">Repository providing deduplication policies.</param>
+    /// <param name="logger">Structured logger for recording ingestion events.</param>
+    /// <param name="configuration">Application configuration used to resolve defaults.</param>
     public AtomIngestionService(
         IAtomRepository atomRepository,
         IAtomEmbeddingRepository atomEmbeddingRepository,
@@ -36,6 +63,12 @@ public class AtomIngestionService : IAtomIngestionService
         _defaultPolicyName = configuration.GetValue<string>("AtomIngestion:PolicyName", "default");
     }
 
+    /// <summary>
+    /// Ingests an atom payload, applying exact and semantic deduplication before persisting.
+    /// </summary>
+    /// <param name="request">Details about the atom, payload, embeddings, and policy overrides.</param>
+    /// <param name="cancellationToken">Token for cancelling long-running database or similarity queries.</param>
+    /// <returns>Information about the stored atom and whether it was considered a duplicate.</returns>
     public async Task<AtomIngestionResult> IngestAsync(AtomIngestionRequest request, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -196,6 +229,13 @@ public class AtomIngestionService : IAtomIngestionService
         };
     }
 
+    /// <summary>
+    /// Picks an embedding from a collection that matches the requested type and model constraints.
+    /// </summary>
+    /// <param name="embeddings">Embeddings associated with an atom.</param>
+    /// <param name="embeddingType">Optional embedding modality filter.</param>
+    /// <param name="modelId">Optional model identifier to match.</param>
+    /// <returns>The first embedding that satisfies the filters; otherwise <see langword="null"/>.</returns>
     private static AtomEmbedding? SelectMatchingEmbedding(IEnumerable<AtomEmbedding> embeddings, string embeddingType, int? modelId)
     {
         if (embeddings is null)
@@ -218,6 +258,11 @@ public class AtomIngestionService : IAtomIngestionService
         return query.FirstOrDefault();
     }
 
+    /// <summary>
+    /// Produces a coarse spatial approximation by rounding coordinates to whole units.
+    /// </summary>
+    /// <param name="source">Fine-grained spatial point.</param>
+    /// <returns>Rounded point suitable for spatial bucketing.</returns>
     private static Point CreateCoarsePoint(Point source)
     {
         var coarseX = Math.Round(source.X, 0, MidpointRounding.ToZero);

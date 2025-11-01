@@ -19,11 +19,33 @@ namespace Hartonomous.Infrastructure.Services;
 /// </summary>
 public sealed class InferenceOrchestrator : IInferenceService
 {
+    /// <summary>
+    /// Entity Framework context that exposes command access to Hartonomous tables and procedures.
+    /// </summary>
     private readonly HartonomousDbContext _context;
+
+    /// <summary>
+    /// Repository supplying embedding projections and hybrid search capabilities.
+    /// </summary>
     private readonly IAtomEmbeddingRepository _atomEmbeddings;
+
+    /// <summary>
+    /// Abstraction for executing parameterized SQL commands and stored procedures.
+    /// </summary>
     private readonly ISqlCommandExecutor _sql;
+
+    /// <summary>
+    /// Logger used to trace orchestrated inference operations.
+    /// </summary>
     private readonly ILogger<InferenceOrchestrator> _logger;
 
+    /// <summary>
+    /// Initializes a new inference orchestrator backed by SQL Server stored procedures.
+    /// </summary>
+    /// <param name="context">Database context used for direct command execution.</param>
+    /// <param name="atomEmbeddings">Repository that exposes embedding utilities.</param>
+    /// <param name="sqlCommandExecutor">SQL command executor abstraction.</param>
+    /// <param name="logger">Structured logger for diagnostics.</param>
     public InferenceOrchestrator(
         HartonomousDbContext context,
         IAtomEmbeddingRepository atomEmbeddings,
@@ -36,6 +58,13 @@ public sealed class InferenceOrchestrator : IInferenceService
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Executes an exact semantic vector search using the <c>sp_ExactVectorSearch</c> stored procedure.
+    /// </summary>
+    /// <param name="queryVector">Vector embedding representing the search query.</param>
+    /// <param name="topK">Number of top results to return.</param>
+    /// <param name="cancellationToken">Token to cancel command execution.</param>
+    /// <returns>Collection of matched embeddings ordered by similarity.</returns>
     public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> SemanticSearchAsync(
         float[] queryVector,
         int topK = 10,
@@ -65,6 +94,13 @@ public sealed class InferenceOrchestrator : IInferenceService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Performs an approximate spatial search by projecting embeddings into vector space geometry.
+    /// </summary>
+    /// <param name="queryVector">Vector used to compute the spatial projection.</param>
+    /// <param name="topK">Number of nearest neighbors to return.</param>
+    /// <param name="cancellationToken">Token that can cancel processing.</param>
+    /// <returns>Ranked list of embeddings surfaced by the spatial search.</returns>
     public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> SpatialSearchAsync(
         float[] queryVector,
         int topK = 10,
@@ -81,6 +117,14 @@ public sealed class InferenceOrchestrator : IInferenceService
         return await ExecuteSpatialSearchAsync(spatialPoint, topK, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Combines semantic and spatial metrics to surface high-quality matches.
+    /// </summary>
+    /// <param name="queryVector">Embedding for the search query.</param>
+    /// <param name="topK">Number of final results.</param>
+    /// <param name="candidateCount">Initial candidate pool prior to re-ranking.</param>
+    /// <param name="cancellationToken">Token to abort operations.</param>
+    /// <returns>List of search results blended from semantic and spatial scoring.</returns>
     public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> HybridSearchAsync(
         float[] queryVector,
         int topK = 10,
@@ -106,6 +150,14 @@ public sealed class InferenceOrchestrator : IInferenceService
         return results;
     }
 
+    /// <summary>
+    /// Executes ensemble inference across multiple models using a stored procedure.
+    /// </summary>
+    /// <param name="inputData">Input payload or prompt sent to the ensemble.</param>
+    /// <param name="modelIds">Identifiers of models participating in the ensemble.</param>
+    /// <param name="weights">Optional weighting factors for each model.</param>
+    /// <param name="cancellationToken">Token for cancelling database work.</param>
+    /// <returns>Aggregate inference result with placeholder contribution metrics.</returns>
     public async Task<EnsembleInferenceResult> EnsembleInferenceAsync(
         string inputData,
         IReadOnlyList<int> modelIds,
@@ -145,6 +197,14 @@ public sealed class InferenceOrchestrator : IInferenceService
         };
     }
 
+    /// <summary>
+    /// Generates text by invoking a spatial search powered stored procedure.
+    /// </summary>
+    /// <param name="promptEmbedding">Embedding for the generation prompt.</param>
+    /// <param name="maxTokens">Maximum tokens to produce.</param>
+    /// <param name="temperature">Generation temperature value.</param>
+    /// <param name="cancellationToken">Token to cancel SQL execution.</param>
+    /// <returns>Generation result with produced text and placeholder metadata.</returns>
     public async Task<GenerationResult> GenerateViaSpatialAsync(
         float[] promptEmbedding,
         int maxTokens = 50,
@@ -183,6 +243,12 @@ public sealed class InferenceOrchestrator : IInferenceService
         };
     }
 
+    /// <summary>
+    /// Computes semantic features for the supplied embeddings by calling a stored procedure per embedding.
+    /// </summary>
+    /// <param name="atomEmbeddingIds">Identifiers of embeddings requiring feature extraction.</param>
+    /// <param name="cancellationToken">Token to cancel stored procedure execution.</param>
+    /// <returns>Placeholder semantic feature set; production implementation should parse results.</returns>
     public async Task<SemanticFeatures> ComputeSemanticFeaturesAsync(
         IReadOnlyList<long> atomEmbeddingIds,
         CancellationToken cancellationToken = default)
@@ -217,6 +283,16 @@ public sealed class InferenceOrchestrator : IInferenceService
         };
     }
 
+    /// <summary>
+    /// Executes semantic search with optional topic, sentiment, and recency filters.
+    /// </summary>
+    /// <param name="queryVector">Embedding for the query.</param>
+    /// <param name="topK">Maximum results to return.</param>
+    /// <param name="topicFilter">Optional topic constraint.</param>
+    /// <param name="minSentiment">Optional minimum sentiment threshold.</param>
+    /// <param name="maxAge">Optional recency window for results.</param>
+    /// <param name="cancellationToken">Token for cancelling the search.</param>
+    /// <returns>Filtered list of embeddings meeting the criteria.</returns>
     public async Task<IReadOnlyList<AtomEmbeddingSearchResult>> SemanticFilteredSearchAsync(
         float[] queryVector,
         int topK = 10,
@@ -254,6 +330,13 @@ public sealed class InferenceOrchestrator : IInferenceService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Records user feedback for a prior inference execution.
+    /// </summary>
+    /// <param name="inferenceId">Identifier of the inference request.</param>
+    /// <param name="rating">Rating between 1 and 5 inclusive.</param>
+    /// <param name="feedback">Optional textual feedback.</param>
+    /// <param name="cancellationToken">Token to cancel command execution.</param>
     public async Task SubmitFeedbackAsync(
         long inferenceId,
         byte rating,
@@ -282,6 +365,13 @@ public sealed class InferenceOrchestrator : IInferenceService
         _logger.LogInformation("Feedback submitted successfully");
     }
 
+    /// <summary>
+    /// Calls a stored procedure that updates model weights based on aggregated feedback.
+    /// </summary>
+    /// <param name="learningRate">Learning rate parameter supplied to the procedure.</param>
+    /// <param name="minRatings">Minimum ratings required before updates are applied.</param>
+    /// <param name="cancellationToken">Token that can cancel execution.</param>
+    /// <returns>Number of layers updated as reported by the procedure.</returns>
     public async Task<int> UpdateWeightsFromFeedbackAsync(
         float learningRate = 0.001f,
         int minRatings = 10,
@@ -310,6 +400,13 @@ public sealed class InferenceOrchestrator : IInferenceService
         return count;
     }
 
+    /// <summary>
+    /// Executes the spatial search stored procedure for the supplied 3D projection.
+    /// </summary>
+    /// <param name="spatialPoint">Point representing the projected embedding in SQL geometry space.</param>
+    /// <param name="topK">Total results requested.</param>
+    /// <param name="cancellationToken">Token to cancel command execution.</param>
+    /// <returns>List of search results produced by the stored procedure.</returns>
     private async Task<IReadOnlyList<AtomEmbeddingSearchResult>> ExecuteSpatialSearchAsync(
         Point spatialPoint,
         int topK,
@@ -336,6 +433,11 @@ public sealed class InferenceOrchestrator : IInferenceService
         }, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Materializes an <see cref="AtomEmbeddingSearchResult"/> from the given data reader row.
+    /// </summary>
+    /// <param name="record">Data record returned from a search stored procedure.</param>
+    /// <returns>Populated search result with nested atom and embedding entities.</returns>
     private static AtomEmbeddingSearchResult MapSearchResult(IDataRecord record)
     {
         var atomEmbeddingId = GetInt64(record, "AtomEmbeddingId");
@@ -384,36 +486,72 @@ public sealed class InferenceOrchestrator : IInferenceService
         };
     }
 
+    /// <summary>
+    /// Reads a 64-bit integer value from the specified column when available.
+    /// </summary>
+    /// <param name="record">Record containing the column.</param>
+    /// <param name="columnName">Name of the column to retrieve.</param>
+    /// <returns>Column value or zero when the field is missing or <c>null</c>.</returns>
     private static long GetInt64(IDataRecord record, string columnName)
     {
         var ordinal = GetOrdinal(record, columnName);
         return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt64(ordinal) : 0;
     }
 
+    /// <summary>
+    /// Reads a string from the given column, returning <c>null</c> when absent.
+    /// </summary>
+    /// <param name="record">Record containing the column.</param>
+    /// <param name="columnName">Name of the column to retrieve.</param>
+    /// <returns>String value or <c>null</c> when unavailable.</returns>
     private static string? GetString(IDataRecord record, string columnName)
     {
         var ordinal = GetOrdinal(record, columnName);
         return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetString(ordinal) : null;
     }
 
+    /// <summary>
+    /// Retrieves a nullable 32-bit integer from the specified column.
+    /// </summary>
+    /// <param name="record">Record containing the data.</param>
+    /// <param name="columnName">Column to read.</param>
+    /// <returns>Nullable integer with the column contents.</returns>
     private static int? GetNullableInt(IDataRecord record, string columnName)
     {
         var ordinal = GetOrdinal(record, columnName);
         return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt32(ordinal) : null;
     }
 
+    /// <summary>
+    /// Retrieves a nullable double precision value from the specified column.
+    /// </summary>
+    /// <param name="record">Record containing the data.</param>
+    /// <param name="columnName">Column to read.</param>
+    /// <returns>Nullable <see cref="double"/> with the column contents.</returns>
     private static double? GetNullableDouble(IDataRecord record, string columnName)
     {
         var ordinal = GetOrdinal(record, columnName);
         return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDouble(ordinal) : null;
     }
 
+    /// <summary>
+    /// Retrieves a nullable <see cref="DateTime"/> from the specified column.
+    /// </summary>
+    /// <param name="record">Record containing the data.</param>
+    /// <param name="columnName">Column to read.</param>
+    /// <returns>Nullable timestamp with the column contents.</returns>
     private static DateTime? GetNullableDateTime(IDataRecord record, string columnName)
     {
         var ordinal = GetOrdinal(record, columnName);
         return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDateTime(ordinal) : null;
     }
 
+    /// <summary>
+    /// Resolves the ordinal index for the specified column, ignoring case.
+    /// </summary>
+    /// <param name="record">Record that exposes the schema fields.</param>
+    /// <param name="columnName">Name of the column to resolve.</param>
+    /// <returns>Column index or <c>-1</c> when the column is absent.</returns>
     private static int GetOrdinal(IDataRecord record, string columnName)
     {
         for (var i = 0; i < record.FieldCount; i++)

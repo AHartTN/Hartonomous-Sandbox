@@ -15,6 +15,12 @@ public class ModelIngestionOrchestrator
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ModelIngestionOrchestrator> _logger;
 
+    /// <summary>
+    /// Initializes a new <see cref="ModelIngestionOrchestrator"/> with discovery, service resolution, and logging dependencies.
+    /// </summary>
+    /// <param name="discoveryService">Service used to detect model formats.</param>
+    /// <param name="serviceProvider">Service provider for resolving format-specific readers.</param>
+    /// <param name="logger">Logger used to capture orchestration diagnostics.</param>
     public ModelIngestionOrchestrator(
         IModelDiscoveryService discoveryService,
         IServiceProvider serviceProvider,
@@ -125,6 +131,9 @@ public class ModelIngestionOrchestrator
     /// <summary>
     /// Validate that a model path contains a supported format.
     /// </summary>
+    /// <param name="modelPath">Path to the model file or directory to validate.</param>
+    /// <param name="cancellationToken">Token used to cancel the validation operation.</param>
+    /// <returns><c>true</c> when the model format is recognized with sufficient confidence; otherwise <c>false</c>.</returns>
     public async Task<bool> ValidateModelAsync(string modelPath, CancellationToken cancellationToken = default)
     {
         try
@@ -142,6 +151,9 @@ public class ModelIngestionOrchestrator
     /// <summary>
     /// Get information about a model without ingesting it.
     /// </summary>
+    /// <param name="modelPath">Path to the model file or directory.</param>
+    /// <param name="cancellationToken">Token that cancels discovery work.</param>
+    /// <returns>Format information describing the detected model.</returns>
     public async Task<ModelFormatInfo> GetModelInfoAsync(
         string modelPath,
         CancellationToken cancellationToken = default)

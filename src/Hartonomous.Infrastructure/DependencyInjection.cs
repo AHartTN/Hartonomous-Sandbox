@@ -83,13 +83,9 @@ public static class DependencyInjection
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
 
-        services.AddScoped<ModelIngestionProcessor>();
-        services.AddScoped<ModelIngestionOrchestrator>();
-        services.AddScoped<ModelDownloadService>();
-
-        services.AddScoped<IModelFormatReader<SafetensorsMetadata>, Services.SafetensorsModelReader>();
-        services.AddScoped<IModelFormatReader<PyTorchMetadata>, Services.PyTorchModelReader>();
-        services.AddScoped<IModelFormatReader<GGUFMetadata>, Services.GGUFModelReader>();
+    services.AddScoped<ModelIngestionProcessor>();
+    services.AddScoped<ModelIngestionOrchestrator>();
+    services.AddScoped<ModelDownloader>();
 
         return services;
     }

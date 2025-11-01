@@ -6,17 +6,40 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hartonomous.Infrastructure.Services;
 
+/// <summary>
+/// Provides helpers for extracting distilled "student" models from existing parent models.
+/// </summary>
 public class StudentModelService : IStudentModelService
 {
+    /// <summary>
+    /// Entity Framework context used for model persistence operations.
+    /// </summary>
     private readonly HartonomousDbContext _context;
+
+    /// <summary>
+    /// Repository used to query and persist model layer entities.
+    /// </summary>
     private readonly IModelLayerRepository _layerRepository;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="StudentModelService"/> class.
+    /// </summary>
+    /// <param name="context">Database context that tracks model entities.</param>
+    /// <param name="layerRepository">Repository that exposes layer persistence APIs.</param>
     public StudentModelService(HartonomousDbContext context, IModelLayerRepository layerRepository)
     {
         _context = context;
         _layerRepository = layerRepository;
     }
 
+    /// <summary>
+    /// Builds a student model by selecting the most important layers based on a target ratio.
+    /// </summary>
+    /// <param name="parentModelId">Identifier of the parent model to distill.</param>
+    /// <param name="targetSizeRatio">Fraction of layers to keep from the parent model (0-1 range).</param>
+    /// <param name="cancellationToken">Token used to cancel asynchronous work.</param>
+    /// <returns>The distilled student model.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the parent model cannot be located.</exception>
     public async Task<Model> ExtractByImportanceAsync(
         int parentModelId,
         double targetSizeRatio,
@@ -67,6 +90,14 @@ public class StudentModelService : IStudentModelService
         return studentModel;
     }
 
+    /// <summary>
+    /// Creates a student model by copying a fixed number of layers from a parent model.
+    /// </summary>
+    /// <param name="parentModelId">Identifier of the parent model.</param>
+    /// <param name="targetLayerCount">Number of layers to include in the student.</param>
+    /// <param name="cancellationToken">Token used to cancel asynchronous work.</param>
+    /// <returns>The distilled student model containing the requested layer count.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the parent model cannot be found.</exception>
     public async Task<Model> ExtractByLayersAsync(
         int parentModelId,
         int targetLayerCount,
@@ -110,6 +141,15 @@ public class StudentModelService : IStudentModelService
         return studentModel;
     }
 
+    /// <summary>
+    /// Creates a student model consisting of layers whose weights fall within a specific value range.
+    /// </summary>
+    /// <param name="parentModelId">Identifier of the parent model.</param>
+    /// <param name="minValue">Minimum weight value to include.</param>
+    /// <param name="maxValue">Maximum weight value to include.</param>
+    /// <param name="cancellationToken">Token used to cancel asynchronous work.</param>
+    /// <returns>The distilled student model composed of the filtered layer set.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the parent model cannot be located.</exception>
     public async Task<Model> ExtractBySpatialRegionAsync(
         int parentModelId,
         double minValue,
@@ -157,6 +197,13 @@ public class StudentModelService : IStudentModelService
         return studentModel;
     }
 
+    /// <summary>
+    /// Compares two models and returns summary statistics highlighting their similarities.
+    /// </summary>
+    /// <param name="modelAId">Identifier of the first model.</param>
+    /// <param name="modelBId">Identifier of the second model.</param>
+    /// <param name="cancellationToken">Token used to cancel asynchronous work.</param>
+    /// <returns>Comparison metrics showing parameter counts, shared layers, and compression ratio.</returns>
     public async Task<ModelComparisonResult> CompareModelsAsync(
         int modelAId,
         int modelBId,

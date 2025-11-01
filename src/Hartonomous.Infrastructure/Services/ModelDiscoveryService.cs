@@ -10,15 +10,30 @@ namespace Hartonomous.Infrastructure.Services;
 /// </summary>
 public class ModelDiscoveryService : IModelDiscoveryService
 {
+    /// <summary>
+    /// Logger used to capture warnings, diagnostics, and discovery decisions.
+    /// </summary>
     private readonly ILogger<ModelDiscoveryService> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the model discovery service.
+    /// </summary>
+    /// <param name="logger">Application logger.</param>
     public ModelDiscoveryService(ILogger<ModelDiscoveryService> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Detects the format details for a model file or directory by inspecting metadata and contents.
+    /// </summary>
+    /// <param name="path">Absolute path pointing to a single model file or a model directory.</param>
+    /// <param name="cancellationToken">Token used to cancel the detection workflow.</param>
+    /// <returns>Populated <see cref="ModelFormatInfo"/> describing the discovered model.</returns>
     public async Task<ModelFormatInfo> DetectFormatAsync(string path, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
         _logger.LogInformation("Detecting model format for: {Path}", path);
 
         // Check if path is directory or file
@@ -40,6 +55,12 @@ public class ModelDiscoveryService : IModelDiscoveryService
         return await DetectDirectoryFormatAsync(path, cancellationToken);
     }
 
+    /// <summary>
+    /// Evaluates an individual model artifact file and determines the format it represents.
+    /// </summary>
+    /// <param name="filePath">Full path to the model file on disk.</param>
+    /// <param name="cancellationToken">Token that signals the operation should terminate early.</param>
+    /// <returns>Format information describing the supplied model artifact.</returns>
     private async Task<ModelFormatInfo> DetectSingleFileFormatAsync(string filePath, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(filePath).ToLowerInvariant();
@@ -84,6 +105,13 @@ public class ModelDiscoveryService : IModelDiscoveryService
         return await DetectByMagicNumberAsync(filePath, fileName, cancellationToken);
     }
 
+    /// <summary>
+    /// Reads the first bytes of a file to detect formats that are not identifiable via the file extension.
+    /// </summary>
+    /// <param name="filePath">Full path to the file being inspected.</param>
+    /// <param name="fileName">File name to use in diagnostics and returned metadata.</param>
+    /// <param name="cancellationToken">Token to abort the read operation.</param>
+    /// <returns>Format information inferred from magic numbers stored in the file header.</returns>
     private async Task<ModelFormatInfo> DetectByMagicNumberAsync(string filePath, string fileName, CancellationToken cancellationToken)
     {
         // Read first 4 bytes to check magic numbers
@@ -135,6 +163,12 @@ public class ModelDiscoveryService : IModelDiscoveryService
         throw new NotSupportedException($"Unknown model format: No recognized magic number found in {fileName}");
     }
 
+    /// <summary>
+    /// Inspects a model directory and infers the overall format by evaluating contained files.
+    /// </summary>
+    /// <param name="dirPath">Directory that houses a multi-file model.</param>
+    /// <param name="cancellationToken">Token to cancel filesystem enumeration.</param>
+    /// <returns>Format information that captures the structure of the model directory.</returns>
     private async Task<ModelFormatInfo> DetectDirectoryFormatAsync(string dirPath, CancellationToken cancellationToken)
     {
         _logger.LogDebug("Scanning directory for model files: {Path}", dirPath);
@@ -164,23 +198,30 @@ public class ModelDiscoveryService : IModelDiscoveryService
         throw new NotSupportedException($"Unable to detect model format in directory: {dirPath}");
     }
 
+    /// <summary>
+    /// Processes a HuggingFace style directory by reading configuration metadata and weight files.
+    /// </summary>
+    /// <param name="dirPath">Root directory containing config and weight artifacts.</param>
+    /// <param name="files">All files discovered under the directory.</param>
+    /// <param name="cancellationToken">Token used to cancel configuration parsing.</param>
+    /// <returns>Detailed format information including architecture and sharding details.</returns>
     private async Task<ModelFormatInfo> DetectHuggingFaceFormatAsync(string dirPath, string[] files, CancellationToken cancellationToken)
     {
         var configPath = Path.Combine(dirPath, "config.json");
         var configJson = await File.ReadAllTextAsync(configPath, cancellationToken);
-        var config = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(configJson);
+        using var document = JsonDocument.Parse(configJson);
+        var root = document.RootElement;
 
         // Determine architecture from config
         string? architecture = null;
-        if (config != null && config.TryGetValue("model_type", out var modelType))
+        if (root.TryGetProperty("model_type", out var modelType))
         {
             architecture = modelType.GetString();
         }
-        else if (config != null && config.TryGetValue("architectures", out var architectures) &&
-                 architectures.ValueKind == JsonValueKind.Array)
+        else if (root.TryGetProperty("architectures", out var architectures) && architectures.ValueKind == JsonValueKind.Array)
         {
             var firstArch = architectures.EnumerateArray().FirstOrDefault();
-            architecture = firstArch.GetString();
+            architecture = firstArch.ValueKind == JsonValueKind.String ? firstArch.GetString() : null;
         }
 
         // Check for sharded weights
@@ -197,6 +238,15 @@ public class ModelDiscoveryService : IModelDiscoveryService
         // Determine if using Safetensors or PyTorch format
         var format = weightFiles.Any(f => f.EndsWith(".safetensors")) ? "Safetensors" : "PyTorch";
 
+        var metadata = new Dictionary<string, object>();
+        if (root.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var property in root.EnumerateObject())
+            {
+                metadata[property.Name] = property.Value.Clone();
+            }
+        }
+
         return new ModelFormatInfo
         {
             Format = format,
@@ -207,11 +257,17 @@ public class ModelDiscoveryService : IModelDiscoveryService
             Extensions = files.Select(f => Path.GetExtension(f).ToLowerInvariant()).Distinct().ToArray(),
             RequiredFiles = new[] { "config.json" }.Concat(weightFiles.Select(Path.GetFileName)).ToArray()!,
             OptionalFiles = new[] { "tokenizer.json", "tokenizer_config.json", "special_tokens_map.json", "vocab.json" },
-            Metadata = config?.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value) ?? new Dictionary<string, object>(),
+            Metadata = metadata,
             Confidence = 1.0
         };
     }
 
+    /// <summary>
+    /// Determines baseline Safetensors metadata for a single file to support discovery workflows.
+    /// </summary>
+    /// <param name="filePath">Path to the safetensors file.</param>
+    /// <param name="cancellationToken">Token used to cancel asynchronous file reads.</param>
+    /// <returns>Format information tailored for safetensors artifacts.</returns>
     private async Task<ModelFormatInfo> DetectSafetensorsFormatAsync(string filePath, CancellationToken cancellationToken)
     {
         // TODO: Read safetensors header to extract metadata
@@ -226,6 +282,13 @@ public class ModelDiscoveryService : IModelDiscoveryService
         });
     }
 
+    /// <summary>
+    /// Aggregates multiple safetensors shards within a directory to describe the combined model.
+    /// </summary>
+    /// <param name="dirPath">Directory that contains safetensors shards.</param>
+    /// <param name="files">Listing of files discovered within the directory.</param>
+    /// <param name="cancellationToken">Token used to cancel metadata collection.</param>
+    /// <returns>Format information reflecting the safetensors directory contents.</returns>
     private async Task<ModelFormatInfo> DetectSafetensorsDirectoryAsync(string dirPath, string[] files, CancellationToken cancellationToken)
     {
         var safetensorFiles = files.Where(f => f.EndsWith(".safetensors")).ToArray();
@@ -243,6 +306,12 @@ public class ModelDiscoveryService : IModelDiscoveryService
         });
     }
 
+    /// <summary>
+    /// Provides PyTorch format metadata for a single serialized model file.
+    /// </summary>
+    /// <param name="filePath">Path to the PyTorch artifact being analyzed.</param>
+    /// <param name="cancellationToken">Token controlling asynchronous execution.</param>
+    /// <returns>Format information describing the PyTorch artifact.</returns>
     private async Task<ModelFormatInfo> DetectPyTorchFormatAsync(string filePath, CancellationToken cancellationToken)
     {
         return await Task.FromResult(new ModelFormatInfo
@@ -256,6 +325,12 @@ public class ModelDiscoveryService : IModelDiscoveryService
         });
     }
 
+    /// <summary>
+    /// Interprets a directory of PyTorch artifacts to determine sharding and required files.
+    /// </summary>
+    /// <param name="dirPath">Directory that contains PyTorch files.</param>
+    /// <param name="files">File list derived from the directory scan.</param>
+    /// <returns>Format information covering the PyTorch directory layout.</returns>
     private ModelFormatInfo DetectPyTorchDirectory(string dirPath, string[] files)
     {
         var ptFiles = files.Where(f =>
@@ -276,6 +351,12 @@ public class ModelDiscoveryService : IModelDiscoveryService
         };
     }
 
+    /// <summary>
+    /// Enumerates the filesystem artifacts that must be present to load the specified model.
+    /// </summary>
+    /// <param name="modelPath">Path to a model file or the directory containing model assets.</param>
+    /// <param name="cancellationToken">Token to cancel interrogation.</param>
+    /// <returns>Collection of file paths required to hydrate the model.</returns>
     public async Task<IEnumerable<string>> GetModelFilesAsync(string modelPath, CancellationToken cancellationToken = default)
     {
         var formatInfo = await DetectFormatAsync(modelPath, cancellationToken);
@@ -290,6 +371,12 @@ public class ModelDiscoveryService : IModelDiscoveryService
         return formatInfo.RequiredFiles.Select(f => Path.Combine(modelPath, f)).ToArray();
     }
 
+    /// <summary>
+    /// Validates that the provided path represents a recognizable model format with sufficient metadata.
+    /// </summary>
+    /// <param name="path">File or directory path to evaluate.</param>
+    /// <param name="cancellationToken">Token used to cancel the validation operation.</param>
+    /// <returns><see langword="true"/> when the path yields a format with acceptable confidence; otherwise <see langword="false"/>.</returns>
     public async Task<bool> IsValidModelAsync(string path, CancellationToken cancellationToken = default)
     {
         try

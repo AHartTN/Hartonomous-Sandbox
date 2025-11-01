@@ -5,6 +5,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Services;
 
+/// <summary>
+/// Coordinates ingestion requests by delegating discovery to the orchestrator and persisting model artifacts.
+/// </summary>
 public class ModelIngestionProcessor
 {
     private readonly ILogger<ModelIngestionProcessor> _logger;
@@ -12,6 +15,13 @@ public class ModelIngestionProcessor
     private readonly IModelLayerRepository _layerRepository;
     private readonly ModelIngestionOrchestrator _orchestrator;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ModelIngestionProcessor"/> class.
+    /// </summary>
+    /// <param name="logger">Logger for operational diagnostics.</param>
+    /// <param name="modelRepository">Repository used to persist model definitions.</param>
+    /// <param name="layerRepository">Repository used to store model layers.</param>
+    /// <param name="orchestrator">Orchestrator responsible for reading model artifacts.</param>
     public ModelIngestionProcessor(
         ILogger<ModelIngestionProcessor> logger,
         IModelRepository modelRepository,
@@ -24,6 +34,12 @@ public class ModelIngestionProcessor
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
     }
 
+    /// <summary>
+    /// Processes an ingestion request by reading the source model and persisting the resulting metadata and layers.
+    /// </summary>
+    /// <param name="request">Incoming ingestion request containing model location and overrides.</param>
+    /// <param name="cancellationToken">Token that cancels ingestion work.</param>
+    /// <returns>A result describing the success state and persisted model information.</returns>
     public async Task<ModelIngestionResult> ProcessAsync(ModelIngestionRequest request, CancellationToken cancellationToken = default)
     {
         try

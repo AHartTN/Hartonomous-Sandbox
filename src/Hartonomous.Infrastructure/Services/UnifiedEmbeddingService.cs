@@ -22,6 +22,14 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     private readonly ILogger<UnifiedEmbeddingService> _logger;
     private const int EmbeddingDimension = 768;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UnifiedEmbeddingService"/> class with repositories, ingestion pipeline, configuration, and logging dependencies.
+    /// </summary>
+    /// <param name="tokenVocabularyRepository">Repository used to resolve canonical token information.</param>
+    /// <param name="atomEmbeddingRepository">Repository responsible for persistence and spatial projection of embeddings.</param>
+    /// <param name="atomIngestionService">Service that handles deduplication and ingestion of new atoms.</param>
+    /// <param name="configuration">Application configuration source for database connectivity.</param>
+    /// <param name="logger">Logger used to record operational diagnostics.</param>
     public UnifiedEmbeddingService(
         ITokenVocabularyRepository tokenVocabularyRepository,
         IAtomEmbeddingRepository atomEmbeddingRepository,
@@ -40,6 +48,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// Text embedding via TF-IDF from existing corpus vocabulary.
     /// Simple approach: Tokenize, compute term frequencies, generate vector from vocabulary weights.
     /// </summary>
+    /// <param name="text">Raw text to embed.</param>
+    /// <param name="cancellationToken">Token that cancels repository lookups for vocabulary items.</param>
+    /// <returns>Normalized embedding vector representing the supplied text.</returns>
+    /// <exception cref="ArgumentException">Thrown when the input text is empty or whitespace.</exception>
     public async Task<float[]> EmbedTextAsync(string text, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(text))
@@ -101,6 +113,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// Image embedding via pixel histogram and edge detection.
     /// Extracts color distribution, spatial gradients, basic visual features.
     /// </summary>
+    /// <param name="imageData">Raw bytes representing the image to embed.</param>
+    /// <param name="cancellationToken">Token that cancels any downstream repository calls.</param>
+    /// <returns>Normalized embedding vector for the image input.</returns>
+    /// <exception cref="ArgumentException">Thrown when the image payload is empty.</exception>
     public async Task<float[]> EmbedImageAsync(byte[] imageData, CancellationToken cancellationToken = default)
     {
         if (imageData == null || imageData.Length == 0)
@@ -167,6 +183,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// Audio embedding via FFT spectrum and MFCC (Mel-Frequency Cepstral Coefficients).
     /// Computes frequency distribution and acoustic patterns.
     /// </summary>
+    /// <param name="audioData">Audio bytes to embed.</param>
+    /// <param name="cancellationToken">Token that cancels the operation.</param>
+    /// <returns>Normalized embedding vector for the supplied audio.</returns>
+    /// <exception cref="ArgumentException">Thrown when the audio payload is empty.</exception>
     public async Task<float[]> EmbedAudioAsync(byte[] audioData, CancellationToken cancellationToken = default)
     {
         if (audioData == null || audioData.Length == 0)
@@ -205,6 +225,9 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// <summary>
     /// Video frame embedding (delegates to image embedding).
     /// </summary>
+    /// <param name="frameBytes">Raw video frame bytes to embed.</param>
+    /// <param name="cancellationToken">Token that cancels the downstream image embedding process.</param>
+    /// <returns>Task that resolves to the generated frame embedding.</returns>
     public Task<float[]> EmbedVideoFrameAsync(byte[] frameBytes, CancellationToken cancellationToken = default)
     {
         return EmbedImageAsync(frameBytes, cancellationToken);
@@ -214,6 +237,13 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// Store embedding in database with automatic spatial projection.
     /// Inserts into Embeddings table, triggers sp_ComputeSpatialProjection for 768D → 3D GEOMETRY.
     /// </summary>
+    /// <param name="embedding">Normalized embedding vector to persist.</param>
+    /// <param name="sourceData">Original source payload used to produce the embedding.</param>
+    /// <param name="sourceType">Logical modality of the source payload.</param>
+    /// <param name="metadata">Optional metadata saved alongside the embedding.</param>
+    /// <param name="cancellationToken">Token that cancels ingestion work.</param>
+    /// <returns>Identifier of the persisted embedding (or reused duplicate).</returns>
+    /// <exception cref="ArgumentException">Thrown when the embedding is null or not the expected dimension.</exception>
     public async Task<long> StoreEmbeddingAsync(
         float[] embedding,
         object sourceData,
@@ -273,6 +303,12 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// <summary>
     /// Generate and store embedding in one operation.
     /// </summary>
+    /// <param name="input">Source payload to embed.</param>
+    /// <param name="inputType">Logical modality associated with the payload.</param>
+    /// <param name="metadata">Optional metadata to persist.</param>
+    /// <param name="cancellationToken">Token that cancels embedding generation or storage.</param>
+    /// <returns>Tuple containing the persisted embedding identifier and the generated vector.</returns>
+    /// <exception cref="ArgumentException">Thrown when the modality type is unknown.</exception>
     public async Task<(long embeddingId, float[] embedding)> GenerateAndStoreAsync(
         object input,
         string inputType,
@@ -297,6 +333,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// Zero-shot classification: Compute similarity between input and each label.
     /// Uses VECTOR_DISTANCE (cosine) to measure semantic proximity.
     /// </summary>
+    /// <param name="imageBytes">Image payload to classify.</param>
+    /// <param name="labels">Candidate labels used for zero-shot scoring.</param>
+    /// <param name="cancellationToken">Token that cancels the embedding work.</param>
+    /// <returns>Dictionary mapping labels to probability scores.</returns>
     public async Task<Dictionary<string, float>> ZeroShotClassifyAsync(
         byte[] imageBytes,
         IReadOnlyList<string> labels,
@@ -339,6 +379,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// <summary>
     /// Zero-shot image retrieval: Find images matching text description.
     /// </summary>
+    /// <param name="textDescription">Natural language description to search against stored embeddings.</param>
+    /// <param name="topK">Maximum number of matches to return.</param>
+    /// <param name="cancellationToken">Token that cancels the hybrid search.</param>
+    /// <returns>Ordered list of image identifiers paired with similarity scores.</returns>
     public async Task<IReadOnlyList<(long imageId, float similarity)>> ZeroShotImageRetrievalAsync(
         string textDescription,
         int topK = 10,
@@ -370,6 +414,12 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     /// <summary>
     /// Cross-modal search using sp_CrossModalQuery.
     /// </summary>
+    /// <param name="queryEmbedding">Normalized embedding used as the query vector.</param>
+    /// <param name="topK">Maximum number of candidates the stored procedure should return.</param>
+    /// <param name="filterByType">Optional modality filter applied client-side.</param>
+    /// <param name="cancellationToken">Token that cancels the database operation.</param>
+    /// <returns>Cross-modal search results ordered by similarity.</returns>
+    /// <exception cref="InvalidOperationException">Thrown when the Hartonomous connection string cannot be located.</exception>
     public async Task<IReadOnlyList<CrossModalResult>> CrossModalSearchAsync(
         float[] queryEmbedding,
         int topK = 10,

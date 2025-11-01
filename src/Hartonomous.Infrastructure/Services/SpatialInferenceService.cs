@@ -7,15 +7,29 @@ using System.Data;
 
 namespace Hartonomous.Infrastructure.Services;
 
+/// <summary>
+/// Provides spatially-aware inference operations backed by SQL Server stored procedures.
+/// </summary>
 public class SpatialInferenceService : ISpatialInferenceService
 {
     private readonly HartonomousDbContext _context;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SpatialInferenceService"/> class.
+    /// </summary>
+    /// <param name="context">Database context used to execute spatial inference procedures.</param>
     public SpatialInferenceService(HartonomousDbContext context)
     {
         _context = context ?? throw new ArgumentNullException(nameof(context));
     }
 
+    /// <summary>
+    /// Executes the spatial attention stored procedure to retrieve nearby token relationships.
+    /// </summary>
+    /// <param name="queryTokenId">Identifier of the anchor token.</param>
+    /// <param name="contextSize">Number of neighboring tokens to return.</param>
+    /// <param name="cancellationToken">Token that cancels the database call.</param>
+    /// <returns>Ordered list of attention results with spatial metadata.</returns>
     public async Task<IReadOnlyList<SpatialAttentionResult>> SpatialAttentionAsync(
         long queryTokenId,
         int contextSize,
@@ -53,6 +67,14 @@ public class SpatialInferenceService : ISpatialInferenceService
         return results;
     }
 
+    /// <summary>
+    /// Predicts likely next tokens using spatial context and probabilistic smoothing.
+    /// </summary>
+    /// <param name="contextTokenIds">Sequence of token identifiers representing the current context.</param>
+    /// <param name="temperature">Temperature parameter applied to the probability distribution.</param>
+    /// <param name="topK">Maximum number of predictions to return.</param>
+    /// <param name="cancellationToken">Token that cancels the database call.</param>
+    /// <returns>Sorted collection of candidate tokens with probabilities.</returns>
     public async Task<IReadOnlyList<SpatialNextTokenPrediction>> PredictNextTokenAsync(
         IEnumerable<long> contextTokenIds,
         double temperature,
@@ -93,6 +115,17 @@ public class SpatialInferenceService : ISpatialInferenceService
             .ToList();
     }
 
+    /// <summary>
+    /// Performs a multi-resolution spatial search combining coarse and fine projections.
+    /// </summary>
+    /// <param name="queryX">X coordinate of the query point.</param>
+    /// <param name="queryY">Y coordinate of the query point.</param>
+    /// <param name="queryZ">Z coordinate of the query point.</param>
+    /// <param name="coarseCandidates">Number of coarse candidates to evaluate.</param>
+    /// <param name="fineCandidates">Number of fine-grained candidates to evaluate.</param>
+    /// <param name="topK">Maximum number of final results to return.</param>
+    /// <param name="cancellationToken">Token that cancels the database call.</param>
+    /// <returns>Collection of search results with spatial and metadata details.</returns>
     public async Task<IReadOnlyList<MultiResolutionSearchResult>> MultiResolutionSearchAsync(
         double queryX,
         double queryY,
@@ -151,6 +184,14 @@ public class SpatialInferenceService : ISpatialInferenceService
         return results;
     }
 
+    /// <summary>
+    /// Executes cognitive activation to retrieve embeddings exceeding an activation threshold.
+    /// </summary>
+    /// <param name="queryVector">Embedding used as the activation query.</param>
+    /// <param name="activationThreshold">Minimum activation strength required.</param>
+    /// <param name="maxActivated">Maximum number of results to return.</param>
+    /// <param name="cancellationToken">Token that cancels the database call.</param>
+    /// <returns>List of activated embeddings with contextual metadata.</returns>
     public async Task<IReadOnlyList<CognitiveActivationResult>> CognitiveActivationAsync(
         float[] queryVector,
         double activationThreshold,
@@ -189,6 +230,14 @@ public class SpatialInferenceService : ISpatialInferenceService
         return results;
     }
 
+    /// <summary>
+    /// Generates text via the spatial generation stored procedure.
+    /// </summary>
+    /// <param name="prompt">Prompt text provided to the spatial generator.</param>
+    /// <param name="maxTokens">Maximum number of tokens the procedure may generate.</param>
+    /// <param name="temperature">Sampling temperature controlling randomness.</param>
+    /// <param name="cancellationToken">Token that cancels the generation call.</param>
+    /// <returns>Generated text; falls back to the prompt when no output is produced.</returns>
     public async Task<string> GenerateTextSpatialAsync(
         string prompt,
         int maxTokens,

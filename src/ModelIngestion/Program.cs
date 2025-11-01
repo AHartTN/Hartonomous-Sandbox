@@ -63,7 +63,6 @@ namespace ModelIngestion
                     services.AddScoped<ModelDownloader>();
 
                     // Register new focused services
-                    services.AddScoped<ModelDownloadService>();
                     services.AddScoped<EmbeddingTestService>();
                     services.AddScoped<QueryService>();
                     services.AddScoped<AtomicStorageTestService>();

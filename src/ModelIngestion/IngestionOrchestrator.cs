@@ -18,7 +18,7 @@ namespace ModelIngestion
     {
         private readonly ILogger<IngestionOrchestrator> _logger;
         private readonly IModelRepository _models;
-        private readonly ModelDownloadService _downloadService;
+    private readonly ModelDownloader _downloadService;
         private readonly EmbeddingTestService _embeddingTestService;
         private readonly QueryService _queryService;
         private readonly AtomicStorageTestService _atomicTestService;
@@ -45,7 +45,7 @@ namespace ModelIngestion
         public IngestionOrchestrator(
             ILogger<IngestionOrchestrator> logger,
             IModelRepository models,
-            ModelDownloadService downloadService,
+            ModelDownloader downloadService,
             EmbeddingTestService embeddingTestService,
             QueryService queryService,
             AtomicStorageTestService atomicTestService,
@@ -332,17 +332,17 @@ namespace ModelIngestion
             {
                 // Download
                 _logger.LogInformation("Step 1/2: Downloading model from Hugging Face...");
-                var downloadResult = await _downloadService.DownloadAndIngestHuggingFaceAsync(modelId, cancellationToken);
+                var modelPathRoot = await _downloadService.DownloadFromHuggingFaceAsync(modelId, cancellationToken);
 
                 // Find safetensors file
-                var modelFiles = Directory.GetFiles(downloadResult.ModelPath, "*.safetensors");
+                var modelFiles = Directory.GetFiles(modelPathRoot, "*.safetensors");
                 if (modelFiles.Length == 0)
                 {
-                    modelFiles = Directory.GetFiles(downloadResult.ModelPath, "*.onnx");
+                    modelFiles = Directory.GetFiles(modelPathRoot, "*.onnx");
                 }
                 if (modelFiles.Length == 0)
                 {
-                    _logger.LogError("No compatible model files found in: {Dir}", downloadResult.ModelPath);
+                    _logger.LogError("No compatible model files found in: {Dir}", modelPathRoot);
                     return;
                 }
 
