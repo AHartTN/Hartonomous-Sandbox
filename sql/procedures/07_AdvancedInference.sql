@@ -26,7 +26,7 @@ BEGIN
     PRINT 'MULTI-RESOLUTION SEARCH: Coarse → Fine → Exact';
     PRINT '  Strategy: 3-stage funnel for billion-scale performance';
 
-    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT Z (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT (', @query_x, ' ', @query_y, ' ', @query_z, ')');
     DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
     -- Stage 1: Coarse spatial filter (quantized grid)
@@ -330,7 +330,7 @@ BEGIN
     IF @spatial_query_x IS NOT NULL AND @spatial_query_y IS NOT NULL
     BEGIN
         DECLARE @z FLOAT = ISNULL(@spatial_query_z, 0);
-        DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT Z (', @spatial_query_x, ' ', @spatial_query_y, ' ', @z, ')');
+    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT (', @spatial_query_x, ' ', @spatial_query_y, ' ', @z, ')');
         DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
         SELECT TOP (@top_k)

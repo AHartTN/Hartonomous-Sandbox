@@ -2,6 +2,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.ApplicationInsights;
 using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
@@ -77,12 +78,37 @@ namespace ModelIngestion
 
                     services.AddScoped<AtomicStorageService>();
                     services.AddScoped<IAtomicStorageService>(sp => sp.GetRequiredService<AtomicStorageService>());
+
+                    var appInsightsSection = context.Configuration.GetSection("ApplicationInsights");
+                    var appInsightsConnectionString = appInsightsSection.GetValue<string>("ConnectionString");
+
+                    if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+                    {
+                        services.AddApplicationInsightsTelemetryWorkerService(options =>
+                        {
+                            options.ConnectionString = appInsightsConnectionString;
+                            options.EnableAdaptiveSampling = appInsightsSection.GetValue<bool?>("EnableAdaptiveSampling") ?? true;
+                            options.AdaptiveSamplingMaxTelemetryItemsPerSecond = appInsightsSection.GetValue<double?>("MaxTelemetryItemsPerSecond") ?? 5;
+                            options.EnablePerformanceCounterCollectionModule = appInsightsSection.GetValue<bool?>("EnablePerformanceCounters") ?? false;
+                        });
+                    }
                 })
                 .ConfigureLogging((context, logging) =>
                 {
                     logging.ClearProviders();
                     logging.AddConsole();
                     logging.AddDebug();
+                    var appInsightsConnectionString = context.Configuration["ApplicationInsights:ConnectionString"];
+
+                    if (!string.IsNullOrWhiteSpace(appInsightsConnectionString))
+                    {
+                        logging.AddApplicationInsights(
+                            configureTelemetryConfiguration: config => config.ConnectionString = appInsightsConnectionString,
+                            configureApplicationInsightsLoggerOptions: options =>
+                            {
+                                options.TrackExceptionsAsExceptionTelemetry = true;
+                            });
+                    }
                     logging.SetMinimumLevel(LogLevel.Information);
                 });
     }

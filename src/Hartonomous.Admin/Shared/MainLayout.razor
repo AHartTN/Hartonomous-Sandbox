@@ -1,0 +1,26 @@
+@inherits LayoutComponentBase
+
+<link rel="stylesheet" href="css/site.css" />
+
+<div class="layout">
+    <div class="layout-nav">
+        <nav class="nav-menu">
+            <div class="nav-menu__section">Navigation</div>
+            <ul class="nav-menu__list">
+                <li><a class="nav-menu__link" href="/">Dashboard</a></li>
+                <li><a class="nav-menu__link" href="/models">Model Browser</a></li>
+                <li><a class="nav-menu__link" href="/ingestion">Model Ingestion</a></li>
+                <li><a class="nav-menu__link" href="/extraction">Model Extraction</a></li>
+                <li><a class="nav-menu__link" href="/operations">Operations Log</a></li>
+            </ul>
+        </nav>
+    </div>
+    <div class="layout-body">
+        <header class="layout-header">
+            <div class="layout-header__branding">Hartonomous Admin</div>
+        </header>
+        <main class="layout-content">
+            @Body
+        </main>
+    </div>
+</div>

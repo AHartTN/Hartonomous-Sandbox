@@ -1,0 +1,76 @@
+@page "/operations"
+@implements IDisposable
+@inject AdminOperationCoordinator Coordinator
+
+<h1>Operations Log</h1>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Type</th>
+            <th>Status</th>
+            <th>Queued</th>
+            <th>Started</th>
+            <th>Completed</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (_operations.Count == 0)
+        {
+            <tr>
+                <td colspan="7">No operations queued yet.</td>
+            </tr>
+        }
+        else
+        {
+            foreach (var op in _operations)
+            {
+                <tr>
+                    <td style="font-family:monospace; font-size:0.75rem;">@op.OperationId</td>
+                    <td>@op.OperationType</td>
+                    <td>@op.State</td>
+                    <td>@Format(op.EnqueuedAt)</td>
+                    <td>@Format(op.StartedAt)</td>
+                    <td>@Format(op.CompletedAt)</td>
+                    <td>@(string.IsNullOrWhiteSpace(op.Error) ? op.Detail : $"Error: {op.Error}")</td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@code {
+    private readonly List<AdminOperationStatus> _operations = new();
+
+    protected override void OnInitialized()
+    {
+        _operations.AddRange(Coordinator.GetRecent(50).OrderByDescending(o => o.EnqueuedAt));
+        Coordinator.OperationUpdated += OnOperationUpdated;
+    }
+
+    private void OnOperationUpdated(object? sender, AdminOperationStatus status)
+    {
+        var index = _operations.FindIndex(o => o.OperationId == status.OperationId);
+        if (index >= 0)
+        {
+            _operations[index] = status;
+        }
+        else
+        {
+            _operations.Insert(0, status);
+        }
+
+    _operations.Sort((a, b) => DateTimeOffset.Compare(b.StartedAt ?? b.EnqueuedAt, a.StartedAt ?? a.EnqueuedAt));
+
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private static string Format(DateTimeOffset? value) => value?.ToLocalTime().ToString("g") ?? "—";
+
+    public void Dispose()
+    {
+        Coordinator.OperationUpdated -= OnOperationUpdated;
+    }
+}

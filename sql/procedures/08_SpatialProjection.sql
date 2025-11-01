@@ -230,14 +230,14 @@ BEGIN
             @output_z = @z OUTPUT;
 
         DECLARE @geometryWkt NVARCHAR(200) =
-            'POINT Z (' + CONVERT(NVARCHAR(50), @x) + ' ' +
-                            CONVERT(NVARCHAR(50), @y) + ' ' +
-                            CONVERT(NVARCHAR(50), @z) + ')';
+            'POINT (' + CONVERT(NVARCHAR(50), @x) + ' ' +
+                          CONVERT(NVARCHAR(50), @y) + ' ' +
+                          CONVERT(NVARCHAR(50), @z) + ')';
 
         DECLARE @coarseWkt NVARCHAR(200) =
-            'POINT Z (' + CONVERT(NVARCHAR(50), FLOOR(@x)) + ' ' +
-                            CONVERT(NVARCHAR(50), FLOOR(@y)) + ' ' +
-                            CONVERT(NVARCHAR(50), FLOOR(@z)) + ')';
+            'POINT (' + CONVERT(NVARCHAR(50), FLOOR(@x)) + ' ' +
+                          CONVERT(NVARCHAR(50), FLOOR(@y)) + ' ' +
+                          CONVERT(NVARCHAR(50), FLOOR(@z)) + ')';
 
         UPDATE dbo.AtomEmbeddings
         SET

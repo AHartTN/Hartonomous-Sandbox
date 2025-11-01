@@ -142,8 +142,9 @@ public sealed class SqlServerTestFixture : IAsyncLifetime
             await DbContext.Database.OpenConnectionAsync().ConfigureAwait(false);
             await DbContext.Database.CloseConnectionAsync().ConfigureAwait(false);
 
-            await EnsureSpatialInfrastructureAsync(CancellationToken.None).ConfigureAwait(false);
+            await EnsureStoredProceduresUpToDateAsync(CancellationToken.None).ConfigureAwait(false);
             await EnsureIntegrationSeedDataAsync(CancellationToken.None).ConfigureAwait(false);
+            await EnsureSpatialInfrastructureAsync(CancellationToken.None).ConfigureAwait(false);
 
             _loggerFactory = LoggerFactory.Create(builder =>
             {
@@ -191,6 +192,127 @@ public sealed class SqlServerTestFixture : IAsyncLifetime
         _loggerFactory?.Dispose();
     }
 
+    private async Task EnsureStoredProceduresUpToDateAsync(CancellationToken cancellationToken)
+    {
+        if (DbContext is null)
+        {
+            throw new InvalidOperationException("DbContext must be initialised before refreshing stored procedures.");
+        }
+
+        const string multiResolutionSearchSql = """
+CREATE OR ALTER PROCEDURE dbo.sp_MultiResolutionSearch
+    @query_x FLOAT,
+    @query_y FLOAT,
+    @query_z FLOAT,
+    @coarse_candidates INT = 1000,
+    @fine_candidates INT = 100,
+    @final_top_k INT = 10
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+    DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
+
+    DECLARE @coarse_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
+
+    INSERT INTO @coarse_results (AtomEmbeddingId)
+    SELECT TOP (@coarse_candidates) ae.AtomEmbeddingId
+    FROM dbo.AtomEmbeddings AS ae
+    WHERE ae.SpatialCoarse IS NOT NULL
+    ORDER BY ae.SpatialCoarse.STDistance(@query_pt);
+
+    DECLARE @fine_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
+
+    INSERT INTO @fine_results (AtomEmbeddingId)
+    SELECT TOP (@fine_candidates) ae.AtomEmbeddingId
+    FROM dbo.AtomEmbeddings AS ae
+    INNER JOIN @coarse_results AS cr ON cr.AtomEmbeddingId = ae.AtomEmbeddingId
+    WHERE ae.SpatialGeometry IS NOT NULL
+    ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
+
+    SELECT TOP (@final_top_k)
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        a.Modality,
+        a.Subtype,
+        a.SourceType,
+        a.SourceUri,
+        a.CanonicalText,
+        ae.EmbeddingType,
+        ae.ModelId,
+        ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance,
+        ae.SpatialCoarse.STDistance(@query_pt) AS CoarseDistance
+    FROM dbo.AtomEmbeddings AS ae
+    INNER JOIN @fine_results AS fr ON fr.AtomEmbeddingId = ae.AtomEmbeddingId
+    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    ORDER BY SpatialDistance ASC;
+END;
+""";
+
+        const string recomputeSpatialSql = """
+CREATE OR ALTER PROCEDURE dbo.sp_RecomputeAllSpatialProjections
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    EXEC dbo.sp_InitializeSpatialAnchors;
+
+    DECLARE @embeddingId BIGINT;
+    DECLARE @vector VECTOR(1998);
+    DECLARE @dimension INT;
+    DECLARE @x FLOAT, @y FLOAT, @z FLOAT;
+
+    DECLARE embedding_cursor CURSOR LOCAL FAST_FORWARD FOR
+        SELECT AtomEmbeddingId, EmbeddingVector, Dimension
+        FROM dbo.AtomEmbeddings
+        WHERE EmbeddingVector IS NOT NULL;
+
+    OPEN embedding_cursor;
+    FETCH NEXT FROM embedding_cursor INTO @embeddingId, @vector, @dimension;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        IF (@dimension <= 0 OR @dimension > 1998)
+        BEGIN
+            SET @dimension = 1998;
+        END;
+
+        EXEC dbo.sp_ComputeSpatialProjection
+            @input_vector = @vector,
+            @input_dimension = @dimension,
+            @output_x = @x OUTPUT,
+            @output_y = @y OUTPUT,
+            @output_z = @z OUTPUT;
+
+        DECLARE @geometryWkt NVARCHAR(200) =
+            'POINT (' + CONVERT(NVARCHAR(50), @x) + ' ' +
+                            CONVERT(NVARCHAR(50), @y) + ' ' +
+                            CONVERT(NVARCHAR(50), @z) + ')';
+
+        DECLARE @coarseWkt NVARCHAR(200) =
+            'POINT (' + CONVERT(NVARCHAR(50), FLOOR(@x)) + ' ' +
+                            CONVERT(NVARCHAR(50), FLOOR(@y)) + ' ' +
+                            CONVERT(NVARCHAR(50), FLOOR(@z)) + ')';
+
+        UPDATE dbo.AtomEmbeddings
+        SET
+            SpatialGeometry = geometry::STGeomFromText(@geometryWkt, 0),
+            SpatialCoarse = geometry::STGeomFromText(@coarseWkt, 0)
+        WHERE AtomEmbeddingId = @embeddingId;
+
+        FETCH NEXT FROM embedding_cursor INTO @embeddingId, @vector, @dimension;
+    END;
+
+    CLOSE embedding_cursor;
+    DEALLOCATE embedding_cursor;
+END;
+""";
+
+        await DbContext.Database.ExecuteSqlRawAsync(multiResolutionSearchSql, cancellationToken).ConfigureAwait(false);
+        await DbContext.Database.ExecuteSqlRawAsync(recomputeSpatialSql, cancellationToken).ConfigureAwait(false);
+    }
+
     private async Task EnsureSpatialInfrastructureAsync(CancellationToken cancellationToken)
     {
         if (DbContext is null)
@@ -222,22 +344,25 @@ END;
 """;
         await database.ExecuteSqlRawAsync(spatialIndexSql, cancellationToken).ConfigureAwait(false);
 
-        const string seedTokensSql = """
-IF NOT EXISTS (SELECT 1 FROM dbo.TokenEmbeddingsGeo)
-BEGIN
-    INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
-    VALUES
-    ('the', geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), 512),
-    ('is', geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), 384),
-    ('machine', geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), 120),
-    ('learning', geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), 110),
-    ('database', geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), 95),
-    ('query', geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), 88),
-    ('neural', geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), 140),
-    ('network', geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), 135);
-END;
+    const string resetSeedTokensSql = """
+DELETE FROM dbo.TokenEmbeddingsGeo
+WHERE TokenText IN ('the', 'is', 'machine', 'learning', 'database', 'query', 'neural', 'network');
 """;
-        await database.ExecuteSqlRawAsync(seedTokensSql, cancellationToken).ConfigureAwait(false);
+    await database.ExecuteSqlRawAsync(resetSeedTokensSql, cancellationToken).ConfigureAwait(false);
+
+    const string seedTokensSql = """
+INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
+VALUES
+('the', geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), 512),
+('is', geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), 384),
+('machine', geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), 120),
+('learning', geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), 110),
+('database', geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), 95),
+('query', geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), 88),
+('neural', geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), 140),
+('network', geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), 135);
+""";
+    await database.ExecuteSqlRawAsync(seedTokensSql, cancellationToken).ConfigureAwait(false);
 
         const string ensureAnchorsSql = """
 IF NOT EXISTS (SELECT 1 FROM dbo.SpatialAnchors)
@@ -306,48 +431,60 @@ END;
             }
         }
 
-        if (!await DbContext.AtomEmbeddings.AnyAsync(cancellationToken).ConfigureAwait(false))
+        var sampleTexts = new[]
         {
-            var embeddings = new List<AtomEmbedding>();
+            "Integration sample text 1",
+            "Integration sample text 2",
+            "Integration sample text 3"
+        };
 
-            for (var index = 0; index < 3; index++)
+        var saveRequired = false;
+
+        for (var index = 0; index < sampleTexts.Length; index++)
+        {
+            var text = sampleTexts[index];
+            var atom = await DbContext.Atoms
+                .FirstOrDefaultAsync(a => a.CanonicalText == text, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (atom is null)
             {
-                var text = $"Integration sample text {index + 1}";
                 var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
-
-                var atom = await DbContext.Atoms
-                    .FirstOrDefaultAsync(a => a.ContentHash == hash, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (atom is null)
+                atom = new Atom
                 {
-                    atom = new Atom
-                    {
-                        ContentHash = hash,
-                        Modality = "text",
-                        Subtype = "document",
-                        SourceUri = "integration://seed",
-                        SourceType = "integration-test",
-                        CanonicalText = text,
-                        Metadata = "{\"source\":\"integration-tests\"}",
-                        CreatedAt = DateTime.UtcNow,
-                        IsActive = true,
-                        ReferenceCount = 1
-                    };
+                    ContentHash = hash,
+                    Modality = "text",
+                    Subtype = "document",
+                    SourceUri = "integration://seed",
+                    SourceType = "integration-test",
+                    CanonicalText = text,
+                    Metadata = "{\"source\":\"integration-tests\"}",
+                    CreatedAt = DateTime.UtcNow,
+                    IsActive = true,
+                    ReferenceCount = 1
+                };
 
-                    DbContext.Atoms.Add(atom);
-                }
-                else
-                {
-                    atom.ReferenceCount = Math.Max(atom.ReferenceCount, 1);
-                }
+                DbContext.Atoms.Add(atom);
+                await DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+            else if (atom.ReferenceCount < 1)
+            {
+                atom.ReferenceCount = 1;
+                saveRequired = true;
+            }
 
+            var embedding = await DbContext.AtomEmbeddings
+                .FirstOrDefaultAsync(e => e.AtomId == atom.AtomId && e.ModelId == model.ModelId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (embedding is null)
+            {
                 var dense = CreateSampleVector(index);
                 var padded = VectorUtility.PadToSqlLength(dense, out var usedPadding);
 
-                var embedding = new AtomEmbedding
+                embedding = new AtomEmbedding
                 {
-                    Atom = atom,
+                    AtomId = atom.AtomId,
                     ModelId = model.ModelId,
                     EmbeddingType = "text",
                     Dimension = dense.Length,
@@ -359,32 +496,51 @@ END;
                     CreatedAt = DateTime.UtcNow
                 };
 
-                embeddings.Add(embedding);
+                await DbContext.AtomEmbeddings.AddAsync(embedding, cancellationToken).ConfigureAwait(false);
+                saveRequired = true;
             }
+            else
+            {
+                var updated = false;
 
-            await DbContext.AtomEmbeddings.AddRangeAsync(embeddings, cancellationToken).ConfigureAwait(false);
-            await DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                if (embedding.SpatialGeometry is null)
+                {
+                    embedding.SpatialGeometry = CreateSpatialPoint(index, false);
+                    updated = true;
+                }
+
+                if (embedding.SpatialCoarse is null)
+                {
+                    embedding.SpatialCoarse = CreateSpatialPoint(index, true);
+                    updated = true;
+                }
+
+                if (embedding.Dimension <= 0)
+                {
+                    embedding.Dimension = 32;
+                    updated = true;
+                }
+
+                if (embedding.EmbeddingVector is null)
+                {
+                    var dense = CreateSampleVector(index);
+                    var padded = VectorUtility.PadToSqlLength(dense, out var usedPadding);
+                    embedding.EmbeddingVector = new SqlVector<float>(padded);
+                    embedding.Dimension = dense.Length;
+                    embedding.UsesMaxDimensionPadding = usedPadding;
+                    updated = true;
+                }
+
+                if (updated)
+                {
+                    saveRequired = true;
+                }
+            }
         }
-        else
+
+        if (saveRequired)
         {
-            var missingSpatial = await DbContext.AtomEmbeddings
-                .Where(e => e.SpatialGeometry == null || e.SpatialCoarse == null)
-                .ToListAsync(cancellationToken)
-                .ConfigureAwait(false);
-
-            var updated = false;
-            for (var i = 0; i < missingSpatial.Count; i++)
-            {
-                var embedding = missingSpatial[i];
-                embedding.SpatialGeometry ??= CreateSpatialPoint(i, false);
-                embedding.SpatialCoarse ??= CreateSpatialPoint(i, true);
-                updated = true;
-            }
-
-            if (updated)
-            {
-                await DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            }
+            await DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
     }
 

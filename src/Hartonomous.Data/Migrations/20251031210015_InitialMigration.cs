@@ -1341,7 +1341,7 @@ namespace Hartonomous.Data.Migrations
                 BEGIN
                     SET NOCOUNT ON;
 
-                    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT Z (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+                    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT (', @query_x, ' ', @query_y, ' ', @query_z, ')');
                     DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
                     DECLARE @coarse_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);

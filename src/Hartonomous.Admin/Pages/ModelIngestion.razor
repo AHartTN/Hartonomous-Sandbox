@@ -1,0 +1,116 @@
+@page "/ingestion"
+@inject AdminOperationService OperationService
+
+<h1>Model Ingestion Control</h1>
+
+@if (!string.IsNullOrEmpty(_feedback))
+{
+    <div class="@( _isError ? "alert-error" : "alert-success" )">@_feedback</div>
+}
+
+<div class="dashboard-grid" style="margin-top:1.5rem;">
+    <section class="dashboard-card">
+        <h2>Single Model</h2>
+        <div class="form-field">
+            <label for="model-path">Model path</label>
+            <input id="model-path" @bind="_modelPath" placeholder="C:\\models\\mistral-7b\model.safetensors" />
+        </div>
+        <button class="button" @onclick="QueueSingleAsync" disabled="@(_isSubmitting || string.IsNullOrWhiteSpace(_modelPath))">Queue ingestion</button>
+    </section>
+    <section class="dashboard-card">
+        <h2>Bulk Directory</h2>
+        <div class="form-field">
+            <label for="directory-path">Directory path</label>
+            <input id="directory-path" @bind="_directoryPath" placeholder="C:\\models\\falcon-pack" />
+        </div>
+        <button class="button" @onclick="QueueBulkAsync" disabled="@(_isSubmitting || string.IsNullOrWhiteSpace(_directoryPath))">Queue bulk ingestion</button>
+    </section>
+</div>
+
+<section style="margin-top:2rem;">
+    <h2>Recent ingestion operations</h2>
+    @if (_recentOperations.Count == 0)
+    {
+        <p>No ingestion actions queued yet.</p>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Operation</th>
+                    <th>Status</th>
+                    <th>Queued</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var op in _recentOperations)
+                {
+                    <tr>
+                        <td>@op.Description</td>
+                        <td>@op.State</td>
+                        <td>@op.EnqueuedAt.ToLocalTime().ToString("g")</td>
+                        <td>@op.Detail</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+@code {
+    private readonly List<AdminOperationStatus> _recentOperations = new();
+    private string _modelPath = string.Empty;
+    private string _directoryPath = string.Empty;
+    private string? _feedback;
+    private bool _isError;
+    private bool _isSubmitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await RefreshRecentOperationsAsync().ConfigureAwait(false);
+    }
+
+    private async Task QueueSingleAsync()
+    {
+        await QueueOperationAsync(() => OperationService.QueueModelIngestionAsync(_modelPath));
+    }
+
+    private async Task QueueBulkAsync()
+    {
+        await QueueOperationAsync(() => OperationService.QueueMultiModelIngestionAsync(_directoryPath));
+    }
+
+    private async Task QueueOperationAsync(Func<Task<AdminOperationStatus>> enqueue)
+    {
+        _isSubmitting = true;
+        _feedback = null;
+        _isError = false;
+
+        try
+        {
+            var status = await enqueue().ConfigureAwait(false);
+            _feedback = $"Queued operation {status.OperationId}";
+            _isError = status.State == AdminOperationState.Failed;
+            await RefreshRecentOperationsAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _feedback = ex.Message;
+            _isError = true;
+        }
+        finally
+        {
+            _isSubmitting = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task RefreshRecentOperationsAsync()
+    {
+        var operations = await OperationService.GetRecentOperationsAsync().ConfigureAwait(false);
+        _recentOperations.Clear();
+        _recentOperations.AddRange(operations.OrderByDescending(o => o.EnqueuedAt));
+    }
+}
