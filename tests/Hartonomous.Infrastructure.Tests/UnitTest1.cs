@@ -141,7 +141,7 @@ public class AtomIngestionServiceTests
         Assert.True(result.WasDuplicate);
         Assert.Equal(duplicateAtom!.AtomId, result.Atom.AtomId);
         Assert.Equal(2, duplicateAtom.ReferenceCount);
-    Assert.Equal("Semantic similarity 0.9500 ≥ 0.9000", result.DuplicateReason);
+        Assert.Equal("Semantic similarity 0.9500 ≥ 0.9000", result.DuplicateReason);
     }
 
     private static AtomIngestionService CreateService(

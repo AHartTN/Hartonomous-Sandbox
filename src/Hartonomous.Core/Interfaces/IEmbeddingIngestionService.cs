@@ -24,7 +24,7 @@ public interface IEmbeddingIngestionService
         float[] embeddingFull,
         float[]? spatial3D = null,
         CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Ingest multiple embeddings in a batch for efficiency.
     /// Uses EF Core AddRangeAsync for optimized bulk inserts.
@@ -55,12 +55,12 @@ public class EmbeddingIngestionResult
         get => AtomEmbeddingId;
         set => AtomEmbeddingId = value;
     }
-    
+
     /// <summary>
     /// Gets or sets whether this was a duplicate (true) or new embedding (false).
     /// </summary>
     public bool WasDuplicate { get; set; }
-    
+
     /// <summary>
     /// Gets or sets the reason for duplication if WasDuplicate is true.
     /// </summary>

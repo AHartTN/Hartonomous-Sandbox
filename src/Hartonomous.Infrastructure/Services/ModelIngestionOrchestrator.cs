@@ -38,7 +38,7 @@ public class ModelIngestionOrchestrator
 
         // Detect format
         var formatInfo = await _discoveryService.DetectFormatAsync(modelPath, cancellationToken);
-        _logger.LogInformation("Detected format: {Format} (confidence: {Confidence:P0})", 
+        _logger.LogInformation("Detected format: {Format} (confidence: {Confidence:P0})",
             formatInfo.Format, formatInfo.Confidence);
 
         if (formatInfo.Confidence < 0.5)
@@ -71,7 +71,7 @@ public class ModelIngestionOrchestrator
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of ingested models</returns>
     public async Task<IEnumerable<Model>> IngestMultiModelAsync(
-        string modelDirectory, 
+        string modelDirectory,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting multi-model ingestion from: {Path}", modelDirectory);
@@ -88,7 +88,7 @@ public class ModelIngestionOrchestrator
             .Where(f =>
             {
                 var ext = Path.GetExtension(f).ToLowerInvariant();
-                return ext == ".onnx" || ext == ".safetensors" || ext == ".gguf" || 
+                return ext == ".onnx" || ext == ".safetensors" || ext == ".gguf" ||
                        ext == ".bin" || ext == ".pth" || ext == ".pt";
             })
             .ToList();
@@ -143,14 +143,14 @@ public class ModelIngestionOrchestrator
     /// Get information about a model without ingesting it.
     /// </summary>
     public async Task<ModelFormatInfo> GetModelInfoAsync(
-        string modelPath, 
+        string modelPath,
         CancellationToken cancellationToken = default)
     {
         return await _discoveryService.DetectFormatAsync(modelPath, cancellationToken);
     }
 
     private async Task<Model> IngestWithReaderAsync<TMetadata>(
-        string modelPath, 
+        string modelPath,
         CancellationToken cancellationToken) where TMetadata : class
     {
         // Try to get reader from DI

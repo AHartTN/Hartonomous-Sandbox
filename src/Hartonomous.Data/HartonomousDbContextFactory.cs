@@ -11,7 +11,7 @@ namespace Hartonomous.Data
         public HartonomousDbContext CreateDbContext(string[] args)
         {
             var optionsBuilder = new DbContextOptionsBuilder<HartonomousDbContext>();
-            
+
             // Design-time connection string
             optionsBuilder.UseSqlServer(
                 "Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true",
@@ -21,7 +21,7 @@ namespace Hartonomous.Data
                         maxRetryCount: 3,
                         maxRetryDelay: TimeSpan.FromSeconds(5),
                         errorNumbersToAdd: null);
-                    
+
                     // CRITICAL: Enable NetTopologySuite for GEOMETRY columns
                     sqlServerOptions.UseNetTopologySuite();
                 });

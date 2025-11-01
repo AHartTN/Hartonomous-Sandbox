@@ -69,7 +69,7 @@ public class ModelReaderTests
 
         var model = await reader.ReadAsync(tempFile.Path);
 
-    Assert.Equal(Path.GetFileNameWithoutExtension(tempFile.Path), model.ModelName);
+        Assert.Equal(Path.GetFileNameWithoutExtension(tempFile.Path), model.ModelName);
         Assert.Equal("Safetensors", model.ModelType);
         Assert.Single(model.Layers);
 

@@ -50,9 +50,9 @@ public static class DependencyInjection
                     maxRetryCount: 3,
                     maxRetryDelay: TimeSpan.FromSeconds(5),
                     errorNumbersToAdd: null);
-                
+
                 sqlOptions.CommandTimeout(30);
-                
+
                 // Enable spatial types
                 sqlOptions.UseNetTopologySuite();
             });
@@ -70,7 +70,7 @@ public static class DependencyInjection
 
         services.AddScoped<IAtomRepository, AtomRepository>();
         services.AddScoped<IAtomEmbeddingRepository, AtomEmbeddingRepository>();
-    services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
+        services.AddScoped<IEmbeddingRepository, EmbeddingRepository>();
         services.AddScoped<ITensorAtomRepository, TensorAtomRepository>();
         services.AddScoped<IAtomRelationRepository, AtomRelationRepository>();
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();

@@ -111,26 +111,26 @@ internal static class OnnxModelParser
                     initializer.DataType = input.ReadInt32();
                     break;
                 case TensorFloatPackedTag:
-                {
-                    var data = input.ReadBytes();
-                    if (!data.IsEmpty)
                     {
-                        ReadPackedFloats(data.Span, initializer.FloatData);
+                        var data = input.ReadBytes();
+                        if (!data.IsEmpty)
+                        {
+                            ReadPackedFloats(data.Span, initializer.FloatData);
+                        }
+                        break;
                     }
-                    break;
-                }
                 case TensorFloatSingleTag:
                     initializer.FloatData.Add(input.ReadFloat());
                     break;
                 case TensorDoublePackedTag:
-                {
-                    var data = input.ReadBytes();
-                    if (!data.IsEmpty)
                     {
-                        ReadPackedDoubles(data.Span, initializer.DoubleData);
+                        var data = input.ReadBytes();
+                        if (!data.IsEmpty)
+                        {
+                            ReadPackedDoubles(data.Span, initializer.DoubleData);
+                        }
+                        break;
                     }
-                    break;
-                }
                 case TensorDoubleSingleTag:
                     initializer.DoubleData.Add(input.ReadDouble());
                     break;

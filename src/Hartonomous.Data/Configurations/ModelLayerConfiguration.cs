@@ -26,11 +26,11 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
         builder.Property(l => l.WeightsGeometry)
             .HasColumnName("WeightsGeometry")
             .HasColumnType("geometry");  // SQL Server GEOMETRY type
-        
+
         // Tensor shape as JSON array for reconstruction (e.g., "[3584, 3584]")
         builder.Property(l => l.TensorShape)
             .HasColumnType("NVARCHAR(200)");
-        
+
         // Tensor data type (float32, float16, bfloat16)
         builder.Property(l => l.TensorDtype)
             .HasMaxLength(20)

@@ -118,7 +118,7 @@ public class ModelDiscoveryService : IModelDiscoveryService
             fileStream.Seek(0, SeekOrigin.Begin);
             var headerLengthBytes = new byte[8];
             var headerBytesRead = await fileStream.ReadAsync(headerLengthBytes.AsMemory(0, 8), cancellationToken);
-            
+
             if (headerBytesRead == 8)
             {
                 var headerLength = BitConverter.ToUInt64(headerLengthBytes, 0);
@@ -176,7 +176,7 @@ public class ModelDiscoveryService : IModelDiscoveryService
         {
             architecture = modelType.GetString();
         }
-        else if (config != null && config.TryGetValue("architectures", out var architectures) && 
+        else if (config != null && config.TryGetValue("architectures", out var architectures) &&
                  architectures.ValueKind == JsonValueKind.Array)
         {
             var firstArch = architectures.EnumerateArray().FirstOrDefault();
@@ -187,7 +187,7 @@ public class ModelDiscoveryService : IModelDiscoveryService
         var weightFiles = files.Where(f =>
         {
             var name = Path.GetFileName(f).ToLowerInvariant();
-            return name.Contains("pytorch_model") || name.Contains("model") && 
+            return name.Contains("pytorch_model") || name.Contains("model") &&
                    (f.EndsWith(".bin") || f.EndsWith(".safetensors"));
         }).ToList();
 

@@ -344,13 +344,13 @@ END;
 """;
         await database.ExecuteSqlRawAsync(spatialIndexSql, cancellationToken).ConfigureAwait(false);
 
-    const string resetSeedTokensSql = """
+        const string resetSeedTokensSql = """
 DELETE FROM dbo.TokenEmbeddingsGeo
 WHERE TokenText IN ('the', 'is', 'machine', 'learning', 'database', 'query', 'neural', 'network');
 """;
-    await database.ExecuteSqlRawAsync(resetSeedTokensSql, cancellationToken).ConfigureAwait(false);
+        await database.ExecuteSqlRawAsync(resetSeedTokensSql, cancellationToken).ConfigureAwait(false);
 
-    const string seedTokensSql = """
+        const string seedTokensSql = """
 INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
 VALUES
 ('the', geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), 512),
@@ -362,7 +362,7 @@ VALUES
 ('neural', geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), 140),
 ('network', geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), 135);
 """;
-    await database.ExecuteSqlRawAsync(seedTokensSql, cancellationToken).ConfigureAwait(false);
+        await database.ExecuteSqlRawAsync(seedTokensSql, cancellationToken).ConfigureAwait(false);
 
         const string ensureAnchorsSql = """
 IF NOT EXISTS (SELECT 1 FROM dbo.SpatialAnchors)

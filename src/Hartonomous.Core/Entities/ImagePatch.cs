@@ -11,7 +11,7 @@ public sealed class ImagePatch
 {
     public long PatchId { get; set; }
     public long ImageId { get; set; }
-    
+
     // Patch coordinates
     public int PatchX { get; set; } // Top-left corner
     public int PatchY { get; set; }

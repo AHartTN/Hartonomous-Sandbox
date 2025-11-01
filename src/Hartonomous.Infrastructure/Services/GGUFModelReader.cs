@@ -85,7 +85,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             var key = ReadGGUFString(reader);
             var valueType = (GGUFMetadataValueType)reader.ReadUInt32();
             var value = ReadGGUFValue(reader, valueType);
-            
+
             metadataDict[key] = value;
 
             if (key == "general.architecture")
@@ -107,7 +107,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             var dims = new ulong[nDims];
             for (uint j = 0; j < nDims; j++)
                 dims[j] = reader.ReadUInt64();
-            
+
             var tensorType = reader.ReadUInt32();
             var offset = reader.ReadUInt64();
 
@@ -147,7 +147,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
         };
 
         await _modelRepository.AddAsync(model, cancellationToken);
-        _logger.LogInformation("Created model: {ModelName} (ID: {ModelId}, {ParamCount} params)", 
+        _logger.LogInformation("Created model: {ModelName} (ID: {ModelId}, {ParamCount} params)",
             model.ModelName, model.ModelId, totalParams);
 
         // Read and dequantize tensor data
@@ -169,69 +169,69 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             // Convert to GEOMETRY LINESTRING ZM (no dimension limits!)
             // X = index, Y = weight, Z = uniform importance (1.0), M = layer index
             if (floatWeights != null && floatWeights.Length > 0)
+            {
+                // Store tensor shape in JSON for reconstruction
+                var shapeJson = System.Text.Json.JsonSerializer.Serialize(tensorInfo.Dimensions.Select(d => (long)d).ToArray());
+
+                // Simple 2D LINESTRING (X=index, Y=weight)
+                var weightsGeometry = GeometryConverter.ToLineString(floatWeights, srid: 0);
+
+                var layer = new ModelLayer
                 {
-                    // Store tensor shape in JSON for reconstruction
-                    var shapeJson = System.Text.Json.JsonSerializer.Serialize(tensorInfo.Dimensions.Select(d => (long)d).ToArray());
-                    
-                    // Simple 2D LINESTRING (X=index, Y=weight)
-                    var weightsGeometry = GeometryConverter.ToLineString(floatWeights, srid: 0);
-                    
-                    var layer = new ModelLayer
+                    ModelId = model.ModelId,
+                    LayerIdx = layersProcessed,
+                    LayerName = tensorInfo.Name,
+                    LayerType = InferLayerType(tensorInfo.Name),
+                    ParameterCount = tensorInfo.ElementCount,
+                    WeightsGeometry = weightsGeometry,
+                    TensorShape = shapeJson,
+                    TensorDtype = "float32", // Dequantized to float32
+                    QuantizationType = tensorInfo.Type.ToString(),
+                    Parameters = System.Text.Json.JsonSerializer.Serialize(new
                     {
-                        ModelId = model.ModelId,
-                        LayerIdx = layersProcessed,
-                        LayerName = tensorInfo.Name,
-                        LayerType = InferLayerType(tensorInfo.Name),
-                        ParameterCount = tensorInfo.ElementCount,
-                        WeightsGeometry = weightsGeometry,
-                        TensorShape = shapeJson,
-                        TensorDtype = "float32", // Dequantized to float32
-                        QuantizationType = tensorInfo.Type.ToString(),
-                        Parameters = System.Text.Json.JsonSerializer.Serialize(new
-                        {
-                            original_type = tensorInfo.Type.ToString(),
-                            dimensions = tensorInfo.Dimensions.Select(d => (long)d).ToArray(),
-                            total_elements = floatWeights.Length
-                        })
-                    };
+                        original_type = tensorInfo.Type.ToString(),
+                        dimensions = tensorInfo.Dimensions.Select(d => (long)d).ToArray(),
+                        total_elements = floatWeights.Length
+                    })
+                };
 
-                    await _modelRepository.AddLayerAsync(model.ModelId, layer, cancellationToken);
-                    model.Layers.Add(layer);
-                    layersWithWeights++;
-                    
-                    if (floatWeights.Length > 1_000_000)
-                    {
-                        _logger.LogInformation("Stored large tensor {Name} ({Elements} elements, {Shape}) as GEOMETRY with {Points} points",
-                            tensorInfo.Name, floatWeights.Length, string.Join("x", tensorInfo.Dimensions), 
-                            GeometryConverter.GetDimension(weightsGeometry));
-                    }
-                }
-                else
+                await _modelRepository.AddLayerAsync(model.ModelId, layer, cancellationToken);
+                model.Layers.Add(layer);
+                layersWithWeights++;
+
+                if (floatWeights.Length > 1_000_000)
                 {
-                    // Store metadata even if dequantization failed
-                    var layer = new ModelLayer
-                    {
-                        ModelId = model.ModelId,
-                        LayerIdx = layersProcessed,
-                        LayerName = tensorInfo.Name,
-                        LayerType = InferLayerType(tensorInfo.Name),
-                        ParameterCount = tensorInfo.ElementCount,
-                        WeightsGeometry = null,
-                        QuantizationType = tensorInfo.Type.ToString()
-                    };
-
-                    await _modelRepository.AddLayerAsync(model.ModelId, layer, cancellationToken);
-                    model.Layers.Add(layer);
+                    _logger.LogInformation("Stored large tensor {Name} ({Elements} elements, {Shape}) as GEOMETRY with {Points} points",
+                        tensorInfo.Name, floatWeights.Length, string.Join("x", tensorInfo.Dimensions),
+                        GeometryConverter.GetDimension(weightsGeometry));
                 }
-                
-                layersProcessed++;
+            }
+            else
+            {
+                // Store metadata even if dequantization failed
+                var layer = new ModelLayer
+                {
+                    ModelId = model.ModelId,
+                    LayerIdx = layersProcessed,
+                    LayerName = tensorInfo.Name,
+                    LayerType = InferLayerType(tensorInfo.Name),
+                    ParameterCount = tensorInfo.ElementCount,
+                    WeightsGeometry = null,
+                    QuantizationType = tensorInfo.Type.ToString()
+                };
 
-                if (layersProcessed % 50 == 0)
-                    _logger.LogInformation("Processed {Count}/{Total} tensors ({WithWeights} with GEOMETRY data)", 
-                        layersProcessed, tensorCount, layersWithWeights);
+                await _modelRepository.AddLayerAsync(model.ModelId, layer, cancellationToken);
+                model.Layers.Add(layer);
+            }
+
+            layersProcessed++;
+
+            if (layersProcessed % 50 == 0)
+                _logger.LogInformation("Processed {Count}/{Total} tensors ({WithWeights} with GEOMETRY data)",
+                    layersProcessed, tensorCount, layersWithWeights);
         }
 
-        _logger.LogInformation("GGUF ingestion complete: {ModelName} ({LayerCount} layers, {WithWeights} with GEOMETRY weights)", 
+        _logger.LogInformation("GGUF ingestion complete: {ModelName} ({LayerCount} layers, {WithWeights} with GEOMETRY weights)",
             model.ModelName, layersProcessed, layersWithWeights);
 
         return model;
@@ -328,7 +328,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
 
         metadata.ParameterCount = totalParams;
 
-        _logger.LogInformation("GGUF metadata complete: {Architecture}, {ParamCount} parameters", 
+        _logger.LogInformation("GGUF metadata complete: {Architecture}, {ParamCount} parameters",
             metadata.Architecture ?? "Unknown", totalParams);
 
         return metadata;
@@ -543,14 +543,14 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             for (int i = 0; i < 16 && resultIdx < elementCount; i++)
             {
                 byte b8 = quants[i];
-                
+
                 // Low 4 bits
                 if (resultIdx < elementCount)
                 {
                     int q = (b8 & 0x0F) - 8; // 4-bit signed value centered at 0
                     result[resultIdx++] = q * delta;
                 }
-                
+
                 // High 4 bits
                 if (resultIdx < elementCount)
                 {
@@ -580,13 +580,13 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             for (int i = 0; i < 16 && resultIdx < elementCount; i++)
             {
                 byte b8 = quants[i];
-                
+
                 if (resultIdx < elementCount)
                 {
                     int q = b8 & 0x0F; // Unsigned 4-bit value
                     result[resultIdx++] = q * delta + min;
                 }
-                
+
                 if (resultIdx < elementCount)
                 {
                     int q = (b8 >> 4) & 0x0F;
@@ -616,17 +616,17 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             {
                 int byteIdx = i / 2;
                 int shift = (i % 2) * 4;
-                
+
                 // Get low 4 bits
                 int lowBits = (qs[byteIdx] >> shift) & 0x0F;
-                
+
                 // Get high bit from qh
                 int highBit = (int)((qh >> i) & 1);
-                
+
                 // Combine to 5-bit value
                 int q = (highBit << 4) | lowBits;
                 q -= 16; // Center at 0
-                
+
                 result[resultIdx++] = q * delta;
             }
         }
@@ -652,11 +652,11 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             {
                 int byteIdx = i / 2;
                 int shift = (i % 2) * 4;
-                
+
                 int lowBits = (qs[byteIdx] >> shift) & 0x0F;
                 int highBit = (int)((qh >> i) & 1);
                 int q = (highBit << 4) | lowBits;
-                
+
                 result[resultIdx++] = q * delta + min;
             }
         }
@@ -675,7 +675,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
         for (int b = 0; b < numBlocks; b++)
         {
             var delta = HalfToFloat(reader.ReadUInt16());
-            
+
             for (int i = 0; i < 32 && resultIdx < elementCount; i++)
             {
                 sbyte q = reader.ReadSByte();
@@ -709,11 +709,11 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
                 int scaleIdx = i / 16;
                 int qIdx = i / 4;
                 int shift = (i % 4) * 2;
-                
+
                 float scale = (scales[scaleIdx] - 128) / 64.0f;
                 int q = (qs[qIdx] >> shift) & 0x03; // 2 bits
                 q -= 2; // Center
-                
+
                 result[resultIdx++] = q * scale;
             }
         }
@@ -743,12 +743,12 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             {
                 int scaleIdx = i / 21;
                 float scale = (scales[scaleIdx % 12] - 32) / 16.0f;
-                
+
                 // Extract 3-bit value (simplified)
                 int qIdx = i / 8 * 3;
                 int q = qs[qIdx % 96] & 0x07;
                 q -= 4; // Center at 0
-                
+
                 result[resultIdx++] = q * scale;
             }
         }
@@ -777,11 +777,11 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             {
                 int scaleIdx = i / 32;
                 float scale = ((scales[scaleIdx] & 0x0F) * d) - dmin;
-                
+
                 int qIdx = i / 2;
                 int shift = (i % 2) * 4;
                 int q = (qs[qIdx] >> shift) & 0x0F;
-                
+
                 result[resultIdx++] = q * scale;
             }
         }
@@ -812,17 +812,17 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             {
                 int scaleIdx = i / 32;
                 float scale = ((scales[scaleIdx] & 0x0F) * d) - dmin;
-                
+
                 int qIdx = i / 2;
                 int shift = (i % 2) * 4;
                 int lowBits = (qs[qIdx] >> shift) & 0x0F;
-                
+
                 int highBitIdx = i / 8;
                 int highBitShift = i % 8;
                 int highBit = (qh[highBitIdx] >> highBitShift) & 1;
-                
+
                 int q = (highBit << 4) | lowBits;
-                
+
                 result[resultIdx++] = q * scale;
             }
         }
@@ -853,20 +853,20 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             {
                 int scaleIdx = i / 16;
                 float scale = scales[scaleIdx] * d;
-                
+
                 // Fix: Reconstruct 6-bit value correctly - ql contains 4 bits per element (packed 2 per byte)
                 int qlIdx = i / 2;  // 2 values per byte
                 int qlShift = (i % 2) * 4;  // 0 or 4 bit offset
                 int lowBits = (ql[qlIdx] >> qlShift) & 0x0F;  // Extract 4 bits
-                
+
                 // qh contains 2 high bits per element (packed 4 per byte)
                 int qhIdx = i / 4;  // 4 values per byte
                 int qhShift = (i % 4) * 2;  // 0, 2, 4, or 6 bit offset
                 int highBits = (qh[qhIdx] >> qhShift) & 0x03;  // Extract 2 bits
-                
+
                 int q = lowBits | (highBits << 4);  // Combine into 6-bit value
                 q -= 32; // Center at 0
-                
+
                 result[resultIdx++] = q * scale;
             }
         }
@@ -887,7 +887,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
         {
             if (mantissa == 0)
                 return BitConverter.ToSingle(BitConverter.GetBytes(sign), 0);
-            
+
             // Denormalized number
             while ((mantissa & 0x400) == 0)
             {

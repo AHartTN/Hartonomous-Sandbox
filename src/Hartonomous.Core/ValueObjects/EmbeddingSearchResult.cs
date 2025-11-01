@@ -11,7 +11,7 @@ public sealed class EmbeddingSearchResult
     public float SimilarityScore { get; init; }
     public float Distance { get; init; }
     public DateTime CreatedTimestamp { get; init; }
-    
+
     // Optional metadata
     public string? Topic { get; init; }
     public float? SentimentScore { get; init; }

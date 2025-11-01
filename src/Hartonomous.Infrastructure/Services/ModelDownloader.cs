@@ -70,8 +70,8 @@ public class ModelDownloader
 
             // Download safetensors files (prioritize) or fallback to other formats
             var filesToDownload = modelInfo.Siblings
-                .Where(s => s.Rfilename.EndsWith(".safetensors") || 
-                           s.Rfilename.EndsWith(".onnx") || 
+                .Where(s => s.Rfilename.EndsWith(".safetensors") ||
+                           s.Rfilename.EndsWith(".onnx") ||
                            s.Rfilename.EndsWith(".pt") ||
                            s.Rfilename.EndsWith(".bin"))
                 .OrderBy(s => s.Rfilename.EndsWith(".safetensors") ? 0 : 1) // Prefer safetensors
@@ -111,13 +111,13 @@ public class ModelDownloader
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to download model from Hugging Face");
-            
+
             // Clean up partial download
             if (Directory.Exists(modelDir))
             {
                 try { Directory.Delete(modelDir, true); } catch { }
             }
-            
+
             throw;
         }
     }
@@ -154,7 +154,7 @@ public class ModelDownloader
             if (!modelExists)
             {
                 _logger.LogInformation("Model not found locally. Pulling from Ollama registry...");
-                
+
                 // Pull model via Ollama API
                 var pullUrl = "http://localhost:11434/api/pull";
                 var pullRequest = new { name = modelName };
@@ -235,7 +235,7 @@ public class ModelDownloader
                 var percent = (int)((totalRead * 100) / contentLength);
                 if (percent != lastPercent && percent % 10 == 0)
                 {
-                    _logger.LogInformation("Progress: {Percent}% ({Downloaded:N0} / {Total:N0} bytes)", 
+                    _logger.LogInformation("Progress: {Percent}% ({Downloaded:N0} / {Total:N0} bytes)",
                         percent, totalRead, contentLength);
                     lastPercent = percent;
                 }

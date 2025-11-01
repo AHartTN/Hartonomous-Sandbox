@@ -62,7 +62,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
         if (metadata.ShardFiles.Any())
         {
             _logger.LogInformation("Processing {Count} shard files", metadata.ShardFiles.Count);
-            
+
             for (int i = 0; i < metadata.ShardFiles.Count; i++)
             {
                 var shardPath = Path.Combine(baseDir, metadata.ShardFiles[i]);
@@ -72,9 +72,9 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
         else
         {
             // Single .bin/.pth/.pt file
-            var filePath = isDirectory 
-                ? Directory.GetFiles(baseDir, "*.bin").FirstOrDefault() 
-                    ?? Directory.GetFiles(baseDir, "*.pth").FirstOrDefault() 
+            var filePath = isDirectory
+                ? Directory.GetFiles(baseDir, "*.bin").FirstOrDefault()
+                    ?? Directory.GetFiles(baseDir, "*.pth").FirstOrDefault()
                     ?? Directory.GetFiles(baseDir, "*.pt").FirstOrDefault()
                 : modelPath;
 
@@ -99,7 +99,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
             // 1. TorchSharp library for .NET PyTorch interop
             // 2. Or custom binary reader for PyTorch pickle format
             // 3. Extract tensor names, shapes, and data
-            
+
             // For now, create a placeholder layer for the shard
             var layer = new ModelLayer
             {
@@ -143,7 +143,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
         _logger.LogDebug("Extracting PyTorch metadata from: {Path}", modelPath);
 
         var metadata = new PyTorchMetadata();
-        
+
         // Determine base directory
         var isDirectory = Directory.Exists(modelPath);
         var baseDir = isDirectory ? modelPath : Path.GetDirectoryName(modelPath) ?? modelPath;
@@ -158,38 +158,38 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
             if (config != null)
             {
                 metadata.RawConfig = config.ToDictionary(kvp => kvp.Key, kvp => (object)kvp.Value);
-                
+
                 // Extract common fields
                 if (config.TryGetValue("model_type", out var modelType))
                     metadata.ModelType = modelType.GetString();
-                
+
                 if (config.TryGetValue("architectures", out var arch) && arch.ValueKind == JsonValueKind.Array)
                     metadata.Architecture = arch.EnumerateArray().FirstOrDefault().GetString();
-                
+
                 if (config.TryGetValue("num_hidden_layers", out var numLayers))
                     metadata.NumLayers = numLayers.GetInt32();
-                
+
                 if (config.TryGetValue("hidden_size", out var hiddenSize))
                     metadata.HiddenSize = hiddenSize.GetInt32();
-                
+
                 if (config.TryGetValue("intermediate_size", out var intermediateSize))
                     metadata.IntermediateSize = intermediateSize.GetInt32();
-                
+
                 if (config.TryGetValue("num_attention_heads", out var numHeads))
                     metadata.NumAttentionHeads = numHeads.GetInt32();
-                
+
                 if (config.TryGetValue("num_key_value_heads", out var numKVHeads))
                     metadata.NumKeyValueHeads = numKVHeads.GetInt32();
-                
+
                 if (config.TryGetValue("vocab_size", out var vocabSize))
                     metadata.VocabSize = vocabSize.GetInt32();
-                
+
                 if (config.TryGetValue("max_position_embeddings", out var maxPos))
                     metadata.MaxPositionEmbeddings = maxPos.GetInt32();
-                
+
                 if (config.TryGetValue("hidden_act", out var activation))
                     metadata.ActivationFunction = activation.GetString();
-                
+
                 if (config.TryGetValue("rms_norm_eps", out var rmsNorm))
                     metadata.RmsNormEps = (float)rmsNorm.GetDouble();
             }
@@ -209,7 +209,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
         metadata.HasTokenizer = File.Exists(Path.Combine(baseDir, "tokenizer.json")) ||
                                 File.Exists(Path.Combine(baseDir, "tokenizer_config.json"));
 
-        _logger.LogInformation("Extracted metadata: {Architecture}, {Layers} layers, {Shards} shards", 
+        _logger.LogInformation("Extracted metadata: {Architecture}, {Layers} layers, {Shards} shards",
             metadata.Architecture, metadata.NumLayers, metadata.ShardFiles.Count);
 
         return metadata;

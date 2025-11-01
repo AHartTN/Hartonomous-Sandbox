@@ -18,7 +18,7 @@ namespace ModelIngestion
     /// </summary>
     public class EmbeddingIngestionService : BaseConfigurableService<EmbeddingIngestionConfig>, IEmbeddingIngestionService
     {
-    private readonly IAtomIngestionService _atomIngestionService;
+        private readonly IAtomIngestionService _atomIngestionService;
 
         public EmbeddingIngestionService(
             IAtomIngestionService atomIngestionService,
@@ -103,13 +103,13 @@ namespace ModelIngestion
             CancellationToken cancellationToken = default)
         {
             var results = new List<Hartonomous.Core.Interfaces.EmbeddingIngestionResult>();
-            
+
             foreach (var (sourceText, sourceType, embedding) in batch)
             {
                 var result = await IngestEmbeddingAsync(sourceText, sourceType, embedding, null, cancellationToken);
                 results.Add(result);
             }
-            
+
             return results;
         }
 

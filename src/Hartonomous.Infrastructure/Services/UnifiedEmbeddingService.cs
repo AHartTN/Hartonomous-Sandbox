@@ -45,15 +45,15 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         if (string.IsNullOrWhiteSpace(text))
             throw new ArgumentException("Text cannot be empty.", nameof(text));
 
-        _logger.LogInformation("Generating text embedding for: {TextPreview}", 
+        _logger.LogInformation("Generating text embedding for: {TextPreview}",
             text.Length > 50 ? text[..50] + "..." : text);
 
         // Tokenize: simple whitespace + lowercase + remove punctuation
         var tokens = TokenizeText(text);
-        
+
         // Initialize embedding vector
         var embedding = new float[EmbeddingDimension];
-        
+
         // Get vocabulary information from repository
         var vocabularyTokens = await _tokenVocabularyRepository.GetTokensByTextAsync(tokens.Distinct(), cancellationToken);
 
@@ -68,7 +68,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         {
             var tokenText = kvp.Key;
             var (tokenId, _) = kvp.Value;
-            
+
             if (termFrequencies.TryGetValue(tokenText, out var frequency))
             {
                 // Map token to embedding dimensions using deterministic hash
@@ -114,7 +114,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         // Pixel histogram (color distribution)
         // Simple approach: divide pixel values into bins, compute distribution
         var histogram = ComputePixelHistogram(imageData);
-        
+
         // Map histogram to first 256 dimensions
         for (int i = 0; i < Math.Min(256, EmbeddingDimension); i++)
         {
@@ -156,10 +156,10 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         NormalizeVector(embedding);
 
         _logger.LogInformation("Image embedding generated with pixel histogram + edge detection.");
-        
+
         // TODO: Correlate with existing image embeddings in database for refinement
         await Task.CompletedTask; // Placeholder for future database correlation
-        
+
         return embedding;
     }
 
@@ -197,7 +197,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         NormalizeVector(embedding);
 
         _logger.LogInformation("Audio embedding generated with FFT + MFCC.");
-        
+
         await Task.CompletedTask;
         return embedding;
     }
@@ -322,7 +322,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
 
         // Softmax to get probabilities
         var probabilities = Softmax(similarities.Values.ToArray());
-        
+
         var results = new Dictionary<string, float>();
         int index = 0;
         foreach (var label in similarities.Keys)
@@ -330,7 +330,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
             results[label] = probabilities[index++];
         }
 
-        _logger.LogInformation("Zero-shot classification complete: {Results}", 
+        _logger.LogInformation("Zero-shot classification complete: {Results}",
             string.Join(", ", results.Select(kv => $"{kv.Key}={kv.Value:F3}")));
 
         return results;
@@ -400,8 +400,8 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
                 Id = reader.GetInt64(reader.GetOrdinal("embedding_id")),
                 SourceType = reader.GetString(reader.GetOrdinal("source_type")),
                 Similarity = 1.0f - reader.GetFloat(reader.GetOrdinal("similarity_score")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("metadata")) 
-                    ? null 
+                Metadata = reader.IsDBNull(reader.GetOrdinal("metadata"))
+                    ? null
                     : reader.GetString(reader.GetOrdinal("metadata"))
             };
 
@@ -471,7 +471,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     {
         // Simple histogram: 256 bins for grayscale intensity
         var histogram = new float[256];
-        
+
         // Simplified: treat raw bytes as pixel values
         foreach (var pixel in imageData)
         {
@@ -492,7 +492,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     {
         // Simplified edge detection: compute gradient magnitudes
         var features = new float[128];
-        
+
         // Sample gradients at regular intervals
         for (int i = 0; i < Math.Min(imageData.Length - 1, 128); i++)
         {
@@ -512,7 +512,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
         {
             int start = i * windowSize;
             int end = Math.Min(start + windowSize, imageData.Length);
-            
+
             if (start < imageData.Length)
             {
                 var window = imageData.Skip(start).Take(end - start).Select(b => (float)b).ToArray();
@@ -529,7 +529,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     {
         // Simplified spatial moments: weighted pixel positions
         var features = new float[256];
-        
+
         for (int i = 0; i < Math.Min(imageData.Length, 256); i++)
         {
             // Combine pixel value with spatial position
@@ -543,7 +543,7 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     {
         // Simplified FFT: basic frequency bins
         var spectrum = new float[384];
-        
+
         // Convert bytes to samples
         int sampleCount = Math.Min(audioData.Length / 2, 384);
         for (int i = 0; i < sampleCount; i++)
@@ -563,11 +563,11 @@ public sealed class UnifiedEmbeddingService : IUnifiedEmbeddingService
     {
         // Simplified MFCC: spectral envelope approximation
         var mfcc = new float[384];
-        
+
         // Group frequency bins and compute log energy
         var spectrum = ComputeFFTSpectrum(audioData);
         int binSize = spectrum.Length / 384;
-        
+
         for (int i = 0; i < 384; i++)
         {
             float energy = 0;

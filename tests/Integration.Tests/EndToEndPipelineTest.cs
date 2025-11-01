@@ -20,8 +20,8 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
     [Fact]
     public async Task SemanticSearch_ReturnsOriginalEmbedding()
     {
-    var activeConnectionString = Fixture.DbContext!.Database.GetConnectionString() ?? Fixture.ConnectionString;
-    Assert.False(string.IsNullOrWhiteSpace(activeConnectionString), "DbContext connection string was not initialised.");
+        var activeConnectionString = Fixture.DbContext!.Database.GetConnectionString() ?? Fixture.ConnectionString;
+        Assert.False(string.IsNullOrWhiteSpace(activeConnectionString), "DbContext connection string was not initialised.");
 
         var sample = await Fixture.DbContext!.AtomEmbeddings
             .Include(e => e.Components)
@@ -32,8 +32,8 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
 
         Assert.NotNull(sample);
 
-    Assert.NotNull(sample.EmbeddingVector);
-    var vector = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
+        Assert.NotNull(sample.EmbeddingVector);
+        var vector = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
         Assert.NotEmpty(vector);
 
         var results = await Fixture.InferenceService!
@@ -54,8 +54,8 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
 
         Assert.NotNull(sample);
 
-    Assert.NotNull(sample.EmbeddingVector);
-    var queryVector = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
+        Assert.NotNull(sample.EmbeddingVector);
+        var queryVector = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
         Assert.NotEmpty(queryVector);
 
         var results = await Fixture.InferenceService!
@@ -75,8 +75,8 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
 
         Assert.NotNull(sample);
 
-    Assert.NotNull(sample.EmbeddingVector);
-    var dense = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
+        Assert.NotNull(sample.EmbeddingVector);
+        var dense = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
         var padded = VectorUtility.PadToSqlLength(dense, out _);
         var spatialPoint = await Fixture.AtomEmbeddings!
             .ComputeSpatialProjectionAsync(new Microsoft.Data.SqlTypes.SqlVector<float>(padded), dense.Length);

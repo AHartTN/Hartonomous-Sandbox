@@ -18,7 +18,7 @@ public interface IModelFormatReader<TMetadata> where TMetadata : class
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Model entity with populated Layers</returns>
     Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Extract format-specific metadata without full model read.
     /// Useful for model discovery and validation before ingestion.
@@ -27,7 +27,7 @@ public interface IModelFormatReader<TMetadata> where TMetadata : class
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Format-specific metadata</returns>
     Task<TMetadata> GetMetadataAsync(string modelPath, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Validate that the file at modelPath is in the expected format.
     /// Quick check without full parsing (e.g., magic number, header validation).
@@ -36,13 +36,13 @@ public interface IModelFormatReader<TMetadata> where TMetadata : class
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if file is valid for this format</returns>
     Task<bool> ValidateFormatAsync(string modelPath, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Gets the supported file extensions for this format reader.
     /// Used by factory pattern for automatic reader selection.
     /// </summary>
     IEnumerable<string> SupportedExtensions { get; }
-    
+
     /// <summary>
     /// Gets the format name (e.g., "ONNX", "Safetensors", "PyTorch").
     /// </summary>
@@ -75,7 +75,7 @@ public class SafetensorsMetadata
     public string? Architecture { get; set; }
     public int TensorCount { get; set; }
     public long TotalSizeBytes { get; set; }
-    
+
     // Legacy compatibility
     public Dictionary<string, string>? Header { get; set; }
 }

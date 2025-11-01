@@ -17,7 +17,7 @@ public class HartonomousDbContext : DbContext
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
         base.OnConfiguring(optionsBuilder);
-        
+
         // Enable NetTopologySuite for spatial types (GEOMETRY/GEOGRAPHY)
         // Required for EF Core 10 to map LineString, Point, Polygon, etc. to SQL Server spatial types
         if (!optionsBuilder.IsConfigured)

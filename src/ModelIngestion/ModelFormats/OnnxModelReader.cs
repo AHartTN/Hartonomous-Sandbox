@@ -17,9 +17,9 @@ namespace ModelIngestion.ModelFormats
     /// </summary>
     public class OnnxModelReader : IModelFormatReader<OnnxMetadata>
     {
-    private readonly ILogger<OnnxModelReader> _logger;
-    private readonly IModelLayerRepository _layerRepository;
-    private readonly IOnnxModelLoader _modelLoader;
+        private readonly ILogger<OnnxModelReader> _logger;
+        private readonly IModelLayerRepository _layerRepository;
+        private readonly IOnnxModelLoader _modelLoader;
 
         public string FormatName => "ONNX";
         public IEnumerable<string> SupportedExtensions => new[] { ".onnx" };
@@ -34,9 +34,9 @@ namespace ModelIngestion.ModelFormats
             _modelLoader = modelLoader ?? new OnnxModelLoader(logger);
         }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console ingestion tool - trimming not enabled")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console ingestion tool - native AOT not used")]
-    public async Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
+        [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console ingestion tool - trimming not enabled")]
+        [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console ingestion tool - native AOT not used")]
+        public async Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
         {
             ArgumentException.ThrowIfNullOrEmpty(modelPath);
             cancellationToken.ThrowIfCancellationRequested();

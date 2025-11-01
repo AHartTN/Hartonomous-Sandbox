@@ -27,7 +27,7 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
         builder.Property(e => e.EmbeddingFull)
             .HasColumnName("embedding_full")
             .HasColumnType("VECTOR(768)");
-            // No value converter needed - SqlClient 6.1.2+ handles SqlVector natively
+        // No value converter needed - SqlClient 6.1.2+ handles SqlVector natively
 
         builder.Property(e => e.EmbeddingModel)
             .HasMaxLength(100);
@@ -44,7 +44,7 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
         // Phase 2: ContentHash for deduplication
         builder.Property(e => e.ContentHash)
             .HasMaxLength(64); // SHA256 hex string
-        
+
         builder.HasIndex(e => e.ContentHash)
             .HasDatabaseName("idx_content_hash");
 

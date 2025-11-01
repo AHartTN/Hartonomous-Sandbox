@@ -22,11 +22,11 @@ namespace ModelIngestion
             try
             {
                 var host = CreateHostBuilder(args).Build();
-                
+
                 // Get the ingestion service and run
                 var ingestionService = host.Services.GetRequiredService<IngestionOrchestrator>();
                 await ingestionService.RunAsync(args);
-                
+
                 return 0;
             }
             catch (Exception ex)
@@ -49,30 +49,30 @@ namespace ModelIngestion
                 {
                     // Register Hartonomous infrastructure (EF Core, repositories, health checks)
                     services.AddHartonomousInfrastructure(context.Configuration);
-                    
+
                     // Register HttpClient for ModelDownloader
                     services.AddHttpClient("ModelDownloader", client =>
                     {
                         client.Timeout = TimeSpan.FromMinutes(30); // Large model downloads
                         client.DefaultRequestHeaders.Add("User-Agent", "Hartonomous/1.0");
                     });
-                    
+
                     // Register ingestion services with DI
                     services.AddScoped<IngestionOrchestrator>();
                     services.AddScoped<ModelIngestionService>();
                     services.AddScoped<ModelDownloader>();
-                    
+
                     // Register new focused services
                     services.AddScoped<ModelDownloadService>();
                     services.AddScoped<EmbeddingTestService>();
                     services.AddScoped<QueryService>();
                     services.AddScoped<AtomicStorageTestService>();
-                    
+
                     // Register model format readers
                     services.AddScoped<IModelFormatReader<OnnxMetadata>, ModelFormats.OnnxModelReader>();
                     services.AddScoped<IModelFormatReader<SafetensorsMetadata>, ModelFormats.SafetensorsModelReader>();
                     services.AddScoped<ModelFormats.ModelReaderFactory>();
-                    
+
                     services.AddScoped<EmbeddingIngestionService>();
                     services.AddScoped<IEmbeddingIngestionService>(sp => sp.GetRequiredService<EmbeddingIngestionService>());
 
@@ -88,7 +88,7 @@ namespace ModelIngestion
                         {
                             options.ConnectionString = appInsightsConnectionString;
                             options.EnableAdaptiveSampling = appInsightsSection.GetValue<bool?>("EnableAdaptiveSampling") ?? true;
-                            options.AdaptiveSamplingMaxTelemetryItemsPerSecond = appInsightsSection.GetValue<double?>("MaxTelemetryItemsPerSecond") ?? 5;
+
                             options.EnablePerformanceCounterCollectionModule = appInsightsSection.GetValue<bool?>("EnablePerformanceCounters") ?? false;
                         });
                     }

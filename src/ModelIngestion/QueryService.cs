@@ -80,7 +80,7 @@ public class QueryService
 
     private float[] GenerateRandomEmbedding(Random random, int dimension)
     {
-    var embedding = new float[dimension];
+        var embedding = new float[dimension];
         for (int i = 0; i < dimension; i++)
         {
             embedding[i] = (float)(random.NextDouble() * 2.0 - 1.0); // Range: -1 to 1

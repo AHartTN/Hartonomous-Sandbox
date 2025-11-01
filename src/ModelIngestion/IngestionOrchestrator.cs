@@ -28,6 +28,20 @@ namespace ModelIngestion
         private readonly IAtomicAudioSampleRepository _audioSampleRepository;
         private readonly IAtomicTextTokenRepository _textTokenRepository;
 
+        /// <summary>
+        /// Initializes a new orchestrator that wires together ingestion, download, and validation services.
+        /// </summary>
+        /// <param name="logger">Diagnostic logger instance.</param>
+        /// <param name="models">Repository for model metadata queries.</param>
+        /// <param name="downloadService">Service responsible for downloading external model artifacts.</param>
+        /// <param name="embeddingTestService">Utility service for embedding ingestion smoke tests.</param>
+        /// <param name="queryService">Semantic query execution helper.</param>
+        /// <param name="atomicTestService">Atomic storage validation helper.</param>
+        /// <param name="modelIngestion">Primary model ingestion workflow.</param>
+        /// <param name="embeddingService">Embedding ingestion workflow for production inserts.</param>
+        /// <param name="pixelRepository">Repository for pixel atom persistence checks.</param>
+        /// <param name="audioSampleRepository">Repository for audio sample atom persistence checks.</param>
+        /// <param name="textTokenRepository">Repository for text token atom persistence checks.</param>
         public IngestionOrchestrator(
             ILogger<IngestionOrchestrator> logger,
             IModelRepository models,
@@ -54,6 +68,11 @@ namespace ModelIngestion
             _textTokenRepository = textTokenRepository;
         }
 
+        /// <summary>
+        /// Executes a command based on CLI arguments; dispatches to download, ingestion, and diagnostics flows.
+        /// </summary>
+        /// <param name="args">Command line arguments provided to the worker.</param>
+        /// <param name="cancellationToken">Cancellation token used to stop long-running operations.</param>
         public async Task RunAsync(string[] args, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Hartonomous Production Ingestion Service");
@@ -128,6 +147,9 @@ namespace ModelIngestion
             }
         }
 
+        /// <summary>
+        /// Displays CLI usage instructions for available orchestrator commands.
+        /// </summary>
         private void ShowUsage()
         {
             Console.WriteLine("\nUsage:");
@@ -224,7 +246,7 @@ namespace ModelIngestion
                 _logger.LogInformation("Total Models: {Count}", stats.TotalModels);
                 _logger.LogInformation("Total Parameters: {Count:N0}", stats.TotalParameters);
                 _logger.LogInformation("Total Layers: {Count}", stats.TotalLayers);
-                
+
                 _logger.LogInformation("\nArchitecture Breakdown:");
                 foreach (var kvp in stats.ArchitectureBreakdown.OrderByDescending(x => x.Value))
                 {

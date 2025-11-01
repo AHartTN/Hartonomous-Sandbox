@@ -77,17 +77,17 @@ namespace ModelIngestion
         /// Store a batch of atomic pixels for efficient bulk operations
         /// </summary>
         public async Task<IEnumerable<long>> StoreBatchPixelsAsync(
-            IEnumerable<(byte r, byte g, byte b, byte a)> pixels, 
+            IEnumerable<(byte r, byte g, byte b, byte a)> pixels,
             CancellationToken cancellationToken = default)
         {
             var ids = new List<long>();
-            
+
             foreach (var pixel in pixels)
             {
                 var id = await StoreAtomicPixelAsync(pixel.r, pixel.g, pixel.b, pixel.a, cancellationToken);
                 ids.Add(id);
             }
-            
+
             return ids;
         }
 

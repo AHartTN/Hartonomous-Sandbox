@@ -11,9 +11,9 @@ namespace ModelIngestion.ModelFormats
     /// </summary>
     public class ModelReaderFactory
     {
-    private readonly ILogger<OnnxModelReader> _onnxLogger;
-    private readonly ILogger<SafetensorsModelReader> _safetensorsLogger;
-    private readonly IModelLayerRepository _layerRepository;
+        private readonly ILogger<OnnxModelReader> _onnxLogger;
+        private readonly ILogger<SafetensorsModelReader> _safetensorsLogger;
+        private readonly IModelLayerRepository _layerRepository;
 
         public ModelReaderFactory(
             ILogger<OnnxModelReader> onnxLogger,

@@ -203,7 +203,7 @@ public sealed class InferenceOrchestrator : IInferenceService
             }, cancellationToken).ConfigureAwait(false);
         }
 
-    _logger.LogInformation("Semantic features computed");
+        _logger.LogInformation("Semantic features computed");
 
         // Placeholder - real implementation would parse procedure output
         return new SemanticFeatures
@@ -310,120 +310,120 @@ public sealed class InferenceOrchestrator : IInferenceService
         return count;
     }
 
-        private async Task<IReadOnlyList<AtomEmbeddingSearchResult>> ExecuteSpatialSearchAsync(
-            Point spatialPoint,
-            int topK,
-            CancellationToken cancellationToken)
+    private async Task<IReadOnlyList<AtomEmbeddingSearchResult>> ExecuteSpatialSearchAsync(
+        Point spatialPoint,
+        int topK,
+        CancellationToken cancellationToken)
+    {
+        return await _sql.ExecuteAsync(async (command, token) =>
         {
-            return await _sql.ExecuteAsync(async (command, token) =>
+            command.CommandText = "dbo.sp_ApproxSpatialSearch";
+            command.CommandType = CommandType.StoredProcedure;
+            command.Parameters.Add(new SqlParameter("@query_x", spatialPoint.X));
+            command.Parameters.Add(new SqlParameter("@query_y", spatialPoint.Y));
+            command.Parameters.Add(new SqlParameter("@query_z", spatialPoint.Z));
+            command.Parameters.Add(new SqlParameter("@top_k", topK));
+
+            var results = new List<AtomEmbeddingSearchResult>();
+            await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await reader.ReadAsync(token).ConfigureAwait(false))
             {
-                command.CommandText = "dbo.sp_ApproxSpatialSearch";
-                command.CommandType = CommandType.StoredProcedure;
-                command.Parameters.Add(new SqlParameter("@query_x", spatialPoint.X));
-                command.Parameters.Add(new SqlParameter("@query_y", spatialPoint.Y));
-                command.Parameters.Add(new SqlParameter("@query_z", spatialPoint.Z));
-                command.Parameters.Add(new SqlParameter("@top_k", topK));
-
-                var results = new List<AtomEmbeddingSearchResult>();
-                await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
-                while (await reader.ReadAsync(token).ConfigureAwait(false))
-                {
-                    results.Add(MapSearchResult(reader));
-                }
-
-                _logger.LogInformation("Spatial search returned {Count} results", results.Count);
-                return results;
-            }, cancellationToken).ConfigureAwait(false);
-        }
-
-        private static AtomEmbeddingSearchResult MapSearchResult(IDataRecord record)
-        {
-            var atomEmbeddingId = GetInt64(record, "AtomEmbeddingId");
-            var atomId = GetInt64(record, "AtomId");
-
-            var atom = new Atom
-            {
-                AtomId = atomId,
-                ContentHash = Array.Empty<byte>(),
-                Modality = GetString(record, "Modality") ?? "unknown",
-                Subtype = GetString(record, "Subtype"),
-                SourceUri = GetString(record, "SourceUri"),
-                SourceType = GetString(record, "SourceType"),
-                CanonicalText = GetString(record, "CanonicalText"),
-                Metadata = null,
-                CreatedAt = DateTime.UtcNow,
-                ReferenceCount = 0,
-                IsActive = true
-            };
-
-            var embedding = new AtomEmbedding
-            {
-                AtomEmbeddingId = atomEmbeddingId,
-                AtomId = atomId,
-                Atom = atom,
-                EmbeddingType = GetString(record, "EmbeddingType") ?? "default",
-                ModelId = GetNullableInt(record, "ModelId"),
-                Dimension = GetNullableInt(record, "Dimension") ?? 0,
-                CreatedAt = GetNullableDateTime(record, "CreatedAt") ?? DateTime.UtcNow
-            };
-
-            var cosineDistance = GetNullableDouble(record, "distance")
-                ?? GetNullableDouble(record, "ExactDistance")
-                ?? GetNullableDouble(record, "exact_distance")
-                ?? double.NaN;
-
-            var spatialDistance = GetNullableDouble(record, "SpatialDistance")
-                ?? GetNullableDouble(record, "spatial_distance")
-                ?? double.NaN;
-
-            return new AtomEmbeddingSearchResult
-            {
-                Embedding = embedding,
-                CosineDistance = cosineDistance,
-                SpatialDistance = spatialDistance
-            };
-        }
-
-        private static long GetInt64(IDataRecord record, string columnName)
-        {
-            var ordinal = GetOrdinal(record, columnName);
-            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt64(ordinal) : 0;
-        }
-
-        private static string? GetString(IDataRecord record, string columnName)
-        {
-            var ordinal = GetOrdinal(record, columnName);
-            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetString(ordinal) : null;
-        }
-
-        private static int? GetNullableInt(IDataRecord record, string columnName)
-        {
-            var ordinal = GetOrdinal(record, columnName);
-            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt32(ordinal) : null;
-        }
-
-        private static double? GetNullableDouble(IDataRecord record, string columnName)
-        {
-            var ordinal = GetOrdinal(record, columnName);
-            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDouble(ordinal) : null;
-        }
-
-        private static DateTime? GetNullableDateTime(IDataRecord record, string columnName)
-        {
-            var ordinal = GetOrdinal(record, columnName);
-            return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDateTime(ordinal) : null;
-        }
-
-        private static int GetOrdinal(IDataRecord record, string columnName)
-        {
-            for (var i = 0; i < record.FieldCount; i++)
-            {
-                if (string.Equals(record.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
-                {
-                    return i;
-                }
+                results.Add(MapSearchResult(reader));
             }
 
-            return -1;
+            _logger.LogInformation("Spatial search returned {Count} results", results.Count);
+            return results;
+        }, cancellationToken).ConfigureAwait(false);
+    }
+
+    private static AtomEmbeddingSearchResult MapSearchResult(IDataRecord record)
+    {
+        var atomEmbeddingId = GetInt64(record, "AtomEmbeddingId");
+        var atomId = GetInt64(record, "AtomId");
+
+        var atom = new Atom
+        {
+            AtomId = atomId,
+            ContentHash = Array.Empty<byte>(),
+            Modality = GetString(record, "Modality") ?? "unknown",
+            Subtype = GetString(record, "Subtype"),
+            SourceUri = GetString(record, "SourceUri"),
+            SourceType = GetString(record, "SourceType"),
+            CanonicalText = GetString(record, "CanonicalText"),
+            Metadata = null,
+            CreatedAt = DateTime.UtcNow,
+            ReferenceCount = 0,
+            IsActive = true
+        };
+
+        var embedding = new AtomEmbedding
+        {
+            AtomEmbeddingId = atomEmbeddingId,
+            AtomId = atomId,
+            Atom = atom,
+            EmbeddingType = GetString(record, "EmbeddingType") ?? "default",
+            ModelId = GetNullableInt(record, "ModelId"),
+            Dimension = GetNullableInt(record, "Dimension") ?? 0,
+            CreatedAt = GetNullableDateTime(record, "CreatedAt") ?? DateTime.UtcNow
+        };
+
+        var cosineDistance = GetNullableDouble(record, "distance")
+            ?? GetNullableDouble(record, "ExactDistance")
+            ?? GetNullableDouble(record, "exact_distance")
+            ?? double.NaN;
+
+        var spatialDistance = GetNullableDouble(record, "SpatialDistance")
+            ?? GetNullableDouble(record, "spatial_distance")
+            ?? double.NaN;
+
+        return new AtomEmbeddingSearchResult
+        {
+            Embedding = embedding,
+            CosineDistance = cosineDistance,
+            SpatialDistance = spatialDistance
+        };
+    }
+
+    private static long GetInt64(IDataRecord record, string columnName)
+    {
+        var ordinal = GetOrdinal(record, columnName);
+        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt64(ordinal) : 0;
+    }
+
+    private static string? GetString(IDataRecord record, string columnName)
+    {
+        var ordinal = GetOrdinal(record, columnName);
+        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetString(ordinal) : null;
+    }
+
+    private static int? GetNullableInt(IDataRecord record, string columnName)
+    {
+        var ordinal = GetOrdinal(record, columnName);
+        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt32(ordinal) : null;
+    }
+
+    private static double? GetNullableDouble(IDataRecord record, string columnName)
+    {
+        var ordinal = GetOrdinal(record, columnName);
+        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDouble(ordinal) : null;
+    }
+
+    private static DateTime? GetNullableDateTime(IDataRecord record, string columnName)
+    {
+        var ordinal = GetOrdinal(record, columnName);
+        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDateTime(ordinal) : null;
+    }
+
+    private static int GetOrdinal(IDataRecord record, string columnName)
+    {
+        for (var i = 0; i < record.FieldCount; i++)
+        {
+            if (string.Equals(record.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
         }
+
+        return -1;
+    }
 }

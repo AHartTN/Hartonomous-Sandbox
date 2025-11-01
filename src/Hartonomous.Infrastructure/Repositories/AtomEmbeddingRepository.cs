@@ -145,7 +145,7 @@ public class AtomEmbeddingRepository : IAtomEmbeddingRepository
 
         var searchResult = await _sqlCommandExecutor.ExecuteAsync(async (command, token) =>
         {
-                        const string sql = """
+            const string sql = """
 SELECT TOP (1)
         ae.AtomEmbeddingId,
         VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) AS CosineDistance

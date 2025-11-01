@@ -72,7 +72,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
 
         // Add model to database
         await _modelRepository.AddAsync(model, cancellationToken);
-        _logger.LogInformation("Created Safetensors model entity: {ModelName} (ID: {ModelId})", 
+        _logger.LogInformation("Created Safetensors model entity: {ModelName} (ID: {ModelId})",
             model.ModelName, model.ModelId);
 
         // Process each safetensors file
@@ -181,20 +181,20 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
                 {
                     var tensorSize = dataOffsets[1] - dataOffsets[0];
                     var tensorOffset = 8 + headerLength + dataOffsets[0]; // 8 bytes for header length + header + tensor offset
-                    
+
                     _logger.LogDebug("Reading tensor data: {TensorName}, offset={Offset}, size={Size} bytes",
                         tensorName, tensorOffset, tensorSize);
-                    
+
                     fileStream.Seek(tensorOffset, SeekOrigin.Begin);
                     var tensorBytes = new byte[tensorSize];
                     var bytesRead = await fileStream.ReadAsync(tensorBytes, 0, (int)tensorSize, cancellationToken);
-                    
+
                     if (bytesRead != tensorSize)
                     {
                         _logger.LogWarning("Expected {Expected} bytes but read {Actual} bytes for {Tensor}",
                             tensorSize, bytesRead, tensorName);
                     }
-                    
+
                     // Convert to float[] based on dtype
                     var floatData = ConvertToFloat(tensorBytes, dtype, shape);
 
@@ -279,13 +279,13 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
     {
         var count = Math.Min((int)elementCount, bytes.Length / 2);
         var result = new float[count];
-        
+
         for (int i = 0; i < count; i++)
         {
             var halfBits = BitConverter.ToUInt16(bytes, i * 2);
             result[i] = HalfToFloat(halfBits);
         }
-        
+
         return result;
     }
 
@@ -295,7 +295,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
         // Used by Llama 4, Google's models
         var count = Math.Min((int)elementCount, bytes.Length / 2);
         var result = new float[count];
-        
+
         for (int i = 0; i < count; i++)
         {
             var bf16Bits = BitConverter.ToUInt16(bytes, i * 2);
@@ -303,7 +303,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
             var fp32Bits = (uint)bf16Bits << 16;
             result[i] = BitConverter.ToSingle(BitConverter.GetBytes(fp32Bits), 0);
         }
-        
+
         return result;
     }
 
@@ -311,12 +311,12 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
     {
         var count = Math.Min((int)elementCount, bytes.Length);
         var result = new float[count];
-        
+
         for (int i = 0; i < count; i++)
         {
             result[i] = (sbyte)bytes[i] / 127.0f; // Normalize to [-1, 1]
         }
-        
+
         return result;
     }
 
@@ -324,12 +324,12 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
     {
         var count = Math.Min((int)elementCount, bytes.Length);
         var result = new float[count];
-        
+
         for (int i = 0; i < count; i++)
         {
             result[i] = bytes[i] / 255.0f; // Normalize to [0, 1]
         }
-        
+
         return result;
     }
 
@@ -375,7 +375,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
         var fileNames = files.Select(Path.GetFileNameWithoutExtension).ToArray();
 
         // Check for Stable Diffusion components
-        if (fileNames.Any(f => f?.Contains("unet") == true) && 
+        if (fileNames.Any(f => f?.Contains("unet") == true) &&
             fileNames.Any(f => f?.Contains("text_encoder") == true))
             return "Stable-Diffusion";
 
@@ -398,7 +398,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
         _logger.LogDebug("Extracting Safetensors metadata from: {Path}", modelPath);
 
         var metadata = new SafetensorsMetadata();
-        
+
         // Determine files
         var isDirectory = Directory.Exists(modelPath);
         var files = isDirectory

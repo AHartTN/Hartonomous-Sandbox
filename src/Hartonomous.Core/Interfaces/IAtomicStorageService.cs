@@ -17,7 +17,7 @@ public interface IAtomicStorageService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Pixel ID (new or existing)</returns>
     Task<long> StoreAtomicPixelAsync(byte r, byte g, byte b, byte a, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Store an atomic audio sample with deduplication.
     /// Returns existing ID if sample already exists.
@@ -26,7 +26,7 @@ public interface IAtomicStorageService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Sample ID (new or existing)</returns>
     Task<long> StoreAtomicAudioSampleAsync(float amplitude, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Store an atomic text token with deduplication.
     /// Returns existing ID if token already exists.
@@ -36,7 +36,7 @@ public interface IAtomicStorageService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Token ID (new or existing)</returns>
     Task<long> StoreAtomicTextTokenAsync(string tokenText, int? vocabId = null, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Store a batch of atomic pixels for efficient bulk operations.
     /// </summary>
@@ -44,6 +44,6 @@ public interface IAtomicStorageService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Collection of pixel IDs</returns>
     Task<IEnumerable<long>> StoreBatchPixelsAsync(
-        IEnumerable<(byte r, byte g, byte b, byte a)> pixels, 
+        IEnumerable<(byte r, byte g, byte b, byte a)> pixels,
         CancellationToken cancellationToken = default);
 }
