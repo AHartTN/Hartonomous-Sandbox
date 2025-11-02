@@ -1,6 +1,8 @@
 using CesConsumer.Services;
 using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Mappers;
+using Hartonomous.Core.Models;
 using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.Services.CDC;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +32,10 @@ class Program
 
                 // Register CDC checkpoint manager (file-based for now)
                 services.AddSingleton<ICdcCheckpointManager, FileCdcCheckpointManager>();
+
+                // Register CDC event mapper
+                services.AddSingleton<IEventMapper<CdcChangeEvent, BaseEvent>>(
+                    _ => new CdcEventMapper());
 
                 // Register CDC event processor
                 services.AddSingleton<CdcEventProcessor>();
