@@ -1,11 +1,14 @@
 using System;
+using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Services;
 using Hartonomous.Data;
 using Hartonomous.Infrastructure.Data;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
+using Hartonomous.Infrastructure.Services.Enrichment;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -67,6 +70,13 @@ public static class DependencyInjection
 
         services.AddSingleton<ISqlServerConnectionFactory, SqlServerConnectionFactory>();
         services.AddScoped<ISqlCommandExecutor, SqlCommandExecutor>();
+
+        // Domain services (Core layer business logic)
+        services.AddSingleton<IModelCapabilityService, ModelCapabilityService>();
+        services.AddSingleton<IInferenceMetadataService, InferenceMetadataService>();
+
+        // Event services
+        services.AddScoped<IEventEnricher, EventEnricher>();
 
         services.AddScoped<IAtomRepository, AtomRepository>();
         services.AddScoped<IAtomEmbeddingRepository, AtomEmbeddingRepository>();

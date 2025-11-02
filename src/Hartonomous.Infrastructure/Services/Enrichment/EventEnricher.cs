@@ -5,21 +5,29 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Models;
+using Hartonomous.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Services.Enrichment;
 
 /// <summary>
-/// Semantic enrichment service for events
-/// Adds domain-specific metadata based on event type and content
+/// Semantic enrichment service for events.
+/// Thin orchestrator that delegates to domain services for business logic.
 /// </summary>
 public class EventEnricher : IEventEnricher
 {
     private readonly ILogger<EventEnricher> _logger;
+    private readonly IModelCapabilityService _capabilityService;
+    private readonly IInferenceMetadataService _metadataService;
 
-    public EventEnricher(ILogger<EventEnricher> logger)
+    public EventEnricher(
+        ILogger<EventEnricher> logger,
+        IModelCapabilityService capabilityService,
+        IInferenceMetadataService metadataService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _capabilityService = capabilityService ?? throw new ArgumentNullException(nameof(capabilityService));
+        _metadataService = metadataService ?? throw new ArgumentNullException(nameof(metadataService));
     }
 
     public async Task EnrichAsync(BaseEvent evt, CancellationToken cancellationToken = default)
@@ -45,17 +53,17 @@ public class EventEnricher : IEventEnricher
             ["confidence_score"] = 0.95
         };
 
-        _logger.LogDebug("Enriched evt {EventId} of type {EventType}", 
+        _logger.LogDebug("Enriched event {EventId} of type {EventType}", 
             evt.Id, evt.Type);
     }
 
-    public async Task EnrichBatchAsync(IEnumerable<evt> events, CancellationToken cancellationToken = default)
+    public async Task EnrichBatchAsync(IEnumerable<BaseEvent> events, CancellationToken cancellationToken = default)
     {
-        var tasks = events.Select(ce => EnrichAsync(ce, cancellationToken));
+        var tasks = events.Select(evt => EnrichAsync(evt, cancellationToken));
         await Task.WhenAll(tasks);
     }
 
-    private Task EnrichByTableAsync(evt evt, string table, string operation, CancellationToken cancellationToken)
+    private Task EnrichByTableAsync(BaseEvent evt, string table, string operation, CancellationToken cancellationToken)
     {
         return table.ToLowerInvariant() switch
         {
@@ -66,46 +74,54 @@ public class EventEnricher : IEventEnricher
         };
     }
 
-    private Task EnrichModelEventAsync(evt evt, CancellationToken cancellationToken)
+    private Task EnrichModelEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
-        // Extract model data
         if (evt.Data is Dictionary<string, object> data &&
             data.TryGetValue("model_name", out var modelNameObj) &&
             modelNameObj is string modelName)
         {
+            var capabilities = _capabilityService.InferFromModelName(modelName);
             evt.Extensions["semantic"] = new Dictionary<string, object>
             {
-                ["inferred_capabilities"] = ModelCapabilityInference.InferCapabilities(modelName),
-                ["content_type"] = ModelCapabilityInference.ClassifyModelType(modelName),
-                ["expected_performance"] = ModelCapabilityInference.EstimatePerformance(modelName),
-                ["compliance_requirements"] = ModelCapabilityInference.GetComplianceRequirements(modelName)
+                ["primary_modality"] = capabilities.PrimaryModality,
+                ["supports_text"] = capabilities.SupportsTextGeneration,
+                ["supports_vision"] = capabilities.SupportsVisionAnalysis,
+                ["supports_function_calling"] = capabilities.SupportsFunctionCalling,
+                ["max_tokens"] = capabilities.MaxTokens,
+                ["context_window"] = capabilities.MaxContextWindow
             };
         }
 
         return Task.CompletedTask;
     }
 
-    private Task EnrichInferenceEventAsync(evt evt, CancellationToken cancellationToken)
+    private Task EnrichInferenceEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
         if (evt.Data is Dictionary<string, object> data &&
             data.TryGetValue("task_type", out var taskTypeObj) &&
             taskTypeObj is string taskType)
         {
+            var complexity = _metadataService.CalculateComplexity(
+                GetTokenCount(data), 
+                GetBool(data, "requires_multimodal"),
+                GetBool(data, "requires_tools"));
+            
+            var reasoning = _metadataService.DetermineReasoningMode(taskType, complexity > 7);
+            var sla = _metadataService.DetermineSla(GetString(data, "priority", "medium"), complexity);
+            
             evt.Extensions["reasoning"] = new Dictionary<string, object>
             {
-                ["reasoning_mode"] = InferenceMetadataHelper.DetermineReasoningMode(taskType),
-                ["expected_complexity"] = InferenceMetadataHelper.EstimateComplexity(taskType),
-                ["audit_trail_required"] = InferenceMetadataHelper.RequiresAuditTrail(taskType),
-                ["performance_sla"] = InferenceMetadataHelper.GetPerformanceSLA(taskType).TotalMilliseconds
+                ["reasoning_mode"] = reasoning,
+                ["complexity"] = complexity,
+                ["sla_tier"] = sla
             };
         }
 
         return Task.CompletedTask;
     }
 
-    private Task EnrichKnowledgeEventAsync(evt evt, CancellationToken cancellationToken)
+    private Task EnrichKnowledgeEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
-        // Add knowledge-specific enrichment
         evt.Extensions["knowledge"] = new Dictionary<string, object>
         {
             ["indexed"] = true,
@@ -115,117 +131,23 @@ public class EventEnricher : IEventEnricher
 
         return Task.CompletedTask;
     }
-}
 
-/// <summary>
-/// Helper class for model capability inference logic
-/// Extracted for reusability and testability
-/// </summary>
-public static class ModelCapabilityInference
-{
-    public static string[] InferCapabilities(string modelName)
+    private static int GetTokenCount(Dictionary<string, object> data)
     {
-        var capabilities = new List<string>();
-        var lowerName = modelName.ToLowerInvariant();
-
-        if (lowerName.Contains("llama") || lowerName.Contains("gpt"))
-        {
-            capabilities.AddRange(new[] { "text_generation", "question_answering", "summarization" });
-        }
-
-        if (lowerName.Contains("clip") || lowerName.Contains("vision"))
-        {
-            capabilities.AddRange(new[] { "image_classification", "image_captioning", "visual_question_answering" });
-        }
-
-        if (lowerName.Contains("wav2vec") || lowerName.Contains("whisper"))
-        {
-            capabilities.AddRange(new[] { "speech_recognition", "audio_classification" });
-        }
-
-        return capabilities.ToArray();
+        return data.TryGetValue("token_count", out var count) && count is int tokenCount
+            ? tokenCount
+            : 0;
     }
 
-    public static string ClassifyModelType(string modelName)
+    private static bool GetBool(Dictionary<string, object> data, string key)
     {
-        var lowerName = modelName.ToLowerInvariant();
-
-        if (lowerName.Contains("llama") || lowerName.Contains("gpt")) return "text";
-        if (lowerName.Contains("clip") || lowerName.Contains("vit")) return "vision";
-        if (lowerName.Contains("wav2vec") || lowerName.Contains("whisper")) return "audio";
-
-        return "multimodal";
+        return data.TryGetValue(key, out var val) && val is bool boolVal && boolVal;
     }
 
-    public static double EstimatePerformance(string modelName)
+    private static string GetString(Dictionary<string, object> data, string key, string defaultValue)
     {
-        var lowerName = modelName.ToLowerInvariant();
-
-        if (lowerName.Contains("7b") || lowerName.Contains("large")) return 0.85;
-        if (lowerName.Contains("1b") || lowerName.Contains("base")) return 0.75;
-        if (lowerName.Contains("small") || lowerName.Contains("tiny")) return 0.65;
-
-        return 0.70;
+        return data.TryGetValue(key, out var val) && val is string strVal
+            ? strVal
+            : defaultValue;
     }
-
-    public static string[] GetComplianceRequirements(string modelName)
-    {
-        var requirements = new List<string> { "data_privacy" };
-        var lowerName = modelName.ToLowerInvariant();
-
-        if (lowerName.Contains("medical") || lowerName.Contains("health"))
-        {
-            requirements.AddRange(new[] { "hipaa", "gdpr", "health_data_protection" });
-        }
-
-        if (lowerName.Contains("financial"))
-        {
-            requirements.AddRange(new[] { "pci_dss", "sox", "financial_regulation" });
-        }
-
-        return requirements.ToArray();
-    }
-}
-
-/// <summary>
-/// Helper class for inference metadata logic
-/// </summary>
-public static class InferenceMetadataHelper
-{
-    public static string DetermineReasoningMode(string taskType) => taskType.ToLowerInvariant() switch
-    {
-        "text_generation" => "generative",
-        "question_answering" => "analytical",
-        "classification" => "categorical",
-        "summarization" => "synthetic",
-        "translation" => "transformational",
-        _ => "general"
-    };
-
-    public static string EstimateComplexity(string taskType) => taskType.ToLowerInvariant() switch
-    {
-        "text_generation" => "high",
-        "question_answering" => "medium",
-        "classification" => "low",
-        "summarization" => "medium",
-        "translation" => "medium",
-        _ => "medium"
-    };
-
-    public static bool RequiresAuditTrail(string taskType) => taskType.ToLowerInvariant() switch
-    {
-        "medical_diagnosis" => true,
-        "financial_decision" => true,
-        "legal_analysis" => true,
-        "safety_critical" => true,
-        _ => false
-    };
-
-    public static TimeSpan GetPerformanceSLA(string taskType) => taskType.ToLowerInvariant() switch
-    {
-        "real_time" => TimeSpan.FromMilliseconds(100),
-        "interactive" => TimeSpan.FromSeconds(1),
-        "batch" => TimeSpan.FromMinutes(5),
-        _ => TimeSpan.FromSeconds(3)
-    };
 }
