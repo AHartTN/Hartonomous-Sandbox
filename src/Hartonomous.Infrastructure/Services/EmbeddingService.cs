@@ -447,12 +447,12 @@ public sealed class EmbeddingService : IEmbeddingService
         {
             var result = new CrossModalResult
             {
-                Id = reader.GetInt64(reader.GetOrdinal("embedding_id")),
-                SourceType = reader.GetString(reader.GetOrdinal("source_type")),
-                Similarity = 1.0f - reader.GetFloat(reader.GetOrdinal("similarity_score")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("metadata"))
+                Id = reader.GetInt64(reader.GetOrdinal("EmbeddingId")),
+                SourceType = reader.GetString(reader.GetOrdinal("SourceType")),
+                Similarity = 1.0f - reader.GetFloat(reader.GetOrdinal("SimilarityScore")),
+                Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
                     ? null
-                    : reader.GetString(reader.GetOrdinal("metadata"))
+                    : reader.GetString(reader.GetOrdinal("Metadata"))
             };
 
             if (filterByType == null || result.SourceType == filterByType)

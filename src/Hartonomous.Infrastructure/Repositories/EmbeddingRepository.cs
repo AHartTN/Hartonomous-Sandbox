@@ -60,13 +60,13 @@ SELECT TOP (@top_k)
 	EmbeddingId,
 	SourceText,
 	SourceType,
-	VECTOR_DISTANCE(@metric, embedding_full, @vector) AS distance,
-	CAST(1.0 - VECTOR_DISTANCE(@metric, embedding_full, @vector) AS FLOAT) AS similarity,
+	VECTOR_DISTANCE(@metric, EmbeddingFull, @vector) AS Distance,
+	CAST(1.0 - VECTOR_DISTANCE(@metric, EmbeddingFull, @vector) AS FLOAT) AS Similarity,
 	CreatedAt,
 	AccessCount
 FROM dbo.Embeddings_Production WITH(READUNCOMMITTED)
-WHERE embedding_full IS NOT NULL
-ORDER BY VECTOR_DISTANCE(@metric, embedding_full, @vector);";
+WHERE EmbeddingFull IS NOT NULL
+ORDER BY VECTOR_DISTANCE(@metric, EmbeddingFull, @vector);";
 
         AddParameter(command, "@vector", new SqlVector<float>(queryVector));
         AddParameter(command, "@metric", metric);
@@ -102,7 +102,7 @@ DECLARE @query_point GEOMETRY = geometry::STGeomFromText('POINT (' + CAST(@x AS 
 WITH spatial_candidates AS (
 	SELECT TOP (@spatial_candidates)
 		EmbeddingId,
-		spatial_geometry.STDistance(@query_point) AS spatial_distance
+		spatial_geometry.STDistance(@query_point) AS SpatialDistance
 	FROM dbo.Embeddings_Production WITH(INDEX(idx_spatial_fine))
 	WHERE spatial_geometry IS NOT NULL
 	ORDER BY spatial_geometry.STDistance(@query_point)
@@ -111,13 +111,13 @@ SELECT TOP (@final_top_k)
 	ep.EmbeddingId,
 	ep.SourceText,
 	ep.SourceType,
-	VECTOR_DISTANCE('cosine', ep.embedding_full, @vector) AS distance,
-	CAST(1.0 - VECTOR_DISTANCE('cosine', ep.embedding_full, @vector) AS FLOAT) AS similarity,
+	VECTOR_DISTANCE('cosine', ep.EmbeddingFull, @vector) AS Distance,
+	CAST(1.0 - VECTOR_DISTANCE('cosine', ep.EmbeddingFull, @vector) AS FLOAT) AS Similarity,
 	ep.CreatedAt,
-	s.spatial_distance
+	s.SpatialDistance
 FROM spatial_candidates s
 JOIN dbo.Embeddings_Production ep ON ep.EmbeddingId = s.EmbeddingId
-ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @vector);";
+ORDER BY VECTOR_DISTANCE('cosine', ep.EmbeddingFull, @vector);";
 
         AddParameter(command, "@vector", new SqlVector<float>(queryVector));
         AddParameter(command, "@x", queryX);
@@ -165,10 +165,10 @@ ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @vector);";
         command.CommandText = @"
 SELECT TOP (1)
 	EmbeddingId,
-	VECTOR_DISTANCE('cosine', embedding_full, @vector) AS distance
+	VECTOR_DISTANCE('cosine', EmbeddingFull, @vector) AS Distance
 FROM dbo.Embeddings_Production WITH(READUNCOMMITTED)
-WHERE embedding_full IS NOT NULL
-ORDER BY VECTOR_DISTANCE('cosine', embedding_full, @vector);";
+WHERE EmbeddingFull IS NOT NULL
+ORDER BY VECTOR_DISTANCE('cosine', EmbeddingFull, @vector);";
 
         AddParameter(command, "@vector", new SqlVector<float>(queryVector));
 
@@ -244,7 +244,7 @@ INSERT INTO dbo.Embeddings_Production
 (
 	SourceText,
 	SourceType,
-	embedding_full,
+	EmbeddingFull,
 	EmbeddingModel,
 	SpatialProjX,
 	SpatialProjY,
@@ -259,8 +259,8 @@ INSERT INTO dbo.Embeddings_Production
 OUTPUT INSERTED.EmbeddingId
 VALUES
 (
-	@source_text,
-	@source_type,
+	@SourceText,
+	@SourceType,
 	@vector,
 	@model,
 	@x,
@@ -269,7 +269,7 @@ VALUES
 	geometry::STGeomFromText(@fine_wkt, 0),
 	geometry::STGeomFromText(@coarse_wkt, 0),
 	@dimension,
-	@content_hash,
+	@ContentHash,
 	SYSUTCDATETIME(),
 	1
 );";

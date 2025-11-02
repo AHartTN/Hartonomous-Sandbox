@@ -44,22 +44,22 @@ public class SpatialInferenceService : ISpatialInferenceService
         await using var command = connection.CreateCommand();
         command.CommandText = "dbo.sp_SpatialAttention";
         command.CommandType = CommandType.StoredProcedure;
-        command.Parameters.Add(new SqlParameter("@query_token_id", queryTokenId));
-        command.Parameters.Add(new SqlParameter("@context_size", contextSize));
+        command.Parameters.Add(new SqlParameter("@QueryTokenId", queryTokenId));
+        command.Parameters.Add(new SqlParameter("@ContextSize", contextSize));
 
         var results = new List<SpatialAttentionResult>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var tokenId = reader.GetInt32(reader.GetOrdinal("token_id"));
-            var tokenText = reader.IsDBNull(reader.GetOrdinal("token_text"))
+            var tokenId = reader.GetInt32(reader.GetOrdinal("TokenId"));
+            var tokenText = reader.IsDBNull(reader.GetOrdinal("TokenText"))
                 ? string.Empty
-                : reader.GetString(reader.GetOrdinal("token_text"));
+                : reader.GetString(reader.GetOrdinal("TokenText"));
             var distance = reader.GetDouble(reader.GetOrdinal("SpatialDistance"));
             var attentionWeight = reader.GetDouble(reader.GetOrdinal("AttentionWeight"));
-            var resolution = reader.IsDBNull(reader.GetOrdinal("resolution_level"))
+            var resolution = reader.IsDBNull(reader.GetOrdinal("ResolutionLevel"))
                 ? "UNKNOWN"
-                : reader.GetString(reader.GetOrdinal("resolution_level"));
+                : reader.GetString(reader.GetOrdinal("ResolutionLevel"));
 
             results.Add(new SpatialAttentionResult(tokenId, tokenText, attentionWeight, spatialDistance, resolution));
         }
@@ -92,17 +92,17 @@ public class SpatialInferenceService : ISpatialInferenceService
         await using var command = connection.CreateCommand();
         command.CommandText = "dbo.sp_SpatialNextToken";
         command.CommandType = CommandType.StoredProcedure;
-        command.Parameters.Add(new SqlParameter("@context_tokens", contextCsv));
-        command.Parameters.Add(new SqlParameter("@temperature", temperature));
+        command.Parameters.Add(new SqlParameter("@ContextTokens", contextCsv));
+        command.Parameters.Add(new SqlParameter("@Temperature", temperature));
 
         var results = new List<SpatialNextTokenPrediction>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
         while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            var tokenId = reader.GetInt32(reader.GetOrdinal("token_id"));
-            var tokenText = reader.IsDBNull(reader.GetOrdinal("token_text"))
+            var tokenId = reader.GetInt32(reader.GetOrdinal("TokenId"));
+            var tokenText = reader.IsDBNull(reader.GetOrdinal("TokenText"))
                 ? string.Empty
-                : reader.GetString(reader.GetOrdinal("token_text"));
+                : reader.GetString(reader.GetOrdinal("TokenText"));
             var distance = reader.GetDouble(reader.GetOrdinal("Distance"));
             var probabilityScore = reader.GetDouble(reader.GetOrdinal("ProbabilityScore"));
 

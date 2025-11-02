@@ -231,12 +231,12 @@ public class ProvenanceGraphBuilder
             MERGE (i:Inference {InferenceId: $inferenceId})
             SET i.TaskType = $taskType,
                 i.ModelsUsed = $modelsUsed,
-                i.reasoning_mode = $reasoningMode,
-                i.complexity = $complexity,
-                i.audit_required = $auditRequired,
-                i.performance_sla_ms = $performanceSlaMs,
-                i.created_at = datetime(),
-                i.source_event = $eventId";
+                i.ReasoningMode = $reasoningMode,
+                i.Complexity = $complexity,
+                i.AuditRequired = $auditRequired,
+                i.PerformanceSlaMs = $performanceSlaMs,
+                i.CreatedAt = datetime(),
+                i.SourceEvent = $eventId";
 
         await session.RunAsync(cypher, new
         {
@@ -281,10 +281,10 @@ public class ProvenanceGraphBuilder
 
         var cypher = @"
             MERGE (k:Knowledge {DocId: $docId})
-            SET k.content = $content,
-                k.category = $category,
-                k.created_at = datetime(),
-                k.source_event = $eventId";
+            SET k.Content = $content,
+                k.Category = $category,
+                k.CreatedAt = datetime(),
+                k.SourceEvent = $eventId";
 
         await session.RunAsync(cypher, new
         {
@@ -300,13 +300,13 @@ public class ProvenanceGraphBuilder
     public async Task CreateGenericEventNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
         var cypher = @"
-            MERGE (e:Event {event_id: $eventId})
-            SET e.event_type = $eventType,
-                e.subject = $subject,
-                e.source = $source,
-                e.data = $data,
-                e.extensions = $extensions,
-                e.created_at = datetime()";
+            MERGE (e:Event {EventId: $eventId})
+            SET e.EventType = $eventType,
+                e.Subject = $subject,
+                e.Source = $source,
+                e.Data = $data,
+                e.Extensions = $extensions,
+                e.CreatedAt = datetime()";
 
         await session.RunAsync(cypher, new
         {
