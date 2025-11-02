@@ -14,19 +14,6 @@ public class HartonomousDbContext : DbContext
     {
     }
 
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        base.OnConfiguring(optionsBuilder);
-
-        // Enable NetTopologySuite for spatial types (GEOMETRY/GEOGRAPHY)
-        // Required for EF Core 10 to map LineString, Point, Polygon, etc. to SQL Server spatial types
-        if (!optionsBuilder.IsConfigured)
-        {
-            // Configuration will be provided via DI, but ensure NTS is enabled
-            optionsBuilder.UseSqlServer(x => x.UseNetTopologySuite());
-        }
-    }
-
     // Core model management
     public DbSet<Model> Models => Set<Model>();
     public DbSet<ModelLayer> ModelLayers => Set<ModelLayer>();
@@ -74,13 +61,9 @@ public class HartonomousDbContext : DbContext
 
         // Apply all configurations from this assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(HartonomousDbContext).Assembly);
-
-        // Global query filters and conventions
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            // Set default schema
-            entityType.SetSchema("dbo");
-        }
+        
+        // Note: Schema is set per-configuration, not globally
+        // This allows multi-schema design (e.g., dbo, staging, analytics)
     }
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

@@ -1,91 +1,70 @@
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Data;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class ModelRepository : IModelRepository
+/// <summary>
+/// EF Core implementation of <see cref="IModelRepository"/>.
+/// Inherits common CRUD operations from EfRepository base class.
+/// </summary>
+public class ModelRepository : EfRepository<Model, int>, IModelRepository
 {
-    private readonly HartonomousDbContext _context;
-
-    public ModelRepository(HartonomousDbContext context)
+    public ModelRepository(HartonomousDbContext context, ILogger<ModelRepository> logger)
+        : base(context, logger)
     {
-        _context = context;
     }
 
-    public async Task<Model?> GetByIdAsync(int modelId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Models are identified by ModelId property.
+    /// </summary>
+    protected override Expression<Func<Model, int>> GetIdExpression() => model => model.ModelId;
+
+    /// <summary>
+    /// Include model layers for complete model queries.
+    /// Uses AsSplitQuery to prevent cartesian explosion.
+    /// </summary>
+    protected override IQueryable<Model> IncludeRelatedEntities(IQueryable<Model> query)
     {
-        return await _context.Models
+        return query
             .Include(m => m.Layers)
-            .FirstOrDefaultAsync(m => m.ModelId == modelId, cancellationToken);
+            .AsSplitQuery();
     }
+
+    // Domain-specific queries
 
     public async Task<Model?> GetByNameAsync(string modelName, CancellationToken cancellationToken = default)
     {
-        return await _context.Models
-            .Include(m => m.Layers)
+        return await IncludeRelatedEntities(DbSet)
             .FirstOrDefaultAsync(m => m.ModelName == modelName, cancellationToken);
-    }
-
-    public async Task<IEnumerable<Model>> GetAllAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.Models
-            .Include(m => m.Layers)
-            .ToListAsync(cancellationToken);
     }
 
     public async Task<IEnumerable<Model>> GetByTypeAsync(string modelType, CancellationToken cancellationToken = default)
     {
-        return await _context.Models
+        return await IncludeRelatedEntities(DbSet.AsNoTracking())
             .Where(m => m.ModelType == modelType)
-            .Include(m => m.Layers)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<Model> AddAsync(Model model, CancellationToken cancellationToken = default)
-    {
-        _context.Models.Add(model);
-        await _context.SaveChangesAsync(cancellationToken);
-        return model;
-    }
-
-    public async Task UpdateAsync(Model model, CancellationToken cancellationToken = default)
-    {
-        _context.Models.Update(model);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task DeleteAsync(int modelId, CancellationToken cancellationToken = default)
-    {
-        var model = await GetByIdAsync(modelId, cancellationToken);
-        if (model != null)
-        {
-            _context.Models.Remove(model);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-    }
-
-    public async Task<bool> ExistsAsync(int modelId, CancellationToken cancellationToken = default)
-    {
-        return await _context.Models.AnyAsync(m => m.ModelId == modelId, cancellationToken);
-    }
-
-    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.Models.CountAsync(cancellationToken);
-    }
+    // Model layer management
 
     public async Task<ModelLayer> AddLayerAsync(int modelId, ModelLayer layer, CancellationToken cancellationToken = default)
     {
         layer.ModelId = modelId;
-        _context.ModelLayers.Add(layer);
-        await _context.SaveChangesAsync(cancellationToken);
+        Context.ModelLayers.Add(layer);
+        await Context.SaveChangesAsync(cancellationToken);
         return layer;
     }
 
+    /// <summary>
+    /// Update model layer weights using efficient ExecuteUpdate.
+    /// Converts SqlVector to geometry for SQL Server 2025 storage.
+    /// </summary>
     public async Task UpdateLayerWeightsAsync(int layerId, SqlVector<float> weights, CancellationToken cancellationToken = default)
     {
         if (weights.IsNull)
@@ -93,7 +72,7 @@ public class ModelRepository : IModelRepository
             return;
         }
 
-        var layer = await _context.ModelLayers
+        var layer = await Context.ModelLayers
             .FirstOrDefaultAsync(l => l.LayerId == layerId, cancellationToken)
             .ConfigureAwait(false);
 
@@ -115,14 +94,15 @@ public class ModelRepository : IModelRepository
         layer.WeightsGeometry = GeometryConverter.ToLineString(dense, srid: 0);
         layer.ParameterCount = dense.Length;
 
-        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await Context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default)
     {
-        return await _context.ModelLayers
+        return await Context.ModelLayers
             .Where(l => l.ModelId == modelId)
             .OrderBy(l => l.LayerIdx)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
 }

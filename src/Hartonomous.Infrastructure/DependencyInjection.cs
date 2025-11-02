@@ -58,6 +58,10 @@ public static class DependencyInjection
 
                 // Enable spatial types
                 sqlOptions.UseNetTopologySuite();
+                
+                // Use split queries by default to prevent cartesian explosion
+                // Individual queries can override with .AsSingleQuery() if needed
+                sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
             });
 
             // Enable detailed errors in development
@@ -65,6 +69,12 @@ public static class DependencyInjection
             {
                 options.EnableDetailedErrors();
                 options.EnableSensitiveDataLogging();
+            }
+            
+            // Enable query logging in development for performance analysis
+            if (configuration.GetValue<bool>("Logging:LogLevel:Microsoft.EntityFrameworkCore") == "Debug")
+            {
+                options.LogTo(Console.WriteLine, Microsoft.Extensions.Logging.LogLevel.Information);
             }
         });
 
