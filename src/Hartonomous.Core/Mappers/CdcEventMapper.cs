@@ -9,7 +9,7 @@ namespace Hartonomous.Core.Mappers;
 /// Maps SQL Server CDC change events to platform BaseEvent format.
 /// Encapsulates conversion logic for CDC-to-CloudEvent transformation.
 /// </summary>
-public class CdcEventMapper : IEventMapper<CdcChangeEvent, BaseEvent>
+public class CdcEventMapper : IEventMapperBidirectional<CdcChangeEvent, BaseEvent>
 {
     private readonly string _serverName;
     private readonly string _databaseName;

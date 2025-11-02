@@ -21,7 +21,7 @@ public class CdcEventProcessor : BaseEventProcessor
     private readonly IEventPublisher _eventPublisher;
     private readonly IEventEnricher _enricher;
     private readonly ICdcCheckpointManager _checkpointManager;
-    private readonly IEventMapper<CdcChangeEvent, BaseEvent> _mapper;
+    private readonly IEventMapperBidirectional<CdcChangeEvent, BaseEvent> _mapper;
     private string? _lastLsn;
 
     public CdcEventProcessor(
@@ -30,7 +30,7 @@ public class CdcEventProcessor : BaseEventProcessor
         IEventEnricher enricher,
         ILogger<CdcEventProcessor> logger,
         ICdcCheckpointManager checkpointManager,
-        IEventMapper<CdcChangeEvent, BaseEvent> mapper)
+        IEventMapperBidirectional<CdcChangeEvent, BaseEvent> mapper)
         : base(logger)
     {
         _cdcRepository = cdcRepository ?? throw new ArgumentNullException(nameof(cdcRepository));

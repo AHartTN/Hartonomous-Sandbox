@@ -34,7 +34,7 @@ class Program
                 services.AddSingleton<ICdcCheckpointManager, FileCdcCheckpointManager>();
 
                 // Register CDC event mapper
-                services.AddSingleton<IEventMapper<CdcChangeEvent, BaseEvent>>(
+                services.AddSingleton<IEventMapperBidirectional<CdcChangeEvent, BaseEvent>>(
                     _ => new CdcEventMapper());
 
                 // Register CDC event processor
