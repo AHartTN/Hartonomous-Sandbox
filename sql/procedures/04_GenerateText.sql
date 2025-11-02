@@ -8,7 +8,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_GenerateText
 	@prompt NVARCHAR(MAX),
 	@max_tokens INT = 50,
-	@model_id INT = NULL
+	@ModelId INT = NULL
 AS
 BEGIN
 	SET NOCOUNT ON;
@@ -28,7 +28,7 @@ BEGIN
 	INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed)
 	VALUES (
 		'text_generation',
-		JSON_OBJECT('prompt': @prompt, 'max_tokens': @max_tokens, 'model_id': @model_id),
+		JSON_OBJECT('prompt': @prompt, 'max_tokens': @max_tokens, 'model_id': @ModelId),
 		'token_vector_walk'
 	);
 	SET @inference_id = SCOPE_IDENTITY();
@@ -38,7 +38,7 @@ BEGIN
 		@current_token = Token
 	FROM dbo.TokenVocabulary
 	WHERE Token = @current_token
-		AND (@model_id IS NULL OR ModelId = @model_id)
+		AND (@ModelId IS NULL OR ModelId = @ModelId)
 		AND Embedding IS NOT NULL;
 
 	IF @current_vocab_id IS NULL
@@ -47,7 +47,7 @@ BEGIN
 			@current_token = Token,
 			@current_vocab_id = VocabId
 		FROM dbo.TokenVocabulary
-		WHERE (@model_id IS NULL OR ModelId = @model_id)
+		WHERE (@ModelId IS NULL OR ModelId = @ModelId)
 			AND Embedding IS NOT NULL
 		ORDER BY VocabId;
 
@@ -70,7 +70,7 @@ BEGIN
 		WHERE currentToken.VocabId = @current_vocab_id
 			AND tv.Embedding IS NOT NULL
 			AND currentToken.Embedding IS NOT NULL
-			AND (@model_id IS NULL OR tv.ModelId = @model_id)
+			AND (@ModelId IS NULL OR tv.ModelId = @ModelId)
 			AND tv.Token <> @current_token
 		ORDER BY VECTOR_DISTANCE('cosine', tv.Embedding, currentToken.Embedding);
 

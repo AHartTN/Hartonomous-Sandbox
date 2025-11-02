@@ -31,13 +31,13 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
-    DECLARE @inference_id BIGINT;
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @InferenceId BIGINT;
 
     -- Log the ensemble inference request
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy)
     VALUES ('ensemble_search', 'vector_ensemble', 'KB-V1,KB-V2,KB-V3', 'weighted_average');
-    SET @inference_id = SCOPE_IDENTITY();
+    SET @InferenceId = SCOPE_IDENTITY();
 
     -- Simulate querying multiple models (in reality, these would be different knowledge bases or model versions)
     -- Model 1: Standard search
@@ -132,19 +132,19 @@ BEGIN
     -- Log inference steps for each model
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, ModelId, OperationType, DurationMs)
     VALUES
-        (@inference_id, 1, 1, 'vector_search', 50),
-        (@inference_id, 2, 2, 'vector_search', 45),
-        (@inference_id, 3, 3, 'vector_search', 48);
+        (@InferenceId, 1, 1, 'vector_search', 50),
+        (@InferenceId, 2, 2, 'vector_search', 45),
+        (@InferenceId, 3, 3, 'vector_search', 48);
 
-    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
 
     -- Update main inference request
     UPDATE dbo.InferenceRequests
-    SET TotalDurationMs = @duration_ms,
+    SET TotalDurationMs = @DurationMs,
         OutputMetadata = JSON_OBJECT('status': 'completed', 'models': 3, 'results': @top_k)
-    WHERE InferenceId = @inference_id;
+    WHERE InferenceId = @InferenceId;
 
-    SELECT @inference_id as InferenceId, @duration_ms as TotalDurationMs;
+    SELECT @InferenceId as InferenceId, @DurationMs as TotalDurationMs;
 END;
 GO
 

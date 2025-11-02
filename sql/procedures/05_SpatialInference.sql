@@ -87,8 +87,8 @@ GO
 
 -- NOVEL INFERENCE: Attention Mechanism via Spatial Nearest-Neighbor
 CREATE OR ALTER PROCEDURE dbo.sp_SpatialAttention
-    @query_token_id INT,
-    @context_size INT = 5
+    @QueryTokenId INT,
+    @ContextSize INT = 5
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -99,13 +99,13 @@ BEGIN
     DECLARE @query_spatial GEOMETRY;
     SELECT @query_spatial = SpatialProjection
     FROM dbo.TokenEmbeddingsGeo
-    WHERE TokenId = @query_token_id;
+    WHERE TokenId = @QueryTokenId;
 
     -- NOVEL: Attention = Spatial Nearest-Neighbor Search (O(log n) via index!)
     -- Instead of: attention = softmax(Q @ K.T / sqrt(d)) @ V
     -- We do: Find k-nearest neighbors in spatial index
 
-    SELECT TOP (@context_size)
+    SELECT TOP (@ContextSize)
         te.TokenId,
         te.TokenText,
         te.SpatialProjection.STDistance(@query_spatial) as SpatialDistance,
@@ -117,7 +117,7 @@ BEGIN
         END as ResolutionLevel
     FROM dbo.TokenEmbeddingsGeo te WITH(INDEX(idx_spatial_embedding))
     WHERE te.SpatialProjection.STDistance(@query_spatial) IS NOT NULL
-      AND te.TokenId != @query_token_id
+      AND te.TokenId != @QueryTokenId
     ORDER BY te.SpatialProjection.STDistance(@query_spatial) ASC;
 
     PRINT 'Attention computed via spatial index (no matrix multiply!)';
@@ -201,11 +201,11 @@ BEGIN
         WHERE TokenId IS NOT NULL;
 
         -- Compute next token via spatial operations
-        DECLARE @next_token_id INT, @next_token_text NVARCHAR(100);
+        DECLARE @NextTokenId INT, @NextTokenText NVARCHAR(100);
 
         SELECT TOP 1
-            @next_token_id = TokenId,
-            @next_token_text = TokenText
+            @NextTokenId = TokenId,
+            @NextTokenText = TokenText
         FROM (
             SELECT TOP 3
                 TokenId,
@@ -228,8 +228,8 @@ BEGIN
         ORDER BY NEWID();  -- Add randomness for temperature
 
         -- Add to context
-        INSERT INTO @context (TokenId, TokenText) VALUES (@next_token_id, @next_token_text);
-        SET @generated_text = @generated_text + ' ' + @next_token_text;
+        INSERT INTO @context (TokenId, TokenText) VALUES (@NextTokenId, @NextTokenText);
+        SET @generated_text = @generated_text + ' ' + @NextTokenText;
         SET @iteration = @iteration + 1;
     END;
 
@@ -250,7 +250,7 @@ PRINT '========================================';
 GO
 
 -- Test spatial attention
-EXEC dbo.sp_SpatialAttention @query_token_id = 3, @context_size = 5;  -- 'machine'
+EXEC dbo.sp_SpatialAttention @QueryTokenId = 3, @ContextSize = 5;  -- 'machine'
 GO
 
 PRINT '';

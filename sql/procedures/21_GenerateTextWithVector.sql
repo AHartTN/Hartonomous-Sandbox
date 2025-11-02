@@ -10,13 +10,13 @@ CREATE OR ALTER PROCEDURE dbo.sp_GenerateText
     @max_tokens INT = 50,
     @temperature FLOAT = 1.0,
     @use_ensemble BIT = 1,
-    @model_ids NVARCHAR(MAX) = NULL  -- Comma-separated model IDs, NULL = all active models
+    @ModelIds NVARCHAR(MAX) = NULL  -- Comma-separated model IDs, NULL = all active models
 AS
 BEGIN
     SET NOCOUNT ON;
 
     DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
-    DECLARE @inference_id BIGINT;
+    DECLARE @InferenceId BIGINT;
     DECLARE @generated_text NVARCHAR(MAX) = @prompt;
 
     -- Log the inference request
@@ -34,13 +34,13 @@ BEGIN
         CASE WHEN @use_ensemble = 1 THEN 'weighted_average' ELSE 'direct' END,
         JSON_OBJECT('max_tokens': @max_tokens, 'temperature': @temperature)
     );
-    SET @inference_id = SCOPE_IDENTITY();
+    SET @InferenceId = SCOPE_IDENTITY();
 
     -- Get active models for ensemble
     DECLARE @models TABLE (ModelId INT, ModelName NVARCHAR(200), Weight FLOAT);
     IF @use_ensemble = 1
     BEGIN
-        IF @model_ids IS NULL
+        IF @ModelIds IS NULL
         BEGIN
             -- Use all active models with equal weights
             INSERT INTO @models
@@ -55,7 +55,7 @@ BEGIN
             SELECT mp.ModelId, mp.ModelName, 1.0
             FROM dbo.Models_Production mp
             WHERE mp.IsActive = 1
-              AND mp.ModelId IN (SELECT value FROM STRING_SPLIT(@model_ids, ','));
+              AND mp.ModelId IN (SELECT value FROM STRING_SPLIT(@ModelIds, ','));
         END
     END
 
@@ -171,11 +171,11 @@ BEGIN
     END
 
     -- Calculate duration and update inference request
-    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
     DECLARE @tokens_generated INT = @i;
 
     UPDATE dbo.InferenceRequests
-    SET TotalDurationMs = @duration_ms,
+    SET TotalDurationMs = @DurationMs,
         OutputMetadata = JSON_OBJECT(
             'status': 'completed',
             'tokens_generated': @tokens_generated,
@@ -183,26 +183,26 @@ BEGIN
             'temperature': @temperature,
             'ensemble_used': @use_ensemble
         )
-    WHERE InferenceId = @inference_id;
+    WHERE InferenceId = @InferenceId;
 
     -- Log inference steps
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, ModelId, OperationType, DurationMs, Metadata)
     SELECT
-        @inference_id,
+        @InferenceId,
         ROW_NUMBER() OVER (ORDER BY m.ModelId),
         m.ModelId,
         'text_generation',
-        @duration_ms / (SELECT COUNT(*) FROM @models),
+        @DurationMs / (SELECT COUNT(*) FROM @models),
         JSON_OBJECT('tokens_generated': @tokens_generated)
     FROM @models m;
 
     -- Return results
     SELECT
-        @inference_id as InferenceId,
+        @InferenceId as InferenceId,
         @prompt as OriginalPrompt,
         @generated_text as GeneratedText,
         @tokens_generated as TokensGenerated,
-        @duration_ms as DurationMs,
+        @DurationMs as DurationMs,
         CASE WHEN @use_ensemble = 1 THEN 'MULTI_MODEL_ENSEMBLE' ELSE 'SINGLE_MODEL' END as Method;
 END
 GO

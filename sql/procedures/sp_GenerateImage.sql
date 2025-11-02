@@ -145,10 +145,10 @@ BEGIN
     END
 
     -- Calculate duration and update inference request
-    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
 
     UPDATE dbo.InferenceRequests
-    SET TotalDurationMs = @duration_ms,
+    SET TotalDurationMs = @DurationMs,
         OutputMetadata = JSON_OBJECT(
             'status': 'completed',
             'patches_generated': (SELECT COUNT(*) FROM @patch_source),
@@ -164,7 +164,7 @@ BEGIN
         @InferenceId,
         1,
         'spatial_diffusion',
-        @duration_ms,
+        @DurationMs,
         'spatial diffusion with semantic guidance'
     );
 
@@ -175,7 +175,7 @@ BEGIN
         @width as width,
         @height as height,
         @steps as diffusion_steps,
-        @duration_ms as duration_ms,
+        @DurationMs as DurationMs,
         'SPATIAL_DIFFUSION' as method;
 END
 GO

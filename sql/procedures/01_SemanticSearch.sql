@@ -13,9 +13,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
-    DECLARE @inference_id BIGINT;
-    DECLARE @result_count INT = 0;
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @InferenceId BIGINT;
+    DECLARE @ResultCount INT = 0;
 
     IF @query_embedding IS NULL
     BEGIN
@@ -56,7 +56,7 @@ BEGIN
         'spatial_filter_vector_rerank'
     );
 
-    SET @inference_id = SCOPE_IDENTITY();
+    SET @InferenceId = SCOPE_IDENTITY();
 
     DECLARE @Results TABLE
     (
@@ -187,26 +187,26 @@ BEGIN
         ORDER BY distance ASC;
     END;
 
-    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
-    SET @result_count = (SELECT COUNT(*) FROM @Results);
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
+    SET @ResultCount = (SELECT COUNT(*) FROM @Results);
 
-    DECLARE @output_metadata JSON = CAST(JSON_OBJECT(
+    DECLARE @OutputMetadata JSON = CAST(JSON_OBJECT(
         'status': 'completed',
-        'results_count': @result_count,
+        'results_count': @ResultCount,
         'search_method': @search_method,
-        'duration_ms': @duration_ms
+        'duration_ms': @DurationMs
     ) AS JSON);
 
     UPDATE dbo.InferenceRequests
     SET
-        TotalDurationMs = @duration_ms,
-        OutputMetadata = @output_metadata,
+        TotalDurationMs = @DurationMs,
+        OutputMetadata = @OutputMetadata,
         CacheHit = 0
-    WHERE InferenceId = @inference_id;
+    WHERE InferenceId = @InferenceId;
 
     SELECT
-        r.AtomEmbeddingId AS atom_embedding_id,
-        r.AtomId AS atom_id,
+        r.AtomEmbeddingId AS AtomEmbeddingId,
+        r.AtomId AS AtomId,
         r.Modality,
         r.Subtype,
         r.SourceType,
@@ -214,15 +214,15 @@ BEGIN
         r.CanonicalText,
         r.EmbeddingType,
         r.ModelId,
-        r.ExactDistance AS cosine_distance,
+        r.ExactDistance AS CosineDistance,
         r.SimilarityScore,
         r.SpatialDistance,
         r.SearchMethod,
-        @inference_id AS inference_id
+        @InferenceId AS InferenceId
     FROM @Results AS r
     ORDER BY r.ExactDistance;
 
-    SELECT @inference_id AS inference_id, @duration_ms AS duration_ms, @result_count AS results_count;
+    SELECT @InferenceId AS InferenceId, @DurationMs AS DurationMs, @ResultCount AS ResultsCount;
 END;
 GO
 

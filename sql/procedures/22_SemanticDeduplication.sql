@@ -6,7 +6,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_CheckSimilarityAboveThreshold
     @query_vector VECTOR(1998),
     @threshold FLOAT,
     @embedding_type NVARCHAR(128) = NULL,
-    @model_id INT = NULL
+    @ModelId INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -57,7 +57,7 @@ BEGIN
     WHERE ae.EmbeddingVector IS NOT NULL
       AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) < @max_distance
       AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
-      AND (@model_id IS NULL OR ae.ModelId = @model_id)
+      AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
     ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
 END;
 GO

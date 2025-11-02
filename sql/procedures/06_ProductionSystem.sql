@@ -18,7 +18,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_ExactVectorSearch
     @top_k INT = 10,
     @distance_metric NVARCHAR(20) = 'cosine',
     @embedding_type NVARCHAR(128) = NULL,
-    @model_id INT = NULL
+    @ModelId INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -41,7 +41,7 @@ BEGIN
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
     WHERE ae.EmbeddingVector IS NOT NULL
       AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
-      AND (@model_id IS NULL OR ae.ModelId = @model_id)
+      AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
     ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
 END;
 GO
@@ -54,7 +54,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_ApproxSpatialSearch
     @top_k INT = 10,
     @use_coarse BIT = 0,
     @embedding_type NVARCHAR(128) = NULL,
-    @model_id INT = NULL,
+    @ModelId INT = NULL,
     @srid INT = 0
 AS
 BEGIN
@@ -80,7 +80,7 @@ BEGIN
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
         WHERE ae.SpatialCoarse IS NOT NULL
           AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
-          AND (@model_id IS NULL OR ae.ModelId = @model_id)
+          AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
         ORDER BY ae.SpatialCoarse.STDistance(@query_point);
     END
     ELSE
@@ -100,7 +100,7 @@ BEGIN
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
         WHERE ae.SpatialGeometry IS NOT NULL
           AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
-          AND (@model_id IS NULL OR ae.ModelId = @model_id)
+          AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
         ORDER BY ae.SpatialGeometry.STDistance(@query_point);
     END;
 END;
@@ -116,7 +116,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_HybridSearch
     @final_top_k INT = 10,          -- Rerank to top K
     @distance_metric NVARCHAR(20) = 'cosine',
     @embedding_type NVARCHAR(128) = NULL,
-    @model_id INT = NULL,
+    @ModelId INT = NULL,
     @srid INT = 0
 AS
 BEGIN
@@ -140,7 +140,7 @@ BEGIN
     FROM dbo.AtomEmbeddings AS ae
     WHERE ae.SpatialGeometry IS NOT NULL
       AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
-      AND (@model_id IS NULL OR ae.ModelId = @model_id)
+      AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
     ORDER BY ae.SpatialGeometry.STDistance(@query_point);
 
     -- Step 2: Exact vector rerank on candidates (O(k) where k << n)
@@ -177,10 +177,10 @@ GO
 
 -- Extract a student model by querying specific layers/weights
 CREATE OR ALTER PROCEDURE dbo.sp_ExtractStudentModel
-    @parent_model_id INT,
+    @ParentModelId INT,
     @layer_subset NVARCHAR(MAX) = NULL, -- optional CSV of layer indexes
     @importance_threshold FLOAT = 0.5,  -- minimum importance for tensor atoms
-    @new_model_name NVARCHAR(200)
+    @NewModelName NVARCHAR(200)
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -188,28 +188,28 @@ BEGIN
     PRINT 'EXTRACTING STUDENT MODEL via T-SQL SELECT';
     PRINT 'Distillation stays inside SQL Server atom substrate.';
 
-    DECLARE @parent_model_type NVARCHAR(100);
+    DECLARE @ParentModelType NVARCHAR(100);
     DECLARE @parent_architecture NVARCHAR(100);
     DECLARE @parent_config JSON;
     DECLARE @parent_parameter_count BIGINT;
 
     SELECT
-        @parent_model_type = ModelType,
+        @ParentModelType = ModelType,
         @parent_architecture = Architecture,
     @parent_config = Config,
         @parent_parameter_count = ParameterCount
     FROM dbo.Models
-    WHERE ModelId = @parent_model_id;
+    WHERE ModelId = @ParentModelId;
 
-    IF @parent_model_type IS NULL
+    IF @ParentModelType IS NULL
     BEGIN
         THROW 50001, 'Parent model not found.', 1;
     END;
 
     INSERT INTO dbo.Models (ModelName, ModelType, Architecture, Config, ParameterCount)
-    VALUES (@new_model_name, @parent_model_type, @parent_architecture, @parent_config, @parent_parameter_count);
+    VALUES (@NewModelName, @ParentModelType, @parent_architecture, @parent_config, @parent_parameter_count);
 
-    DECLARE @student_model_id INT = SCOPE_IDENTITY();
+    DECLARE @StudentModelId INT = SCOPE_IDENTITY();
 
     DECLARE @SelectedLayers TABLE (LayerIdx INT PRIMARY KEY);
     DECLARE @has_filter BIT = 0;
@@ -259,7 +259,7 @@ BEGIN
         ml.CacheHitRate,
         ml.AvgComputeTimeMs
     FROM dbo.ModelLayers AS ml
-    WHERE ml.ModelId = @parent_model_id
+    WHERE ml.ModelId = @ParentModelId
       AND (
             @has_filter = 0
             OR EXISTS (SELECT 1 FROM @SelectedLayers AS sl WHERE sl.LayerIdx = ml.LayerIdx)
@@ -294,7 +294,7 @@ BEGIN
             AvgComputeTimeMs
         )
         VALUES (
-            @student_model_id,
+            @StudentModelId,
             src.LayerIdx,
             src.LayerName,
             src.LayerType,
@@ -334,7 +334,7 @@ BEGIN
         ta.Metadata,
         ta.ImportanceScore
     FROM dbo.TensorAtoms AS ta
-    WHERE ta.ModelId = @parent_model_id
+    WHERE ta.ModelId = @ParentModelId
       AND ta.LayerId IN (SELECT OldLayerId FROM @LayerMap)
       AND (@importance_threshold IS NULL
            OR ta.ImportanceScore IS NULL
@@ -374,7 +374,7 @@ BEGIN
         )
         VALUES (
             src.AtomId,
-            @student_model_id,
+            @StudentModelId,
             src.NewLayerId,
             src.AtomType,
             src.SpatialSignature,
@@ -420,24 +420,24 @@ BEGIN
     DECLARE @original_atoms BIGINT = (
         SELECT COUNT(*)
         FROM dbo.TensorAtoms
-        WHERE ModelId = @parent_model_id
+        WHERE ModelId = @ParentModelId
     );
 
     DECLARE @student_atoms BIGINT = (
         SELECT COUNT(*)
         FROM dbo.TensorAtoms
-        WHERE ModelId = @student_model_id
+        WHERE ModelId = @StudentModelId
     );
 
     UPDATE dbo.Models
     SET ParameterCount = @student_atoms,
         LastUsed = NULL,
         UsageCount = 0
-    WHERE ModelId = @student_model_id;
+    WHERE ModelId = @StudentModelId;
 
     SELECT
-        @student_model_id AS student_model_id,
-        @new_model_name AS student_name,
+        @StudentModelId AS student_model_id,
+        @NewModelName AS student_name,
         @original_atoms AS original_tensor_atoms,
         @student_atoms AS student_tensor_atoms,
         CASE
@@ -452,8 +452,8 @@ GO
 
 -- Query specific weights from a model (for analysis or inference)
 CREATE OR ALTER PROCEDURE dbo.sp_QueryModelWeights
-    @model_id INT,
-    @layer_idx INT = NULL,
+    @ModelId INT,
+    @LayerIdx INT = NULL,
     @atom_type NVARCHAR(128) = NULL
 AS
 BEGIN
@@ -478,8 +478,8 @@ BEGIN
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ta.AtomId
     LEFT JOIN dbo.TensorAtomCoefficients AS coeff ON coeff.TensorAtomId = ta.TensorAtomId
     LEFT JOIN dbo.ModelLayers AS mlParent ON mlParent.LayerId = coeff.ParentLayerId
-    WHERE ta.ModelId = @model_id
-      AND (@layer_idx IS NULL OR ml.LayerIdx = @layer_idx)
+    WHERE ta.ModelId = @ModelId
+      AND (@LayerIdx IS NULL OR ml.LayerIdx = @LayerIdx)
       AND (@atom_type IS NULL OR ta.AtomType = @atom_type)
     ORDER BY ml.LayerIdx, ta.ImportanceScore DESC, ta.TensorAtomId, coeff.TensorRole;
 END;

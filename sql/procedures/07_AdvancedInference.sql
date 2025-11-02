@@ -152,11 +152,11 @@ BEGIN
     INNER JOIN dbo.Atoms AS a ON a.AtomId = act.AtomId
     ORDER BY act.ActivationStrength DESC;
 
-    DECLARE @duration_ms INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
     DECLARE @input_json JSON = CAST(JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated) AS JSON);
     DECLARE @output_json JSON = CAST(JSON_OBJECT('activatedCount': @activated_count) AS JSON);
-    DECLARE @output_metadata JSON = CAST(JSON_OBJECT('status': 'completed', 'durationMs': @duration_ms) AS JSON);
-    DECLARE @inference_id BIGINT;
+    DECLARE @output_metadata JSON = CAST(JSON_OBJECT('status': 'completed', 'durationMs': @DurationMs) AS JSON);
+    DECLARE @InferenceId BIGINT;
 
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
     VALUES (
@@ -166,11 +166,11 @@ BEGIN
         'cognitive_activation',
         @output_json,
         @output_metadata,
-        @duration_ms
+        @DurationMs
     );
 
-    SET @inference_id = SCOPE_IDENTITY();
-    PRINT '✓ Cognitive activation complete - Inference ID: ' + CAST(@inference_id AS NVARCHAR(20));
+    SET @InferenceId = SCOPE_IDENTITY();
+    PRINT '✓ Cognitive activation complete - Inference ID: ' + CAST(@InferenceId AS NVARCHAR(20));
 END;
 GO
 
@@ -179,7 +179,7 @@ GO
 -- ==========================================
 
 CREATE OR ALTER PROCEDURE dbo.sp_DynamicStudentExtraction
-    @parent_model_id INT,
+    @ParentModelId INT,
     @target_size_ratio FLOAT = 0.5,
     @selection_strategy NVARCHAR(20) = 'importance'
 AS
@@ -195,7 +195,7 @@ BEGIN
     DECLARE @parent_exists INT = (
         SELECT COUNT(*)
         FROM dbo.Models
-        WHERE ModelId = @parent_model_id
+        WHERE ModelId = @ParentModelId
     );
 
     IF @parent_exists = 0
@@ -206,7 +206,7 @@ BEGIN
 
     DECLARE @ratio_percent INT = CEILING(@target_size_ratio * 100);
     IF @ratio_percent < 1 SET @ratio_percent = 1;
-    DECLARE @new_model_name NVARCHAR(200) = CONCAT('Student_', @parent_model_id, '_', @selection_strategy, '_', @ratio_percent, 'pct');
+    DECLARE @NewModelName NVARCHAR(200) = CONCAT('Student_', @ParentModelId, '_', @selection_strategy, '_', @ratio_percent, 'pct');
     DECLARE @layer_subset NVARCHAR(MAX) = NULL;
     DECLARE @importance_threshold FLOAT = NULL;
 
@@ -215,7 +215,7 @@ BEGIN
         DECLARE @total_layers INT = (
             SELECT COUNT(*)
             FROM dbo.ModelLayers
-            WHERE ModelId = @parent_model_id
+            WHERE ModelId = @ParentModelId
         );
 
         IF @total_layers = 0
@@ -231,7 +231,7 @@ BEGIN
         FROM (
             SELECT TOP (@layers_to_take) LayerIdx
             FROM dbo.ModelLayers
-            WHERE ModelId = @parent_model_id
+            WHERE ModelId = @ParentModelId
             ORDER BY LayerIdx
         ) AS layer_selection;
 
@@ -242,7 +242,7 @@ BEGIN
         DECLARE @total_layers_random INT = (
             SELECT COUNT(*)
             FROM dbo.ModelLayers
-            WHERE ModelId = @parent_model_id
+            WHERE ModelId = @ParentModelId
         );
 
         IF @total_layers_random = 0
@@ -258,7 +258,7 @@ BEGIN
         FROM (
             SELECT TOP (@random_take) LayerIdx
             FROM dbo.ModelLayers
-            WHERE ModelId = @parent_model_id
+            WHERE ModelId = @ParentModelId
             ORDER BY NEWID()
         ) AS random_layers;
 
@@ -269,7 +269,7 @@ BEGIN
         DECLARE @total_atoms INT = (
             SELECT COUNT(*)
             FROM dbo.TensorAtoms
-            WHERE ModelId = @parent_model_id
+            WHERE ModelId = @ParentModelId
         );
 
         IF @total_atoms = 0
@@ -286,7 +286,7 @@ BEGIN
             FROM (
                 SELECT TOP (@atoms_to_take) ImportanceScore
                 FROM dbo.TensorAtoms
-                WHERE ModelId = @parent_model_id
+                WHERE ModelId = @ParentModelId
                   AND ImportanceScore IS NOT NULL
                 ORDER BY ImportanceScore DESC
             ) AS ranked;
@@ -301,10 +301,10 @@ BEGIN
     END;
 
     EXEC dbo.sp_ExtractStudentModel
-        @parent_model_id = @parent_model_id,
+        @ParentModelId = @ParentModelId,
         @layer_subset = @layer_subset,
         @importance_threshold = @importance_threshold,
-        @new_model_name = @new_model_name;
+        @NewModelName = @NewModelName;
 END;
 GO
 
@@ -379,38 +379,38 @@ GO
 -- ==========================================
 
 CREATE OR ALTER PROCEDURE dbo.sp_CompareModelKnowledge
-    @model_a_id INT,
-    @model_b_id INT
+    @ModelAId INT,
+    @ModelBId INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    PRINT 'KNOWLEDGE COMPARISON: Model ' + CAST(@model_a_id AS NVARCHAR(20)) + ' vs Model ' + CAST(@model_b_id AS NVARCHAR(20));
+    PRINT 'KNOWLEDGE COMPARISON: Model ' + CAST(@ModelAId AS NVARCHAR(20)) + ' vs Model ' + CAST(@ModelBId AS NVARCHAR(20));
 
     -- Compare tensor atom distributions
     SELECT
         'Model A' AS model_name,
-        @model_a_id AS model_id,
+        @ModelAId AS model_id,
         COUNT(*) AS total_tensor_atoms,
         AVG(CAST(ImportanceScore AS FLOAT)) AS avg_importance,
         STDEV(CAST(ImportanceScore AS FLOAT)) AS stdev_importance,
         MIN(ImportanceScore) AS min_importance,
         MAX(ImportanceScore) AS max_importance
     FROM dbo.TensorAtoms
-    WHERE ModelId = @model_a_id
+    WHERE ModelId = @ModelAId
 
     UNION ALL
 
     SELECT
         'Model B' AS model_name,
-        @model_b_id AS model_id,
+        @ModelBId AS model_id,
         COUNT(*) AS total_tensor_atoms,
         AVG(CAST(ImportanceScore AS FLOAT)) AS avg_importance,
         STDEV(CAST(ImportanceScore AS FLOAT)) AS stdev_importance,
         MIN(ImportanceScore) AS min_importance,
         MAX(ImportanceScore) AS max_importance
     FROM dbo.TensorAtoms
-    WHERE ModelId = @model_b_id;
+    WHERE ModelId = @ModelBId;
 
     -- Compare layer structures using ModelLayers metadata
     SELECT
@@ -425,10 +425,10 @@ BEGIN
     FROM dbo.ModelLayers AS a
     FULL OUTER JOIN dbo.ModelLayers AS b
         ON a.LayerIdx = b.LayerIdx
-       AND a.ModelId = @model_a_id
-       AND b.ModelId = @model_b_id
-    WHERE a.ModelId = @model_a_id
-       OR b.ModelId = @model_b_id
+       AND a.ModelId = @ModelAId
+       AND b.ModelId = @ModelBId
+    WHERE a.ModelId = @ModelAId
+       OR b.ModelId = @ModelBId
     ORDER BY COALESCE(a.LayerIdx, b.LayerIdx);
 
     -- Compare tensor atom coefficient counts
@@ -448,7 +448,7 @@ BEGIN
             MIN(tc.Coefficient) AS min_value
         FROM dbo.TensorAtoms AS ta
         LEFT JOIN dbo.TensorAtomCoefficients AS tc ON tc.TensorAtomId = ta.TensorAtomId
-        WHERE ta.ModelId IN (@model_a_id, @model_b_id)
+        WHERE ta.ModelId IN (@ModelAId, @ModelBId)
         GROUP BY ta.ModelId
     ) AS stats
     ORDER BY stats.model_id;
@@ -463,7 +463,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_InferenceHistory
     @time_window_hours INT = 24,
-    @task_type NVARCHAR(50) = NULL
+    @TaskType NVARCHAR(50) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -484,7 +484,7 @@ BEGIN
         SUM(CASE WHEN CacheHit = 1 THEN 1 ELSE 0 END) AS cache_hits
     FROM dbo.InferenceRequests
     WHERE RequestTimestamp >= @cutoff_time
-        AND (@task_type IS NULL OR TaskType = @task_type)
+        AND (@TaskType IS NULL OR TaskType = @TaskType)
     GROUP BY TaskType
     ORDER BY request_count DESC;
 

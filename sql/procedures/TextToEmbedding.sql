@@ -5,7 +5,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_TextToEmbedding
     @text NVARCHAR(MAX),
-    @model_name NVARCHAR(100) = 'text-embedding-3-large',
+    @ModelName NVARCHAR(100) = 'text-embedding-3-large',
     @embedding VECTOR(768) OUTPUT
 AS
 BEGIN
@@ -19,7 +19,7 @@ BEGIN
     -- Construct the Azure OpenAI embeddings endpoint URL
     -- Note: Replace 'your-resource-name' with actual Azure OpenAI resource name
     SET @url = 'https://your-resource-name.openai.azure.com/openai/deployments/' +
-               @model_name + '/embeddings?api-version=2023-03-15-preview';
+               @ModelName + '/embeddings?api-version=2023-03-15-preview';
 
     -- Create JSON payload
     SET @payload = JSON_OBJECT('input': @text);
@@ -64,11 +64,11 @@ BEGIN
     VALUES (
         'text_to_embedding',
         @text,
-        @model_name,
+        @ModelName,
         'azure_openai_rest',
         JSON_OBJECT(
             'embedding_dimensions': 768,
-            'model': @model_name,
+            'model': @ModelName,
             'text_length': LEN(@text)
         )
     );
