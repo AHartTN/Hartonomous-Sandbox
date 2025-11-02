@@ -1,6 +1,7 @@
 using System.Data;
 using System.Data.Common;
 using System.Globalization;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.ValueObjects;
@@ -15,25 +16,21 @@ namespace Hartonomous.Infrastructure.Repositories;
 /// <summary>
 /// Production-ready repository for working with embedding records stored via EF + raw SQL.
 /// Provides CRUD operations, vector search, and spatial projection support.
+/// Inherits base CRUD from EfRepository, adds specialized vector/spatial operations.
 /// </summary>
-public sealed class EmbeddingRepository : IEmbeddingRepository
+public sealed class EmbeddingRepository : EfRepository<Embedding, long>, IEmbeddingRepository
 {
-    private readonly HartonomousDbContext _context;
-    private readonly ILogger<EmbeddingRepository> _logger;
-
     public EmbeddingRepository(HartonomousDbContext context, ILogger<EmbeddingRepository> logger)
+        : base(context, logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<Embedding?> GetByIdAsync(long embeddingId, CancellationToken cancellationToken = default)
-    {
-        return await _context.Embeddings
-            .AsNoTracking()
-            .FirstOrDefaultAsync(e => e.EmbeddingId == embeddingId, cancellationToken)
-            .ConfigureAwait(false);
-    }
+    /// <summary>
+    /// Embeddings are identified by EmbeddingId property.
+    /// </summary>
+    protected override Expression<Func<Embedding, long>> GetIdExpression() => e => e.EmbeddingId;
+
+    // Domain-specific queries
 
     public async Task<IEnumerable<Embedding>> GetBySourceTypeAsync(string sourceType, int limit = 100, CancellationToken cancellationToken = default)
     {
@@ -42,67 +39,13 @@ public sealed class EmbeddingRepository : IEmbeddingRepository
             throw new ArgumentException("Source type must be provided", nameof(sourceType));
         }
 
-        return await _context.Embeddings
+        return await DbSet
             .AsNoTracking()
             .Where(e => e.SourceType == sourceType)
             .OrderByDescending(e => e.CreatedAt)
             .Take(limit)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
-    }
-
-    public async Task<Embedding> AddAsync(Embedding embedding, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(embedding);
-
-        await _context.Embeddings.AddAsync(embedding, cancellationToken).ConfigureAwait(false);
-        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        return embedding;
-    }
-
-    public async Task<IEnumerable<Embedding>> AddRangeAsync(IEnumerable<Embedding> embeddings, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(embeddings);
-
-        var buffer = embeddings.ToArray();
-        if (buffer.Length == 0)
-        {
-            return Array.Empty<Embedding>();
-        }
-
-        await _context.Embeddings.AddRangeAsync(buffer, cancellationToken).ConfigureAwait(false);
-        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        return buffer;
-    }
-
-    public async Task UpdateAsync(Embedding embedding, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(embedding);
-
-        _context.Embeddings.Update(embedding);
-        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task DeleteAsync(long embeddingId, CancellationToken cancellationToken = default)
-    {
-        var entity = await _context.Embeddings
-            .FirstOrDefaultAsync(e => e.EmbeddingId == embeddingId, cancellationToken)
-            .ConfigureAwait(false);
-
-        if (entity is null)
-        {
-            return;
-        }
-
-        _context.Embeddings.Remove(entity);
-        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-    }
-
-    public async Task<int> GetCountAsync(CancellationToken cancellationToken = default)
-    {
-        return await _context.Embeddings.CountAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public async Task<IEnumerable<EmbeddingSearchResult>> ExactSearchAsync(float[] queryVector, int topK = 10, string metric = "cosine", CancellationToken cancellationToken = default)
@@ -206,7 +149,7 @@ ORDER BY VECTOR_DISTANCE('cosine', ep.embedding_full, @vector);";
             throw new ArgumentException("Content hash must be provided", nameof(contentHash));
         }
 
-        return await _context.Embeddings
+        return await DbSet
             .AsNoTracking()
             .FirstOrDefaultAsync(e => e.ContentHash == contentHash, cancellationToken)
             .ConfigureAwait(false);
@@ -243,11 +186,18 @@ ORDER BY VECTOR_DISTANCE('cosine', embedding_full, @vector);";
         return match;
     }
 
+    /// <summary>
+    /// Increment access count using ExecuteUpdate for optimal performance.
+    /// </summary>
     public async Task IncrementAccessCountAsync(long embeddingId, CancellationToken cancellationToken = default)
     {
-        await _context.Database.ExecuteSqlInterpolatedAsync(
-            $"UPDATE dbo.Embeddings_Production SET AccessCount = AccessCount + 1, LastAccessed = SYSUTCDATETIME() WHERE EmbeddingId = {embeddingId}",
-            cancellationToken).ConfigureAwait(false);
+        await DbSet
+            .Where(e => e.EmbeddingId == embeddingId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(e => e.AccessCount, e => (e.AccessCount ?? 0) + 1)
+                .SetProperty(e => e.LastAccessed, DateTime.UtcNow),
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<float[]> ComputeSpatialProjectionAsync(float[] fullVector, CancellationToken cancellationToken = default)
@@ -352,9 +302,11 @@ VALUES
         }
     }
 
+    // Raw SQL helpers for specialized vector/spatial operations
+
     private DbCommand CreateCommand()
     {
-        var connection = _context.Database.GetDbConnection();
+        var connection = Context.Database.GetDbConnection();
         if (connection.State != ConnectionState.Open)
         {
             connection.Open();

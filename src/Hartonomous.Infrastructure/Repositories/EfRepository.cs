@@ -64,23 +64,19 @@ public abstract class EfRepository<TEntity, TKey> : IRepository<TEntity, TKey>
             .ToListAsync(cancellationToken);
     }
 
-    public virtual async Task<TKey> AddAsync(TEntity entity, CancellationToken cancellationToken = default)
+    public virtual async Task<TEntity> AddAsync(TEntity entity, CancellationToken cancellationToken = default)
     {
         DbSet.Add(entity);
         await Context.SaveChangesAsync(cancellationToken);
-        
-        var idFunc = GetIdExpression().Compile();
-        return idFunc(entity);
+        return entity;
     }
 
-    public virtual async Task<IEnumerable<TKey>> AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
+    public virtual async Task<IEnumerable<TEntity>> AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default)
     {
         var entityList = entities.ToList();
         DbSet.AddRange(entityList);
         await Context.SaveChangesAsync(cancellationToken);
-        
-        var idFunc = GetIdExpression().Compile();
-        return entityList.Select(idFunc);
+        return entityList;
     }
 
     public virtual async Task UpdateAsync(TEntity entity, CancellationToken cancellationToken = default)

@@ -1,63 +1,55 @@
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class ModelLayerRepository : IModelLayerRepository
+/// <summary>
+/// EF Core implementation of <see cref="IModelLayerRepository"/>.
+/// Inherits base CRUD from EfRepository, adds specialized geometry operations.
+/// </summary>
+public class ModelLayerRepository : EfRepository<ModelLayer, long>, IModelLayerRepository
 {
-    private readonly HartonomousDbContext _context;
-
-    public ModelLayerRepository(HartonomousDbContext context)
+    public ModelLayerRepository(HartonomousDbContext context, ILogger<ModelLayerRepository> logger)
+        : base(context, logger)
     {
-        _context = context;
     }
 
-    public async Task<ModelLayer?> GetByIdAsync(long layerId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// ModelLayers are identified by LayerId property.
+    /// </summary>
+    protected override Expression<Func<ModelLayer, long>> GetIdExpression() => l => l.LayerId;
+
+    /// <summary>
+    /// Include parent model for layer queries.
+    /// </summary>
+    protected override IQueryable<ModelLayer> IncludeRelatedEntities(IQueryable<ModelLayer> query)
     {
-        return await _context.ModelLayers
-            .Include(l => l.Model)
-            .FirstOrDefaultAsync(l => l.LayerId == layerId, cancellationToken);
+        return query.Include(l => l.Model);
     }
+
+    // Domain-specific queries
 
     public async Task<IReadOnlyList<ModelLayer>> GetByModelAsync(int modelId, CancellationToken cancellationToken = default)
     {
-        return await _context.ModelLayers
+        return await DbSet
             .Where(l => l.ModelId == modelId)
             .OrderBy(l => l.LayerIdx)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
-    }
-
-    public async Task<ModelLayer> AddAsync(ModelLayer layer, CancellationToken cancellationToken = default)
-    {
-        _context.ModelLayers.Add(layer);
-        await _context.SaveChangesAsync(cancellationToken);
-        return layer;
     }
 
     public async Task BulkInsertAsync(IEnumerable<ModelLayer> layers, CancellationToken cancellationToken = default)
     {
-        await _context.ModelLayers.AddRangeAsync(layers, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        await DbSet.AddRangeAsync(layers, cancellationToken);
+        await Context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task UpdateAsync(ModelLayer layer, CancellationToken cancellationToken = default)
-    {
-        _context.ModelLayers.Update(layer);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
-    public async Task DeleteAsync(long layerId, CancellationToken cancellationToken = default)
-    {
-        var layer = await GetByIdAsync(layerId, cancellationToken);
-        if (layer != null)
-        {
-            _context.ModelLayers.Remove(layer);
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-    }
+    // Geometry-specific operations
 
     public async Task<IReadOnlyList<ModelLayer>> GetLayersByWeightRangeAsync(
         int modelId,
@@ -65,8 +57,9 @@ public class ModelLayerRepository : IModelLayerRepository
         double maxValue,
         CancellationToken cancellationToken = default)
     {
-        var layers = await _context.ModelLayers
+        var layers = await DbSet
             .Where(l => l.ModelId == modelId && l.WeightsGeometry != null)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         return layers
@@ -79,8 +72,9 @@ public class ModelLayerRepository : IModelLayerRepository
         double minImportance,
         CancellationToken cancellationToken = default)
     {
-        var layers = await _context.ModelLayers
+        var layers = await DbSet
             .Where(l => l.ModelId == modelId && l.WeightsGeometry != null)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         return layers

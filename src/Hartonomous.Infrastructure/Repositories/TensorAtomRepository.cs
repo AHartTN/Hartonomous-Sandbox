@@ -1,33 +1,42 @@
 using System.Linq;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
 /// <summary>
 /// EF Core implementation of <see cref="ITensorAtomRepository"/>.
+/// Inherits base CRUD from EfRepository, adds specialized tensor operations.
 /// </summary>
-public class TensorAtomRepository : ITensorAtomRepository
+public class TensorAtomRepository : EfRepository<TensorAtom, long>, ITensorAtomRepository
 {
-    private readonly HartonomousDbContext _context;
-
-    public TensorAtomRepository(HartonomousDbContext context)
+    public TensorAtomRepository(HartonomousDbContext context, ILogger<TensorAtomRepository> logger)
+        : base(context, logger)
     {
-        _context = context;
     }
 
-    public async Task<TensorAtom?> GetByIdAsync(long tensorAtomId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// TensorAtoms are identified by TensorAtomId property.
+    /// </summary>
+    protected override Expression<Func<TensorAtom, long>> GetIdExpression() => t => t.TensorAtomId;
+
+    /// <summary>
+    /// Include coefficients for complete tensor atom queries.
+    /// </summary>
+    protected override IQueryable<TensorAtom> IncludeRelatedEntities(IQueryable<TensorAtom> query)
     {
-        return await _context.TensorAtoms
-            .Include(t => t.Coefficients)
-            .FirstOrDefaultAsync(t => t.TensorAtomId == tensorAtomId, cancellationToken);
+        return query.Include(t => t.Coefficients);
     }
+
+    // Domain-specific queries
 
     public async Task<IReadOnlyList<TensorAtom>> GetByModelLayerAsync(int modelId, long? layerId, string? atomType, int take = 256, CancellationToken cancellationToken = default)
     {
-        var query = _context.TensorAtoms.AsQueryable();
+        var query = DbSet.AsQueryable();
 
         query = query.Where(t => t.ModelId == modelId);
 
@@ -50,25 +59,23 @@ public class TensorAtomRepository : ITensorAtomRepository
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<TensorAtom> AddAsync(TensorAtom tensorAtom, CancellationToken cancellationToken = default)
-    {
-        _context.TensorAtoms.Add(tensorAtom);
-        await _context.SaveChangesAsync(cancellationToken);
-        return tensorAtom;
-    }
-
+    /// <summary>
+    /// Replaces all coefficients for a tensor atom in a transaction.
+    /// Uses ExecuteDelete for efficient bulk deletion.
+    /// </summary>
     public async Task AddCoefficientsAsync(long tensorAtomId, IEnumerable<TensorAtomCoefficient> coefficients, CancellationToken cancellationToken = default)
     {
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
+        await using var transaction = await Context.Database.BeginTransactionAsync(cancellationToken);
 
         try
         {
-            await _context.TensorAtomCoefficients
+            // Efficient bulk delete using ExecuteDeleteAsync
+            await Context.TensorAtomCoefficients
                 .Where(c => c.TensorAtomId == tensorAtomId)
                 .ExecuteDeleteAsync(cancellationToken);
 
-            await _context.TensorAtomCoefficients.AddRangeAsync(coefficients, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await Context.TensorAtomCoefficients.AddRangeAsync(coefficients, cancellationToken);
+            await Context.SaveChangesAsync(cancellationToken);
 
             await transaction.CommitAsync(cancellationToken);
         }

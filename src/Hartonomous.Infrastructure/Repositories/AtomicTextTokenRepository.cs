@@ -1,57 +1,60 @@
+using System;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class AtomicTextTokenRepository : IAtomicTextTokenRepository
+/// <summary>
+/// EF Core implementation of <see cref="IAtomicTextTokenRepository"/>.
+/// Inherits base CRUD from EfRepository, adds hash-based deduplication logic.
+/// </summary>
+public class AtomicTextTokenRepository : EfRepository<AtomicTextToken, long>, IAtomicTextTokenRepository
 {
-    private readonly HartonomousDbContext _context;
-    private readonly ILogger<AtomicTextTokenRepository> _logger;
-
     public AtomicTextTokenRepository(HartonomousDbContext context, ILogger<AtomicTextTokenRepository> logger)
+        : base(context, logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    /// <summary>
+    /// AtomicTextTokens are identified by TokenId property.
+    /// </summary>
+    protected override Expression<Func<AtomicTextToken, long>> GetIdExpression() => t => t.TokenId;
+
+    // Domain-specific queries
 
     public async Task<AtomicTextToken?> GetByHashAsync(byte[] tokenHash, CancellationToken cancellationToken = default)
     {
-        return await _context.AtomicTextTokens
+        return await DbSet
+            .AsNoTracking()
             .FirstOrDefaultAsync(t => t.TokenHash == tokenHash, cancellationToken);
     }
 
-    public async Task<AtomicTextToken?> GetByIdAsync(long tokenId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Efficiently increment reference count using ExecuteUpdateAsync.
+    /// Avoids loading the entity into memory.
+    /// </summary>
+    public async Task UpdateReferenceCountAsync(long tokenId, CancellationToken cancellationToken = default)
     {
-        return await _context.AtomicTextTokens.FindAsync(new object[] { tokenId }, cancellationToken);
+        await DbSet
+            .Where(t => t.TokenId == tokenId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(t => t.ReferenceCount, t => t.ReferenceCount + 1)
+                .SetProperty(t => t.LastReferenced, DateTime.UtcNow),
+                cancellationToken);
     }
 
-    public async Task<AtomicTextToken> AddAsync(AtomicTextToken token, CancellationToken cancellationToken = default)
+    public async Task<long> GetReferenceCountAsync(long tokenId, CancellationToken cancellationToken = default)
     {
-        _context.AtomicTextTokens.Add(token);
-        await _context.SaveChangesAsync(cancellationToken);
-        return token;
-    }
-
-    public async Task UpdateReferenceCountAsync(byte[] tokenHash, CancellationToken cancellationToken = default)
-    {
-        var token = await GetByHashAsync(tokenHash, cancellationToken);
-        if (token != null)
-        {
-            token.ReferenceCount++;
-            token.LastReferenced = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
-        }
-    }
-
-    public async Task<long> GetReferenceCountAsync(byte[] tokenHash, CancellationToken cancellationToken = default)
-    {
-        var token = await GetByHashAsync(tokenHash, cancellationToken);
+        var token = await DbSet
+            .Where(t => t.TokenId == tokenId)
+            .Select(t => new { t.ReferenceCount })
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+        
         return token?.ReferenceCount ?? 0;
     }
 }

@@ -51,13 +51,15 @@ public interface IRepository<TEntity, TKey> where TEntity : class
 
     /// <summary>
     /// Add a new entity.
+    /// Returns the entity with any generated values (like auto-increment IDs).
     /// </summary>
-    Task<TKey> AddAsync(TEntity entity, CancellationToken cancellationToken = default);
+    Task<TEntity> AddAsync(TEntity entity, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Add multiple entities in batch.
+    /// Returns the entities with any generated values.
     /// </summary>
-    Task<IEnumerable<TKey>> AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
+    Task<IEnumerable<TEntity>> AddRangeAsync(IEnumerable<TEntity> entities, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Update an existing entity.
