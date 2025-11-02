@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data;
 using System.Globalization;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
@@ -13,6 +14,7 @@ using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Infrastructure.Repositories;
@@ -20,31 +22,39 @@ namespace Hartonomous.Infrastructure.Repositories;
 /// <summary>
 /// EF Core implementation of <see cref="IAtomEmbeddingRepository"/> that layers centralized SQL execution
 /// on top of EF Core tracking to support VECTOR-aware operations.
+/// Inherits base CRUD from EfRepository, adds specialized vector/spatial search.
 /// </summary>
-public class AtomEmbeddingRepository : IAtomEmbeddingRepository
+public class AtomEmbeddingRepository : EfRepository<AtomEmbedding, long>, IAtomEmbeddingRepository
 {
-    private readonly HartonomousDbContext _context;
     private readonly ISqlCommandExecutor _sqlCommandExecutor;
 
     public AtomEmbeddingRepository(
         HartonomousDbContext context,
+        ILogger<AtomEmbeddingRepository> logger,
         ISqlCommandExecutor sqlCommandExecutor)
+        : base(context, logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
         _sqlCommandExecutor = sqlCommandExecutor ?? throw new ArgumentNullException(nameof(sqlCommandExecutor));
     }
 
-    public async Task<AtomEmbedding?> GetByIdAsync(long atomEmbeddingId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// AtomEmbeddings are identified by AtomEmbeddingId property.
+    /// </summary>
+    protected override Expression<Func<AtomEmbedding, long>> GetIdExpression() => e => e.AtomEmbeddingId;
+
+    /// <summary>
+    /// Include components for complete embedding queries.
+    /// </summary>
+    protected override IQueryable<AtomEmbedding> IncludeRelatedEntities(IQueryable<AtomEmbedding> query)
     {
-        return await _context.AtomEmbeddings
-            .Include(e => e.Components)
-            .FirstOrDefaultAsync(e => e.AtomEmbeddingId == atomEmbeddingId, cancellationToken)
-            .ConfigureAwait(false);
+        return query.Include(e => e.Components);
     }
+
+    // Domain-specific queries
 
     public async Task<IReadOnlyList<AtomEmbedding>> GetByAtomIdAsync(long atomId, CancellationToken cancellationToken = default)
     {
-        return await _context.AtomEmbeddings
+        return await DbSet
             .Where(e => e.AtomId == atomId)
             .Include(e => e.Components)
             .AsNoTracking()
@@ -52,30 +62,25 @@ public class AtomEmbeddingRepository : IAtomEmbeddingRepository
             .ConfigureAwait(false);
     }
 
-    public async Task<AtomEmbedding> AddAsync(AtomEmbedding embedding, CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(embedding);
-
-        _context.AtomEmbeddings.Add(embedding);
-        await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        return embedding;
-    }
-
+    /// <summary>
+    /// Efficiently replace all components for an embedding using ExecuteDeleteAsync.
+    /// Uses transaction for atomicity.
+    /// </summary>
     public async Task AddComponentsAsync(long atomEmbeddingId, IEnumerable<AtomEmbeddingComponent> components, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(components);
 
-        await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
+        await using var transaction = await Context.Database.BeginTransactionAsync(cancellationToken).ConfigureAwait(false);
 
         try
         {
-            await _context.AtomEmbeddingComponents
+            await Context.AtomEmbeddingComponents
                 .Where(c => c.AtomEmbeddingId == atomEmbeddingId)
                 .ExecuteDeleteAsync(cancellationToken)
                 .ConfigureAwait(false);
 
-            await _context.AtomEmbeddingComponents.AddRangeAsync(components, cancellationToken).ConfigureAwait(false);
-            await _context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            await Context.AtomEmbeddingComponents.AddRangeAsync(components, cancellationToken).ConfigureAwait(false);
+            await Context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
             await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
         }
@@ -85,6 +90,8 @@ public class AtomEmbeddingRepository : IAtomEmbeddingRepository
             throw;
         }
     }
+
+    // Specialized vector/spatial operations (preserved - require raw SQL/stored procedures)
 
     public async Task<Point> ComputeSpatialProjectionAsync(SqlVector<float> paddedVector, int originalDimension, CancellationToken cancellationToken = default)
     {
@@ -188,11 +195,12 @@ ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
             return null;
         }
 
-        var embedding = await _context.AtomEmbeddings
+        var embedding = await DbSet
             .Where(e => e.AtomEmbeddingId == searchResult.EmbeddingId.Value)
             .Include(e => e.Atom)
             .Include(e => e.Components)
             .AsNoTracking()
+            .AsSplitQuery()
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -266,7 +274,7 @@ ORDER BY ae.SpatialGeometry.STDistance(geometry::STGeomFromText(@wkt, @srid));
 
         var candidateIds = candidateRecords.Select(static c => c.EmbeddingId).ToArray();
 
-        var embeddings = await _context.AtomEmbeddings
+        var embeddings = await DbSet
             .Where(e => candidateIds.Contains(e.AtomEmbeddingId))
             .Include(e => e.Components)
             .Include(e => e.Atom)

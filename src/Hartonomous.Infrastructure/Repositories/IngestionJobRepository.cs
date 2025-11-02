@@ -1,46 +1,53 @@
 using System;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
 /// <summary>
 /// EF Core implementation of <see cref="IIngestionJobRepository"/>.
+/// Inherits base CRUD from EfRepository, adds job lifecycle operations.
 /// </summary>
-public class IngestionJobRepository : IIngestionJobRepository
+public class IngestionJobRepository : EfRepository<IngestionJob, long>, IIngestionJobRepository
 {
-    private readonly HartonomousDbContext _context;
-
-    public IngestionJobRepository(HartonomousDbContext context)
+    public IngestionJobRepository(HartonomousDbContext context, ILogger<IngestionJobRepository> logger)
+        : base(context, logger)
     {
-        _context = context;
     }
+
+    /// <summary>
+    /// IngestionJobs are identified by IngestionJobId property.
+    /// </summary>
+    protected override Expression<Func<IngestionJob, long>> GetIdExpression() => j => j.IngestionJobId;
+
+    // Domain-specific operations
 
     public async Task<IngestionJob> StartJobAsync(IngestionJob job, CancellationToken cancellationToken = default)
     {
-        _context.IngestionJobs.Add(job);
-        await _context.SaveChangesAsync(cancellationToken);
-        return job;
+        return await AddAsync(job, cancellationToken);
     }
 
+    /// <summary>
+    /// Efficiently complete a job using ExecuteUpdateAsync.
+    /// Avoids loading the entity into memory.
+    /// </summary>
     public async Task CompleteJobAsync(long jobId, string? status, CancellationToken cancellationToken = default)
     {
-        var job = await _context.IngestionJobs.FirstOrDefaultAsync(j => j.IngestionJobId == jobId, cancellationToken);
-        if (job is null)
-        {
-            return;
-        }
-
-        job.CompletedAt = DateTime.UtcNow;
-        job.Status = status;
-        await _context.SaveChangesAsync(cancellationToken);
+        await DbSet
+            .Where(j => j.IngestionJobId == jobId)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(j => j.CompletedAt, DateTime.UtcNow)
+                .SetProperty(j => j.Status, status),
+                cancellationToken);
     }
 
     public async Task AddJobAtomsAsync(IEnumerable<IngestionJobAtom> jobAtoms, CancellationToken cancellationToken = default)
     {
-        await _context.IngestionJobAtoms.AddRangeAsync(jobAtoms, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        await Context.IngestionJobAtoms.AddRangeAsync(jobAtoms, cancellationToken);
+        await Context.SaveChangesAsync(cancellationToken);
     }
 }

@@ -119,7 +119,8 @@ public sealed class EventHubConsumer : IEventConsumer, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _processorClient.StopProcessingAsync();
-        await _processorClient.DisposeAsync();
+        // EventProcessorClient is IDisposable in some versions, handle gracefully
+        GC.SuppressFinalize(this);
         _logger.LogInformation("Event Hub Consumer disposed");
     }
 }

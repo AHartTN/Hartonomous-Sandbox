@@ -194,7 +194,7 @@ ORDER BY VECTOR_DISTANCE('cosine', embedding_full, @vector);";
         await DbSet
             .Where(e => e.EmbeddingId == embeddingId)
             .ExecuteUpdateAsync(setters => setters
-                .SetProperty(e => e.AccessCount, e => (e.AccessCount ?? 0) + 1)
+                .SetProperty(e => e.AccessCount, e => e.AccessCount + 1)
                 .SetProperty(e => e.LastAccessed, DateTime.UtcNow),
                 cancellationToken)
             .ConfigureAwait(false);

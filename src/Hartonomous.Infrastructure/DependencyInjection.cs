@@ -72,7 +72,8 @@ public static class DependencyInjection
             }
             
             // Enable query logging in development for performance analysis
-            if (configuration.GetValue<bool>("Logging:LogLevel:Microsoft.EntityFrameworkCore") == "Debug")
+            var logLevel = configuration.GetValue<string>("Logging:LogLevel:Microsoft.EntityFrameworkCore");
+            if (logLevel == "Debug")
             {
                 options.LogTo(Console.WriteLine, Microsoft.Extensions.Logging.LogLevel.Information);
             }

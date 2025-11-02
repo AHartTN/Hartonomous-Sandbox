@@ -1,49 +1,45 @@
 using System.Linq;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
 /// <summary>
 /// EF Core implementation of <see cref="IDeduplicationPolicyRepository"/>.
+/// Inherits base CRUD from EfRepository, adds policy-specific queries.
 /// </summary>
-public class DeduplicationPolicyRepository : IDeduplicationPolicyRepository
+public class DeduplicationPolicyRepository : EfRepository<DeduplicationPolicy, int>, IDeduplicationPolicyRepository
 {
-    private readonly HartonomousDbContext _context;
-
-    public DeduplicationPolicyRepository(HartonomousDbContext context)
+    public DeduplicationPolicyRepository(HartonomousDbContext context, ILogger<DeduplicationPolicyRepository> logger)
+        : base(context, logger)
     {
-        _context = context;
     }
+
+    /// <summary>
+    /// DeduplicationPolicies are identified by DeduplicationPolicyId property.
+    /// </summary>
+    protected override Expression<Func<DeduplicationPolicy, int>> GetIdExpression() => p => p.DeduplicationPolicyId;
+
+    // Domain-specific queries
 
     public async Task<DeduplicationPolicy?> GetActivePolicyAsync(string policyName, CancellationToken cancellationToken = default)
     {
-        return await _context.DeduplicationPolicies
+        return await DbSet
             .Where(p => p.PolicyName == policyName && p.IsActive)
             .OrderByDescending(p => p.CreatedAt)
+            .AsNoTracking()
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public async Task<IReadOnlyList<DeduplicationPolicy>> GetAllAsync(CancellationToken cancellationToken = default)
+    public new async Task<IReadOnlyList<DeduplicationPolicy>> GetAllAsync(CancellationToken cancellationToken = default)
     {
-        return await _context.DeduplicationPolicies
+        return await DbSet
             .OrderByDescending(p => p.CreatedAt)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
-    }
-
-    public async Task<DeduplicationPolicy> AddAsync(DeduplicationPolicy policy, CancellationToken cancellationToken = default)
-    {
-        _context.DeduplicationPolicies.Add(policy);
-        await _context.SaveChangesAsync(cancellationToken);
-        return policy;
-    }
-
-    public async Task UpdateAsync(DeduplicationPolicy policy, CancellationToken cancellationToken = default)
-    {
-        _context.DeduplicationPolicies.Update(policy);
-        await _context.SaveChangesAsync(cancellationToken);
     }
 }

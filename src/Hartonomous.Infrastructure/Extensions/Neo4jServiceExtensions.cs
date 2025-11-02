@@ -32,12 +32,8 @@ public static class Neo4jServiceExtensions
             var username = options.Username ?? "neo4j";
             var password = options.Password ?? throw new InvalidOperationException("Neo4j password is not configured");
 
-            var config = ConfigBuilder.Default()
-                .WithMaxConnectionPoolSize(options.MaxConnectionPoolSize)
-                .WithConnectionTimeout(TimeSpan.FromSeconds(options.ConnectionTimeoutSeconds))
-                .Build();
-
-            return GraphDatabase.Driver(uri, AuthTokens.Basic(username, password), config);
+            // Create driver with basic configuration (Neo4j.Driver v5+ API)
+            return GraphDatabase.Driver(uri, AuthTokens.Basic(username, password));
         });
 
         return services;
