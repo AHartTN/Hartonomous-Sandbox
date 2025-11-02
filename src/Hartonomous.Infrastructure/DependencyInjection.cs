@@ -71,6 +71,9 @@ public static class DependencyInjection
         services.AddSingleton<ISqlServerConnectionFactory, SqlServerConnectionFactory>();
         services.AddScoped<ISqlCommandExecutor, SqlCommandExecutor>();
 
+        // Core services (centralized configuration and validation)
+        services.AddSingleton<IConfigurationService, ConfigurationService>();
+
         // Domain services (Core layer business logic)
         services.AddSingleton<IModelCapabilityService, ModelCapabilityService>();
         services.AddSingleton<IInferenceMetadataService, InferenceMetadataService>();
