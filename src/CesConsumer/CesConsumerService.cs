@@ -1,3 +1,4 @@
+using CesConsumer.Services;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -7,35 +8,29 @@ using System.Threading.Tasks;
 namespace CesConsumer;
 
 /// <summary>
-/// Hosted service that manages the CES consumer lifecycle.
+/// Hosted service that manages the CDC event processor lifecycle.
 /// </summary>
 public class CesConsumerService : IHostedService
 {
-    private readonly CdcListener _cdcListener;
+    private readonly CdcEventProcessor _processor;
     private readonly ILogger<CesConsumerService> _logger;
     private CancellationTokenSource? _cts;
+    private Task? _processingTask;
 
-    public CesConsumerService(CdcListener cdcListener, ILogger<CesConsumerService> logger)
+    public CesConsumerService(CdcEventProcessor processor, ILogger<CesConsumerService> logger)
     {
-        _cdcListener = cdcListener;
+        _processor = processor;
         _logger = logger;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
         _logger.LogInformation("Starting CES Consumer Service");
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _processingTask = _processor.StartAsync(_cts.Token);
 
-        try
-        {
-            await _cdcListener.StartListeningAsync(_cts.Token);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fatal error in CES Consumer Service");
-            throw;
-        }
+        return Task.CompletedTask;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -47,13 +42,20 @@ public class CesConsumerService : IHostedService
             _cts.Cancel();
         }
 
-        try
+        if (_processingTask != null)
         {
-            await _cdcListener.StopAsync(cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error stopping CDC listener");
+            try
+            {
+                await _processingTask;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected during shutdown
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during processor shutdown");
+            }
         }
     }
 }

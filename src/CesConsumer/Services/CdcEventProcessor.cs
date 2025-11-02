@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
+using Hartonomous.Core.Services;
 using Microsoft.Extensions.Logging;
 
 namespace CesConsumer.Services;
@@ -15,13 +15,13 @@ namespace CesConsumer.Services;
 /// Processes SQL Server Change Data Capture (CDC) events and publishes enriched events to messaging infrastructure.
 /// Orchestrates retrieval, enrichment, publishing, and checkpointing of database change events.
 /// </summary>
-public class CdcEventProcessor
+public class CdcEventProcessor : BaseEventProcessor
 {
     private readonly ICdcRepository _cdcRepository;
     private readonly IEventPublisher _eventPublisher;
     private readonly IEventEnricher _enricher;
-    private readonly ILogger<CdcEventProcessor> _logger;
     private readonly ICdcCheckpointManager _checkpointManager;
+    private string? _lastLsn;
 
     public CdcEventProcessor(
         ICdcRepository cdcRepository,
@@ -29,39 +29,23 @@ public class CdcEventProcessor
         IEventEnricher enricher,
         ILogger<CdcEventProcessor> logger,
         ICdcCheckpointManager checkpointManager)
+        : base(logger)
     {
         _cdcRepository = cdcRepository ?? throw new ArgumentNullException(nameof(cdcRepository));
         _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
         _enricher = enricher ?? throw new ArgumentNullException(nameof(enricher));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _checkpointManager = checkpointManager ?? throw new ArgumentNullException(nameof(checkpointManager));
     }
 
-    public async Task StartListeningAsync(CancellationToken cancellationToken)
+    protected override async Task OnStartingAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting CDC Consumer with event processing");
-
-        var lastLsn = await _checkpointManager.GetLastProcessedLsnAsync(cancellationToken);
-        _logger.LogInformation("Starting from LSN: {LastLsn}", lastLsn ?? "Beginning");
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                await ProcessChangeEventsAsync(lastLsn, cancellationToken);
-                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error processing change events");
-                await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-            }
-        }
+        _lastLsn = await _checkpointManager.GetLastProcessedLsnAsync(cancellationToken);
+        Logger.LogInformation("Starting from LSN: {LastLsn}", _lastLsn ?? "Beginning");
     }
 
-    private async Task ProcessChangeEventsAsync(string? lastLsn, CancellationToken cancellationToken)
+    protected override async Task ProcessBatchAsync(CancellationToken cancellationToken)
     {
-        var changeEvents = await _cdcRepository.GetChangeEventsSinceAsync(lastLsn, cancellationToken);
+        var changeEvents = await _cdcRepository.GetChangeEventsSinceAsync(_lastLsn, cancellationToken);
         
         if (!changeEvents.Any())
         {
@@ -82,7 +66,8 @@ public class CdcEventProcessor
         if (maxLsn != null)
         {
             await _checkpointManager.UpdateLastProcessedLsnAsync(maxLsn, cancellationToken);
-            _logger.LogInformation("Processed {Count} change events, new LSN: {MaxLsn}", 
+            _lastLsn = maxLsn;
+            Logger.LogInformation("Processed {Count} change events, new LSN: {MaxLsn}", 
                 changeEvents.Count(), maxLsn);
         }
     }

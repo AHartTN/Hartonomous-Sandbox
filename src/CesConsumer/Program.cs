@@ -1,5 +1,8 @@
+using CesConsumer.Services;
+using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure;
+using Hartonomous.Infrastructure.Services.CDC;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,16 +28,11 @@ class Program
                 // Register Hartonomous infrastructure
                 services.AddHartonomousInfrastructure(context.Configuration);
 
-                // Register CES-specific services
-                var eventHubConnectionString = context.Configuration["EventHub:ConnectionString"]
-                    ?? "Endpoint=sb://localhost;SharedAccessKeyName=RootManageSharedAccessKey;SharedAccessKey=your-key";
-                var eventHubName = context.Configuration["EventHub:Name"] ?? "sqlserver-ces-events";
+                // Register CDC checkpoint manager (file-based for now)
+                services.AddSingleton<ICdcCheckpointManager, FileCdcCheckpointManager>();
 
-                services.AddSingleton<CdcListener>(sp => new CdcListener(
-                    sp.GetRequiredService<ICdcRepository>(),
-                    sp.GetRequiredService<ILogger<CdcListener>>(),
-                    eventHubConnectionString,
-                    eventHubName));
+                // Register CDC event processor
+                services.AddSingleton<CdcEventProcessor>();
 
                 // Register hosted service
                 services.AddHostedService<CesConsumerService>();
