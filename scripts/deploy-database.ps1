@@ -144,7 +144,7 @@ if (-not $SkipMigrations) {
         Pop-Location
     }
 } else {
-    Write-Host "`n► Skipping EF migrations (--SkipMigrations)" -ForegroundColor Yellow
+    Write-Host "`n► Skipping EF migrations (-SkipMigrations)" -ForegroundColor Yellow
 }
 
 # Deploy stored procedures
@@ -192,7 +192,7 @@ if (-not $SkipProcedures) {
         Write-Host "`n  Summary: $deployed deployed, $failed failed" -ForegroundColor $(if ($failed -eq 0) { "Green" } else { "Yellow" })
     }
 } else {
-    Write-Host "`n► Skipping stored procedures (--SkipProcedures)" -ForegroundColor Yellow
+    Write-Host "`n► Skipping stored procedures (-SkipProcedures)" -ForegroundColor Yellow
 }
 
 # Deploy SQL CLR assembly
@@ -202,7 +202,7 @@ if (-not $SkipClr) {
     $clrProjectPath = Join-Path $repoRoot "src\SqlClr\SqlClrFunctions.csproj"
     if (-not (Test-Path $clrProjectPath)) {
         Write-Host "  ✗ SQL CLR project not found at $clrProjectPath" -ForegroundColor Red
-        Write-Host "  Set --SkipClr if you wish to ignore CLR deployment." -ForegroundColor Red
+        Write-Host "  Set -SkipClr if you wish to ignore CLR deployment." -ForegroundColor Red
         exit 1
     }
 
@@ -483,7 +483,7 @@ GO
 
     Write-Host "  ✓ SQL CLR assembly deployed and functions created" -ForegroundColor Green
 } else {
-    Write-Host "`n► Skipping SQL CLR deployment (--SkipClr)" -ForegroundColor Yellow
+    Write-Host "`n► Skipping SQL CLR deployment (-SkipClr)" -ForegroundColor Yellow
 }
 
 # Verify final state

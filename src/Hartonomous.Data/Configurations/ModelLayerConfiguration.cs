@@ -24,7 +24,7 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
         // Spatial indexes enable O(log n) queries for inference
         // EF Core maps NetTopologySuite.Geometries.LineString to SQL Server GEOMETRY
         builder.Property(l => l.WeightsGeometry)
-            .HasColumnName("WeightsGeometry")
+            
             .HasColumnType("geometry");  // SQL Server GEOMETRY type
 
         // Tensor shape as JSON array for reconstruction (e.g., "[3584, 3584]")

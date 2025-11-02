@@ -11,33 +11,33 @@ public sealed class AudioDataConfiguration : IEntityTypeConfiguration<AudioData>
         builder.ToTable("AudioData", "dbo");
 
         builder.HasKey(e => e.AudioId);
-        builder.Property(e => e.AudioId).HasColumnName("audio_id").ValueGeneratedOnAdd();
+        builder.Property(e => e.AudioId).ValueGeneratedOnAdd();
 
-        builder.Property(e => e.SourcePath).HasColumnName("source_path").HasMaxLength(500);
+        builder.Property(e => e.SourcePath).HasMaxLength(500);
 
         // Raw data
-        builder.Property(e => e.RawData).HasColumnName("raw_data");
-        builder.Property(e => e.SampleRate).HasColumnName("sample_rate").IsRequired();
-        builder.Property(e => e.DurationMs).HasColumnName("duration_ms").IsRequired();
-        builder.Property(e => e.NumChannels).HasColumnName("num_channels").IsRequired();
-        builder.Property(e => e.Format).HasColumnName("format").HasMaxLength(20);
+        builder.Property(e => e.RawData);
+        builder.Property(e => e.SampleRate).IsRequired();
+        builder.Property(e => e.DurationMs).IsRequired();
+        builder.Property(e => e.NumChannels).IsRequired();
+        builder.Property(e => e.Format).HasMaxLength(20);
 
         // Spectral representations
-        builder.Property(e => e.Spectrogram).HasColumnName("spectrogram").HasColumnType("GEOMETRY");
-        builder.Property(e => e.MelSpectrogram).HasColumnName("mel_spectrogram").HasColumnType("GEOMETRY");
+        builder.Property(e => e.Spectrogram).HasColumnType("GEOMETRY");
+        builder.Property(e => e.MelSpectrogram).HasColumnType("GEOMETRY");
 
         // Waveforms
-        builder.Property(e => e.WaveformLeft).HasColumnName("waveform_left").HasColumnType("GEOMETRY");
-        builder.Property(e => e.WaveformRight).HasColumnName("waveform_right").HasColumnType("GEOMETRY");
+        builder.Property(e => e.WaveformLeft).HasColumnType("GEOMETRY");
+        builder.Property(e => e.WaveformRight).HasColumnType("GEOMETRY");
 
         // Vector representations
-        builder.Property(e => e.GlobalEmbedding).HasColumnName("global_embedding").HasColumnType("VECTOR(768)");
-        builder.Property(e => e.GlobalEmbeddingDim).HasColumnName("global_embedding_dim");
+        builder.Property(e => e.GlobalEmbedding).HasColumnType("VECTOR(768)");
+        builder.Property(e => e.GlobalEmbeddingDim);
 
         // Metadata
-        builder.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("JSON");
+        builder.Property(e => e.Metadata).HasColumnType("JSON");
 
-        builder.Property(e => e.IngestionDate).HasColumnName("ingestion_date").HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.Property(e => e.IngestionDate).HasDefaultValueSql("SYSUTCDATETIME()");
 
         // Indexes
         builder.HasIndex(e => e.DurationMs).HasDatabaseName("idx_duration");

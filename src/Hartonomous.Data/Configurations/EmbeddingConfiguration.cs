@@ -25,7 +25,6 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
         // CRITICAL: SqlVector<float> to VECTOR(768) mapping
         // SqlVector is stored directly - EF Core + SqlClient 6.1.2 handle binary TDS transport
         builder.Property(e => e.EmbeddingFull)
-            .HasColumnName("embedding_full")
             .HasColumnType("VECTOR(768)");
         // No value converter needed - SqlClient 6.1.2+ handles SqlVector natively
 
@@ -50,11 +49,9 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
 
         // Spatial geometry properties using NetTopologySuite
         builder.Property(e => e.SpatialGeometry)
-            .HasColumnName("spatial_geometry")
             .HasColumnType("geometry");
 
         builder.Property(e => e.SpatialCoarse)
-            .HasColumnName("spatial_coarse")
             .HasColumnType("geometry");
 
         // Note: Spatial indexes must be created via raw SQL migrations,

@@ -11,31 +11,31 @@ public sealed class TextDocumentConfiguration : IEntityTypeConfiguration<TextDoc
         builder.ToTable("TextDocuments", "dbo");
 
         builder.HasKey(e => e.DocId);
-        builder.Property(e => e.DocId).HasColumnName("doc_id").ValueGeneratedOnAdd();
+        builder.Property(e => e.DocId).ValueGeneratedOnAdd();
 
-        builder.Property(e => e.SourcePath).HasColumnName("source_path").HasMaxLength(500);
-        builder.Property(e => e.SourceUrl).HasColumnName("source_url").HasMaxLength(1000);
+        builder.Property(e => e.SourcePath).HasMaxLength(500);
+        builder.Property(e => e.SourceUrl).HasMaxLength(1000);
 
         // Text content
-        builder.Property(e => e.RawText).HasColumnName("raw_text").IsRequired();
-        builder.Property(e => e.Language).HasColumnName("language").HasMaxLength(10);
-        builder.Property(e => e.CharCount).HasColumnName("char_count");
-        builder.Property(e => e.WordCount).HasColumnName("word_count");
+        builder.Property(e => e.RawText).IsRequired();
+        builder.Property(e => e.Language).HasMaxLength(10);
+        builder.Property(e => e.CharCount);
+        builder.Property(e => e.WordCount);
 
         // Vector representations
-        builder.Property(e => e.GlobalEmbedding).HasColumnName("global_embedding").HasColumnType("VECTOR(768)");
-        builder.Property(e => e.GlobalEmbeddingDim).HasColumnName("global_embedding_dim");
+        builder.Property(e => e.GlobalEmbedding).HasColumnType("VECTOR(768)");
+        builder.Property(e => e.GlobalEmbeddingDim);
 
         // Semantic features
-        builder.Property(e => e.TopicVector).HasColumnName("topic_vector").HasColumnType("VECTOR(100)");
-        builder.Property(e => e.SentimentScore).HasColumnName("sentiment_score");
-        builder.Property(e => e.Toxicity).HasColumnName("toxicity");
+        builder.Property(e => e.TopicVector).HasColumnType("VECTOR(100)");
+        builder.Property(e => e.SentimentScore);
+        builder.Property(e => e.Toxicity);
 
         // Metadata
-        builder.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("JSON");
+        builder.Property(e => e.Metadata).HasColumnType("JSON");
 
-        builder.Property(e => e.IngestionDate).HasColumnName("ingestion_date").HasDefaultValueSql("SYSUTCDATETIME()");
-        builder.Property(e => e.LastAccessed).HasColumnName("last_accessed");
-        builder.Property(e => e.AccessCount).HasColumnName("access_count").HasDefaultValue(0L);
+        builder.Property(e => e.IngestionDate).HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.Property(e => e.LastAccessed);
+        builder.Property(e => e.AccessCount).HasDefaultValue(0L);
     }
 }

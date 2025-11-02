@@ -11,25 +11,25 @@ public sealed class ImagePatchConfiguration : IEntityTypeConfiguration<ImagePatc
         builder.ToTable("ImagePatches", "dbo");
 
         builder.HasKey(e => e.PatchId);
-        builder.Property(e => e.PatchId).HasColumnName("patch_id").ValueGeneratedOnAdd();
+        builder.Property(e => e.PatchId).ValueGeneratedOnAdd();
 
-        builder.Property(e => e.ImageId).HasColumnName("image_id").IsRequired();
-        builder.Property(e => e.PatchX).HasColumnName("patch_x").IsRequired();
-        builder.Property(e => e.PatchY).HasColumnName("patch_y").IsRequired();
-        builder.Property(e => e.PatchWidth).HasColumnName("patch_width").IsRequired();
-        builder.Property(e => e.PatchHeight).HasColumnName("patch_height").IsRequired();
+        builder.Property(e => e.ImageId).IsRequired();
+        builder.Property(e => e.PatchX).IsRequired();
+        builder.Property(e => e.PatchY).IsRequired();
+        builder.Property(e => e.PatchWidth).IsRequired();
+        builder.Property(e => e.PatchHeight).IsRequired();
 
         // Spatial
-        builder.Property(e => e.PatchRegion).HasColumnName("patch_region").HasColumnType("GEOMETRY").IsRequired();
+        builder.Property(e => e.PatchRegion).HasColumnType("GEOMETRY").IsRequired();
 
         // Features
-        builder.Property(e => e.PatchEmbedding).HasColumnName("patch_embedding").HasColumnType("VECTOR(768)");
-        builder.Property(e => e.DominantColor).HasColumnName("dominant_color").HasColumnType("GEOMETRY");
-        builder.Property(e => e.TextureFeatures).HasColumnName("texture_features");
+        builder.Property(e => e.PatchEmbedding).HasColumnType("VECTOR(768)");
+        builder.Property(e => e.DominantColor).HasColumnType("GEOMETRY");
+        builder.Property(e => e.TextureFeatures);
 
         // Statistics
-        builder.Property(e => e.MeanIntensity).HasColumnName("mean_intensity");
-        builder.Property(e => e.StdIntensity).HasColumnName("std_intensity");
+        builder.Property(e => e.MeanIntensity);
+        builder.Property(e => e.StdIntensity);
 
         // Indexes
         builder.HasIndex(e => new { e.ImageId, e.PatchX, e.PatchY }).HasDatabaseName("idx_image_patches");

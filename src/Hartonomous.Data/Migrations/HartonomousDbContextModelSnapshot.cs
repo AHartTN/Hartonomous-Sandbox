@@ -353,70 +353,55 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("AudioId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("audio_id");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("AudioId"));
 
                     b.Property<long>("DurationMs")
-                        .HasColumnType("bigint")
-                        .HasColumnName("duration_ms");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Format")
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("format");
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<SqlVector<float>?>("GlobalEmbedding")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("global_embedding");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<int?>("GlobalEmbeddingDim")
-                        .HasColumnType("int")
-                        .HasColumnName("global_embedding_dim");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("IngestionDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasColumnName("ingestion_date")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
                     b.Property<Geometry>("MelSpectrogram")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("mel_spectrogram");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<string>("Metadata")
-                        .HasColumnType("JSON")
-                        .HasColumnName("metadata");
+                        .HasColumnType("JSON");
 
                     b.Property<byte>("NumChannels")
-                        .HasColumnType("tinyint")
-                        .HasColumnName("num_channels");
+                        .HasColumnType("tinyint");
 
                     b.Property<byte[]>("RawData")
-                        .HasColumnType("varbinary(max)")
-                        .HasColumnName("raw_data");
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<int>("SampleRate")
-                        .HasColumnType("int")
-                        .HasColumnName("sample_rate");
+                        .HasColumnType("int");
 
                     b.Property<string>("SourcePath")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
-                        .HasColumnName("source_path");
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<Geometry>("Spectrogram")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("spectrogram");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<Geometry>("WaveformLeft")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("waveform_left");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<Geometry>("WaveformRight")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("waveform_right");
+                        .HasColumnType("GEOMETRY");
 
                     b.HasKey("AudioId");
 
@@ -433,48 +418,37 @@ namespace Hartonomous.Data.Migrations
             modelBuilder.Entity("Hartonomous.Core.Entities.AudioFrame", b =>
                 {
                     b.Property<long>("AudioId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("audio_id");
+                        .HasColumnType("bigint");
 
                     b.Property<long>("FrameNumber")
-                        .HasColumnType("bigint")
-                        .HasColumnName("frame_number");
+                        .HasColumnType("bigint");
 
                     b.Property<float?>("AmplitudeL")
-                        .HasColumnType("real")
-                        .HasColumnName("amplitude_l");
+                        .HasColumnType("real");
 
                     b.Property<float?>("AmplitudeR")
-                        .HasColumnType("real")
-                        .HasColumnName("amplitude_r");
+                        .HasColumnType("real");
 
                     b.Property<SqlVector<float>?>("FrameEmbedding")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("frame_embedding");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<SqlVector<float>?>("Mfcc")
-                        .HasColumnType("VECTOR(13)")
-                        .HasColumnName("mfcc");
+                        .HasColumnType("VECTOR(13)");
 
                     b.Property<float?>("RmsEnergy")
-                        .HasColumnType("real")
-                        .HasColumnName("rms_energy");
+                        .HasColumnType("real");
 
                     b.Property<float?>("SpectralCentroid")
-                        .HasColumnType("real")
-                        .HasColumnName("spectral_centroid");
+                        .HasColumnType("real");
 
                     b.Property<float?>("SpectralRolloff")
-                        .HasColumnType("real")
-                        .HasColumnName("spectral_rolloff");
+                        .HasColumnType("real");
 
                     b.Property<long>("TimestampMs")
-                        .HasColumnType("bigint")
-                        .HasColumnName("timestamp_ms");
+                        .HasColumnType("bigint");
 
                     b.Property<float?>("ZeroCrossingRate")
-                        .HasColumnType("real")
-                        .HasColumnName("zero_crossing_rate");
+                        .HasColumnType("real");
 
                     b.HasKey("AudioId", "FrameNumber");
 
@@ -611,8 +585,7 @@ namespace Hartonomous.Data.Migrations
                         .HasDefaultValue(768);
 
                     b.Property<SqlVector<float>?>("EmbeddingFull")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("embedding_full");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<string>("EmbeddingModel")
                         .HasMaxLength(100)
@@ -630,12 +603,10 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("nvarchar(50)");
 
                     b.Property<Point>("SpatialCoarse")
-                        .HasColumnType("geometry")
-                        .HasColumnName("spatial_coarse");
+                        .HasColumnType("geometry");
 
                     b.Property<Point>("SpatialGeometry")
-                        .HasColumnType("geometry")
-                        .HasColumnName("spatial_geometry");
+                        .HasColumnType("geometry");
 
                     b.Property<double?>("SpatialProjX")
                         .HasColumnType("float");
@@ -658,85 +629,67 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("ImageId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("image_id");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ImageId"));
 
                     b.Property<long>("AccessCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
-                        .HasDefaultValue(0L)
-                        .HasColumnName("access_count");
+                        .HasDefaultValue(0L);
 
                     b.Property<int>("Channels")
-                        .HasColumnType("int")
-                        .HasColumnName("channels");
+                        .HasColumnType("int");
 
                     b.Property<Geometry>("EdgeMap")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("edge_map");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<string>("Format")
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("format");
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<SqlVector<float>?>("GlobalEmbedding")
-                        .HasColumnType("VECTOR(1536)")
-                        .HasColumnName("global_embedding");
+                        .HasColumnType("VECTOR(1536)");
 
                     b.Property<int?>("GlobalEmbeddingDim")
-                        .HasColumnType("int")
-                        .HasColumnName("global_embedding_dim");
+                        .HasColumnType("int");
 
                     b.Property<int>("Height")
-                        .HasColumnType("int")
-                        .HasColumnName("height");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("IngestionDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasColumnName("ingestion_date")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
                     b.Property<DateTime?>("LastAccessed")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("last_accessed");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Metadata")
-                        .HasColumnType("JSON")
-                        .HasColumnName("metadata");
+                        .HasColumnType("JSON");
 
                     b.Property<Geometry>("ObjectRegions")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("object_regions");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<Geometry>("PixelCloud")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("pixel_cloud");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<byte[]>("RawData")
-                        .HasColumnType("varbinary(max)")
-                        .HasColumnName("raw_data");
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<Geometry>("SaliencyRegions")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("saliency_regions");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<string>("SourcePath")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
-                        .HasColumnName("source_path");
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("SourceUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
-                        .HasColumnName("source_url");
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<int>("Width")
-                        .HasColumnType("int")
-                        .HasColumnName("width");
+                        .HasColumnType("int");
 
                     b.HasKey("ImageId");
 
@@ -754,55 +707,43 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("PatchId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("patch_id");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PatchId"));
 
                     b.Property<Geometry>("DominantColor")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("dominant_color");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<long>("ImageId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("image_id");
+                        .HasColumnType("bigint");
 
                     b.Property<float?>("MeanIntensity")
-                        .HasColumnType("real")
-                        .HasColumnName("mean_intensity");
+                        .HasColumnType("real");
 
                     b.Property<SqlVector<float>?>("PatchEmbedding")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("patch_embedding");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<int>("PatchHeight")
-                        .HasColumnType("int")
-                        .HasColumnName("patch_height");
+                        .HasColumnType("int");
 
                     b.Property<Geometry>("PatchRegion")
                         .IsRequired()
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("patch_region");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<int>("PatchWidth")
-                        .HasColumnType("int")
-                        .HasColumnName("patch_width");
+                        .HasColumnType("int");
 
                     b.Property<int>("PatchX")
-                        .HasColumnType("int")
-                        .HasColumnName("patch_x");
+                        .HasColumnType("int");
 
                     b.Property<int>("PatchY")
-                        .HasColumnType("int")
-                        .HasColumnName("patch_y");
+                        .HasColumnType("int");
 
                     b.Property<float?>("StdIntensity")
-                        .HasColumnType("real")
-                        .HasColumnName("std_intensity");
+                        .HasColumnType("real");
 
                     b.Property<byte[]>("TextureFeatures")
-                        .HasColumnType("varbinary(max)")
-                        .HasColumnName("texture_features");
+                        .HasColumnType("varbinary(max)");
 
                     b.HasKey("PatchId");
 
@@ -1120,8 +1061,7 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("NVARCHAR(200)");
 
                     b.Property<LineString>("WeightsGeometry")
-                        .HasColumnType("geometry")
-                        .HasColumnName("WeightsGeometry");
+                        .HasColumnType("geometry");
 
                     b.HasKey("LayerId");
 
@@ -1272,78 +1212,62 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("DocId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("doc_id");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("DocId"));
 
                     b.Property<long>("AccessCount")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
-                        .HasDefaultValue(0L)
-                        .HasColumnName("access_count");
+                        .HasDefaultValue(0L);
 
                     b.Property<int?>("CharCount")
-                        .HasColumnType("int")
-                        .HasColumnName("char_count");
+                        .HasColumnType("int");
 
                     b.Property<SqlVector<float>?>("GlobalEmbedding")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("global_embedding");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<int?>("GlobalEmbeddingDim")
-                        .HasColumnType("int")
-                        .HasColumnName("global_embedding_dim");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("IngestionDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasColumnName("ingestion_date")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
                     b.Property<string>("Language")
                         .HasMaxLength(10)
-                        .HasColumnType("nvarchar(10)")
-                        .HasColumnName("language");
+                        .HasColumnType("nvarchar(10)");
 
                     b.Property<DateTime?>("LastAccessed")
-                        .HasColumnType("datetime2")
-                        .HasColumnName("last_accessed");
+                        .HasColumnType("datetime2");
 
                     b.Property<string>("Metadata")
-                        .HasColumnType("JSON")
-                        .HasColumnName("metadata");
+                        .HasColumnType("JSON");
 
                     b.Property<string>("RawText")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)")
-                        .HasColumnName("raw_text");
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<float?>("SentimentScore")
-                        .HasColumnType("real")
-                        .HasColumnName("sentiment_score");
+                        .HasColumnType("real");
 
                     b.Property<string>("SourcePath")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
-                        .HasColumnName("source_path");
+                        .HasColumnType("nvarchar(500)");
 
                     b.Property<string>("SourceUrl")
                         .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)")
-                        .HasColumnName("source_url");
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<SqlVector<float>?>("TopicVector")
-                        .HasColumnType("VECTOR(100)")
-                        .HasColumnName("topic_vector");
+                        .HasColumnType("VECTOR(100)");
 
                     b.Property<float?>("Toxicity")
-                        .HasColumnType("real")
-                        .HasColumnName("toxicity");
+                        .HasColumnType("real");
 
                     b.Property<int?>("WordCount")
-                        .HasColumnType("int")
-                        .HasColumnName("word_count");
+                        .HasColumnType("int");
 
                     b.HasKey("DocId");
 
@@ -1403,62 +1327,49 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("VideoId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("video_id");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("VideoId"));
 
                     b.Property<long>("DurationMs")
-                        .HasColumnType("bigint")
-                        .HasColumnName("duration_ms");
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Format")
                         .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasColumnName("format");
+                        .HasColumnType("nvarchar(20)");
 
                     b.Property<int>("Fps")
-                        .HasColumnType("int")
-                        .HasColumnName("fps");
+                        .HasColumnType("int");
 
                     b.Property<SqlVector<float>?>("GlobalEmbedding")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("global_embedding");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<int?>("GlobalEmbeddingDim")
-                        .HasColumnType("int")
-                        .HasColumnName("global_embedding_dim");
+                        .HasColumnType("int");
 
                     b.Property<DateTime?>("IngestionDate")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
-                        .HasColumnName("ingestion_date")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
                     b.Property<string>("Metadata")
-                        .HasColumnType("JSON")
-                        .HasColumnName("metadata");
+                        .HasColumnType("JSON");
 
                     b.Property<long>("NumFrames")
-                        .HasColumnType("bigint")
-                        .HasColumnName("num_frames");
+                        .HasColumnType("bigint");
 
                     b.Property<byte[]>("RawData")
-                        .HasColumnType("varbinary(max)")
-                        .HasColumnName("raw_data");
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<int>("ResolutionHeight")
-                        .HasColumnType("int")
-                        .HasColumnName("resolution_height");
+                        .HasColumnType("int");
 
                     b.Property<int>("ResolutionWidth")
-                        .HasColumnType("int")
-                        .HasColumnName("resolution_width");
+                        .HasColumnType("int");
 
                     b.Property<string>("SourcePath")
                         .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)")
-                        .HasColumnName("source_path");
+                        .HasColumnType("nvarchar(500)");
 
                     b.HasKey("VideoId");
 
@@ -1476,47 +1387,37 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("FrameId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("frame_id");
+                        .HasColumnType("bigint");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("FrameId"));
 
                     b.Property<SqlVector<float>?>("FrameEmbedding")
-                        .HasColumnType("VECTOR(768)")
-                        .HasColumnName("frame_embedding");
+                        .HasColumnType("VECTOR(768)");
 
                     b.Property<long>("FrameNumber")
-                        .HasColumnType("bigint")
-                        .HasColumnName("frame_number");
+                        .HasColumnType("bigint");
 
                     b.Property<Geometry>("MotionVectors")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("motion_vectors");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<Geometry>("ObjectRegions")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("object_regions");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<Geometry>("OpticalFlow")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("optical_flow");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<byte[]>("PerceptualHash")
                         .HasMaxLength(8)
-                        .HasColumnType("varbinary(8)")
-                        .HasColumnName("perceptual_hash");
+                        .HasColumnType("varbinary(8)");
 
                     b.Property<Geometry>("PixelCloud")
-                        .HasColumnType("GEOMETRY")
-                        .HasColumnName("pixel_cloud");
+                        .HasColumnType("GEOMETRY");
 
                     b.Property<long>("TimestampMs")
-                        .HasColumnType("bigint")
-                        .HasColumnName("timestamp_ms");
+                        .HasColumnType("bigint");
 
                     b.Property<long>("VideoId")
-                        .HasColumnType("bigint")
-                        .HasColumnName("video_id");
+                        .HasColumnType("bigint");
 
                     b.HasKey("FrameId");
 

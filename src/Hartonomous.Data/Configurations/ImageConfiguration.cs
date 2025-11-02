@@ -11,34 +11,34 @@ public sealed class ImageConfiguration : IEntityTypeConfiguration<Image>
         builder.ToTable("Images", "dbo");
 
         builder.HasKey(e => e.ImageId);
-        builder.Property(e => e.ImageId).HasColumnName("image_id").ValueGeneratedOnAdd();
+        builder.Property(e => e.ImageId).ValueGeneratedOnAdd();
 
-        builder.Property(e => e.SourcePath).HasColumnName("source_path").HasMaxLength(500);
-        builder.Property(e => e.SourceUrl).HasColumnName("source_url").HasMaxLength(1000);
+        builder.Property(e => e.SourcePath).HasMaxLength(500);
+        builder.Property(e => e.SourceUrl).HasMaxLength(1000);
 
         // Raw data
-        builder.Property(e => e.RawData).HasColumnName("raw_data");
-        builder.Property(e => e.Width).HasColumnName("width").IsRequired();
-        builder.Property(e => e.Height).HasColumnName("height").IsRequired();
-        builder.Property(e => e.Channels).HasColumnName("channels").IsRequired();
-        builder.Property(e => e.Format).HasColumnName("format").HasMaxLength(20);
+        builder.Property(e => e.RawData);
+        builder.Property(e => e.Width).IsRequired();
+        builder.Property(e => e.Height).IsRequired();
+        builder.Property(e => e.Channels).IsRequired();
+        builder.Property(e => e.Format).HasMaxLength(20);
 
         // Spatial representations
-        builder.Property(e => e.PixelCloud).HasColumnName("pixel_cloud").HasColumnType("GEOMETRY");
-        builder.Property(e => e.EdgeMap).HasColumnName("edge_map").HasColumnType("GEOMETRY");
-        builder.Property(e => e.ObjectRegions).HasColumnName("object_regions").HasColumnType("GEOMETRY");
-        builder.Property(e => e.SaliencyRegions).HasColumnName("saliency_regions").HasColumnType("GEOMETRY");
+        builder.Property(e => e.PixelCloud).HasColumnType("GEOMETRY");
+        builder.Property(e => e.EdgeMap).HasColumnType("GEOMETRY");
+        builder.Property(e => e.ObjectRegions).HasColumnType("GEOMETRY");
+        builder.Property(e => e.SaliencyRegions).HasColumnType("GEOMETRY");
 
         // Vector representations
-        builder.Property(e => e.GlobalEmbedding).HasColumnName("global_embedding").HasColumnType("VECTOR(1536)");
-        builder.Property(e => e.GlobalEmbeddingDim).HasColumnName("global_embedding_dim");
+        builder.Property(e => e.GlobalEmbedding).HasColumnType("VECTOR(1536)");
+        builder.Property(e => e.GlobalEmbeddingDim);
 
         // Metadata
-        builder.Property(e => e.Metadata).HasColumnName("metadata").HasColumnType("JSON");
+        builder.Property(e => e.Metadata).HasColumnType("JSON");
 
-        builder.Property(e => e.IngestionDate).HasColumnName("ingestion_date").HasDefaultValueSql("SYSUTCDATETIME()");
-        builder.Property(e => e.LastAccessed).HasColumnName("last_accessed");
-        builder.Property(e => e.AccessCount).HasColumnName("access_count").HasDefaultValue(0L);
+        builder.Property(e => e.IngestionDate).HasDefaultValueSql("SYSUTCDATETIME()");
+        builder.Property(e => e.LastAccessed);
+        builder.Property(e => e.AccessCount).HasDefaultValue(0L);
 
         // Indexes
         builder.HasIndex(e => new { e.Width, e.Height }).HasDatabaseName("idx_dimensions");
