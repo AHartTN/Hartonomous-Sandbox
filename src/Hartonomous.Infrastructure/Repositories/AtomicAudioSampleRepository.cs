@@ -1,4 +1,5 @@
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;

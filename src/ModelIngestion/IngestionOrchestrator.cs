@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core.Services;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
 using System;
 using System.Linq;
@@ -18,7 +17,7 @@ namespace ModelIngestion
     {
         private readonly ILogger<IngestionOrchestrator> _logger;
         private readonly IModelRepository _models;
-    private readonly ModelDownloader _downloadService;
+        private readonly ModelDownloader _downloadService;
         private readonly EmbeddingTestService _embeddingTestService;
         private readonly QueryService _queryService;
         private readonly AtomicStorageTestService _atomicTestService;

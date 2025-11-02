@@ -1,4 +1,5 @@
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Data;
 using Microsoft.Data.SqlTypes;

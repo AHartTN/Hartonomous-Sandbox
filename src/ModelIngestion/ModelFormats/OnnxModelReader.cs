@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Threading;
@@ -29,8 +30,8 @@ namespace ModelIngestion.ModelFormats
             IModelLayerRepository layerRepository,
             IOnnxModelLoader? modelLoader = null)
         {
-            _logger = logger ?? throw new System.ArgumentNullException(nameof(logger));
-            _layerRepository = layerRepository ?? throw new System.ArgumentNullException(nameof(layerRepository));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
             _modelLoader = modelLoader ?? new OnnxModelLoader(logger);
         }
 
@@ -134,7 +135,7 @@ namespace ModelIngestion.ModelFormats
                 using var session = new InferenceSession(modelPath);
                 return await Task.FromResult(session != null);
             }
-            catch (System.Exception ex)
+            catch (Exception ex)
             {
                 _logger.LogWarning(ex, "ONNX validation failed for: {Path}", modelPath);
                 return await Task.FromResult(false);
@@ -203,7 +204,7 @@ namespace ModelIngestion.ModelFormats
                 14 => "complex64",
                 15 => "complex128",
                 16 => "bfloat16",
-                _ => dataType.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                _ => dataType.ToString(CultureInfo.InvariantCulture)
             };
         }
 
@@ -246,7 +247,7 @@ namespace ModelIngestion.ModelFormats
             for (int i = 0; i < result.Length; i++)
             {
                 var halfBits = BitConverter.ToUInt16(rawData, i * sizeof(ushort));
-                result[i] = HalfToFloat(halfBits);
+                result[i] = Float16Utilities.HalfToFloat(halfBits);
             }
             return result;
         }
@@ -262,46 +263,9 @@ namespace ModelIngestion.ModelFormats
             for (int i = 0; i < result.Length; i++)
             {
                 var bfloatBits = BitConverter.ToUInt16(rawData, i * sizeof(ushort));
-                result[i] = BFloat16ToFloat(bfloatBits);
+                result[i] = Float16Utilities.BFloat16ToFloat(bfloatBits);
             }
             return result;
-        }
-
-        private static float HalfToFloat(ushort halfBits)
-        {
-            uint sign = (uint)(halfBits & 0x8000) << 16;
-            uint exponent = (uint)(halfBits & 0x7C00) >> 10;
-            uint mantissa = (uint)(halfBits & 0x03FF);
-
-            if (exponent == 0)
-            {
-                if (mantissa == 0)
-                {
-                    return BitConverter.UInt32BitsToSingle(sign);
-                }
-
-                while ((mantissa & 0x0400) == 0)
-                {
-                    mantissa <<= 1;
-                    exponent--;
-                }
-                mantissa &= 0x03FF;
-            }
-            else if (exponent == 0x1F)
-            {
-                return BitConverter.UInt32BitsToSingle(sign | 0x7F800000 | (mantissa << 13));
-            }
-
-            exponent += 127 - 15;
-            mantissa <<= 13;
-
-            return BitConverter.UInt32BitsToSingle(sign | (exponent << 23) | mantissa);
-        }
-
-        private static float BFloat16ToFloat(ushort bfloat16Bits)
-        {
-            uint floatBits = (uint)bfloat16Bits << 16;
-            return BitConverter.UInt32BitsToSingle(floatBits);
         }
     }
 }

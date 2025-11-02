@@ -1,11 +1,13 @@
+using System;
+using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.IO;
+using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Diagnostics.CodeAnalysis;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Entities;
 using Microsoft.Extensions.Logging;
@@ -19,6 +21,11 @@ namespace ModelIngestion.ModelFormats
     public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
     {
         private readonly ILogger<SafetensorsModelReader> _logger;
+        private static readonly JsonSerializerOptions SerializerOptions = new()
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
         private readonly IModelLayerRepository _layerRepository;
 
         public string FormatName => "Safetensors";
@@ -26,22 +33,22 @@ namespace ModelIngestion.ModelFormats
 
         public SafetensorsModelReader(ILogger<SafetensorsModelReader> logger, IModelLayerRepository layerRepository)
         {
-            _logger = logger ?? throw new System.ArgumentNullException(nameof(logger));
-            _layerRepository = layerRepository ?? throw new System.ArgumentNullException(nameof(layerRepository));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
         }
 
         [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
         [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
-        public async Task<Hartonomous.Core.Entities.Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
+        public async Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
         {
             _logger.LogInformation("Reading Safetensors model from: {Path}", modelPath);
 
-            var model = new Hartonomous.Core.Entities.Model
+            var model = new Model
             {
                 ModelName = Path.GetFileNameWithoutExtension(modelPath),
                 ModelType = "Safetensors",
-                IngestionDate = System.DateTime.UtcNow,
-                Layers = new List<Hartonomous.Core.Entities.ModelLayer>()
+                IngestionDate = DateTime.UtcNow,
+                Layers = new List<ModelLayer>()
             };
 
             using (var fileStream = new FileStream(modelPath, FileMode.Open, FileAccess.Read))
@@ -55,10 +62,7 @@ namespace ModelIngestion.ModelFormats
                     var headerBytes = reader.ReadBytes((int)headerLength);
                     var headerJson = Encoding.UTF8.GetString(headerBytes);
 
-                    var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
+                    var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, SerializerOptions);
 
                     if (header?.Metadata != null && header.Metadata.TryGetValue("format", out var format))
                     {
@@ -73,10 +77,7 @@ namespace ModelIngestion.ModelFormats
 
                         foreach (var tensorEntry in header.Tensors)
                         {
-                            var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), new JsonSerializerOptions
-                            {
-                                PropertyNameCaseInsensitive = true
-                            });
+                            var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), SerializerOptions);
 
                             if (tensorInfo != null && tensorInfo.DataOffsets != null && tensorInfo.DataOffsets.Count == 2)
                             {
@@ -95,11 +96,11 @@ namespace ModelIngestion.ModelFormats
                                     var numElements = tensorInfo.Shape.Aggregate(1L, (a, b) => a * b);
                                     if (numElements > 0 && numElements <= int.MaxValue)
                                     {
-                                        weights = ReadTensorData(reader, dtype, (int)numElements, dataLength);
+                                        weights = TensorDataReader.Read(reader, dtype, (int)numElements, dataLength, _logger);
                                     }
                                 }
 
-                                var layer = new Hartonomous.Core.Entities.ModelLayer
+                                var layer = new ModelLayer
                                 {
                                     LayerIdx = layerIdx,
                                     LayerName = tensorEntry.Key,
@@ -110,7 +111,7 @@ namespace ModelIngestion.ModelFormats
                                     {
                                         shape = tensorInfo.Shape,
                                         data_offsets = tensorInfo.DataOffsets
-                                    }, new JsonSerializerOptions { WriteIndented = false })
+                                    }, SerializerOptions)
                                 };
 
                                 if (weights != null && weights.Length > 0)
@@ -145,10 +146,7 @@ namespace ModelIngestion.ModelFormats
                     var headerBytes = reader.ReadBytes((int)headerLength);
                     var headerJson = Encoding.UTF8.GetString(headerBytes);
 
-                    var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, new JsonSerializerOptions
-                    {
-                        PropertyNameCaseInsensitive = true
-                    });
+                    var header = JsonSerializer.Deserialize<SafetensorsHeader>(headerJson, SerializerOptions);
 
                     if (header?.Metadata != null)
                     {
@@ -166,10 +164,7 @@ namespace ModelIngestion.ModelFormats
 
                         foreach (var tensorEntry in header.Tensors)
                         {
-                            var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), new JsonSerializerOptions
-                            {
-                                PropertyNameCaseInsensitive = true
-                            });
+                            var tensorInfo = JsonSerializer.Deserialize<SafetensorTensorInfo>(tensorEntry.Value.GetRawText(), SerializerOptions);
 
                             if (tensorInfo != null)
                             {
@@ -209,10 +204,7 @@ namespace ModelIngestion.ModelFormats
                         var headerJson = Encoding.UTF8.GetString(headerBytes);
 
                         // Try to parse as JSON
-                        JsonSerializer.Deserialize<object>(headerJson, new JsonSerializerOptions
-                        {
-                            PropertyNameCaseInsensitive = true
-                        });
+                        JsonSerializer.Deserialize<object>(headerJson, SerializerOptions);
 
                         return await Task.FromResult(true);
                     }
@@ -222,80 +214,6 @@ namespace ModelIngestion.ModelFormats
             {
                 return await Task.FromResult(false);
             }
-        }
-
-        private float[] ReadTensorData(BinaryReader reader, string dtype, int numElements, long dataLength)
-        {
-            var weights = new float[numElements];
-
-            switch (dtype.ToLowerInvariant())
-            {
-                case "f32":
-                case "float32":
-                    for (int i = 0; i < numElements && i * 4 < dataLength; i++)
-                    {
-                        weights[i] = reader.ReadSingle();
-                    }
-                    break;
-
-                case "f16":
-                case "float16":
-                    for (int i = 0; i < numElements && i * 2 < dataLength; i++)
-                    {
-                        var halfBits = reader.ReadUInt16();
-                        weights[i] = HalfToFloat(halfBits);
-                    }
-                    break;
-
-                case "bf16":
-                case "bfloat16":
-                    for (int i = 0; i < numElements && i * 2 < dataLength; i++)
-                    {
-                        var bfloat16Bits = reader.ReadUInt16();
-                        weights[i] = BFloat16ToFloat(bfloat16Bits);
-                    }
-                    break;
-
-                default:
-                    _logger.LogWarning("Unsupported dtype: {DType}, skipping tensor data", dtype);
-                    break;
-            }
-
-            return weights;
-        }
-
-        private static float HalfToFloat(ushort halfBits)
-        {
-            uint sign = (uint)(halfBits & 0x8000) << 16;
-            uint exponent = (uint)(halfBits & 0x7C00) >> 10;
-            uint mantissa = (uint)(halfBits & 0x03FF);
-
-            if (exponent == 0)
-            {
-                if (mantissa == 0) return BitConverter.UInt32BitsToSingle(sign);
-                exponent = 1;
-                while ((mantissa & 0x400) == 0)
-                {
-                    mantissa <<= 1;
-                    exponent--;
-                }
-                mantissa &= 0x3FF;
-            }
-            else if (exponent == 31)
-            {
-                return BitConverter.UInt32BitsToSingle(sign | 0x7F800000 | (mantissa << 13));
-            }
-
-            exponent += 127 - 15;
-            mantissa <<= 13;
-
-            return BitConverter.UInt32BitsToSingle(sign | (exponent << 23) | mantissa);
-        }
-
-        private static float BFloat16ToFloat(ushort bfloat16Bits)
-        {
-            uint floatBits = (uint)bfloat16Bits << 16;
-            return BitConverter.UInt32BitsToSingle(floatBits);
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Neo4j.Driver;
@@ -6,6 +6,7 @@ using Microsoft.Data.SqlClient;
 using Azure.Messaging.EventHubs;
 using Azure.Messaging.EventHubs.Processor;
 using System.Text.Json;
+using Hartonomous.Core.Models;
 
 var builder = Host.CreateApplicationBuilder(args);
 
@@ -39,21 +40,21 @@ builder.Services.AddSingleton<IDriver>(sp =>
     return GraphDatabase.Driver(uri, AuthTokens.Basic(user, password));
 });
 
-builder.Services.AddHostedService<CloudEventProcessor>();
+builder.Services.AddHostedService<EventProcessor>();
 builder.Services.AddSingleton<ProvenanceGraphBuilder>();
 
 var app = builder.Build();
 await app.RunAsync();
 
-public class CloudEventProcessor : BackgroundService
+public class EventProcessor : BackgroundService
 {
-    private readonly ILogger<CloudEventProcessor> _logger;
+    private readonly ILogger<EventProcessor> _logger;
     private readonly EventProcessorClient _eventProcessor;
     private readonly IDriver _neo4jDriver;
     private readonly ProvenanceGraphBuilder _graphBuilder;
 
-    public CloudEventProcessor(
-        ILogger<CloudEventProcessor> logger,
+    public EventProcessor(
+        ILogger<EventProcessor> logger,
         EventProcessorClient eventProcessor,
         IDriver neo4jDriver,
         ProvenanceGraphBuilder graphBuilder)
@@ -66,7 +67,7 @@ public class CloudEventProcessor : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("CloudEvent Processor starting...");
+        _logger.LogInformation("Event Processor starting...");
 
         _eventProcessor.ProcessEventAsync += ProcessEventHandler;
         _eventProcessor.ProcessErrorAsync += ProcessErrorHandler;
@@ -96,52 +97,52 @@ public class CloudEventProcessor : BackgroundService
     {
         try
         {
-            var cloudEvent = JsonSerializer.Deserialize<CloudEvent>(eventArgs.Data.Body.ToString());
-            if (cloudEvent == null)
+            var evt = JsonSerializer.Deserialize<BaseEvent>(eventArgs.Data.Body.ToString());
+            if (evt == null)
             {
-                _logger.LogWarning("Received null or invalid CloudEvent");
+                _logger.LogWarning("Received null or invalid event");
                 return;
             }
 
-            _logger.LogInformation("Processing CloudEvent: {Id} - {Type}", cloudEvent.Id, cloudEvent.Type);
+            _logger.LogInformation("Processing event: {Id} - {Type}", evt.Id, evt.Type);
 
             // Process the event based on its type
-            await ProcessCloudEventAsync(cloudEvent, eventArgs.CancellationToken);
+            await ProcessEventAsync(evt, eventArgs.CancellationToken);
 
             // Update checkpoint
             await eventArgs.UpdateCheckpointAsync(eventArgs.CancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing CloudEvent");
+            _logger.LogError(ex, "Error processing BaseEvent");
         }
     }
 
-    private async Task ProcessCloudEventAsync(CloudEvent cloudEvent, CancellationToken cancellationToken)
+    private async Task ProcessEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
         await using var session = _neo4jDriver.AsyncSession();
 
         // Extract SQL Server extensions
-        var sqlExtensions = cloudEvent.Extensions.GetValueOrDefault("sqlserver") as Dictionary<string, object>;
+        var sqlExtensions = evt.Extensions.GetValueOrDefault("sqlserver") as Dictionary<string, object>;
         var operation = sqlExtensions?.GetValueOrDefault("operation") as string ?? "";
         var table = sqlExtensions?.GetValueOrDefault("table") as string ?? "";
 
         if (table == "dbo.Models" && operation == "insert")
         {
-            await _graphBuilder.CreateModelNodeAsync(session, cloudEvent, cancellationToken);
+            await _graphBuilder.CreateModelNodeAsync(session, BaseEvent, cancellationToken);
         }
         else if (table == "dbo.InferenceRequests" && operation == "insert")
         {
-            await _graphBuilder.CreateInferenceNodeAsync(session, cloudEvent, cancellationToken);
+            await _graphBuilder.CreateInferenceNodeAsync(session, BaseEvent, cancellationToken);
         }
         else if (table == "dbo.KnowledgeBase" && operation == "insert")
         {
-            await _graphBuilder.CreateKnowledgeNodeAsync(session, cloudEvent, cancellationToken);
+            await _graphBuilder.CreateKnowledgeNodeAsync(session, BaseEvent, cancellationToken);
         }
         else
         {
             // Generic event processing
-            await _graphBuilder.CreateGenericEventNodeAsync(session, cloudEvent, cancellationToken);
+            await _graphBuilder.CreateGenericEventNodeAsync(session, BaseEvent, cancellationToken);
         }
     }
 
@@ -162,9 +163,9 @@ public class ProvenanceGraphBuilder
         _logger = logger;
     }
 
-    public async Task CreateModelNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
+    public async Task CreateModelNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
-        var data = cloudEvent.Data as Dictionary<string, object>;
+        var data = evt.Data as Dictionary<string, object>;
         if (data == null) return;
 
         var modelId = data.GetValueOrDefault("model_id")?.ToString();
@@ -174,7 +175,7 @@ public class ProvenanceGraphBuilder
         if (string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(modelName)) return;
 
         // Create model node with semantic enrichment
-        var semanticExtensions = cloudEvent.Extensions.GetValueOrDefault("semantic") as Dictionary<string, object>;
+        var semanticExtensions = evt.Extensions.GetValueOrDefault("semantic") as Dictionary<string, object>;
         var capabilities = semanticExtensions?.GetValueOrDefault("inferred_capabilities") as string[];
         var contentType = semanticExtensions?.GetValueOrDefault("content_type") as string;
         var performance = semanticExtensions?.GetValueOrDefault("expected_performance") as double?;
@@ -200,15 +201,15 @@ public class ProvenanceGraphBuilder
             performance,
             capabilities,
             compliance,
-            eventId = cloudEvent.Id
+            eventId = evt.Id
         });
 
         _logger.LogInformation("Created model node: {ModelName} ({ModelId})", modelName, modelId);
     }
 
-    public async Task CreateInferenceNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
+    public async Task CreateInferenceNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
-        var data = cloudEvent.Data as Dictionary<string, object>;
+        var data = evt.Data as Dictionary<string, object>;
         if (data == null) return;
 
         var inferenceId = data.GetValueOrDefault("inference_id")?.ToString();
@@ -218,7 +219,7 @@ public class ProvenanceGraphBuilder
         if (string.IsNullOrEmpty(inferenceId)) return;
 
         // Create inference node with reasoning context
-        var reasoningExtensions = cloudEvent.Extensions.GetValueOrDefault("reasoning") as Dictionary<string, object>;
+        var reasoningExtensions = evt.Extensions.GetValueOrDefault("reasoning") as Dictionary<string, object>;
         var reasoningMode = reasoningExtensions?.GetValueOrDefault("reasoning_mode") as string;
         var complexity = reasoningExtensions?.GetValueOrDefault("expected_complexity") as string;
         var auditRequired = reasoningExtensions?.GetValueOrDefault("audit_trail_required") as bool?;
@@ -244,7 +245,7 @@ public class ProvenanceGraphBuilder
             complexity,
             auditRequired,
             performanceSlaMs = performanceSla?.TotalMilliseconds,
-            eventId = cloudEvent.Id
+            eventId = evt.Id
         });
 
         // Create relationships to models used
@@ -265,9 +266,9 @@ public class ProvenanceGraphBuilder
         _logger.LogInformation("Created inference node: {InferenceId} ({TaskType})", inferenceId, taskType);
     }
 
-    public async Task CreateKnowledgeNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
+    public async Task CreateKnowledgeNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
-        var data = cloudEvent.Data as Dictionary<string, object>;
+        var data = evt.Data as Dictionary<string, object>;
         if (data == null) return;
 
         var docId = data.GetValueOrDefault("doc_id")?.ToString();
@@ -288,13 +289,13 @@ public class ProvenanceGraphBuilder
             docId,
             content,
             category,
-            eventId = cloudEvent.Id
+            eventId = evt.Id
         });
 
         _logger.LogInformation("Created knowledge node: {DocId} ({Category})", docId, category);
     }
 
-    public async Task CreateGenericEventNodeAsync(IAsyncSession session, CloudEvent cloudEvent, CancellationToken ct)
+    public async Task CreateGenericEventNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
         var cypher = @"
             MERGE (e:Event {event_id: $eventId})
@@ -307,25 +308,14 @@ public class ProvenanceGraphBuilder
 
         await session.RunAsync(cypher, new
         {
-            eventId = cloudEvent.Id,
-            eventType = cloudEvent.Type,
-            subject = cloudEvent.Subject,
-            source = cloudEvent.Source.ToString(),
-            data = JsonSerializer.Serialize(cloudEvent.Data),
-            extensions = JsonSerializer.Serialize(cloudEvent.Extensions)
+            eventId = evt.Id,
+            eventType = evt.Type,
+            subject = evt.Subject,
+            source = evt.Source.ToString(),
+            data = JsonSerializer.Serialize(evt.Data),
+            extensions = JsonSerializer.Serialize(evt.Extensions)
         });
 
-        _logger.LogInformation("Created generic event node: {EventId} ({EventType})", cloudEvent.Id, cloudEvent.Type);
+        _logger.LogInformation("Created generic event node: {EventId} ({EventType})", evt.Id, evt.Type);
     }
-}
-
-public class CloudEvent
-{
-    public string Id { get; set; } = string.Empty;
-    public Uri Source { get; set; } = null!;
-    public string Type { get; set; } = string.Empty;
-    public DateTimeOffset Time { get; set; }
-    public string? Subject { get; set; }
-    public object? Data { get; set; }
-    public Dictionary<string, object> Extensions { get; set; } = new();
 }

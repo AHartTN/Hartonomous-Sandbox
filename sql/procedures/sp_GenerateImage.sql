@@ -64,104 +64,82 @@ BEGIN
                 ORDER BY ae.CreatedAt DESC;
         END
 
-    -- Initialize noise (random spatial points)
-    DECLARE @noise_points TABLE (
-        x INT, y INT,
-        noise_x FLOAT, noise_y FLOAT, noise_z FLOAT,
+    DECLARE @guide_x FLOAT = 0;
+    DECLARE @guide_y FLOAT = 0;
+    DECLARE @guide_z FLOAT = 0;
+
+    IF @prompt_embedding IS NOT NULL
+    BEGIN
+        SELECT TOP 1
+            @guide_x = ae.SpatialGeometry.STX,
+            @guide_y = ae.SpatialGeometry.STY,
+            @guide_z = COALESCE(ae.SpatialGeometry.STPointN(1).Z, 0)
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE a.Modality = 'image'
+          AND (a.Subtype IN ('image_patch', 'patch', 'tile') OR a.Subtype IS NULL)
+          AND ae.EmbeddingVector IS NOT NULL
+        ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @prompt_embedding);
+    END
+
+    DECLARE @seed INT = ABS(CHECKSUM(@prompt + CONVERT(NVARCHAR(50), @start_time)));
+
+    DECLARE @patch_source TABLE (
+        patch_x INT,
+        patch_y INT,
+        spatial_x FLOAT,
+        spatial_y FLOAT,
+        spatial_z FLOAT,
         geometry GEOMETRY
     );
 
-    DECLARE @x INT = 0, @y INT = 0;
-    WHILE @x < @width
-    BEGIN
-        SET @y = 0;
-        WHILE @y < @height
-        BEGIN
-            INSERT INTO @noise_points (x, y, noise_x, noise_y, noise_z, geometry)
-            VALUES (
-                @x, @y,
-                RAND() * 2 - 1,  -- Random between -1 and 1
-                RAND() * 2 - 1,
-                RAND() * 2 - 1,
-                geometry::STGeomFromText('POINT(' +
-                    CAST(RAND() * 2 - 1 AS NVARCHAR) + ' ' +
-                    CAST(RAND() * 2 - 1 AS NVARCHAR) + ' ' +
-                    CAST(RAND() * 2 - 1 AS NVARCHAR) + ')', 0)
-            );
-            SET @y = @y + 16;  -- 16x16 patches
-        END
-        SET @x = @x + 16;
-    END
-
-    -- Denoising diffusion process (simplified spatial version)
-    DECLARE @step INT = 0;
-    WHILE @step < @steps
-    BEGIN
-        -- For each noise point, find semantically similar image patches
-        IF @prompt_embedding IS NOT NULL
-        BEGIN
-            DECLARE @guidance_geometry GEOMETRY;
-            DECLARE @guide_x FLOAT = 0;
-            DECLARE @guide_y FLOAT = 0;
-            DECLARE @guide_z FLOAT = 0;
-
-                        SELECT TOP 1
-                                @guidance_geometry = ae.SpatialGeometry
-            FROM dbo.AtomEmbeddings AS ae
-            INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-            WHERE a.Modality = 'image'
-                            AND (a.Subtype IN ('image_patch', 'patch', 'tile') OR a.Subtype IS NULL)
-              AND ae.EmbeddingVector IS NOT NULL
-            ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @prompt_embedding);
-
-            IF @guidance_geometry IS NOT NULL
-            BEGIN
-                SELECT
-                    @guide_x = @guidance_geometry.STX,
-                    @guide_y = @guidance_geometry.STY,
-                    @guide_z = COALESCE(@guidance_geometry.STPointN(1).Z, 0);
-            END
-
-            UPDATE np
-            SET geometry = geometry::STGeomFromText(
-                'POINT(' +
-                CAST(np.geometry.STX + (@guidance_scale * (@guide_x - np.geometry.STX)) AS NVARCHAR(64)) + ' ' +
-                CAST(np.geometry.STY + (@guidance_scale * (@guide_y - np.geometry.STY)) AS NVARCHAR(64)) + ' ' +
-                CAST(np.geometry.STPointN(1).Z + (@guidance_scale * (@guide_z - np.geometry.STPointN(1).Z)) AS NVARCHAR(64)) + ')',
-                0
-            )
-            FROM @noise_points AS np;
-        END
-
-        -- If no prompt embedding is available, keep existing noise geometry (no-op)
-
-        SET @step = @step + 1;
-    END
+    INSERT INTO @patch_source
+    SELECT
+        patch_x,
+        patch_y,
+        spatial_x,
+        spatial_y,
+        spatial_z,
+        patch
+    FROM dbo.clr_GenerateImagePatches(
+        @width,
+        @height,
+        16,
+        @steps,
+        @guidance_scale,
+        @guide_x,
+        @guide_y,
+        @guide_z,
+        @seed
+    );
 
     -- Generate final image patches or geometries
     IF @output_format = 'patches'
     BEGIN
-        -- Return image patches with their spatial coordinates
         SELECT
-            x, y,
-            geometry.STX as spatial_x,
-            geometry.STY as spatial_y,
-            geometry.STPointN(1).Z as spatial_z,
+            patch_x AS x,
+            patch_y AS y,
+            spatial_x,
+            spatial_y,
+            spatial_z,
             geometry
-        FROM @noise_points
-        ORDER BY x, y;
+        FROM @patch_source
+        ORDER BY patch_x, patch_y;
     END
     ELSE
     BEGIN
-        -- Return as unified geometry collection
         DECLARE @result_geometry GEOMETRY;
-        SELECT @result_geometry = geometry::STGeomCollFromText(
-            'GEOMETRYCOLLECTION(' +
-            STRING_AGG('POINT(' + CAST(geometry.STX AS NVARCHAR(64)) + ' ' +
-                       CAST(geometry.STY AS NVARCHAR(64)) + ' ' +
-                       CAST(geometry.STPointN(1).Z AS NVARCHAR(64)) + ')', ',') +
-            ')', 0)
-        FROM @noise_points;
+        SELECT @result_geometry = dbo.clr_GenerateImageGeometry(
+            @width,
+            @height,
+            16,
+            @steps,
+            @guidance_scale,
+            @guide_x,
+            @guide_y,
+            @guide_z,
+            @seed
+        );
 
         SELECT @result_geometry as generated_image_geometry;
     END
@@ -173,7 +151,7 @@ BEGIN
     SET TotalDurationMs = @duration_ms,
         OutputMetadata = JSON_OBJECT(
             'status': 'completed',
-            'patches_generated': (SELECT COUNT(*) FROM @noise_points),
+            'patches_generated': (SELECT COUNT(*) FROM @patch_source),
             'width': @width,
             'height': @height,
             'steps': @steps

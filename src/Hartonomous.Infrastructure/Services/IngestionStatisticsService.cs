@@ -1,6 +1,4 @@
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Infrastructure.Repositories;
-using Microsoft.EntityFrameworkCore;
 
 namespace Hartonomous.Infrastructure.Services;
 

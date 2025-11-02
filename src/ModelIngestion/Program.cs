@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.ApplicationInsights;
 using Hartonomous.Infrastructure;
-using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Core.Interfaces;
 using System;

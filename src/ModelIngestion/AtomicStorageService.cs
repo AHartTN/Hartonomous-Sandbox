@@ -1,9 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Entities;
-using Hartonomous.Infrastructure.Repositories;
 using System;
-using System.Linq;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.Security.Cryptography;

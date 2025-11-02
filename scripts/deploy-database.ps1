@@ -8,7 +8,6 @@
     - Creates database if missing
     - Applies EF Core migrations
     - Deploys stored procedures (CREATE OR ALTER)
-    - Deploys SQL CLR if changed
     - Seeds initial data if tables empty
     
 .PARAMETER ServerName
@@ -17,15 +16,15 @@
 .PARAMETER DatabaseName
     Database name (default: Hartonomous)
     
-.PARAMETER SkipClr
-    Skip SQL CLR deployment
-    
 .PARAMETER SkipMigrations
     Skip EF Core migrations
     
 .PARAMETER SkipProcedures
     Skip stored procedure deployment
     
+.PARAMETER SkipClr
+    Skip SQL CLR deployment
+
 .PARAMETER Verbose
     Show detailed progress
     
@@ -40,9 +39,9 @@
 param(
     [string]$ServerName = "localhost",
     [string]$DatabaseName = "Hartonomous",
-    [switch]$SkipClr = $false,
     [switch]$SkipMigrations = $false,
-    [switch]$SkipProcedures = $false
+    [switch]$SkipProcedures = $false,
+    [switch]$SkipClr = $false
 )
 
 $ErrorActionPreference = "Stop"
@@ -121,39 +120,24 @@ if (-not $dbExists) {
 # Apply EF Core migrations
 if (-not $SkipMigrations) {
     Write-Host "`n► Checking EF Core migrations..." -ForegroundColor Yellow
-    
     $dataProjectPath = Join-Path $repoRoot "src\Hartonomous.Data"
-    $startupProjectPath = Join-Path $repoRoot "src\ModelIngestion"
-    
+
     if (-not (Test-Path $dataProjectPath)) {
         Write-Host "  ✗ Data project not found at $dataProjectPath" -ForegroundColor Red
         exit 1
     }
-    
-    Push-Location $dataProjectPath
+
+    Push-Location $repoRoot
     try {
-        # Check pending migrations
-        Write-Host "  Checking for pending migrations..." -ForegroundColor Cyan
-        $pendingMigrations = dotnet ef migrations list --startup-project $startupProjectPath --no-build 2>&1 | Select-String "No migrations were found"
-        
-        if ($pendingMigrations) {
-            Write-Host "  No migrations found - generating initial migration..." -ForegroundColor Cyan
-            dotnet ef migrations add InitialCreate --startup-project $startupProjectPath
-            if ($LASTEXITCODE -ne 0) {
-                Write-Host "  ✗ Failed to generate migration" -ForegroundColor Red
-                exit 1
-            }
-            Write-Host "  ✓ Initial migration generated" -ForegroundColor Green
-        }
-        
-        Write-Host "  Applying migrations..." -ForegroundColor Cyan
-        dotnet ef database update --startup-project $startupProjectPath 2>&1 | Out-Host
-        
+        Write-Host "  Applying migrations with dotnet ef database update..." -ForegroundColor Cyan
+        $arguments = @("ef", "database", "update", "--project", $dataProjectPath, "--no-build")
+        dotnet @arguments 2>&1 | Out-Host
+
         if ($LASTEXITCODE -ne 0) {
             Write-Host "  ✗ Migration failed" -ForegroundColor Red
             exit 1
         }
-        
+
         Write-Host "  ✓ Migrations applied successfully" -ForegroundColor Green
     }
     finally {
@@ -168,7 +152,7 @@ if (-not $SkipProcedures) {
     Write-Host "`n► Deploying stored procedures..." -ForegroundColor Yellow
     
     $sqlProcDir = Join-Path $repoRoot "sql\procedures"
-    $procFiles = Get-ChildItem -Path $sqlProcDir -Filter "*.sql" | Where-Object { $_.Name -notmatch "^0[127]_" } | Sort-Object Name
+    $procFiles = Get-ChildItem -Path $sqlProcDir -Filter "*.sql" | Sort-Object Name
     
     if ($procFiles.Count -eq 0) {
         Write-Host "  No procedure files found in $sqlProcDir" -ForegroundColor Yellow
@@ -211,39 +195,295 @@ if (-not $SkipProcedures) {
     Write-Host "`n► Skipping stored procedures (--SkipProcedures)" -ForegroundColor Yellow
 }
 
-# Deploy SQL CLR
+# Deploy SQL CLR assembly
 if (-not $SkipClr) {
-    Write-Host "`n► Checking SQL CLR..." -ForegroundColor Yellow
-    
-    # Check if .NET Framework 4.8 SDK is available
-    $msbuildPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
-        -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe `
-        2>$null | Select-Object -First 1
-    
-    if (-not $msbuildPath) {
-        Write-Host "  .NET Framework 4.8 SDK not found - skipping CLR deployment" -ForegroundColor Yellow
-        Write-Host "  (CLR is optional - system works without it)" -ForegroundColor Cyan
-    } else {
-        Write-Host "  Building SQL CLR assembly..." -ForegroundColor Cyan
-        $clrProjectPath = Join-Path $repoRoot "src\SqlClr\SqlClrFunctions.csproj"
-        
-        & $msbuildPath $clrProjectPath /p:Configuration=Release /v:minimal
-        
+    Write-Host "`n► Deploying SQL CLR assembly..." -ForegroundColor Yellow
+
+    $clrProjectPath = Join-Path $repoRoot "src\SqlClr\SqlClrFunctions.csproj"
+    if (-not (Test-Path $clrProjectPath)) {
+        Write-Host "  ✗ SQL CLR project not found at $clrProjectPath" -ForegroundColor Red
+        Write-Host "  Set --SkipClr if you wish to ignore CLR deployment." -ForegroundColor Red
+        exit 1
+    }
+
+    # Ensure CLR is enabled on the server
+    Write-Host "  Enabling CLR integration on SQL Server (if required)..." -ForegroundColor Cyan
+    $enableClrScript = @"
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE WITH OVERRIDE;
+EXEC sp_configure 'clr enabled', 1;
+RECONFIGURE WITH OVERRIDE;
+"@
+    sqlcmd -S $ServerName -d master -E -C -Q $enableClrScript 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  ✗ Failed to enable CLR on SQL Server" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  ✓ CLR integration enabled" -ForegroundColor Green
+
+    # Build the CLR assembly (Release configuration)
+    Write-Host "  Building SqlClrFunctions.dll (Release)..." -ForegroundColor Cyan
+    Push-Location $repoRoot
+    $buildSucceeded = $false
+    try {
+        dotnet build $clrProjectPath -c Release -v minimal 2>&1 | Out-Null
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "  ✓ SQL CLR built successfully" -ForegroundColor Green
-            
-            # Deploy assembly (simplified - full deployment requires DROP/CREATE ASSEMBLY)
-            $assemblyPath = Join-Path $repoRoot "src\SqlClr\bin\Release\net48\SqlClrFunctions.dll"
-            if (Test-Path $assemblyPath) {
-                Write-Host "  Assembly ready at: $assemblyPath" -ForegroundColor Green
-                Write-Host "  (Manual ASSEMBLY deployment required - see deploy.ps1)" -ForegroundColor Cyan
-            }
+            $buildSucceeded = $true
         } else {
-            Write-Host "  ✗ CLR build failed (non-blocking)" -ForegroundColor Yellow
+            Write-Host "  dotnet build failed, attempting MSBuild..." -ForegroundColor Yellow
+            $msbuildPath = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+                -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe 2>$null | Select-Object -First 1
+            if (-not $msbuildPath) {
+                Write-Host "  ✗ MSBuild not found; cannot build CLR assembly" -ForegroundColor Red
+            } else {
+                & $msbuildPath $clrProjectPath /p:Configuration=Release /v:m 2>&1 | Out-Null
+                if ($LASTEXITCODE -eq 0) {
+                    $buildSucceeded = $true
+                }
+            }
         }
     }
+    finally {
+        Pop-Location
+    }
+
+    if (-not $buildSucceeded) {
+        Write-Host "  ✗ Failed to build SqlClrFunctions.dll" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "  ✓ CLR assembly built" -ForegroundColor Green
+
+    $assemblyPath = Join-Path $repoRoot "src\SqlClr\bin\Release\SqlClrFunctions.dll"
+    if (-not (Test-Path $assemblyPath)) {
+        Write-Host "  ✗ Assembly not found at $assemblyPath" -ForegroundColor Red
+        exit 1
+    }
+
+    $assemblyBytes = [System.IO.File]::ReadAllBytes($assemblyPath)
+    if ($assemblyBytes.Length -eq 0) {
+        Write-Host "  ✗ Assembly file is empty" -ForegroundColor Red
+        exit 1
+    }
+
+    $hexBuilder = New-Object System.Text.StringBuilder($assemblyBytes.Length * 2)
+    foreach ($b in $assemblyBytes) {
+        [void]$hexBuilder.AppendFormat("{0:X2}", $b)
+    }
+    $assemblyHex = $hexBuilder.ToString()
+
+    $clrDeployScript = @"
+USE [$DatabaseName];
+GO
+
+DROP FUNCTION IF EXISTS dbo.clr_CreatePointCloud;
+DROP FUNCTION IF EXISTS dbo.clr_GeometryConvexHull;
+DROP FUNCTION IF EXISTS dbo.clr_PointInRegion;
+DROP FUNCTION IF EXISTS dbo.clr_RegionOverlap;
+DROP FUNCTION IF EXISTS dbo.clr_GeometryCentroid;
+DROP FUNCTION IF EXISTS dbo.clr_VectorDotProduct;
+DROP FUNCTION IF EXISTS dbo.clr_VectorCosineSimilarity;
+DROP FUNCTION IF EXISTS dbo.clr_VectorEuclideanDistance;
+DROP FUNCTION IF EXISTS dbo.clr_VectorAdd;
+DROP FUNCTION IF EXISTS dbo.clr_VectorSubtract;
+DROP FUNCTION IF EXISTS dbo.clr_VectorScale;
+DROP FUNCTION IF EXISTS dbo.clr_VectorNorm;
+DROP FUNCTION IF EXISTS dbo.clr_VectorNormalize;
+DROP FUNCTION IF EXISTS dbo.clr_VectorLerp;
+DROP FUNCTION IF EXISTS dbo.clr_VectorSoftmax;
+DROP FUNCTION IF EXISTS dbo.clr_VectorArgMax;
+DROP FUNCTION IF EXISTS dbo.clr_AudioWaveform;
+DROP FUNCTION IF EXISTS dbo.clr_AudioRms;
+DROP FUNCTION IF EXISTS dbo.clr_AudioPeak;
+DROP FUNCTION IF EXISTS dbo.clr_AudioDownsample;
+DROP FUNCTION IF EXISTS dbo.clr_ImagePointCloud;
+DROP FUNCTION IF EXISTS dbo.clr_ImageAverageColor;
+DROP FUNCTION IF EXISTS dbo.clr_ImageHistogram;
+DROP FUNCTION IF EXISTS dbo.clr_GenerateImagePatches;
+DROP FUNCTION IF EXISTS dbo.clr_GenerateImageGeometry;
+DROP FUNCTION IF EXISTS dbo.clr_SemanticFeaturesJson;
+GO
+
+IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions' AND is_user_defined = 1)
+    DROP ASSEMBLY SqlClrFunctions;
+GO
+
+CREATE ASSEMBLY SqlClrFunctions
+FROM 0x$assemblyHex
+WITH PERMISSION_SET = SAFE;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_CreatePointCloud(@coordinates NVARCHAR(MAX))
+RETURNS geometry
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].CreatePointCloud;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_GeometryConvexHull(@geom geometry)
+RETURNS geometry
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].ConvexHull;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_PointInRegion(@point geometry, @region geometry)
+RETURNS bit
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].PointInRegion;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_RegionOverlap(@region1 geometry, @region2 geometry)
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].RegionOverlap;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_GeometryCentroid(@geom geometry)
+RETURNS geometry
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].Centroid;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorDotProduct(@vector1 VARBINARY(MAX), @vector2 VARBINARY(MAX))
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorDotProduct;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorCosineSimilarity(@vector1 VARBINARY(MAX), @vector2 VARBINARY(MAX))
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorCosineSimilarity;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorEuclideanDistance(@vector1 VARBINARY(MAX), @vector2 VARBINARY(MAX))
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorEuclideanDistance;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorAdd(@vector1 VARBINARY(MAX), @vector2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorAdd;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorSubtract(@vector1 VARBINARY(MAX), @vector2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorSubtract;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorScale(@vector VARBINARY(MAX), @scalar float)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorScale;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorNorm(@vector VARBINARY(MAX))
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorNorm;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorNormalize(@vector VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorNormalize;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorLerp(@vector1 VARBINARY(MAX), @vector2 VARBINARY(MAX), @t float)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorLerp;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorSoftmax(@vector VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorSoftmax;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_VectorArgMax(@vector VARBINARY(MAX))
+RETURNS int
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorArgMax;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_AudioWaveform(@audio VARBINARY(MAX), @channelCount int, @sampleRate int, @maxPoints int)
+RETURNS geometry
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioToWaveform;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_AudioRms(@audio VARBINARY(MAX), @channelCount int)
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioComputeRms;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_AudioPeak(@audio VARBINARY(MAX), @channelCount int)
+RETURNS float
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioComputePeak;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_AudioDownsample(@audio VARBINARY(MAX), @channelCount int, @factor int)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioDownsample;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_ImagePointCloud(@image VARBINARY(MAX), @width int, @height int, @sampleStep int)
+RETURNS geometry
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].ImageToPointCloud;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_ImageAverageColor(@image VARBINARY(MAX), @width int, @height int)
+RETURNS NVARCHAR(16)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].ImageAverageColor;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_ImageHistogram(@image VARBINARY(MAX), @width int, @height int, @bins int)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].ImageLuminanceHistogram;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_GenerateImagePatches(
+    @width int,
+    @height int,
+    @patchSize int,
+    @steps int,
+    @guidanceScale float,
+    @guideX float,
+    @guideY float,
+    @guideZ float,
+    @seed int)
+RETURNS TABLE (
+    patch_x INT,
+    patch_y INT,
+    spatial_x FLOAT,
+    spatial_y FLOAT,
+    spatial_z FLOAT,
+    patch geometry)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageGeneration].GenerateGuidedPatches;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_GenerateImageGeometry(
+    @width int,
+    @height int,
+    @patchSize int,
+    @steps int,
+    @guidanceScale float,
+    @guideX float,
+    @guideY float,
+    @guideZ float,
+    @seed int)
+RETURNS geometry
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageGeneration].GenerateGuidedGeometry;
+GO
+
+CREATE OR ALTER FUNCTION dbo.clr_SemanticFeaturesJson(@text NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SemanticAnalysis].ComputeSemanticFeatures;
+GO
+"@
+
+    $tempClrFile = [System.IO.Path]::GetTempFileName() + ".sql"
+    $clrDeployScript | Out-File -FilePath $tempClrFile -Encoding UTF8
+
+    try {
+        sqlcmd -S $ServerName -d $DatabaseName -E -C -b -i $tempClrFile 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "  ✗ Failed to deploy SQL CLR assembly" -ForegroundColor Red
+            exit 1
+        }
+    }
+    finally {
+        Remove-Item $tempClrFile -ErrorAction SilentlyContinue
+    }
+
+    Write-Host "  ✓ SQL CLR assembly deployed and functions created" -ForegroundColor Green
 } else {
-    Write-Host "`n► Skipping SQL CLR (--SkipClr)" -ForegroundColor Yellow
+    Write-Host "`n► Skipping SQL CLR deployment (--SkipClr)" -ForegroundColor Yellow
 }
 
 # Verify final state
@@ -258,9 +498,9 @@ if (Test-DatabaseExists -Server $ServerName -DbName $DatabaseName) {
     Write-Host "    - Procedures: $finalProcCount" -ForegroundColor Cyan
     
     # Check key tables
-    $embeddingsCount = Get-RecordCount -Server $ServerName -DbName $DatabaseName -TableName "Embeddings"
-    $modelsCount = Get-RecordCount -Server $ServerName -DbName $DatabaseName -TableName "Models"
-    $vocabCount = Get-RecordCount -Server $ServerName -DbName $DatabaseName -TableName "TokenVocabulary"
+    $embeddingsCount = Get-RecordCount -Server $ServerName -DbName $DatabaseName -TableName "dbo.Embeddings_Production"
+    $modelsCount = Get-RecordCount -Server $ServerName -DbName $DatabaseName -TableName "dbo.Models"
+    $vocabCount = Get-RecordCount -Server $ServerName -DbName $DatabaseName -TableName "dbo.TokenVocabulary"
     
     Write-Host "    - Embeddings: $embeddingsCount records" -ForegroundColor Cyan
     Write-Host "    - Models: $modelsCount records" -ForegroundColor Cyan
@@ -281,4 +521,5 @@ Write-Host "========================================`n" -ForegroundColor Green
 Write-Host "Next steps:" -ForegroundColor Cyan
 Write-Host "  1. Seed vocabulary: sqlcmd -S $ServerName -d $DatabaseName -E -C -i sql\procedures\16_SeedTokenVocabularyWithVector.sql" -ForegroundColor White
 Write-Host "  2. Test ingestion: dotnet run --project src\ModelIngestion" -ForegroundColor White
-Write-Host "  3. Verify data: sqlcmd -S $ServerName -d $DatabaseName -E -C -Q `"SELECT COUNT(*) FROM Embeddings`"" -ForegroundColor White
+Write-Host "  3. Verify data: sqlcmd -S $ServerName -d $DatabaseName -E -C -Q `"SELECT COUNT(*) FROM dbo.Embeddings_Production`"" -ForegroundColor White
+Write-Host "  4. Validate CLR: SELECT dbo.clr_PointInRegion(geometry::Point(0,0,0), geometry::STGeomFromText('POLYGON((0 0,1 0,1 1,0 1,0 0))',0));" -ForegroundColor White

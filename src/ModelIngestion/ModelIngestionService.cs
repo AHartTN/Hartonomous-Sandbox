@@ -1,9 +1,9 @@
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core.Services;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -107,7 +107,7 @@ namespace ModelIngestion
 
             Logger.LogInformation("Batch ingestion from directory: {Path}", directoryPath);
 
-            var modelIds = new System.Collections.Generic.List<int>();
+            var modelIds = new List<int>();
             var files = Directory.GetFiles(directoryPath, searchPattern, SearchOption.TopDirectoryOnly);
 
             foreach (var file in files)

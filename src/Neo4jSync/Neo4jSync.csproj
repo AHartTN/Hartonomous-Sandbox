@@ -17,4 +17,8 @@
     <PackageReference Include="Neo4j.Driver" Version="5.28.3" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Hartonomous.Core\Hartonomous.Core.csproj" />
+  </ItemGroup>
+
 </Project>

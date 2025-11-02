@@ -221,8 +221,79 @@ namespace SqlClrFunctions
         }
 
         // Helper methods to convert between byte arrays and float arrays
+        /// <summary>
+        /// Apply numerically stable softmax to an input vector and return the probability vector.
+        /// </summary>
+        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        public static SqlBytes VectorSoftmax(SqlBytes vector)
+        {
+            if (vector.IsNull)
+                return SqlBytes.Null;
+
+            float[] v = BytesToFloatArray(vector.Value);
+            if (v.Length == 0)
+                return new SqlBytes(Array.Empty<byte>());
+
+            double max = double.NegativeInfinity;
+            for (int i = 0; i < v.Length; i++)
+            {
+                if (v[i] > max)
+                    max = v[i];
+            }
+
+            double sum = 0;
+            float[] result = new float[v.Length];
+            for (int i = 0; i < v.Length; i++)
+            {
+                double exp = Math.Exp(v[i] - max);
+                result[i] = (float)exp;
+                sum += exp;
+            }
+
+            if (sum == 0)
+                return new SqlBytes(FloatArrayToBytes(result));
+
+            float invSum = (float)(1.0 / sum);
+            for (int i = 0; i < result.Length; i++)
+            {
+                result[i] *= invSum;
+            }
+
+            return new SqlBytes(FloatArrayToBytes(result));
+        }
+
+        /// <summary>
+        /// Return the index of the largest value in the vector (0-based). Returns NULL when the vector is empty.
+        /// </summary>
+        [SqlFunction(IsDeterministic = true, IsPrecise = true)]
+        public static SqlInt32 VectorArgMax(SqlBytes vector)
+        {
+            if (vector.IsNull)
+                return SqlInt32.Null;
+
+            float[] v = BytesToFloatArray(vector.Value);
+            if (v.Length == 0)
+                return SqlInt32.Null;
+
+            int index = 0;
+            float max = v[0];
+            for (int i = 1; i < v.Length; i++)
+            {
+                if (v[i] > max)
+                {
+                    max = v[i];
+                    index = i;
+                }
+            }
+
+            return new SqlInt32(index);
+        }
+
         private static float[] BytesToFloatArray(byte[] bytes)
         {
+            if (bytes.Length % sizeof(float) != 0)
+                throw new ArgumentException("Byte array length is not a multiple of 4.");
+
             int floatCount = bytes.Length / sizeof(float);
             float[] floats = new float[floatCount];
             Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);

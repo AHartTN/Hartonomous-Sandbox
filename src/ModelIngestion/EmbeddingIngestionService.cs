@@ -31,7 +31,7 @@ namespace ModelIngestion
 
         public override string ServiceName => "EmbeddingIngestionService";
 
-        public async Task<Hartonomous.Core.Interfaces.EmbeddingIngestionResult> IngestEmbeddingAsync(
+    public async Task<EmbeddingIngestionResult> IngestEmbeddingAsync(
             string sourceText,
             string sourceType,
             float[] embeddingFull,
@@ -85,7 +85,7 @@ namespace ModelIngestion
                     atomResult.Embedding?.AtomEmbeddingId);
             }
 
-            return new Hartonomous.Core.Interfaces.EmbeddingIngestionResult
+            return new EmbeddingIngestionResult
             {
                 AtomId = atomResult.Atom.AtomId,
                 AtomEmbeddingId = atomResult.Embedding?.AtomEmbeddingId,
@@ -98,11 +98,11 @@ namespace ModelIngestion
         /// <summary>
         /// Ingest multiple embeddings in a batch
         /// </summary>
-        public async Task<IEnumerable<Hartonomous.Core.Interfaces.EmbeddingIngestionResult>> IngestBatchAsync(
+    public async Task<IEnumerable<EmbeddingIngestionResult>> IngestBatchAsync(
             IEnumerable<(string sourceText, string sourceType, float[] embedding)> batch,
             CancellationToken cancellationToken = default)
         {
-            var results = new List<Hartonomous.Core.Interfaces.EmbeddingIngestionResult>();
+            var results = new List<EmbeddingIngestionResult>();
 
             foreach (var (sourceText, sourceType, embedding) in batch)
             {

@@ -1,6 +1,5 @@
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Infrastructure.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Services;

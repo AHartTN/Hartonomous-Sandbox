@@ -1,3 +1,4 @@
+using System;
 using System.IO;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Core.Interfaces;
@@ -20,9 +21,9 @@ namespace ModelIngestion.ModelFormats
             ILogger<SafetensorsModelReader> safetensorsLogger,
             IModelLayerRepository layerRepository)
         {
-            _onnxLogger = onnxLogger ?? throw new System.ArgumentNullException(nameof(onnxLogger));
-            _safetensorsLogger = safetensorsLogger ?? throw new System.ArgumentNullException(nameof(safetensorsLogger));
-            _layerRepository = layerRepository ?? throw new System.ArgumentNullException(nameof(layerRepository));
+            _onnxLogger = onnxLogger ?? throw new ArgumentNullException(nameof(onnxLogger));
+            _safetensorsLogger = safetensorsLogger ?? throw new ArgumentNullException(nameof(safetensorsLogger));
+            _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
         }
 
         public IModelFormatReader<OnnxMetadata> GetOnnxReader()
@@ -50,7 +51,7 @@ namespace ModelIngestion.ModelFormats
                 case ".safetensors":
                     return GetSafetensorsReader();
                 default:
-                    throw new System.NotSupportedException($"File type not supported: {extension}");
+                    throw new NotSupportedException($"File type not supported: {extension}");
             }
         }
     }

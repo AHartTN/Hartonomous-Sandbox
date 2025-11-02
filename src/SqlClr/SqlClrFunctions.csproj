@@ -47,8 +47,11 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="SpatialOperations.cs" />
-    <!-- <Compile Include="ImageProcessing.cs" /> -->
-    <!-- <Compile Include="AudioProcessing.cs" /> -->
+    <Compile Include="VectorOperations.cs" />
+    <Compile Include="ImageProcessing.cs" />
+    <Compile Include="AudioProcessing.cs" />
+    <Compile Include="ImageGeneration.cs" />
+    <Compile Include="SemanticAnalysis.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

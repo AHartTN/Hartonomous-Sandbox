@@ -9,30 +9,86 @@ CREATE OR ALTER FUNCTION dbo.VectorDotProduct (@v1 VARBINARY(MAX), @v2 VARBINARY
 RETURNS FLOAT
 AS
 BEGIN
-    DECLARE @dot_product FLOAT = 0;
-    DECLARE @i INT = 1;
-    DECLARE @v1_len INT = DATALENGTH(@v1);
-    DECLARE @v2_len INT = DATALENGTH(@v2);
+    RETURN dbo.clr_VectorDotProduct(@v1, @v2);
+END
+GO
 
-    -- Ensure the vectors are of the same length
-    IF @v1_len <> @v2_len
-    BEGIN
-        RETURN NULL;
-    END
+CREATE OR ALTER FUNCTION dbo.VectorCosineSimilarity (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS FLOAT
+AS
+BEGIN
+    RETURN dbo.clr_VectorCosineSimilarity(@v1, @v2);
+END
+GO
 
-    WHILE @i <= @v1_len
-    BEGIN
-        -- Extract 4 bytes from each vector and convert to a real
-        DECLARE @f1 REAL = dbo.ConvertVarbinary4ToReal(SUBSTRING(@v1, @i, 4));
-        DECLARE @f2 REAL = dbo.ConvertVarbinary4ToReal(SUBSTRING(@v2, @i, 4));
+CREATE OR ALTER FUNCTION dbo.VectorEuclideanDistance (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS FLOAT
+AS
+BEGIN
+    RETURN dbo.clr_VectorEuclideanDistance(@v1, @v2);
+END
+GO
 
-        -- Add the product to the dot product
-        SET @dot_product = @dot_product + (@f1 * @f2);
+CREATE OR ALTER FUNCTION dbo.VectorNormalize (@v VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorNormalize(@v);
+END
+GO
 
-        -- Move to the next 4-byte chunk
-        SET @i = @i + 4;
-    END
+CREATE OR ALTER FUNCTION dbo.VectorSoftmax (@v VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorSoftmax(@v);
+END
+GO
 
-    RETURN @dot_product;
+CREATE OR ALTER FUNCTION dbo.VectorArgMax (@v VARBINARY(MAX))
+RETURNS INT
+AS
+BEGIN
+    RETURN dbo.clr_VectorArgMax(@v);
+END
+GO
+
+CREATE OR ALTER FUNCTION dbo.VectorAdd (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorAdd(@v1, @v2);
+END
+GO
+
+CREATE OR ALTER FUNCTION dbo.VectorSubtract (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorSubtract(@v1, @v2);
+END
+GO
+
+CREATE OR ALTER FUNCTION dbo.VectorScale (@v VARBINARY(MAX), @scalar FLOAT)
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorScale(@v, @scalar);
+END
+GO
+
+CREATE OR ALTER FUNCTION dbo.VectorLerp (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX), @t FLOAT)
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorLerp(@v1, @v2, @t);
+END
+GO
+
+CREATE OR ALTER FUNCTION dbo.VectorNorm (@v VARBINARY(MAX))
+RETURNS FLOAT
+AS
+BEGIN
+    RETURN dbo.clr_VectorNorm(@v);
 END
 GO
