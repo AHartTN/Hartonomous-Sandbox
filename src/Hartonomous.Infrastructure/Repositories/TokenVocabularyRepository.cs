@@ -1,18 +1,17 @@
+using System.Collections.Generic;
+using System.Linq;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
 /// <summary>
 /// Repository implementation for TokenVocabulary operations.
 /// Provides access to the token vocabulary for embedding generation.
+/// Note: Does not inherit EfRepository - uses specialized projection queries.
 /// </summary>
 public class TokenVocabularyRepository : ITokenVocabularyRepository
 {
@@ -39,6 +38,7 @@ public class TokenVocabularyRepository : ITokenVocabularyRepository
         var tokens = await _context.TokenVocabulary
             .Where(tv => tokenList.Contains(tv.Token))
             .Select(tv => new { tv.Token, tv.TokenId })
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         var result = tokens.ToDictionary(
@@ -56,6 +56,7 @@ public class TokenVocabularyRepository : ITokenVocabularyRepository
     {
         var tokens = await _context.TokenVocabulary
             .OrderBy(tv => tv.TokenId)
+            .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         _logger.LogInformation("Retrieved {Count} tokens from vocabulary", tokens.Count);

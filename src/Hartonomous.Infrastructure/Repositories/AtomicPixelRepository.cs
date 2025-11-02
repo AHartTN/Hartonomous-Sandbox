@@ -1,51 +1,58 @@
+using System;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class AtomicPixelRepository : IAtomicPixelRepository
+/// <summary>
+/// EF Core implementation of <see cref="IAtomicPixelRepository"/>.
+/// Inherits base CRUD from EfRepository, adds hash-based deduplication and reference counting.
+/// </summary>
+public class AtomicPixelRepository : EfRepository<AtomicPixel, byte[]>, IAtomicPixelRepository
 {
-    private readonly HartonomousDbContext _context;
-    private readonly ILogger<AtomicPixelRepository> _logger;
-
     public AtomicPixelRepository(HartonomousDbContext context, ILogger<AtomicPixelRepository> logger)
+        : base(context, logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    /// <summary>
+    /// AtomicPixels are identified by PixelHash property.
+    /// </summary>
+    protected override Expression<Func<AtomicPixel, byte[]>> GetIdExpression() => p => p.PixelHash;
+
+    // Domain-specific queries
 
     public async Task<AtomicPixel?> GetByHashAsync(byte[] pixelHash, CancellationToken cancellationToken = default)
     {
-        return await _context.AtomicPixels.FindAsync(new object[] { pixelHash }, cancellationToken);
+        return await GetByIdAsync(pixelHash, cancellationToken);
     }
 
-    public async Task<AtomicPixel> AddAsync(AtomicPixel pixel, CancellationToken cancellationToken = default)
-    {
-        _context.AtomicPixels.Add(pixel);
-        await _context.SaveChangesAsync(cancellationToken);
-        return pixel;
-    }
-
+    /// <summary>
+    /// Efficiently increment reference count using ExecuteUpdateAsync.
+    /// Avoids loading the entity into memory.
+    /// </summary>
     public async Task UpdateReferenceCountAsync(byte[] pixelHash, CancellationToken cancellationToken = default)
     {
-        var pixel = await GetByHashAsync(pixelHash, cancellationToken);
-        if (pixel != null)
-        {
-            pixel.ReferenceCount++;
-            pixel.LastReferenced = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+        await DbSet
+            .Where(p => p.PixelHash == pixelHash)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(p => p.ReferenceCount, p => p.ReferenceCount + 1)
+                .SetProperty(p => p.LastReferenced, DateTime.UtcNow),
+                cancellationToken);
     }
 
     public async Task<long> GetReferenceCountAsync(byte[] pixelHash, CancellationToken cancellationToken = default)
     {
-        var pixel = await GetByHashAsync(pixelHash, cancellationToken);
+        var pixel = await DbSet
+            .Where(p => p.PixelHash == pixelHash)
+            .Select(p => new { p.ReferenceCount })
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+        
         return pixel?.ReferenceCount ?? 0;
     }
 }

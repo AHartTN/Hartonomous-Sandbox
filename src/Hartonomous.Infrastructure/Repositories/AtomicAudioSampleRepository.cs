@@ -1,51 +1,58 @@
+using System;
+using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Hartonomous.Infrastructure.Repositories;
 
-public class AtomicAudioSampleRepository : IAtomicAudioSampleRepository
+/// <summary>
+/// EF Core implementation of <see cref="IAtomicAudioSampleRepository"/>.
+/// Inherits base CRUD from EfRepository, adds hash-based deduplication and reference counting.
+/// </summary>
+public class AtomicAudioSampleRepository : EfRepository<AtomicAudioSample, byte[]>, IAtomicAudioSampleRepository
 {
-    private readonly HartonomousDbContext _context;
-    private readonly ILogger<AtomicAudioSampleRepository> _logger;
-
     public AtomicAudioSampleRepository(HartonomousDbContext context, ILogger<AtomicAudioSampleRepository> logger)
+        : base(context, logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    /// <summary>
+    /// AtomicAudioSamples are identified by SampleHash property.
+    /// </summary>
+    protected override Expression<Func<AtomicAudioSample, byte[]>> GetIdExpression() => s => s.SampleHash;
+
+    // Domain-specific queries
 
     public async Task<AtomicAudioSample?> GetByHashAsync(byte[] sampleHash, CancellationToken cancellationToken = default)
     {
-        return await _context.AtomicAudioSamples.FindAsync(new object[] { sampleHash }, cancellationToken);
+        return await GetByIdAsync(sampleHash, cancellationToken);
     }
 
-    public async Task<AtomicAudioSample> AddAsync(AtomicAudioSample sample, CancellationToken cancellationToken = default)
-    {
-        _context.AtomicAudioSamples.Add(sample);
-        await _context.SaveChangesAsync(cancellationToken);
-        return sample;
-    }
-
+    /// <summary>
+    /// Efficiently increment reference count using ExecuteUpdateAsync.
+    /// Avoids loading the entity into memory.
+    /// </summary>
     public async Task UpdateReferenceCountAsync(byte[] sampleHash, CancellationToken cancellationToken = default)
     {
-        var sample = await GetByHashAsync(sampleHash, cancellationToken);
-        if (sample != null)
-        {
-            sample.ReferenceCount++;
-            sample.LastReferenced = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
-        }
+        await DbSet
+            .Where(s => s.SampleHash == sampleHash)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(s => s.ReferenceCount, s => s.ReferenceCount + 1)
+                .SetProperty(s => s.LastReferenced, DateTime.UtcNow),
+                cancellationToken);
     }
 
     public async Task<long> GetReferenceCountAsync(byte[] sampleHash, CancellationToken cancellationToken = default)
     {
-        var sample = await GetByHashAsync(sampleHash, cancellationToken);
+        var sample = await DbSet
+            .Where(s => s.SampleHash == sampleHash)
+            .Select(s => new { s.ReferenceCount })
+            .AsNoTracking()
+            .FirstOrDefaultAsync(cancellationToken);
+        
         return sample?.ReferenceCount ?? 0;
     }
 }
