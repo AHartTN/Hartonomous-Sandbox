@@ -55,11 +55,11 @@ BEGIN
 
     -- Log the inference request
     INSERT INTO dbo.InferenceRequests (
-        task_type,
-        input_data,
-        models_used,
-        ensemble_strategy,
-        output_metadata
+        TaskType,
+        InputData,
+        ModelsUsed,
+        EnsembleStrategy,
+        OutputMetadata
     )
     VALUES (
         'text_to_embedding',

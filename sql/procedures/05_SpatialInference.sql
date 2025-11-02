@@ -12,22 +12,22 @@ IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NULL
 BEGIN
     EXEC(N'
         CREATE TABLE dbo.TokenEmbeddingsGeo (
-            token_id INT PRIMARY KEY IDENTITY(1,1),
-            token_text NVARCHAR(100),
+            TokenId INT PRIMARY KEY IDENTITY(1,1),
+            TokenText NVARCHAR(100),
 
             -- Traditional vector storage
-            embedding_vector VECTOR(768),
+            EmbeddingVector VECTOR(768),
 
             -- NOVEL: Store as spatial geometry (project 768D -> 3D for spatial index)
             -- In production: Use dimensionality reduction (PCA/UMAP) to map high-D to 3D
-            spatial_projection GEOMETRY,
+            SpatialProjection GEOMETRY,
 
             -- Store in multiple spatial "layers" for multi-resolution
-            coarse_spatial GEOMETRY,
-            fine_spatial GEOMETRY,
+            CoarseSpatial GEOMETRY,
+            FineSpatial GEOMETRY,
 
-            frequency INT DEFAULT 0,
-            last_used DATETIME2 DEFAULT SYSUTCDATETIME()
+            Frequency INT DEFAULT 0,
+            LastUsed DATETIME2 DEFAULT SYSUTCDATETIME()
         );
     ');
 END;
@@ -42,7 +42,7 @@ IF NOT EXISTS (
 )
 BEGIN
     EXEC(N'
-        CREATE SPATIAL INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo(spatial_projection)
+        CREATE SPATIAL INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo(SpatialProjection)
         WITH (
             BOUNDING_BOX = (-100, -100, 100, 100),
             GRIDS = (
@@ -62,8 +62,8 @@ GO
 
 -- Insert sample tokens (in reality, these come from model ingestion)
 -- For demo: Using 3D projections of common tokens
-INSERT INTO dbo.TokenEmbeddingsGeo (token_text, spatial_projection, coarse_spatial, fine_spatial)
-SELECT seed.token_text, seed.spatial_projection, seed.coarse_spatial, seed.fine_spatial
+INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial)
+SELECT seed.TokenText, seed.SpatialProjection, seed.CoarseSpatial, seed.FineSpatial
 FROM (
     VALUES
         ('the', geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0), geometry::STGeomFromText('POINT(0 0 0)', 0), geometry::STGeomFromText('POINT(0.1 0.2 0.1)', 0)),
@@ -74,11 +74,11 @@ FROM (
         ('query', geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT(-3 4 -2)', 0), geometry::STGeomFromText('POINT(-2.8 4.5 -1.3)', 0)),
         ('neural', geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(5.8 2.9 2.3)', 0)),
         ('network', geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT(5 3 2)', 0), geometry::STGeomFromText('POINT(6.1 3.2 2.5)', 0))
-) AS seed(token_text, spatial_projection, coarse_spatial, fine_spatial)
+) AS seed(TokenText, SpatialProjection, CoarseSpatial, FineSpatial)
 WHERE NOT EXISTS (
     SELECT 1
     FROM dbo.TokenEmbeddingsGeo existing
-    WHERE existing.token_text = seed.token_text
+    WHERE existing.TokenText = seed.TokenText
 );
 GO
 
@@ -97,28 +97,28 @@ BEGIN
 
     -- Get query token's spatial location
     DECLARE @query_spatial GEOMETRY;
-    SELECT @query_spatial = spatial_projection
+    SELECT @query_spatial = SpatialProjection
     FROM dbo.TokenEmbeddingsGeo
-    WHERE token_id = @query_token_id;
+    WHERE TokenId = @query_token_id;
 
     -- NOVEL: Attention = Spatial Nearest-Neighbor Search (O(log n) via index!)
     -- Instead of: attention = softmax(Q @ K.T / sqrt(d)) @ V
     -- We do: Find k-nearest neighbors in spatial index
 
     SELECT TOP (@context_size)
-        te.token_id,
-        te.token_text,
-        te.spatial_projection.STDistance(@query_spatial) as spatial_distance,
-        1.0 / (1.0 + te.spatial_projection.STDistance(@query_spatial)) as attention_weight,
+        te.TokenId,
+        te.TokenText,
+        te.SpatialProjection.STDistance(@query_spatial) as SpatialDistance,
+        1.0 / (1.0 + te.SpatialProjection.STDistance(@query_spatial)) as AttentionWeight,
         CASE
-            WHEN te.coarse_spatial.STDistance(@query_spatial) < 2.0 THEN 'COARSE_MATCH'
-            WHEN te.fine_spatial.STDistance(@query_spatial) < 0.5 THEN 'FINE_MATCH'
+            WHEN te.CoarseSpatial.STDistance(@query_spatial) < 2.0 THEN 'COARSE_MATCH'
+            WHEN te.FineSpatial.STDistance(@query_spatial) < 0.5 THEN 'FINE_MATCH'
             ELSE 'MID_MATCH'
-        END as resolution_level
+        END as ResolutionLevel
     FROM dbo.TokenEmbeddingsGeo te WITH(INDEX(idx_spatial_embedding))
-    WHERE te.spatial_projection.STDistance(@query_spatial) IS NOT NULL
-      AND te.token_id != @query_token_id
-    ORDER BY te.spatial_projection.STDistance(@query_spatial) ASC;
+    WHERE te.SpatialProjection.STDistance(@query_spatial) IS NOT NULL
+      AND te.TokenId != @query_token_id
+    ORDER BY te.SpatialProjection.STDistance(@query_spatial) ASC;
 
     PRINT 'Attention computed via spatial index (no matrix multiply!)';
 END;
@@ -139,26 +139,26 @@ BEGIN
 
     SELECT @context_centroid = geometry::STGeomFromText(
         'POINT(' +
-    CAST(AVG(spatial_projection.STX) AS NVARCHAR(50)) + ' ' +
-    CAST(AVG(spatial_projection.STY) AS NVARCHAR(50)) + ' ' +
-    CAST(AVG(CAST(COALESCE(spatial_projection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+    CAST(AVG(SpatialProjection.STX) AS NVARCHAR(50)) + ' ' +
+    CAST(AVG(SpatialProjection.STY) AS NVARCHAR(50)) + ' ' +
+    CAST(AVG(CAST(COALESCE(SpatialProjection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
         0
     )
     FROM dbo.TokenEmbeddingsGeo
-    WHERE token_id IN (SELECT value FROM STRING_SPLIT(@context_tokens, ','));
+    WHERE TokenId IN (SELECT value FROM STRING_SPLIT(@context_tokens, ','));
 
     -- NOVEL: Next token = Token closest to context centroid (spatial lookup!)
     -- This is like: logits = decoder(context) → argmax
     -- But we use: Find nearest point in spatial index
 
     SELECT TOP 3
-        token_id,
-        token_text,
-        spatial_projection.STDistance(@context_centroid) as distance,
-        EXP(-1 * spatial_projection.STDistance(@context_centroid) / @temperature) as probability_score
+        TokenId,
+        TokenText,
+        SpatialProjection.STDistance(@context_centroid) as Distance,
+        EXP(-1 * SpatialProjection.STDistance(@context_centroid) / @temperature) as ProbabilityScore
     FROM dbo.TokenEmbeddingsGeo WITH(INDEX(idx_spatial_embedding))
-    WHERE spatial_projection.STDistance(@context_centroid) IS NOT NULL
-    ORDER BY spatial_projection.STDistance(@context_centroid) ASC;
+    WHERE SpatialProjection.STDistance(@context_centroid) IS NOT NULL
+    ORDER BY SpatialProjection.STDistance(@context_centroid) ASC;
 
     PRINT 'Next token predicted via spatial nearest-neighbor!';
 END;
@@ -178,16 +178,16 @@ BEGIN
     PRINT '========================================';
 
     -- Tokenize prompt (simplified: just split by space)
-    DECLARE @context TABLE (token_id INT, token_text NVARCHAR(100));
+    DECLARE @context TABLE (TokenId INT, TokenText NVARCHAR(100));
 
-    INSERT INTO @context (token_text)
+    INSERT INTO @context (TokenText)
     SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@prompt, ' ');
 
     -- Map tokens to IDs
     UPDATE c
-    SET c.token_id = te.token_id
+    SET c.TokenId = te.TokenId
     FROM @context c
-    JOIN dbo.TokenEmbeddingsGeo te ON LOWER(c.token_text) = LOWER(te.token_text);
+    JOIN dbo.TokenEmbeddingsGeo te ON LOWER(c.TokenText) = LOWER(te.TokenText);
 
     DECLARE @generated_text NVARCHAR(MAX) = @prompt;
     DECLARE @iteration INT = 0;
@@ -196,48 +196,48 @@ BEGIN
     WHILE @iteration < @max_tokens
     BEGIN
         -- Get current context IDs
-        SELECT @context_ids = STRING_AGG(CAST(token_id AS NVARCHAR), ',')
+        SELECT @context_ids = STRING_AGG(CAST(TokenId AS NVARCHAR), ',')
         FROM @context
-        WHERE token_id IS NOT NULL;
+        WHERE TokenId IS NOT NULL;
 
         -- Compute next token via spatial operations
         DECLARE @next_token_id INT, @next_token_text NVARCHAR(100);
 
         SELECT TOP 1
-            @next_token_id = token_id,
-            @next_token_text = token_text
+            @next_token_id = TokenId,
+            @next_token_text = TokenText
         FROM (
             SELECT TOP 3
-                token_id,
-                token_text,
-                spatial_projection.STDistance(
+                TokenId,
+                TokenText,
+                SpatialProjection.STDistance(
                     (SELECT geometry::STGeomFromText(
                         'POINT(' +
-                        CAST(AVG(spatial_projection.STX) AS NVARCHAR(50)) + ' ' +
-                        CAST(AVG(spatial_projection.STY) AS NVARCHAR(50)) + ' ' +
-                        CAST(AVG(CAST(COALESCE(spatial_projection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+                        CAST(AVG(SpatialProjection.STX) AS NVARCHAR(50)) + ' ' +
+                        CAST(AVG(SpatialProjection.STY) AS NVARCHAR(50)) + ' ' +
+                        CAST(AVG(CAST(COALESCE(SpatialProjection.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
                         0
                     )
                     FROM dbo.TokenEmbeddingsGeo
-                    WHERE token_id IN (SELECT value FROM STRING_SPLIT(@context_ids, ',')))
-                ) as distance
+                    WHERE TokenId IN (SELECT value FROM STRING_SPLIT(@context_ids, ',')))
+                ) as Distance
             FROM dbo.TokenEmbeddingsGeo WITH(INDEX(idx_spatial_embedding))
-            WHERE token_id NOT IN (SELECT value FROM STRING_SPLIT(@context_ids, ','))
-            ORDER BY distance ASC
+            WHERE TokenId NOT IN (SELECT value FROM STRING_SPLIT(@context_ids, ','))
+            ORDER BY Distance ASC
         ) ranked
         ORDER BY NEWID();  -- Add randomness for temperature
 
         -- Add to context
-        INSERT INTO @context (token_id, token_text) VALUES (@next_token_id, @next_token_text);
+        INSERT INTO @context (TokenId, TokenText) VALUES (@next_token_id, @next_token_text);
         SET @generated_text = @generated_text + ' ' + @next_token_text;
         SET @iteration = @iteration + 1;
     END;
 
     SELECT
-        @prompt as original_prompt,
-        @generated_text as generated_text,
-        @max_tokens as tokens_generated,
-        'SPATIAL_GEOMETRY' as method;
+        @prompt as OriginalPrompt,
+        @generated_text as GeneratedText,
+        @max_tokens as TokensGenerated,
+        'SPATIAL_GEOMETRY' as Method;
 
     PRINT 'Generation complete using spatial operations!';
 END;

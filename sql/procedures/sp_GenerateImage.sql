@@ -17,7 +17,7 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
-    DECLARE @inference_id BIGINT;
+    DECLARE @InferenceId BIGINT;
 
     -- Log the inference request
     INSERT INTO dbo.InferenceRequests (
@@ -39,7 +39,7 @@ BEGIN
         'spatial_diffusion',
         NULL
     );
-    SET @inference_id = SCOPE_IDENTITY();
+    SET @InferenceId = SCOPE_IDENTITY();
 
     -- Get text embedding for the prompt
         DECLARE @prompt_embedding VECTOR(1998);
@@ -156,12 +156,12 @@ BEGIN
             'height': @height,
             'steps': @steps
         )
-    WHERE InferenceId = @inference_id;
+    WHERE InferenceId = @InferenceId;
 
     -- Log inference step
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, QueryText)
     VALUES (
-        @inference_id,
+        @InferenceId,
         1,
         'spatial_diffusion',
         @duration_ms,
@@ -170,7 +170,7 @@ BEGIN
 
     -- Return metadata
     SELECT
-        @inference_id as inference_id,
+        @InferenceId as InferenceId,
         @prompt as prompt,
         @width as width,
         @height as height,

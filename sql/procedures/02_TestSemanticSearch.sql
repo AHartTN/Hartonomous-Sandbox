@@ -24,12 +24,12 @@ PRINT 'Checking inference logs...';
 GO
 
 SELECT TOP 5
-	inference_id,
-	task_type,
-	models_used,
-	total_duration_ms,
-	output_metadata,
-	request_timestamp
+	InferenceId,
+	TaskType,
+	ModelsUsed,
+	TotalDurationMs,
+	OutputMetadata,
+	RequestTimestamp
 FROM dbo.InferenceRequests
-ORDER BY inference_id DESC;
+ORDER BY InferenceId DESC;
 GO
