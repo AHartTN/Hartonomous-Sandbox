@@ -131,7 +131,7 @@ namespace ModelIngestion
             var existingToken = await _textTokenRepository.GetByHashAsync(tokenHash, cancellationToken);
             if (existingToken != null)
             {
-                await _textTokenRepository.UpdateReferenceCountAsync(tokenHash, cancellationToken);
+                await _textTokenRepository.UpdateReferenceCountAsync(existingToken.TokenId, cancellationToken);
                 return existingToken.TokenId;
             }
 
@@ -152,6 +152,9 @@ namespace ModelIngestion
         // =============================================
         // HASHING UTILITIES
         // =============================================
+
+        private static long ConvertHashToKey(byte[] hash)
+            => ConvertHashToKey((ReadOnlySpan<byte>)hash);
 
         private static long ConvertHashToKey(ReadOnlySpan<byte> hash)
         {

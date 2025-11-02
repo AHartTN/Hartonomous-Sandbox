@@ -34,8 +34,12 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.Property(e => e.IngestionDate).HasDefaultValueSql("SYSUTCDATETIME()");
 
         // Indexes
-        builder.HasIndex(e => new { e.ResolutionWidth, e.ResolutionHeight }).HasDatabaseName("idx_resolution");
-        builder.HasIndex(e => e.IngestionDate).HasDatabaseName("idx_ingestion").IsDescending();
+        builder.HasIndex(e => new { e.ResolutionWidth, e.ResolutionHeight })
+            .HasDatabaseName("IX_Videos_ResolutionWidth_ResolutionHeight");
+
+        builder.HasIndex(e => e.IngestionDate)
+            .HasDatabaseName("IX_Videos_IngestionDate")
+            .IsDescending();
 
         // Relationships
         builder.HasMany(e => e.Frames)

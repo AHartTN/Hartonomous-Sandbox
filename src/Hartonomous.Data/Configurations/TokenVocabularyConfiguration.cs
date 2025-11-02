@@ -29,13 +29,12 @@ public class TokenVocabularyConfiguration : IEntityTypeConfiguration<TokenVocabu
         // Unique constraint on model_id + token_id
         builder.HasIndex(tv => new { tv.ModelId, tv.TokenId })
             .IsUnique()
-            .HasDatabaseName("idx_model_token");
+            .HasDatabaseName("IX_TokenVocabulary_ModelId_TokenId");
 
         // Index for token lookup
         builder.HasIndex(tv => new { tv.ModelId, tv.Token })
-            .HasDatabaseName("idx_token_text");
+            .HasDatabaseName("IX_TokenVocabulary_ModelId_Token");
 
-        // Relationship
         builder.HasOne(tv => tv.Model)
             .WithMany()
             .HasForeignKey(tv => tv.ModelId)

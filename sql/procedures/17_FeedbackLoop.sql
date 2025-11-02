@@ -31,18 +31,17 @@ BEGIN
     -- Identify layers that need updating based on successful inferences
     INSERT INTO #LayerUpdates (LayerID, ModelID, LayerName, SuccessfulInferences, AverageRating)
     SELECT 
-        ml.LayerID,
-        ml.ModelID,
+        ml.LayerId,
+        ml.ModelId,
         ml.LayerName,
         COUNT(DISTINCT ir.InferenceId) AS SuccessfulInferences,
         AVG(CAST(ir.UserRating AS DECIMAL(3,2))) AS AverageRating
-    FROM ModelLayers ml
-    INNER JOIN InferenceSteps ist ON ml.LayerID = ist.ModelLayerId
-    INNER JOIN InferenceRequests ir ON ist.InferenceId = ir.InferenceId
+    FROM dbo.ModelLayers ml
+    INNER JOIN dbo.InferenceSteps ist ON ml.LayerId = ist.LayerId
+    INNER JOIN dbo.InferenceRequests ir ON ist.InferenceId = ir.InferenceId
     WHERE ir.UserRating >= 4  -- Only consider successful inferences
         AND ir.UserRating <= @maxRating
-        AND ist.ActivationOutput IS NOT NULL
-    GROUP BY ml.LayerID, ml.ModelID, ml.LayerName
+    GROUP BY ml.LayerId, ml.ModelId, ml.LayerName
     HAVING COUNT(DISTINCT ir.InferenceId) >= @minRatings;
 
     PRINT 'Found ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + ' layers eligible for weight updates';
@@ -72,9 +71,11 @@ BEGIN
         -- Note: Actual weight update would require computing gradient from activation patterns
         -- This is a simplified version that demonstrates the concept
         -- Full implementation would:
-        --   1. Aggregate ActivationOutput from InferenceSteps for successful inferences
-        --   2. Compute difference between successful and unsuccessful activations
+        --   1. Aggregate activation patterns from TensorAtoms for successful inferences
+        --   2. Compute difference between successful and unsuccessful weight signatures
         --   3. Apply gradient descent update: Weights = Weights + learningRate * gradient
+        -- InferenceSteps columns: StepId, InferenceId, StepNumber, ModelId, LayerId, 
+        --   OperationType, QueryText, IndexUsed, RowsExamined, RowsReturned, DurationMs, CacheUsed
         
         -- For now, we'll log the update intent
         PRINT 'Layer ' + @currentLayerName + ' (ID: ' + CAST(@currentLayerID AS NVARCHAR(10)) + 

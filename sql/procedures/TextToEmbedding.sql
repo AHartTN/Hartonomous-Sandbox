@@ -6,7 +6,8 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_TextToEmbedding
     @text NVARCHAR(MAX),
     @ModelName NVARCHAR(100) = 'text-embedding-3-large',
-    @embedding VECTOR(768) OUTPUT
+    @embedding VECTOR(1998) OUTPUT,
+    @dimension INT = 768 OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -50,8 +51,11 @@ BEGIN
         RETURN;
     END
 
-    -- Convert JSON array to VECTOR type
-    SET @embedding = CAST(@embedding_json AS VECTOR(768));
+    -- Convert JSON array to VECTOR type (will be padded to 1998 if needed)
+    SET @embedding = CAST(@embedding_json AS VECTOR(1998));
+    
+    -- Get actual dimension from the JSON array length
+    SET @dimension = (SELECT COUNT(*) FROM OPENJSON(@embedding_json));
 
     -- Log the inference request
     INSERT INTO dbo.InferenceRequests (

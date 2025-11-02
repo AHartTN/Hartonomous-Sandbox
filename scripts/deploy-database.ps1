@@ -1,9 +1,6 @@
 ﻿param(
     [string]$ServerName = "localhost",
-    [string]$DatabaseName = "Hartonomous",
-    [switch]$SkipMigrations,
-    [switch]$SkipProcedures,
-    [switch]$SkipClr
+    [string]$DatabaseName = "Hartonomous"
 )
 
 $ErrorActionPreference = "Stop"
@@ -32,9 +29,8 @@ catch {
     exit 1
 }
 
-if (-not $SkipMigrations) {
-    Write-Host ""
-    Write-Host "Step 2: Applying EF Core migrations..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Step 2: Applying EF Core migrations..." -ForegroundColor Yellow
     $dataProjectPath = Join-Path $repoRoot "src\Hartonomous.Data"
     
     if (-not (Test-Path $dataProjectPath)) {
@@ -58,11 +54,9 @@ if (-not $SkipMigrations) {
     finally {
         Pop-Location
     }
-}
 
-if (-not $SkipProcedures) {
-    Write-Host ""
-    Write-Host "Step 3: Deploying stored procedures..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "Step 3: Deploying stored procedures..." -ForegroundColor Yellow
     
     $sqlProcDir = Join-Path $repoRoot "sql\procedures"
     $procFiles = Get-ChildItem -Path $sqlProcDir -Filter "*.sql" | Sort-Object Name
@@ -96,9 +90,8 @@ if (-not $SkipProcedures) {
     
     Write-Host ""
     Write-Host "  Summary: $deployed deployed, $failed failed"
-}
 
-if (-not $SkipClr) {
+
     Write-Host ""
     Write-Host "Step 4: Deploying SQL CLR assembly..." -ForegroundColor Yellow
     
@@ -134,7 +127,6 @@ CREATE ASSEMBLY SqlClrFunctions FROM 0x$assemblyHex WITH PERMISSION_SET = SAFE;
     sqlcmd -S $ServerName -d $DatabaseName -E -C -i $tempFile -b 2>&1 | Out-Null
     Remove-Item $tempFile -ErrorAction SilentlyContinue
     Write-Host " OK" -ForegroundColor Green
-}
 
 Write-Host ""
 Write-Host "========================================"

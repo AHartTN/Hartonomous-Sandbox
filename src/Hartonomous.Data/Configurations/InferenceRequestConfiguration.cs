@@ -43,17 +43,17 @@ public class InferenceRequestConfiguration : IEntityTypeConfiguration<InferenceR
 
         // Indexes
         builder.HasIndex(ir => ir.RequestTimestamp)
-            .HasDatabaseName("idx_timestamp")
+            .HasDatabaseName("IX_InferenceRequests_RequestTimestamp")
             .IsDescending();
 
         builder.HasIndex(ir => ir.TaskType)
-            .HasDatabaseName("idx_task_type");
+            .HasDatabaseName("IX_InferenceRequests_TaskType");
 
         builder.HasIndex(ir => ir.InputHash)
-            .HasDatabaseName("idx_input_hash");
+            .HasDatabaseName("IX_InferenceRequests_InputHash");
 
         builder.HasIndex(ir => ir.CacheHit)
-            .HasDatabaseName("idx_cache_hit");
+            .HasDatabaseName("IX_InferenceRequests_CacheHit");
 
         // Relationships
         builder.HasMany(ir => ir.Steps)

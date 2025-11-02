@@ -20,15 +20,20 @@ BEGIN
     WHILE @i < @max_tokens
     BEGIN
         -- Find the embedding for the current token
-        DECLARE @current_embedding VECTOR(768);
-        SELECT @current_embedding = embedding FROM dbo.TokenVocabulary WHERE token = @current_token;
+        DECLARE @current_embedding VECTOR(1998);
+        DECLARE @embedding_dimension INT;
+        
+        SELECT @current_embedding = Embedding, @embedding_dimension = EmbeddingDim 
+        FROM dbo.TokenVocabulary 
+        WHERE Token = @current_token;
 
-        -- Find the most likely next token using vector_distance
-        SELECT TOP 1 @next_token = v2.token
+        -- Find the most likely next token using VECTOR_DISTANCE with dimension filtering
+        SELECT TOP 1 @next_token = v2.Token
         FROM dbo.TokenVocabulary v1
         CROSS JOIN dbo.TokenVocabulary v2
-        WHERE v1.token = @current_token
-        ORDER BY vector_distance('cosine', v1.embedding, v2.embedding);
+        WHERE v1.Token = @current_token
+          AND v2.EmbeddingDim = @embedding_dimension
+        ORDER BY VECTOR_DISTANCE('cosine', v1.Embedding, v2.Embedding);
 
         -- Append the next token to the sequence
         SET @generated_text = @generated_text + ' ' + @next_token;

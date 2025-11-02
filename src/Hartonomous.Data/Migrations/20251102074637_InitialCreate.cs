@@ -21,7 +21,7 @@ namespace Hartonomous.Data.Migrations
                 columns: table => new
                 {
                     SampleHash = table.Column<byte[]>(type: "BINARY(32)", nullable: false),
-                    AmplitudeNormalized = table.Column<double>(type: "FLOAT", nullable: false),
+                    AmplitudeNormalized = table.Column<float>(type: "REAL", nullable: false),
                     AmplitudeInt16 = table.Column<short>(type: "SMALLINT", nullable: false),
                     ReferenceCount = table.Column<long>(type: "BIGINT", nullable: false, defaultValue: 0L),
                     FirstSeen = table.Column<DateTime>(type: "DATETIME2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
@@ -755,20 +755,20 @@ namespace Hartonomous.Data.Migrations
                 column: "ModelId");
 
             migrationBuilder.CreateIndex(
-                name: "idx_amplitude",
+                name: "IX_AtomicAudioSamples_AmplitudeNormalized",
                 table: "AtomicAudioSamples",
                 column: "AmplitudeNormalized");
-
-            migrationBuilder.CreateIndex(
-                name: "idx_token_text",
-                table: "AtomicTextTokens",
-                column: "TokenText",
-                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_AtomicTextTokens_TokenHash",
                 table: "AtomicTextTokens",
                 column: "TokenHash",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomicTextTokens_TokenText",
+                table: "AtomicTextTokens",
+                column: "TokenText",
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -788,26 +788,20 @@ namespace Hartonomous.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "idx_duration",
+                name: "IX_AudioData_DurationMs",
                 schema: "dbo",
                 table: "AudioData",
                 column: "DurationMs");
 
             migrationBuilder.CreateIndex(
-                name: "idx_ingestion",
+                name: "IX_AudioData_IngestionDate",
                 schema: "dbo",
                 table: "AudioData",
                 column: "IngestionDate",
                 descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
-                name: "idx_cache_lookup",
-                table: "CachedActivations",
-                columns: new[] { "ModelId", "LayerId", "InputHash" },
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "idx_cache_usage",
+                name: "IX_CachedActivations_LastAccessed_HitCount",
                 table: "CachedActivations",
                 columns: new[] { "LastAccessed", "HitCount" },
                 descending: new bool[0]);
@@ -818,55 +812,50 @@ namespace Hartonomous.Data.Migrations
                 column: "LayerId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_CachedActivations_Model_Layer_InputHash",
+                table: "CachedActivations",
+                columns: new[] { "ModelId", "LayerId", "InputHash" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "UX_DeduplicationPolicies_PolicyName",
                 table: "DeduplicationPolicies",
                 column: "PolicyName",
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "idx_content_hash",
+                name: "IX_Embeddings_Production_ContentHash",
                 table: "Embeddings_Production",
                 column: "ContentHash");
 
             migrationBuilder.CreateIndex(
-                name: "idx_image_patches",
+                name: "IX_ImagePatches_ImageId_PatchX_PatchY",
                 schema: "dbo",
                 table: "ImagePatches",
                 columns: new[] { "ImageId", "PatchX", "PatchY" });
 
             migrationBuilder.CreateIndex(
-                name: "idx_dimensions",
-                schema: "dbo",
-                table: "Images",
-                columns: new[] { "Width", "Height" });
-
-            migrationBuilder.CreateIndex(
-                name: "idx_ingestion",
+                name: "IX_Images_IngestionDate",
                 schema: "dbo",
                 table: "Images",
                 column: "IngestionDate",
                 descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
-                name: "idx_cache_hit",
+                name: "IX_Images_Width_Height",
+                schema: "dbo",
+                table: "Images",
+                columns: new[] { "Width", "Height" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InferenceRequests_CacheHit",
                 table: "InferenceRequests",
                 column: "CacheHit");
 
             migrationBuilder.CreateIndex(
-                name: "idx_input_hash",
+                name: "IX_InferenceRequests_InputHash",
                 table: "InferenceRequests",
                 column: "InputHash");
-
-            migrationBuilder.CreateIndex(
-                name: "idx_task_type",
-                table: "InferenceRequests",
-                column: "TaskType");
-
-            migrationBuilder.CreateIndex(
-                name: "idx_timestamp",
-                table: "InferenceRequests",
-                column: "RequestTimestamp",
-                descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
                 name: "IX_InferenceRequests_ModelId",
@@ -874,7 +863,18 @@ namespace Hartonomous.Data.Migrations
                 column: "ModelId");
 
             migrationBuilder.CreateIndex(
-                name: "idx_inference_steps",
+                name: "IX_InferenceRequests_RequestTimestamp",
+                table: "InferenceRequests",
+                column: "RequestTimestamp",
+                descending: new bool[0]);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InferenceRequests_TaskType",
+                table: "InferenceRequests",
+                column: "TaskType");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InferenceSteps_InferenceId_StepNumber",
                 table: "InferenceSteps",
                 columns: new[] { "InferenceId", "StepNumber" });
 
@@ -894,12 +894,12 @@ namespace Hartonomous.Data.Migrations
                 columns: new[] { "IngestionJobId", "AtomId" });
 
             migrationBuilder.CreateIndex(
-                name: "idx_layer_type",
+                name: "IX_ModelLayers_LayerType",
                 table: "ModelLayers",
                 column: "LayerType");
 
             migrationBuilder.CreateIndex(
-                name: "idx_model_layer",
+                name: "IX_ModelLayers_ModelId_LayerIdx",
                 table: "ModelLayers",
                 columns: new[] { "ModelId", "LayerIdx" });
 
@@ -910,12 +910,12 @@ namespace Hartonomous.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "idx_model_name",
+                name: "IX_Models_ModelName",
                 table: "Models",
                 column: "ModelName");
 
             migrationBuilder.CreateIndex(
-                name: "idx_model_type",
+                name: "IX_Models_ModelType",
                 table: "Models",
                 column: "ModelType");
 
@@ -945,38 +945,38 @@ namespace Hartonomous.Data.Migrations
                 columns: new[] { "ModelId", "LayerId", "AtomType" });
 
             migrationBuilder.CreateIndex(
-                name: "idx_model_token",
+                name: "IX_TokenVocabulary_ModelId_Token",
+                table: "TokenVocabulary",
+                columns: new[] { "ModelId", "Token" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TokenVocabulary_ModelId_TokenId",
                 table: "TokenVocabulary",
                 columns: new[] { "ModelId", "TokenId" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "idx_token_text",
-                table: "TokenVocabulary",
-                columns: new[] { "ModelId", "Token" });
-
-            migrationBuilder.CreateIndex(
-                name: "idx_timestamp",
-                schema: "dbo",
-                table: "VideoFrames",
-                columns: new[] { "VideoId", "TimestampMs" });
-
-            migrationBuilder.CreateIndex(
-                name: "idx_video_frame",
+                name: "IX_VideoFrames_VideoId_FrameNumber",
                 schema: "dbo",
                 table: "VideoFrames",
                 columns: new[] { "VideoId", "FrameNumber" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "idx_ingestion",
+                name: "IX_VideoFrames_VideoId_TimestampMs",
+                schema: "dbo",
+                table: "VideoFrames",
+                columns: new[] { "VideoId", "TimestampMs" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Videos_IngestionDate",
                 schema: "dbo",
                 table: "Videos",
                 column: "IngestionDate",
                 descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
-                name: "idx_resolution",
+                name: "IX_Videos_ResolutionWidth_ResolutionHeight",
                 schema: "dbo",
                 table: "Videos",
                 columns: new[] { "ResolutionWidth", "ResolutionHeight" });

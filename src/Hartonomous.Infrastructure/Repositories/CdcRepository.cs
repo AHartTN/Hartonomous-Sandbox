@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Models;
 using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;

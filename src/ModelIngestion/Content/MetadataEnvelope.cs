@@ -75,7 +75,7 @@ internal sealed class MetadataEnvelope
         return this;
     }
 
-    public IDictionary<string, string> AsStrings()
+    public IReadOnlyDictionary<string, string> AsStrings()
     {
         var result = new Dictionary<string, string>(_values.Count, StringComparer.OrdinalIgnoreCase);
         foreach (var (key, value) in _values)

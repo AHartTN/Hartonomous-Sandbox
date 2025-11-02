@@ -160,8 +160,11 @@ public sealed class SqlServerTestFixture : IAsyncLifetime
             var connectionFactory = new SqlServerConnectionFactory(optionsMonitor, _loggerFactory.CreateLogger<SqlServerConnectionFactory>());
             var sqlExecutor = new SqlCommandExecutor(connectionFactory, optionsMonitor, _loggerFactory.CreateLogger<SqlCommandExecutor>());
 
-            AtomEmbeddings = new AtomEmbeddingRepository(DbContext, sqlExecutor);
-            var modelLayerRepository = new ModelLayerRepository(DbContext);
+            var atomEmbeddingLogger = _loggerFactory.CreateLogger<AtomEmbeddingRepository>();
+            AtomEmbeddings = new AtomEmbeddingRepository(DbContext, atomEmbeddingLogger, sqlExecutor);
+
+            var modelLayerLogger = _loggerFactory.CreateLogger<ModelLayerRepository>();
+            var modelLayerRepository = new ModelLayerRepository(DbContext, modelLayerLogger);
             StudentModelService = new StudentModelService(DbContext, modelLayerRepository);
             InferenceService = new InferenceOrchestrator(DbContext, AtomEmbeddings, sqlExecutor, _loggerFactory.CreateLogger<InferenceOrchestrator>());
             SpatialService = new SpatialInferenceService(DbContext);
@@ -323,15 +326,25 @@ END;
         var database = DbContext.Database;
 
         const string spatialIndexSql = """
-IF NOT EXISTS (
+IF EXISTS (
     SELECT 1
     FROM sys.indexes
     WHERE name = N'idx_spatial_embedding'
       AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
 )
 BEGIN
+    DROP INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo;
+END;
+
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.indexes
+    WHERE name = N'IX_TokenEmbeddingsGeo_SpatialProjection'
+      AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
+)
+BEGIN
     DECLARE @sql NVARCHAR(MAX) = N'
-        CREATE SPATIAL INDEX idx_spatial_embedding
+        CREATE SPATIAL INDEX IX_TokenEmbeddingsGeo_SpatialProjection
         ON dbo.TokenEmbeddingsGeo(SpatialProjection)
         USING GEOMETRY_GRID
         WITH (

@@ -26,7 +26,7 @@ public class InferenceStepConfiguration : IEntityTypeConfiguration<InferenceStep
 
         // Index for querying steps by inference
         builder.HasIndex(s => new { s.InferenceId, s.StepNumber })
-            .HasDatabaseName("idx_inference_steps");
+            .HasDatabaseName("IX_InferenceSteps_InferenceId_StepNumber");
 
         // Relationship to Model (optional)
         builder.HasOne(s => s.Model)

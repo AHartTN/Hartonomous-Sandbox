@@ -9,6 +9,8 @@ public class AtomicPixelConfiguration : IEntityTypeConfiguration<AtomicPixel>
 {
     public void Configure(EntityTypeBuilder<AtomicPixel> builder)
     {
+        builder.ToTable("AtomicPixels");
+
         builder.HasKey(p => p.PixelHash);
 
         builder.Property(p => p.PixelHash)

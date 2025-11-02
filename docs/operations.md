@@ -466,7 +466,7 @@ FROM sys.indexes
 WHERE is_disabled = 1;
 
 -- Enable disabled indexes
-ALTER INDEX idx_atom_embeddings_disksann ON AtomEmbeddings REBUILD;
+ALTER INDEX IX_AtomEmbeddings_DiskANN ON AtomEmbeddings REBUILD;
 
 -- Check spatial index statistics
 SELECT

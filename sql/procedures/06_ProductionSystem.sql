@@ -109,6 +109,7 @@ GO
 -- HYBRID search: Spatial filter → Vector rerank
 CREATE OR ALTER PROCEDURE dbo.sp_HybridSearch
     @query_vector VECTOR(1998),
+    @query_dimension INT,
     @query_spatial_x FLOAT,
     @query_spatial_y FLOAT,
     @query_spatial_z FLOAT,
@@ -139,6 +140,7 @@ BEGIN
         ae.SpatialGeometry.STDistance(@query_point) AS spatial_distance
     FROM dbo.AtomEmbeddings AS ae
     WHERE ae.SpatialGeometry IS NOT NULL
+      AND ae.Dimension = @query_dimension
       AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
     ORDER BY ae.SpatialGeometry.STDistance(@query_point);
@@ -159,6 +161,7 @@ BEGIN
     INNER JOIN @candidates AS c ON c.AtomEmbeddingId = ae.AtomEmbeddingId
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
     WHERE ae.EmbeddingVector IS NOT NULL
+      AND ae.Dimension = @query_dimension
     ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
 
     PRINT 'Hybrid search complete: Spatial O(log n) + Vector O(k)';

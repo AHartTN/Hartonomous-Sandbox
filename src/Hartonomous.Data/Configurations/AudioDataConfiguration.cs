@@ -40,8 +40,12 @@ public sealed class AudioDataConfiguration : IEntityTypeConfiguration<AudioData>
         builder.Property(e => e.IngestionDate).HasDefaultValueSql("SYSUTCDATETIME()");
 
         // Indexes
-        builder.HasIndex(e => e.DurationMs).HasDatabaseName("idx_duration");
-        builder.HasIndex(e => e.IngestionDate).HasDatabaseName("idx_ingestion").IsDescending();
+        builder.HasIndex(e => e.DurationMs)
+            .HasDatabaseName("IX_AudioData_DurationMs");
+
+        builder.HasIndex(e => e.IngestionDate)
+            .HasDatabaseName("IX_AudioData_IngestionDate")
+            .IsDescending();
 
         // Relationships
         builder.HasMany(e => e.Frames)

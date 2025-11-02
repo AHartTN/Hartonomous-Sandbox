@@ -41,8 +41,12 @@ public sealed class ImageConfiguration : IEntityTypeConfiguration<Image>
         builder.Property(e => e.AccessCount).HasDefaultValue(0L);
 
         // Indexes
-        builder.HasIndex(e => new { e.Width, e.Height }).HasDatabaseName("idx_dimensions");
-        builder.HasIndex(e => e.IngestionDate).HasDatabaseName("idx_ingestion").IsDescending();
+        builder.HasIndex(e => new { e.Width, e.Height })
+            .HasDatabaseName("IX_Images_Width_Height");
+
+        builder.HasIndex(e => e.IngestionDate)
+            .HasDatabaseName("IX_Images_IngestionDate")
+            .IsDescending();
 
         // Relationships
         builder.HasMany(e => e.Patches)

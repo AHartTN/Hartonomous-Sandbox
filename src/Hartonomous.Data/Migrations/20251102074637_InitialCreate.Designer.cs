@@ -14,7 +14,7 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Data.Migrations
 {
     [DbContext(typeof(HartonomousDbContext))]
-    [Migration("20251102024621_InitialCreate")]
+    [Migration("20251102074637_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -229,8 +229,8 @@ namespace Hartonomous.Data.Migrations
                     b.Property<short>("AmplitudeInt16")
                         .HasColumnType("SMALLINT");
 
-                    b.Property<double>("AmplitudeNormalized")
-                        .HasColumnType("FLOAT");
+                    b.Property<float>("AmplitudeNormalized")
+                        .HasColumnType("REAL");
 
                     b.Property<DateTime>("FirstSeen")
                         .ValueGeneratedOnAdd()
@@ -250,9 +250,9 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("SampleHash");
 
                     b.HasIndex("AmplitudeNormalized")
-                        .HasDatabaseName("idx_amplitude");
+                        .HasDatabaseName("IX_AtomicAudioSamples_AmplitudeNormalized");
 
-                    b.ToTable("AtomicAudioSamples");
+                    b.ToTable("AtomicAudioSamples", (string)null);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.AtomicPixel", b =>
@@ -294,7 +294,7 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasKey("PixelHash");
 
-                    b.ToTable("AtomicPixels");
+                    b.ToTable("AtomicPixels", (string)null);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.AtomicTextToken", b =>
@@ -347,9 +347,9 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("TokenText")
                         .IsUnique()
-                        .HasDatabaseName("idx_token_text");
+                        .HasDatabaseName("IX_AtomicTextTokens_TokenText");
 
-                    b.ToTable("AtomicTextTokens");
+                    b.ToTable("AtomicTextTokens", (string)null);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.AudioData", b =>
@@ -409,11 +409,11 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("AudioId");
 
                     b.HasIndex("DurationMs")
-                        .HasDatabaseName("idx_duration");
+                        .HasDatabaseName("IX_AudioData_DurationMs");
 
                     b.HasIndex("IngestionDate")
                         .IsDescending()
-                        .HasDatabaseName("idx_ingestion");
+                        .HasDatabaseName("IX_AudioData_IngestionDate");
 
                     b.ToTable("AudioData", "dbo");
                 });
@@ -510,11 +510,11 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("LastAccessed", "HitCount")
                         .IsDescending()
-                        .HasDatabaseName("idx_cache_usage");
+                        .HasDatabaseName("IX_CachedActivations_LastAccessed_HitCount");
 
                     b.HasIndex("ModelId", "LayerId", "InputHash")
                         .IsUnique()
-                        .HasDatabaseName("idx_cache_lookup");
+                        .HasDatabaseName("IX_CachedActivations_Model_Layer_InputHash");
 
                     b.ToTable("CachedActivations", (string)null);
                 });
@@ -623,7 +623,7 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("EmbeddingId");
 
                     b.HasIndex("ContentHash")
-                        .HasDatabaseName("idx_content_hash");
+                        .HasDatabaseName("IX_Embeddings_Production_ContentHash");
 
                     b.ToTable("Embeddings_Production", (string)null);
                 });
@@ -698,10 +698,10 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("IngestionDate")
                         .IsDescending()
-                        .HasDatabaseName("idx_ingestion");
+                        .HasDatabaseName("IX_Images_IngestionDate");
 
                     b.HasIndex("Width", "Height")
-                        .HasDatabaseName("idx_dimensions");
+                        .HasDatabaseName("IX_Images_Width_Height");
 
                     b.ToTable("Images", "dbo");
                 });
@@ -751,7 +751,7 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("PatchId");
 
                     b.HasIndex("ImageId", "PatchX", "PatchY")
-                        .HasDatabaseName("idx_image_patches");
+                        .HasDatabaseName("IX_ImagePatches_ImageId_PatchX_PatchY");
 
                     b.ToTable("ImagePatches", "dbo");
                 });
@@ -813,19 +813,19 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("InferenceId");
 
                     b.HasIndex("CacheHit")
-                        .HasDatabaseName("idx_cache_hit");
+                        .HasDatabaseName("IX_InferenceRequests_CacheHit");
 
                     b.HasIndex("InputHash")
-                        .HasDatabaseName("idx_input_hash");
+                        .HasDatabaseName("IX_InferenceRequests_InputHash");
 
                     b.HasIndex("ModelId");
 
                     b.HasIndex("RequestTimestamp")
                         .IsDescending()
-                        .HasDatabaseName("idx_timestamp");
+                        .HasDatabaseName("IX_InferenceRequests_RequestTimestamp");
 
                     b.HasIndex("TaskType")
-                        .HasDatabaseName("idx_task_type");
+                        .HasDatabaseName("IX_InferenceRequests_TaskType");
 
                     b.ToTable("InferenceRequests", (string)null);
                 });
@@ -880,7 +880,7 @@ namespace Hartonomous.Data.Migrations
                     b.HasIndex("ModelId");
 
                     b.HasIndex("InferenceId", "StepNumber")
-                        .HasDatabaseName("idx_inference_steps");
+                        .HasDatabaseName("IX_InferenceSteps_InferenceId_StepNumber");
 
                     b.ToTable("InferenceSteps", (string)null);
                 });
@@ -1000,10 +1000,10 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("ModelId");
 
                     b.HasIndex("ModelName")
-                        .HasDatabaseName("idx_model_name");
+                        .HasDatabaseName("IX_Models_ModelName");
 
                     b.HasIndex("ModelType")
-                        .HasDatabaseName("idx_model_type");
+                        .HasDatabaseName("IX_Models_ModelType");
 
                     b.ToTable("Models", (string)null);
                 });
@@ -1069,10 +1069,10 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("LayerId");
 
                     b.HasIndex("LayerType")
-                        .HasDatabaseName("idx_layer_type");
+                        .HasDatabaseName("IX_ModelLayers_LayerType");
 
                     b.HasIndex("ModelId", "LayerIdx")
-                        .HasDatabaseName("idx_model_layer");
+                        .HasDatabaseName("IX_ModelLayers_ModelId_LayerIdx");
 
                     b.ToTable("ModelLayers", (string)null);
                 });
@@ -1317,11 +1317,11 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("VocabId");
 
                     b.HasIndex("ModelId", "Token")
-                        .HasDatabaseName("idx_token_text");
+                        .HasDatabaseName("IX_TokenVocabulary_ModelId_Token");
 
                     b.HasIndex("ModelId", "TokenId")
                         .IsUnique()
-                        .HasDatabaseName("idx_model_token");
+                        .HasDatabaseName("IX_TokenVocabulary_ModelId_TokenId");
 
                     b.ToTable("TokenVocabulary", (string)null);
                 });
@@ -1378,10 +1378,10 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("IngestionDate")
                         .IsDescending()
-                        .HasDatabaseName("idx_ingestion");
+                        .HasDatabaseName("IX_Videos_IngestionDate");
 
                     b.HasIndex("ResolutionWidth", "ResolutionHeight")
-                        .HasDatabaseName("idx_resolution");
+                        .HasDatabaseName("IX_Videos_ResolutionWidth_ResolutionHeight");
 
                     b.ToTable("Videos", "dbo");
                 });
@@ -1426,10 +1426,10 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("VideoId", "FrameNumber")
                         .IsUnique()
-                        .HasDatabaseName("idx_video_frame");
+                        .HasDatabaseName("IX_VideoFrames_VideoId_FrameNumber");
 
                     b.HasIndex("VideoId", "TimestampMs")
-                        .HasDatabaseName("idx_timestamp");
+                        .HasDatabaseName("IX_VideoFrames_VideoId_TimestampMs");
 
                     b.ToTable("VideoFrames", "dbo");
                 });

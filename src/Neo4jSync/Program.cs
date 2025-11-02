@@ -129,20 +129,20 @@ public class EventProcessor : BackgroundService
 
         if (table == "dbo.Models" && operation == "insert")
         {
-            await _graphBuilder.CreateModelNodeAsync(session, BaseEvent, cancellationToken);
+            await _graphBuilder.CreateModelNodeAsync(session, evt, cancellationToken);
         }
         else if (table == "dbo.InferenceRequests" && operation == "insert")
         {
-            await _graphBuilder.CreateInferenceNodeAsync(session, BaseEvent, cancellationToken);
+            await _graphBuilder.CreateInferenceNodeAsync(session, evt, cancellationToken);
         }
         else if (table == "dbo.KnowledgeBase" && operation == "insert")
         {
-            await _graphBuilder.CreateKnowledgeNodeAsync(session, BaseEvent, cancellationToken);
+            await _graphBuilder.CreateKnowledgeNodeAsync(session, evt, cancellationToken);
         }
         else
         {
             // Generic event processing
-            await _graphBuilder.CreateGenericEventNodeAsync(session, BaseEvent, cancellationToken);
+            await _graphBuilder.CreateGenericEventNodeAsync(session, evt, cancellationToken);
         }
     }
 

@@ -56,7 +56,7 @@ public interface ISemanticEnricher
 /// <summary>
 /// Interface for publishing events to external systems
 /// </summary>
-public interface IEventPublisher
+public interface ICloudEventPublisher
 {
     /// <summary>
     /// Publish a batch of events

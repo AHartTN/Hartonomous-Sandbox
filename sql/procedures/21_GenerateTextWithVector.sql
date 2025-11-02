@@ -19,43 +19,45 @@ BEGIN
     DECLARE @InferenceId BIGINT;
     DECLARE @generated_text NVARCHAR(MAX) = @prompt;
 
-    -- Log the inference request
+    -- Log the inference request (using correct schema)
     INSERT INTO dbo.InferenceRequests (
         TaskType,
         InputData,
         ModelsUsed,
-        EnsembleStrategy,
-        InputMetadata
+        OutputMetadata
     )
     VALUES (
         'text_generation',
-        @prompt,
-        CASE WHEN @use_ensemble = 1 THEN 'ensemble' ELSE 'single' END,
-        CASE WHEN @use_ensemble = 1 THEN 'weighted_average' ELSE 'direct' END,
-        JSON_OBJECT('max_tokens': @max_tokens, 'temperature': @temperature)
+        JSON_OBJECT(
+            'prompt': @prompt,
+            'max_tokens': @max_tokens,
+            'temperature': @temperature
+        ),
+        CASE WHEN @use_ensemble = 1 THEN JSON_OBJECT('strategy': 'ensemble') ELSE JSON_OBJECT('strategy': 'single') END,
+        JSON_OBJECT('status': 'started')
     );
     SET @InferenceId = SCOPE_IDENTITY();
 
-    -- Get active models for ensemble
+    -- Get active models for ensemble (use Models table, not Models_Production)
     DECLARE @models TABLE (ModelId INT, ModelName NVARCHAR(200), Weight FLOAT);
     IF @use_ensemble = 1
     BEGIN
         IF @ModelIds IS NULL
         BEGIN
-            -- Use all active models with equal weights
+            -- Use all models with equal weights
             INSERT INTO @models
             SELECT ModelId, ModelName, 1.0
-            FROM dbo.Models_Production
-            WHERE IsActive = 1;
+            FROM dbo.Models
+            WHERE ModelType IN ('neural_network', 'vocabulary');
         END
         ELSE
         BEGIN
             -- Use specified models
             INSERT INTO @models
-            SELECT mp.ModelId, mp.ModelName, 1.0
-            FROM dbo.Models_Production mp
-            WHERE mp.IsActive = 1
-              AND mp.ModelId IN (SELECT value FROM STRING_SPLIT(@ModelIds, ','));
+            SELECT m.ModelId, m.ModelName, 1.0
+            FROM dbo.Models m
+            WHERE m.ModelType IN ('neural_network', 'vocabulary')
+              AND m.ModelId IN (SELECT CAST(value AS INT) FROM STRING_SPLIT(@ModelIds, ','));
         END
     END
 
@@ -73,50 +75,70 @@ BEGIN
 
         IF @use_ensemble = 1 AND (SELECT COUNT(*) FROM @models) > 1
         BEGIN
-            -- Multi-model ensemble prediction
+            -- Multi-model ensemble prediction using AtomEmbeddings
             SELECT TOP 1 @next_token = Token
             FROM (
                 SELECT
-                    tv.Token,
+                    CAST(a.AtomData AS NVARCHAR(100)) AS Token,
                     SUM(EnsembleScore) as TotalScore
                 FROM (
-                    -- Get predictions from each model
+                    -- Get predictions from each model via spatial similarity
                     SELECT
-                        tv.Token,
-                        m.Weight * (1.0 - VECTOR_DISTANCE('cosine', tv.Embedding, ContextEmbedding)) as EnsembleScore,
-                        ROW_NUMBER() OVER (PARTITION BY m.ModelId ORDER BY VECTOR_DISTANCE('cosine', tv.Embedding, ContextEmbedding)) as RankInModel
+                        ae.AtomId,
+                        m.Weight * (1.0 - ae.SpatialGeometry.STDistance(context.ContextSpatial)) as EnsembleScore,
+                        ROW_NUMBER() OVER (PARTITION BY m.ModelId ORDER BY ae.SpatialGeometry.STDistance(context.ContextSpatial)) as RankInModel
                     FROM @models m
                     CROSS APPLY (
-                        -- Get context embedding (simplified: average of recent tokens)
-                        SELECT TOP 5 Embedding
-                        FROM dbo.TokenVocabulary tv_context
-                        WHERE tv_context.Token IN (
-                            SELECT TOP 5 Token FROM @tokens ORDER BY Position DESC
-                        )
-                    ) context(ContextEmbedding)
-                    CROSS JOIN dbo.TokenVocabulary tv
-                    WHERE tv.Token NOT IN (SELECT Token FROM @tokens) -- Avoid repetition
+                        -- Get context spatial centroid from recent tokens
+                        SELECT TOP 1 geometry::STGeomFromText(
+                            'POINT(' +
+                            CAST(AVG(ae_ctx.SpatialGeometry.STX) AS NVARCHAR(50)) + ' ' +
+                            CAST(AVG(ae_ctx.SpatialGeometry.STY) AS NVARCHAR(50)) + ' ' +
+                            CAST(AVG(CAST(COALESCE(ae_ctx.SpatialGeometry.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+                            0
+                        ) AS ContextSpatial
+                        FROM @tokens t_ctx
+                        INNER JOIN dbo.Atoms a_ctx ON CAST(a_ctx.AtomData AS NVARCHAR(100)) = t_ctx.Token
+                        INNER JOIN dbo.AtomEmbeddings ae_ctx ON ae_ctx.AtomId = a_ctx.AtomId
+                        ORDER BY t_ctx.Position DESC
+                    ) context
+                    INNER JOIN dbo.AtomEmbeddings ae ON ae.SpatialGeometry IS NOT NULL
+                    WHERE ae.AtomId NOT IN (
+                        SELECT a_existing.AtomId FROM @tokens t_existing
+                        INNER JOIN dbo.Atoms a_existing ON CAST(a_existing.AtomData AS NVARCHAR(100)) = t_existing.Token
+                    )
                 ) model_predictions
-                JOIN dbo.TokenVocabulary tv ON tv.Token = model_predictions.Token
+                INNER JOIN dbo.Atoms a ON a.AtomId = model_predictions.AtomId
                 WHERE RankInModel <= 3  -- Top 3 from each model
-                GROUP BY tv.Token
+                GROUP BY a.AtomId, a.AtomData
             ) ensemble_results
             ORDER BY TotalScore DESC;
         END
         ELSE
         BEGIN
-            -- Single model prediction (fallback)
-            SELECT TOP 1 @next_token = tv.Token
-            FROM dbo.TokenVocabulary tv
+            -- Single model prediction (fallback) using AtomEmbeddings
+            SELECT TOP 1 @next_token = CAST(a.AtomData AS NVARCHAR(100))
+            FROM dbo.AtomEmbeddings ae
+            INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
             CROSS APPLY (
-                SELECT TOP 1 Embedding as ContextEmbedding
-                FROM dbo.TokenVocabulary tv_context
-                WHERE tv_context.Token IN (
-                    SELECT TOP 3 Token FROM @tokens ORDER BY Position DESC
-                )
+                SELECT TOP 1 geometry::STGeomFromText(
+                    'POINT(' +
+                    CAST(AVG(ae_ctx.SpatialGeometry.STX) AS NVARCHAR(50)) + ' ' +
+                    CAST(AVG(ae_ctx.SpatialGeometry.STY) AS NVARCHAR(50)) + ' ' +
+                    CAST(AVG(CAST(COALESCE(ae_ctx.SpatialGeometry.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+                    0
+                ) AS ContextSpatial
+                FROM @tokens t_ctx
+                INNER JOIN dbo.Atoms a_ctx ON CAST(a_ctx.AtomData AS NVARCHAR(100)) = t_ctx.Token
+                INNER JOIN dbo.AtomEmbeddings ae_ctx ON ae_ctx.AtomId = a_ctx.AtomId
+                ORDER BY t_ctx.Position DESC
             ) context
-            WHERE tv.Token NOT IN (SELECT Token FROM @tokens)
-            ORDER BY VECTOR_DISTANCE('cosine', tv.Embedding, ContextEmbedding);
+            WHERE ae.AtomId NOT IN (
+                SELECT a_existing.AtomId FROM @tokens t_existing
+                INNER JOIN dbo.Atoms a_existing ON CAST(a_existing.AtomData AS NVARCHAR(100)) = t_existing.Token
+            )
+            AND ae.SpatialGeometry IS NOT NULL
+            ORDER BY ae.SpatialGeometry.STDistance(context.ContextSpatial);
         END
 
         -- Apply temperature (add randomness)
@@ -127,18 +149,29 @@ BEGIN
         END
         ELSE IF @temperature > 1.0
         BEGIN
-            -- Random sampling from top candidates
+            -- Random sampling from top candidates using AtomEmbeddings
             DECLARE @candidates TABLE (Token NVARCHAR(100), Score FLOAT);
+            
             INSERT INTO @candidates
-            SELECT TOP 5 tv.Token, (1.0 - VECTOR_DISTANCE('cosine', tv.Embedding, ContextEmbedding)) as Score
-            FROM dbo.TokenVocabulary tv
+            SELECT TOP 5 
+                CAST(a.AtomData AS NVARCHAR(100)) AS Token,
+                (1.0 - ae.SpatialGeometry.STDistance(context.ContextSpatial)) as Score
+            FROM dbo.AtomEmbeddings ae
+            INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
             CROSS APPLY (
-                SELECT TOP 1 Embedding as ContextEmbedding
-                FROM dbo.TokenVocabulary tv_context
-                WHERE tv_context.Token IN (
-                    SELECT TOP 3 Token FROM @tokens ORDER BY Position DESC
-                )
+                SELECT TOP 1 geometry::STGeomFromText(
+                    'POINT(' +
+                    CAST(AVG(ae_ctx.SpatialGeometry.STX) AS NVARCHAR(50)) + ' ' +
+                    CAST(AVG(ae_ctx.SpatialGeometry.STY) AS NVARCHAR(50)) + ' ' +
+                    CAST(AVG(CAST(COALESCE(ae_ctx.SpatialGeometry.Z, 0) AS FLOAT)) AS NVARCHAR(50)) + ')',
+                    0
+                ) AS ContextSpatial
+                FROM @tokens t_ctx
+                INNER JOIN dbo.Atoms a_ctx ON CAST(a_ctx.AtomData AS NVARCHAR(100)) = t_ctx.Token
+                INNER JOIN dbo.AtomEmbeddings ae_ctx ON ae_ctx.AtomId = a_ctx.AtomId
+                ORDER BY t_ctx.Position DESC
             ) context
+            WHERE ae.SpatialGeometry IS NOT NULL
             ORDER BY Score DESC;
 
             -- Weighted random selection
@@ -186,14 +219,13 @@ BEGIN
     WHERE InferenceId = @InferenceId;
 
     -- Log inference steps
-    INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, ModelId, OperationType, DurationMs, Metadata)
+    INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, ModelId, OperationType, DurationMs)
     SELECT
         @InferenceId,
         ROW_NUMBER() OVER (ORDER BY m.ModelId),
         m.ModelId,
         'text_generation',
-        @DurationMs / (SELECT COUNT(*) FROM @models),
-        JSON_OBJECT('tokens_generated': @tokens_generated)
+        @DurationMs / (SELECT COUNT(*) FROM @models)
     FROM @models m;
 
     -- Return results

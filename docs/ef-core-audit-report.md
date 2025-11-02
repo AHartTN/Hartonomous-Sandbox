@@ -389,7 +389,7 @@ sql/procedures/
 3. **Spatial Index Migration**
    ```csharp
    migrationBuilder.Sql(@"
-       CREATE SPATIAL INDEX idx_spatial_fine
+    CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialGeometry
        ON dbo.Embeddings_Production(spatial_geometry)
        WITH (BOUNDING_BOX = (-10, -10, 10, 10), ...");
    ```
@@ -399,7 +399,7 @@ sql/procedures/
 
 4. **VECTOR Index Missing Validation**
    ```csharp
-   CREATE VECTOR INDEX idx_diskann_vector
+    CREATE VECTOR INDEX IX_EmbeddingsDiskANN_Vector
    ON dbo.Embeddings_DiskANN(embedding_full)
    WITH (METRIC = 'cosine', TYPE = 'DiskANN', MAXDOP = 0);
    ```

@@ -5,7 +5,8 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_SemanticSearch
     @query_text NVARCHAR(MAX) = NULL,
-    @query_embedding VECTOR(768) = NULL,
+    @query_embedding VECTOR(1998) = NULL,
+    @query_dimension INT = 768,
     @top_k INT = 5,
     @category NVARCHAR(50) = NULL,
     @use_hybrid BIT = 1
@@ -40,6 +41,7 @@ BEGIN
     END;
 
     DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
+    DECLARE @models_used_json JSON = CAST(JSON_OBJECT('searchMethod': @search_method) AS JSON);
 
     INSERT INTO dbo.InferenceRequests (
         TaskType,
@@ -52,7 +54,7 @@ BEGIN
         'semantic_search',
         @input_data,
         @input_hash,
-        @search_method,
+        @models_used_json,
         'spatial_filter_vector_rerank'
     );
 
@@ -84,7 +86,7 @@ BEGIN
 
         EXEC dbo.sp_ComputeSpatialProjection
             @input_vector = @query_embedding,
-            @input_dimension = 768,
+            @input_dimension = @query_dimension,
             @output_x = @spatial_x OUTPUT,
             @output_y = @spatial_y OUTPUT,
             @output_z = @spatial_z OUTPUT;
@@ -106,6 +108,7 @@ BEGIN
         INSERT INTO @Hybrid
         EXEC dbo.sp_HybridSearch
             @query_vector = @query_embedding,
+            @query_dimension = @query_dimension,
             @query_spatial_x = @spatial_x,
             @query_spatial_y = @spatial_y,
             @query_spatial_z = @spatial_z,
@@ -183,6 +186,7 @@ BEGIN
         FROM dbo.AtomEmbeddings AS ae
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
         WHERE ae.EmbeddingVector IS NOT NULL
+          AND ae.Dimension = @query_dimension
           AND (@category IS NULL OR a.SourceType = @category OR a.Subtype = @category)
         ORDER BY distance ASC;
     END;

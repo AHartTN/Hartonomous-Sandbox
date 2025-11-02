@@ -17,23 +17,13 @@ GO
 -- PART 1: Anchor Points Table
 -- ==========================================
 
+-- SpatialAnchors table created by migration
+-- Verify it exists
 IF OBJECT_ID('dbo.SpatialAnchors', 'U') IS NULL
 BEGIN
-    CREATE TABLE dbo.SpatialAnchors (
-        anchor_id INT PRIMARY KEY,
-        anchor_name NVARCHAR(100) NOT NULL,
-        anchor_vector VECTOR(1998) NOT NULL,
-        selection_method NVARCHAR(50) NOT NULL,
-        created_at DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME()
-    );
-
-    PRINT 'Created SpatialAnchors table';
-END
-ELSE
-BEGIN
-    -- Ensure anchor column matches the new maximum dimension
-    ALTER TABLE dbo.SpatialAnchors ALTER COLUMN anchor_vector VECTOR(1998) NOT NULL;
-END
+    RAISERROR('SpatialAnchors table missing - run migrations first', 16, 1);
+    RETURN;
+END;
 GO
 
 -- ==========================================
@@ -52,7 +42,7 @@ BEGIN
     DECLARE @available INT = (
         SELECT COUNT(*)
         FROM dbo.AtomEmbeddings
-        WHERE embedding_vector IS NOT NULL
+        WHERE EmbeddingVector IS NOT NULL
     );
 
     IF @available < 3
@@ -66,21 +56,21 @@ BEGIN
 
     SELECT TOP (1)
         @anchor1Id = AtomEmbeddingId,
-        @anchor1 = embedding_vector
+        @anchor1 = EmbeddingVector
     FROM dbo.AtomEmbeddings
-    WHERE embedding_vector IS NOT NULL
+    WHERE EmbeddingVector IS NOT NULL
     ORDER BY NEWID();
 
-    INSERT INTO dbo.SpatialAnchors (anchor_id, anchor_name, anchor_vector, selection_method)
+    INSERT INTO dbo.SpatialAnchors (AnchorId, AnchorName, AnchorVector, SelectionMethod)
     VALUES (1, 'Primary Anchor', @anchor1, 'random');
 
     SELECT TOP (1)
         @anchor2Id = AtomEmbeddingId,
-        @anchor2 = embedding_vector
+        @anchor2 = EmbeddingVector
     FROM dbo.AtomEmbeddings
-    WHERE embedding_vector IS NOT NULL
+    WHERE EmbeddingVector IS NOT NULL
       AND AtomEmbeddingId <> @anchor1Id
-    ORDER BY VECTOR_DISTANCE('euclidean', embedding_vector, @anchor1) DESC;
+    ORDER BY VECTOR_DISTANCE('euclidean', EmbeddingVector, @anchor1) DESC;
 
     IF @anchor2Id IS NULL
     BEGIN
@@ -88,17 +78,17 @@ BEGIN
         RETURN;
     END;
 
-    INSERT INTO dbo.SpatialAnchors (anchor_id, anchor_name, anchor_vector, selection_method)
+    INSERT INTO dbo.SpatialAnchors (AnchorId, AnchorName, AnchorVector, SelectionMethod)
     VALUES (2, 'Distant Anchor', @anchor2, 'maximal_distance');
 
     SELECT TOP (1)
         @anchor3Id = AtomEmbeddingId,
-        @anchor3 = embedding_vector
+        @anchor3 = EmbeddingVector
     FROM dbo.AtomEmbeddings
-    WHERE embedding_vector IS NOT NULL
+    WHERE EmbeddingVector IS NOT NULL
       AND AtomEmbeddingId NOT IN (@anchor1Id, @anchor2Id)
-    ORDER BY VECTOR_DISTANCE('euclidean', embedding_vector, @anchor1) +
-             VECTOR_DISTANCE('euclidean', embedding_vector, @anchor2) DESC;
+    ORDER BY VECTOR_DISTANCE('euclidean', EmbeddingVector, @anchor1) +
+             VECTOR_DISTANCE('euclidean', EmbeddingVector, @anchor2) DESC;
 
     IF @anchor3Id IS NULL
     BEGIN
@@ -106,18 +96,18 @@ BEGIN
         RETURN;
     END;
 
-    INSERT INTO dbo.SpatialAnchors (anchor_id, anchor_name, anchor_vector, selection_method)
+    INSERT INTO dbo.SpatialAnchors (AnchorId, AnchorName, AnchorVector, SelectionMethod)
     VALUES (3, 'Triangulation Anchor', @anchor3, 'maximal_combined_distance');
 
     PRINT '  ✓ Spatial anchors refreshed (3 anchors).';
 
     SELECT
-        anchor_id,
-        anchor_name,
-        selection_method,
-        created_at
+        AnchorId,
+        AnchorName,
+        SelectionMethod,
+        CreatedAt
     FROM dbo.SpatialAnchors
-    ORDER BY anchor_id;
+    ORDER BY AnchorId;
 END;
 GO
 
@@ -141,18 +131,19 @@ BEGIN
         RETURN;
     END;
 
+    -- Use dimension-specific anchors
     DECLARE @anchor1 VECTOR(1998), @anchor2 VECTOR(1998), @anchor3 VECTOR(1998);
 
-    SELECT @anchor1 = anchor_vector FROM dbo.SpatialAnchors WHERE anchor_id = 1;
-    SELECT @anchor2 = anchor_vector FROM dbo.SpatialAnchors WHERE anchor_id = 2;
-    SELECT @anchor3 = anchor_vector FROM dbo.SpatialAnchors WHERE anchor_id = 3;
+    SELECT @anchor1 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 1;
+    SELECT @anchor2 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 2;
+    SELECT @anchor3 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 3;
 
     IF @anchor1 IS NULL OR @anchor2 IS NULL OR @anchor3 IS NULL
     BEGIN
         EXEC dbo.sp_InitializeSpatialAnchors;
-        SELECT @anchor1 = anchor_vector FROM dbo.SpatialAnchors WHERE anchor_id = 1;
-        SELECT @anchor2 = anchor_vector FROM dbo.SpatialAnchors WHERE anchor_id = 2;
-        SELECT @anchor3 = anchor_vector FROM dbo.SpatialAnchors WHERE anchor_id = 3;
+        SELECT @anchor1 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 1;
+        SELECT @anchor2 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 2;
+        SELECT @anchor3 = AnchorVector FROM dbo.SpatialAnchors WHERE AnchorId = 3;
 
         IF @anchor1 IS NULL OR @anchor2 IS NULL OR @anchor3 IS NULL
         BEGIN
@@ -206,9 +197,9 @@ BEGIN
     DECLARE @x FLOAT, @y FLOAT, @z FLOAT;
 
     DECLARE embedding_cursor CURSOR LOCAL FAST_FORWARD FOR
-        SELECT AtomEmbeddingId, embedding_vector, Dimension
+        SELECT AtomEmbeddingId, EmbeddingVector, Dimension
         FROM dbo.AtomEmbeddings
-        WHERE embedding_vector IS NOT NULL;
+        WHERE EmbeddingVector IS NOT NULL;
 
     OPEN embedding_cursor;
     FETCH NEXT FROM embedding_cursor INTO @embeddingId, @vector, @dimension;
@@ -313,12 +304,12 @@ BEGIN
         SELECT TOP (50)
             a.AtomEmbeddingId AS id_a,
             b.AtomEmbeddingId AS id_b,
-            VECTOR_DISTANCE('cosine', a.embedding_vector, b.embedding_vector) AS vector_dist,
+            VECTOR_DISTANCE('cosine', a.EmbeddingVector, b.EmbeddingVector) AS vector_dist,
             a.SpatialGeometry.STDistance(b.SpatialGeometry) AS spatial_dist
         FROM dbo.AtomEmbeddings a
         JOIN dbo.AtomEmbeddings b ON a.AtomEmbeddingId < b.AtomEmbeddingId
-        WHERE a.embedding_vector IS NOT NULL
-          AND b.embedding_vector IS NOT NULL
+        WHERE a.EmbeddingVector IS NOT NULL
+          AND b.EmbeddingVector IS NOT NULL
           AND a.SpatialGeometry IS NOT NULL
           AND b.SpatialGeometry IS NOT NULL
         ORDER BY NEWID()
@@ -349,3 +340,5 @@ PRINT '  EXEC dbo.sp_RecomputeAllSpatialProjections;';
 PRINT '  EXEC dbo.sp_AnalyzeProjectionQuality;';
 PRINT '============================================================';
 GO
+
+

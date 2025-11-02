@@ -45,7 +45,7 @@ public class EmbeddingConfiguration : IEntityTypeConfiguration<Embedding>
             .HasMaxLength(64); // SHA256 hex string
 
         builder.HasIndex(e => e.ContentHash)
-            .HasDatabaseName("idx_content_hash");
+            .HasDatabaseName("IX_Embeddings_Production_ContentHash");
 
         // Spatial geometry properties using NetTopologySuite
         builder.Property(e => e.SpatialGeometry)

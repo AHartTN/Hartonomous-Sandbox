@@ -61,7 +61,7 @@ public class SpatialInferenceService : ISpatialInferenceService
                 ? "UNKNOWN"
                 : reader.GetString(reader.GetOrdinal("ResolutionLevel"));
 
-            results.Add(new SpatialAttentionResult(tokenId, tokenText, attentionWeight, spatialDistance, resolution));
+            results.Add(new SpatialAttentionResult(tokenId, tokenText, attentionWeight, distance, resolution));
         }
 
         return results;
@@ -106,7 +106,7 @@ public class SpatialInferenceService : ISpatialInferenceService
             var distance = reader.GetDouble(reader.GetOrdinal("Distance"));
             var probabilityScore = reader.GetDouble(reader.GetOrdinal("ProbabilityScore"));
 
-            results.Add(new SpatialNextTokenPrediction(tokenId, tokenText, probability, distance));
+            results.Add(new SpatialNextTokenPrediction(tokenId, tokenText, probabilityScore, distance));
         }
 
         return results

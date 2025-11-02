@@ -32,7 +32,11 @@ public sealed class VideoFrameConfiguration : IEntityTypeConfiguration<VideoFram
         builder.Property(e => e.PerceptualHash).HasMaxLength(8);
 
         // Indexes
-        builder.HasIndex(e => new { e.VideoId, e.FrameNumber }).HasDatabaseName("idx_video_frame").IsUnique();
-        builder.HasIndex(e => new { e.VideoId, e.TimestampMs }).HasDatabaseName("idx_timestamp");
+        builder.HasIndex(e => new { e.VideoId, e.FrameNumber })
+            .HasDatabaseName("IX_VideoFrames_VideoId_FrameNumber")
+            .IsUnique();
+
+        builder.HasIndex(e => new { e.VideoId, e.TimestampMs })
+            .HasDatabaseName("IX_VideoFrames_VideoId_TimestampMs");
     }
 }

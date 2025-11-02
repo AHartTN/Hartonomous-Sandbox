@@ -48,10 +48,10 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
 
         // Indexes
         builder.HasIndex(l => new { l.ModelId, l.LayerIdx })
-            .HasDatabaseName("idx_model_layer");
+            .HasDatabaseName("IX_ModelLayers_ModelId_LayerIdx");
 
         builder.HasIndex(l => l.LayerType)
-            .HasDatabaseName("idx_layer_type");
+            .HasDatabaseName("IX_ModelLayers_LayerType");
 
         // Relationships
         builder.HasMany(l => l.CachedActivations)

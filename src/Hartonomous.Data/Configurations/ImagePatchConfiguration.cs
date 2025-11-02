@@ -32,6 +32,7 @@ public sealed class ImagePatchConfiguration : IEntityTypeConfiguration<ImagePatc
         builder.Property(e => e.StdIntensity);
 
         // Indexes
-        builder.HasIndex(e => new { e.ImageId, e.PatchX, e.PatchY }).HasDatabaseName("idx_image_patches");
+        builder.HasIndex(e => new { e.ImageId, e.PatchX, e.PatchY })
+            .HasDatabaseName("IX_ImagePatches_ImageId_PatchX_PatchY");
     }
 }

@@ -38,10 +38,10 @@ public class ModelConfiguration : IEntityTypeConfiguration<Model>
 
         // Indexes
         builder.HasIndex(m => m.ModelName)
-            .HasDatabaseName("idx_model_name");
+            .HasDatabaseName("IX_Models_ModelName");
 
         builder.HasIndex(m => m.ModelType)
-            .HasDatabaseName("idx_model_type");
+            .HasDatabaseName("IX_Models_ModelType");
 
         // Relationships
         builder.HasMany(m => m.Layers)

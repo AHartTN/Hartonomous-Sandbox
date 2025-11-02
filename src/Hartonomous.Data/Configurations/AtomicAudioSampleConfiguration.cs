@@ -8,6 +8,8 @@ public class AtomicAudioSampleConfiguration : IEntityTypeConfiguration<AtomicAud
 {
     public void Configure(EntityTypeBuilder<AtomicAudioSample> builder)
     {
+        builder.ToTable("AtomicAudioSamples");
+
         builder.HasKey(s => s.SampleHash);
 
         builder.Property(s => s.SampleHash)
@@ -15,7 +17,7 @@ public class AtomicAudioSampleConfiguration : IEntityTypeConfiguration<AtomicAud
             .IsRequired();
 
         builder.Property(s => s.AmplitudeNormalized)
-            .HasColumnType("FLOAT")
+            .HasColumnType("REAL")
             .IsRequired();
 
         builder.Property(s => s.AmplitudeInt16)
@@ -35,6 +37,6 @@ public class AtomicAudioSampleConfiguration : IEntityTypeConfiguration<AtomicAud
             .HasDefaultValueSql("SYSUTCDATETIME()");
 
         builder.HasIndex(s => s.AmplitudeNormalized)
-            .HasDatabaseName("idx_amplitude");
+            .HasDatabaseName("IX_AtomicAudioSamples_AmplitudeNormalized");
     }
 }

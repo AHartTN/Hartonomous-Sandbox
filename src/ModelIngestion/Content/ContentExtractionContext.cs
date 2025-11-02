@@ -14,14 +14,16 @@ public sealed class ContentExtractionContext : IDisposable
         Stream? contentStream,
         string? fileName,
         string? contentType,
-        IDictionary<string, string>? metadata,
+    IReadOnlyDictionary<string, string>? metadata,
         IReadOnlyList<string>? telemetryEvents)
     {
         SourceType = sourceType;
         ContentStream = contentStream;
         FileName = fileName;
         ContentType = contentType;
-        Metadata = metadata ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        Metadata = metadata is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : CopyMetadata(metadata);
         TelemetryEvents = telemetryEvents;
     }
 
@@ -73,5 +75,16 @@ public sealed class ContentExtractionContext : IDisposable
     {
         ContentStream?.Dispose();
         ContentStream = null;
+    }
+
+    private static IDictionary<string, string> CopyMetadata(IReadOnlyDictionary<string, string> source)
+    {
+        var result = new Dictionary<string, string>(source.Count, StringComparer.OrdinalIgnoreCase);
+        foreach (var (key, value) in source)
+        {
+            result[key] = value;
+        }
+
+        return result;
     }
 }

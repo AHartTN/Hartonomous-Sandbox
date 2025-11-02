@@ -8,6 +8,8 @@ public class AtomicTextTokenConfiguration : IEntityTypeConfiguration<AtomicTextT
 {
     public void Configure(EntityTypeBuilder<AtomicTextToken> builder)
     {
+        builder.ToTable("AtomicTextTokens");
+
         builder.HasKey(t => t.TokenId);
 
         builder.Property(t => t.TokenId)
@@ -50,6 +52,6 @@ public class AtomicTextTokenConfiguration : IEntityTypeConfiguration<AtomicTextT
 
         builder.HasIndex(t => t.TokenText)
             .IsUnique()
-            .HasDatabaseName("idx_token_text");
+            .HasDatabaseName("IX_AtomicTextTokens_TokenText");
     }
 }

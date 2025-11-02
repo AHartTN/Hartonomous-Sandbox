@@ -100,10 +100,10 @@ ORDER BY VECTOR_DISTANCE(@metric, EmbeddingFull, @vector);";
 DECLARE @query_point GEOMETRY = geometry::STGeomFromText('POINT (' + CAST(@x AS NVARCHAR(32)) + ' ' + CAST(@y AS NVARCHAR(32)) + ' ' + CAST(@z AS NVARCHAR(32)) + ')', 0);
 
 WITH spatial_candidates AS (
-	SELECT TOP (@spatial_candidates)
-		EmbeddingId,
-		spatial_geometry.STDistance(@query_point) AS SpatialDistance
-	FROM dbo.Embeddings_Production WITH(INDEX(idx_spatial_fine))
+    SELECT TOP (@spatial_candidates)
+        EmbeddingId,
+        spatial_geometry.STDistance(@query_point) AS SpatialDistance
+    FROM dbo.Embeddings_Production WITH(INDEX(IX_Embeddings_Production_SpatialGeometry))
 	WHERE spatial_geometry IS NOT NULL
 	ORDER BY spatial_geometry.STDistance(@query_point)
 )

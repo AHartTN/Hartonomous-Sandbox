@@ -347,7 +347,7 @@ CREATE TABLE Atoms (...) ON PS_Modality(Modality);
 
 ```sql
 -- Primary vector index (approximate nearest neighbor)
-CREATE INDEX idx_atom_embeddings_disksann
+CREATE INDEX IX_AtomEmbeddings_DiskANN
 ON AtomEmbeddings (EmbeddingVector)
 WITH (
     DATA_COMPRESSION = ROWSTORE_MEMORY_OPTIMIZED,
@@ -363,10 +363,10 @@ WITH (
 
 ```sql
 -- Fine-grained spatial index
-CREATE SPATIAL INDEX idx_spatial_fine
+CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialGeometry
 ON AtomEmbeddings (SpatialGeometry)
 WITH (
-    BOUNDING_BOX = (0, 0, 1000, 1000),
+    BOUNDING_BOX = (-1000, -1000, 1000, 1000),
     GRIDS = (
         LEVEL_1 = MEDIUM,
         LEVEL_2 = MEDIUM,
@@ -377,10 +377,10 @@ WITH (
 );
 
 -- Coarse spatial index for fast filtering
-CREATE SPATIAL INDEX idx_spatial_coarse
+CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialCoarse
 ON AtomEmbeddings (SpatialCoarse)
 WITH (
-    BOUNDING_BOX = (0, 0, 100, 100),
+    BOUNDING_BOX = (-100, -100, 100, 100),
     CELLS_PER_OBJECT = 8
 );
 ```
