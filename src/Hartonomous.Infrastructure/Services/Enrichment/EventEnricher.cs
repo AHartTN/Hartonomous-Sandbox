@@ -77,7 +77,7 @@ public class EventEnricher : IEventEnricher
     private Task EnrichModelEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
         if (evt.Data is Dictionary<string, object> data &&
-            data.TryGetValue("model_name", out var modelNameObj) &&
+            data.TryGetValue("ModelName", out var modelNameObj) &&
             modelNameObj is string modelName)
         {
             var capabilities = _capabilityService.InferFromModelName(modelName);
@@ -98,7 +98,7 @@ public class EventEnricher : IEventEnricher
     private Task EnrichInferenceEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
         if (evt.Data is Dictionary<string, object> data &&
-            data.TryGetValue("task_type", out var taskTypeObj) &&
+            data.TryGetValue("TaskType", out var taskTypeObj) &&
             taskTypeObj is string taskType)
         {
             var complexity = _metadataService.CalculateComplexity(

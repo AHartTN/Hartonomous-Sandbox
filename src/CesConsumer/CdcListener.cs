@@ -164,7 +164,7 @@ namespace CesConsumer
             {
                 // For new models, add metadata about capabilities
                 var data = cloudEvent.Data as Dictionary<string, object>;
-                if (data != null && data.TryGetValue("model_name", out var modelNameObj) && modelNameObj is string modelName)
+                if (data != null && data.TryGetValue("ModelName", out var modelNameObj) && modelNameObj is string modelName)
                 {
                     cloudEvent.Extensions["semantic"] = new Dictionary<string, object>
                     {
@@ -179,7 +179,7 @@ namespace CesConsumer
             {
                 // For inference requests, add reasoning context
                 var data = cloudEvent.Data as Dictionary<string, object>;
-                if (data != null && data.TryGetValue("task_type", out var taskTypeObj) && taskTypeObj is string taskType)
+                if (data != null && data.TryGetValue("TaskType", out var taskTypeObj) && taskTypeObj is string taskType)
                 {
                     cloudEvent.Extensions["reasoning"] = new Dictionary<string, object>
                     {

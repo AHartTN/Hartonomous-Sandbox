@@ -214,7 +214,7 @@ public class ModelDiscoveryService : IModelDiscoveryService
 
         // Determine architecture from config
         string? architecture = null;
-        if (root.TryGetProperty("model_type", out var modelType))
+        if (root.TryGetProperty("ModelType", out var modelType))
         {
             architecture = modelType.GetString();
         }

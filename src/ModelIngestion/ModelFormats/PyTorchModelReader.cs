@@ -69,7 +69,7 @@ namespace ModelIngestion.ModelFormats
 
             model.Config = JsonSerializer.Serialize(new
             {
-                model_type = metadata.ModelType,
+                ModelType = metadata.ModelType,
                 architecture = metadata.Architecture,
                 num_layers = metadata.NumLayers,
                 hidden_size = metadata.HiddenSize,

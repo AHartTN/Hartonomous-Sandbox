@@ -274,8 +274,8 @@ VALUES
 	1
 );";
 
-        AddParameter(command, "@source_text", (object?)sourceText ?? DBNull.Value);
-        AddParameter(command, "@source_type", sourceType);
+        AddParameter(command, "@SourceText", (object?)sourceText ?? DBNull.Value);
+        AddParameter(command, "@SourceType", sourceType);
         AddParameter(command, "@vector", new SqlVector<float>(embeddingFull));
         AddParameter(command, "@model", "production");
         AddParameter(command, "@x", spatial3D[0]);

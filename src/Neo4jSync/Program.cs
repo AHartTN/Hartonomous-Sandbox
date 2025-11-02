@@ -168,8 +168,8 @@ public class ProvenanceGraphBuilder
         var data = evt.Data as Dictionary<string, object>;
         if (data == null) return;
 
-        var modelId = data.GetValueOrDefault("model_id")?.ToString();
-        var modelName = data.GetValueOrDefault("model_name")?.ToString();
+        var modelId = data.GetValueOrDefault("ModelId")?.ToString();
+        var modelName = data.GetValueOrDefault("ModelName")?.ToString();
         var architecture = data.GetValueOrDefault("architecture")?.ToString();
 
         if (string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(modelName)) return;
@@ -182,14 +182,16 @@ public class ProvenanceGraphBuilder
         var compliance = semanticExtensions?.GetValueOrDefault("compliance_requirements") as string[];
 
         var cypher = @"
-            MERGE (m:Model {model_id: $modelId})
-            SET m.model_name = $modelName,
+            MERGE (m:Model {ModelId: $modelId})
+            SET m.ModelName = $modelName,
                 m.architecture = $architecture,
                 m.content_type = $contentType,
                 m.expected_performance = $performance,
                 m.capabilities = $capabilities,
                 m.compliance_requirements = $compliance,
-                m.created_at = datetime(),
+                m.LastSynced = datetime()
+            ON CREATE SET
+                m.CreatedAt = datetime(),
                 m.source_event = $eventId";
 
         await session.RunAsync(cypher, new
@@ -212,9 +214,9 @@ public class ProvenanceGraphBuilder
         var data = evt.Data as Dictionary<string, object>;
         if (data == null) return;
 
-        var inferenceId = data.GetValueOrDefault("inference_id")?.ToString();
-        var taskType = data.GetValueOrDefault("task_type")?.ToString();
-        var modelsUsed = data.GetValueOrDefault("models_used")?.ToString();
+        var inferenceId = data.GetValueOrDefault("InferenceId")?.ToString();
+        var taskType = data.GetValueOrDefault("TaskType")?.ToString();
+        var modelsUsed = data.GetValueOrDefault("ModelsUsed")?.ToString();
 
         if (string.IsNullOrEmpty(inferenceId)) return;
 
@@ -226,9 +228,9 @@ public class ProvenanceGraphBuilder
         var performanceSla = reasoningExtensions?.GetValueOrDefault("performance_sla") as TimeSpan?;
 
         var cypher = @"
-            MERGE (i:Inference {inference_id: $inferenceId})
-            SET i.task_type = $taskType,
-                i.models_used = $modelsUsed,
+            MERGE (i:Inference {InferenceId: $inferenceId})
+            SET i.TaskType = $taskType,
+                i.ModelsUsed = $modelsUsed,
                 i.reasoning_mode = $reasoningMode,
                 i.complexity = $complexity,
                 i.audit_required = $auditRequired,
@@ -255,9 +257,9 @@ public class ProvenanceGraphBuilder
             foreach (var modelId in modelIds)
             {
                 var relCypher = @"
-                    MATCH (i:Inference {inference_id: $inferenceId})
-                    MATCH (m:Model {model_id: $modelId})
-                    MERGE (m)-[:USED_IN {inference_id: $inferenceId}]->(i)";
+                    MATCH (i:Inference {InferenceId: $inferenceId})
+                    MATCH (m:Model {ModelId: $modelId})
+                    MERGE (m)-[:USED_IN {InferenceId: $inferenceId}]->(i)";
 
                 await session.RunAsync(relCypher, new { inferenceId, modelId = modelId.Trim() });
             }
@@ -271,14 +273,14 @@ public class ProvenanceGraphBuilder
         var data = evt.Data as Dictionary<string, object>;
         if (data == null) return;
 
-        var docId = data.GetValueOrDefault("doc_id")?.ToString();
+        var docId = data.GetValueOrDefault("DocId")?.ToString();
         var content = data.GetValueOrDefault("content")?.ToString();
         var category = data.GetValueOrDefault("category")?.ToString();
 
         if (string.IsNullOrEmpty(docId) || string.IsNullOrEmpty(content)) return;
 
         var cypher = @"
-            MERGE (k:Knowledge {doc_id: $docId})
+            MERGE (k:Knowledge {DocId: $docId})
             SET k.content = $content,
                 k.category = $category,
                 k.created_at = datetime(),

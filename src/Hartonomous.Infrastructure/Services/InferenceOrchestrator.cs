@@ -263,7 +263,9 @@ public sealed class InferenceOrchestrator : IInferenceService
             {
                 command.CommandText = "dbo.sp_ComputeSemanticFeatures";
                 command.CommandType = CommandType.StoredProcedure;
-                command.Parameters.Add(new SqlParameter("@atom_embedding_id", atomEmbeddingId));
+                command.CommandType = CommandType.Text;
+                command.CommandText = sql;
+                command.Parameters.Add(new SqlParameter("@AtomEmbeddingId", atomEmbeddingId));
 
                 await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
             }, cancellationToken).ConfigureAwait(false);
