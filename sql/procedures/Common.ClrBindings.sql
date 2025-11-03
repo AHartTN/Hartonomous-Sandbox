@@ -1,0 +1,190 @@
+-- Ensures SQL CLR bindings are present before referencing helper functions from stored procedures.
+
+IF OBJECT_ID('dbo.clr_VectorDotProduct', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorDotProduct;
+GO
+CREATE FUNCTION dbo.clr_VectorDotProduct(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorDotProduct;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorCosineSimilarity', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorCosineSimilarity;
+GO
+CREATE FUNCTION dbo.clr_VectorCosineSimilarity(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorCosineSimilarity;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorEuclideanDistance', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorEuclideanDistance;
+GO
+CREATE FUNCTION dbo.clr_VectorEuclideanDistance(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorEuclideanDistance;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorNormalize', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorNormalize;
+GO
+CREATE FUNCTION dbo.clr_VectorNormalize(@vector VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorNormalize;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorSoftmax', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorSoftmax;
+GO
+CREATE FUNCTION dbo.clr_VectorSoftmax(@vector VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorSoftmax;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorArgMax', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorArgMax;
+GO
+CREATE FUNCTION dbo.clr_VectorArgMax(@vector VARBINARY(MAX))
+RETURNS INT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorArgMax;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorAdd', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorAdd;
+GO
+CREATE FUNCTION dbo.clr_VectorAdd(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorAdd;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorSubtract', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorSubtract;
+GO
+CREATE FUNCTION dbo.clr_VectorSubtract(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorSubtract;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorScale', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorScale;
+GO
+CREATE FUNCTION dbo.clr_VectorScale(@vector VARBINARY(MAX), @scalar FLOAT)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorScale;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorLerp', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorLerp;
+GO
+CREATE FUNCTION dbo.clr_VectorLerp(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX), @t FLOAT)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorLerp;
+GO
+
+IF OBJECT_ID('dbo.clr_VectorNorm', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorNorm;
+GO
+CREATE FUNCTION dbo.clr_VectorNorm(@vector VARBINARY(MAX))
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorNorm;
+GO
+
+IF OBJECT_ID('dbo.clr_ImageToPointCloud', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ImageToPointCloud;
+GO
+CREATE FUNCTION dbo.clr_ImageToPointCloud(@image VARBINARY(MAX), @width INT, @height INT, @sampleStep INT)
+RETURNS GEOMETRY
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].ImageToPointCloud;
+GO
+
+IF OBJECT_ID('dbo.clr_ImageAverageColor', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ImageAverageColor;
+GO
+CREATE FUNCTION dbo.clr_ImageAverageColor(@image VARBINARY(MAX), @width INT, @height INT)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].ImageAverageColor;
+GO
+
+IF OBJECT_ID('dbo.clr_ImageLuminanceHistogram', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ImageLuminanceHistogram;
+GO
+CREATE FUNCTION dbo.clr_ImageLuminanceHistogram(@image VARBINARY(MAX), @width INT, @height INT, @binCount INT)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].ImageLuminanceHistogram;
+GO
+
+IF OBJECT_ID('dbo.clr_GenerateImagePatches', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_GenerateImagePatches;
+GO
+CREATE FUNCTION dbo.clr_GenerateImagePatches(
+    @width INT,
+    @height INT,
+    @patchSize INT,
+    @steps INT,
+    @guidanceScale FLOAT,
+    @guideX FLOAT,
+    @guideY FLOAT,
+    @guideZ FLOAT,
+    @seed INT
+)
+RETURNS TABLE (
+    patch_x INT,
+    patch_y INT,
+    spatial_x FLOAT,
+    spatial_y FLOAT,
+    spatial_z FLOAT,
+    patch GEOMETRY
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageGeneration].GenerateGuidedPatches;
+GO
+
+IF OBJECT_ID('dbo.clr_GenerateImageGeometry', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_GenerateImageGeometry;
+GO
+CREATE FUNCTION dbo.clr_GenerateImageGeometry(
+    @width INT,
+    @height INT,
+    @patchSize INT,
+    @steps INT,
+    @guidanceScale FLOAT,
+    @guideX FLOAT,
+    @guideY FLOAT,
+    @guideZ FLOAT,
+    @seed INT
+)
+RETURNS GEOMETRY
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageGeneration].GenerateGuidedGeometry;
+GO
+
+IF OBJECT_ID('dbo.clr_AudioToWaveform', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_AudioToWaveform;
+GO
+CREATE FUNCTION dbo.clr_AudioToWaveform(@audio VARBINARY(MAX), @channels INT, @sampleRate INT, @maxPoints INT)
+RETURNS GEOMETRY
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioToWaveform;
+GO
+
+IF OBJECT_ID('dbo.clr_AudioComputeRms', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_AudioComputeRms;
+GO
+CREATE FUNCTION dbo.clr_AudioComputeRms(@audio VARBINARY(MAX), @channels INT)
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioComputeRms;
+GO
+
+IF OBJECT_ID('dbo.clr_AudioComputePeak', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_AudioComputePeak;
+GO
+CREATE FUNCTION dbo.clr_AudioComputePeak(@audio VARBINARY(MAX), @channels INT)
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioComputePeak;
+GO
+
+IF OBJECT_ID('dbo.clr_AudioDownsample', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_AudioDownsample;
+GO
+CREATE FUNCTION dbo.clr_AudioDownsample(@audio VARBINARY(MAX), @channels INT, @factor INT)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].AudioDownsample;
+GO
+
+IF OBJECT_ID('dbo.clr_GenerateHarmonicTone', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_GenerateHarmonicTone;
+GO
+CREATE FUNCTION dbo.clr_GenerateHarmonicTone(
+    @fundamentalHz FLOAT,
+    @durationMs INT,
+    @sampleRate INT,
+    @channelCount INT,
+    @amplitude FLOAT,
+    @secondHarmonic FLOAT = NULL,
+    @thirdHarmonic FLOAT = NULL
+)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].GenerateHarmonicTone;
+GO
+
+IF OBJECT_ID('dbo.clr_SemanticFeaturesJson', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_SemanticFeaturesJson;
+GO
+CREATE FUNCTION dbo.clr_SemanticFeaturesJson(@input NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SemanticAnalysis].ComputeSemanticFeatures;
+GO

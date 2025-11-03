@@ -63,7 +63,7 @@ public static class VectorUtility
 
         if (actualDimension <= 0)
         {
-            actualDimension = Math.Min(vector.Memory.Length, SqlVectorMaxDimensions);
+            actualDimension = Math.Min(vector.Length, SqlVectorMaxDimensions);
         }
         else
         {

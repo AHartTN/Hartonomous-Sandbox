@@ -13,10 +13,7 @@ public sealed class VideoConfiguration : IEntityTypeConfiguration<Video>
         builder.HasKey(e => e.VideoId);
         builder.Property(e => e.VideoId).ValueGeneratedOnAdd();
 
-        builder.Property(e => e.SourcePath).HasMaxLength(500);
-
-        // Raw data
-        builder.Property(e => e.RawData);
+    builder.Property(e => e.SourcePath).HasMaxLength(500);
         builder.Property(e => e.Fps).IsRequired();
         builder.Property(e => e.DurationMs).IsRequired();
         builder.Property(e => e.ResolutionWidth).IsRequired();

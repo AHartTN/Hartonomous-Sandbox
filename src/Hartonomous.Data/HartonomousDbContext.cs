@@ -26,6 +26,11 @@ public class HartonomousDbContext : DbContext
     // Embeddings storage (production-ready vector table)
     public DbSet<Embedding> Embeddings => Set<Embedding>();
 
+    // Billing and metering
+    public DbSet<BillingRatePlan> BillingRatePlans => Set<BillingRatePlan>();
+    public DbSet<BillingOperationRate> BillingOperationRates => Set<BillingOperationRate>();
+    public DbSet<BillingMultiplier> BillingMultipliers => Set<BillingMultiplier>();
+
     // Atomic storage (content-addressable deduplication)
     public DbSet<AtomicPixel> AtomicPixels => Set<AtomicPixel>();
     public DbSet<AtomicAudioSample> AtomicAudioSamples => Set<AtomicAudioSample>();

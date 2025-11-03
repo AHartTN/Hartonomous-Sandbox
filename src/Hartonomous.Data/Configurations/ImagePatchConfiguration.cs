@@ -25,7 +25,6 @@ public sealed class ImagePatchConfiguration : IEntityTypeConfiguration<ImagePatc
         // Features
         builder.Property(e => e.PatchEmbedding).HasColumnType("VECTOR(768)");
         builder.Property(e => e.DominantColor).HasColumnType("GEOMETRY");
-        builder.Property(e => e.TextureFeatures);
 
         // Statistics
         builder.Property(e => e.MeanIntensity);

@@ -11,9 +11,6 @@ public sealed class AudioData
 {
     public long AudioId { get; set; }
     public string? SourcePath { get; set; }
-
-    // Raw data
-    public byte[]? RawData { get; set; }
     public int SampleRate { get; set; }
     public long DurationMs { get; set; }
     public byte NumChannels { get; set; } // 1 (mono), 2 (stereo)

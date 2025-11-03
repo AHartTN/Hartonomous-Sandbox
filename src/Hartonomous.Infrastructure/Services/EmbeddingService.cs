@@ -392,8 +392,8 @@ public sealed class EmbeddingService : IEmbeddingService
         var textEmbedding = await EmbedTextAsync(textDescription, cancellationToken).ConfigureAwait(false);
 
         // Compute spatial projection for hybrid search
-        var padded = VectorUtility.PadToSqlLength(textEmbedding, out _);
-        var sqlVector = new SqlVector<float>(padded);
+    var padded = VectorUtility.PadToSqlLength(textEmbedding, out _);
+    var sqlVector = padded.ToSqlVector();
         var spatialPoint = await _atomEmbeddingRepository
             .ComputeSpatialProjectionAsync(sqlVector, textEmbedding.Length, cancellationToken)
             .ConfigureAwait(false);
@@ -432,12 +432,13 @@ public sealed class EmbeddingService : IEmbeddingService
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
 
-        var sqlVector = new SqlVector<float>(queryEmbedding);
+    var padded = VectorUtility.PadToSqlLength(queryEmbedding, out _);
+    var sqlVector = padded.ToSqlVector();
 
         // Call sp_CrossModalQuery stored procedure
         await using var cmd = new SqlCommand("dbo.sp_CrossModalQuery", connection);
         cmd.CommandType = System.Data.CommandType.StoredProcedure;
-        cmd.Parameters.AddWithValue("@queryVector", sqlVector);
+    cmd.Parameters.AddWithValue("@queryVector", sqlVector);
         cmd.Parameters.AddWithValue("@topK", topK);
 
         var results = new List<CrossModalResult>();

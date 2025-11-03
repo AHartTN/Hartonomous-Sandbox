@@ -14,10 +14,7 @@ public sealed class ImageConfiguration : IEntityTypeConfiguration<Image>
         builder.Property(e => e.ImageId).ValueGeneratedOnAdd();
 
         builder.Property(e => e.SourcePath).HasMaxLength(500);
-        builder.Property(e => e.SourceUrl).HasMaxLength(1000);
-
-        // Raw data
-        builder.Property(e => e.RawData);
+    builder.Property(e => e.SourceUrl).HasMaxLength(1000);
         builder.Property(e => e.Width).IsRequired();
         builder.Property(e => e.Height).IsRequired();
         builder.Property(e => e.Channels).IsRequired();

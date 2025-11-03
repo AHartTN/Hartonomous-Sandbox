@@ -3,16 +3,13 @@ using Microsoft.Data.SqlTypes;
 namespace Hartonomous.Core.Entities;
 
 /// <summary>
-/// Primary video storage.
+/// Primary video storage without embedded binary payloads.
 /// Maps to dbo.Videos table from 02_MultiModalData.sql.
 /// </summary>
 public sealed class Video
 {
     public long VideoId { get; set; }
     public string? SourcePath { get; set; }
-
-    // Raw data
-    public byte[]? RawData { get; set; }
     public int Fps { get; set; }
     public long DurationMs { get; set; }
     public int ResolutionWidth { get; set; }

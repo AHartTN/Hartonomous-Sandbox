@@ -24,7 +24,6 @@ public sealed class ImagePatch
     // Patch features
     public SqlVector<float>? PatchEmbedding { get; set; } // VECTOR(768)
     public Geometry? DominantColor { get; set; } // POINT(r, g, b) in color space
-    public byte[]? TextureFeatures { get; set; }
 
     // Statistics
     public float? MeanIntensity { get; set; }

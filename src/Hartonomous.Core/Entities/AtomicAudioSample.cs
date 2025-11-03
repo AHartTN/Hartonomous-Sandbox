@@ -6,7 +6,7 @@ namespace Hartonomous.Core.Entities;
 /// Represents a unique atomic audio sample with content-addressable deduplication.
 /// Stores normalized amplitude values for audio processing.
 /// </summary>
-public class AtomicAudioSample
+public class AtomicAudioSample : IReferenceTrackedEntity
 {
     /// <summary>
     /// Gets or sets the SHA256 hash of the sample - serves as primary key.

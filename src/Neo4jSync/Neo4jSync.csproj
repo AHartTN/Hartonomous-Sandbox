@@ -8,17 +8,22 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Messaging.EventHubs" Version="5.12.2" />
-    <PackageReference Include="Azure.Messaging.EventHubs.Processor" Version="5.12.2" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.23.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="9.0.10" />
+  <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0-rc.2.25502.107" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="9.0.10" />
     <PackageReference Include="Neo4j.Driver" Version="5.28.3" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Hartonomous.Core\Hartonomous.Core.csproj" />
+    <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

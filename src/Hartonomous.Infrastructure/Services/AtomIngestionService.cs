@@ -111,7 +111,7 @@ public class AtomIngestionService : IAtomIngestionService
         if (embedding is { Length: > 0 } && policy?.SemanticThreshold is double semanticThreshold)
         {
             var padded = VectorUtility.PadToSqlLength(embedding, out usedPadding);
-            sqlVector = new SqlVector<float>(padded);
+            sqlVector = padded.ToSqlVector();
             hasVector = true;
 
             var similarityThreshold = Math.Clamp(semanticThreshold, -1d, 1d);
@@ -154,7 +154,7 @@ public class AtomIngestionService : IAtomIngestionService
         if (!hasVector && embedding is { Length: > 0 })
         {
             var padded = VectorUtility.PadToSqlLength(embedding, out usedPadding);
-            sqlVector = new SqlVector<float>(padded);
+            sqlVector = padded.ToSqlVector();
             hasVector = true;
         }
 

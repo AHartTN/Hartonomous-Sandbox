@@ -2,6 +2,7 @@ using System;
 using Hartonomous.Core.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 
 namespace Hartonomous.Infrastructure.Extensions;
@@ -20,20 +21,37 @@ public static class Neo4jServiceExtensions
         string? sectionName = null)
     {
         var section = configuration.GetSection(sectionName ?? Neo4jOptions.SectionName);
-        
+
         services.Configure<Neo4jOptions>(section);
+        services.PostConfigure<Neo4jOptions>(options =>
+        {
+            options.Uri = Environment.GetEnvironmentVariable("NEO4J_URI") ?? options.Uri;
+            options.User = Environment.GetEnvironmentVariable("NEO4J_USER") ?? options.User;
+            options.Password = Environment.GetEnvironmentVariable("NEO4J_PASSWORD") ?? options.Password;
+        });
 
         services.AddSingleton<IDriver>(sp =>
         {
-            var options = section.Get<Neo4jOptions>() 
-                ?? throw new InvalidOperationException("Neo4j configuration is missing");
+            var options = sp.GetRequiredService<IOptions<Neo4jOptions>>().Value;
 
-            var uri = options.Uri ?? throw new InvalidOperationException("Neo4j URI is not configured");
-            var username = options.Username ?? "neo4j";
-            var password = options.Password ?? throw new InvalidOperationException("Neo4j password is not configured");
+            if (string.IsNullOrWhiteSpace(options.Uri))
+            {
+                throw new InvalidOperationException("Neo4j URI is not configured");
+            }
 
-            // Create driver with basic configuration (Neo4j.Driver v5+ API)
-            return GraphDatabase.Driver(uri, AuthTokens.Basic(username, password));
+            if (string.IsNullOrWhiteSpace(options.User) || string.IsNullOrWhiteSpace(options.Password))
+            {
+                throw new InvalidOperationException("Neo4j credentials are not configured");
+            }
+
+            return GraphDatabase.Driver(
+                options.Uri,
+                AuthTokens.Basic(options.User, options.Password),
+                builder =>
+                {
+                    builder.WithMaxConnectionPoolSize(options.MaxConnectionPoolSize);
+                    builder.WithConnectionTimeout(TimeSpan.FromSeconds(options.ConnectionTimeoutSeconds));
+                });
         });
 
         return services;

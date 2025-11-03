@@ -7,7 +7,7 @@ namespace Hartonomous.Core.Entities;
 /// Represents a unique atomic text token with content-addressable deduplication.
 /// Stores token text and optional embedding for semantic deduplication.
 /// </summary>
-public class AtomicTextToken
+public class AtomicTextToken : IReferenceTrackedEntity
 {
     /// <summary>
     /// Gets or sets the unique identifier for the token.

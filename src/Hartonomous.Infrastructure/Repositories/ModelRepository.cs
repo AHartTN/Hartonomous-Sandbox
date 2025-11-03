@@ -83,7 +83,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
 
         var expectedDimension = layer.ParameterCount.HasValue && layer.ParameterCount.Value > 0
             ? (int)Math.Min(layer.ParameterCount.Value, VectorUtility.SqlVectorMaxDimensions)
-            : Math.Min(weights.Memory.Length, VectorUtility.SqlVectorMaxDimensions);
+            : Math.Min(weights.Length, VectorUtility.SqlVectorMaxDimensions);
 
         var dense = VectorUtility.Materialize(weights, expectedDimension);
         if (dense.Length == 0)

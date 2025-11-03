@@ -1,5 +1,6 @@
 using CesConsumer.Services;
 using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Mappers;
 using Hartonomous.Core.Models;
@@ -27,6 +28,8 @@ class Program
             })
             .ConfigureServices((context, services) =>
             {
+                services.Configure<CdcOptions>(context.Configuration.GetSection(CdcOptions.SectionName));
+
                 // Register Hartonomous infrastructure
                 services.AddHartonomousInfrastructure(context.Configuration);
 

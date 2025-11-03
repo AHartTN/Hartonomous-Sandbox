@@ -1,0 +1,210 @@
+CREATE OR ALTER PROCEDURE dbo.sp_GenerateText
+    @prompt NVARCHAR(MAX),
+    @max_tokens INT = 64,
+    @temperature FLOAT = 0.8,
+    @ModelIds NVARCHAR(MAX) = NULL,
+    @top_k INT = 6
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @prompt IS NULL OR LTRIM(RTRIM(@prompt)) = ''
+        THROW 50090, 'Prompt is required for text generation.', 1;
+
+    IF @max_tokens <= 0
+        SET @max_tokens = 1;
+
+    IF @temperature IS NULL OR @temperature <= 0
+        SET @temperature = 0.01;
+
+    DECLARE @promptEmbedding VECTOR(1998);
+    DECLARE @embeddingDim INT;
+    EXEC dbo.sp_TextToEmbedding @text = @prompt, @ModelName = NULL, @embedding = @promptEmbedding OUTPUT, @dimension = @embeddingDim OUTPUT;
+
+    IF @promptEmbedding IS NULL
+        THROW 50091, 'Failed to derive prompt embedding for generation.', 1;
+
+    DECLARE @models TABLE (ModelId INT PRIMARY KEY, Weight FLOAT NOT NULL, ModelName NVARCHAR(200));
+
+    INSERT INTO @models (ModelId, Weight, ModelName)
+    SELECT ModelId, Weight, ModelName
+    FROM dbo.fn_SelectModelsForTask('text_generation', @ModelIds, NULL, 'text', 'language_model');
+
+    IF NOT EXISTS (SELECT 1 FROM @models)
+        THROW 50092, 'No eligible models found for text generation.', 1;
+
+    DECLARE @modelsJson NVARCHAR(MAX) = (
+        SELECT ModelId, Weight, ModelName
+        FROM @models
+        FOR JSON PATH
+    );
+
+    DECLARE @requestPayload NVARCHAR(MAX) = JSON_OBJECT(
+        'prompt': @prompt,
+        'max_tokens': @max_tokens,
+        'temperature': @temperature,
+        'top_k': @top_k
+    );
+
+    DECLARE @inferenceId BIGINT;
+    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    VALUES (
+        'text_generation',
+        TRY_CAST(@requestPayload AS JSON),
+        TRY_CAST(@modelsJson AS JSON),
+        'weighted_vector_consensus',
+        JSON_OBJECT('status': 'running')
+    );
+    SET @inferenceId = SCOPE_IDENTITY();
+
+    DECLARE @sequence TABLE (
+        StepNumber INT,
+        AtomId BIGINT,
+        Token NVARCHAR(400),
+        Score FLOAT,
+        Distance FLOAT,
+        ModelCount INT,
+        DurationMs INT
+    );
+
+    DECLARE @generatedText NVARCHAR(MAX) = LTRIM(RTRIM(@prompt));
+    DECLARE @currentEmbedding VECTOR(1998) = @promptEmbedding;
+    DECLARE @tokenIndex INT = 0;
+    DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
+
+    WHILE @tokenIndex < @max_tokens
+    BEGIN
+        DECLARE @iterationStart DATETIME2 = SYSUTCDATETIME();
+
+        DECLARE @candidates TABLE (
+            AtomId BIGINT,
+            Token NVARCHAR(400),
+            Score FLOAT,
+            Distance FLOAT,
+            ModelCount INT
+        );
+
+        INSERT INTO @candidates (AtomId, Token, Score, Distance, ModelCount)
+        SELECT
+            AtomId,
+            MAX(CanonicalText) AS Token,
+            SUM(WeightedScore) AS Score,
+            AVG(Distance) AS Distance,
+            COUNT(DISTINCT ModelId) AS ModelCount
+        FROM dbo.fn_EnsembleAtomScores(@currentEmbedding, @modelsJson, @top_k * 2, 'text')
+        WHERE CanonicalText IS NOT NULL
+          AND LTRIM(RTRIM(CanonicalText)) <> ''
+          AND AtomId NOT IN (SELECT AtomId FROM @sequence WHERE AtomId IS NOT NULL)
+        GROUP BY AtomId;
+
+        IF NOT EXISTS (SELECT 1 FROM @candidates)
+            BREAK;
+
+        DECLARE @selectedAtomId BIGINT;
+        DECLARE @selectedToken NVARCHAR(400);
+        DECLARE @selectedScore FLOAT;
+        DECLARE @selectedDistance FLOAT;
+        DECLARE @selectedModelCount INT;
+
+        DECLARE @rankedCandidates TABLE (
+            RowNum INT IDENTITY(1,1),
+            AtomId BIGINT,
+            Token NVARCHAR(400),
+            Score FLOAT,
+            Distance FLOAT,
+            ModelCount INT,
+            Weight FLOAT
+        );
+
+        INSERT INTO @rankedCandidates (AtomId, Token, Score, Distance, ModelCount, Weight)
+        SELECT TOP (@top_k)
+            AtomId,
+            Token,
+            Score,
+            Distance,
+            ModelCount,
+            EXP(-Distance / NULLIF(@temperature, 0.0001)) * (CASE WHEN Score <= 0 THEN 0.0001 ELSE Score END)
+        FROM @candidates
+        ORDER BY Score DESC, Distance ASC;
+
+        DECLARE @weightSum FLOAT = (SELECT SUM(Weight) FROM @rankedCandidates);
+        IF @weightSum IS NULL OR @weightSum = 0
+        BEGIN
+            UPDATE @rankedCandidates SET Weight = 1.0 / NULLIF((SELECT COUNT(*) FROM @rankedCandidates), 0);
+        END
+        ELSE
+        BEGIN
+            UPDATE @rankedCandidates SET Weight = Weight / @weightSum;
+        END;
+
+        DECLARE @random FLOAT = RAND(CHECKSUM(NEWID()));
+
+        SELECT TOP (1)
+            @selectedAtomId = AtomId,
+            @selectedToken = Token,
+            @selectedScore = Score,
+            @selectedDistance = Distance,
+            @selectedModelCount = ModelCount
+        FROM (
+            SELECT *, SUM(Weight) OVER (ORDER BY Weight DESC, AtomId) AS CumulativeWeight
+            FROM @rankedCandidates
+        ) ranked
+        WHERE @random <= CumulativeWeight
+        ORDER BY CumulativeWeight;
+
+        IF @selectedAtomId IS NULL OR @selectedToken IS NULL
+            BREAK;
+
+        SET @generatedText = LTRIM(RTRIM(@generatedText + CASE WHEN RIGHT(@generatedText, 1) = ' ' THEN '' ELSE ' ' END + @selectedToken));
+
+        DECLARE @iterationDuration INT = DATEDIFF(MILLISECOND, @iterationStart, SYSUTCDATETIME());
+
+        INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
+        VALUES (@tokenIndex + 1, @selectedAtomId, @selectedToken, @selectedScore, @selectedDistance, @selectedModelCount, @iterationDuration);
+
+        SELECT TOP (1) @currentEmbedding = ae.EmbeddingVector
+        FROM dbo.AtomEmbeddings ae
+        WHERE ae.AtomId = @selectedAtomId AND ae.EmbeddingVector IS NOT NULL
+        ORDER BY ae.CreatedAt DESC;
+
+        IF @selectedToken IN ('[EOS]', '</s>', '<|endoftext|>')
+            BREAK;
+
+        SET @tokenIndex += 1;
+    END;
+
+    DECLARE @totalDuration INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
+    DECLARE @tokenCount INT = (SELECT COUNT(*) FROM @sequence);
+
+    DECLARE @tokensJson NVARCHAR(MAX) = (
+        SELECT StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs
+        FROM @sequence
+        ORDER BY StepNumber
+        FOR JSON PATH
+    );
+
+    UPDATE dbo.InferenceRequests
+    SET TotalDurationMs = @totalDuration,
+        OutputData = TRY_CAST(JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @generatedText) AS JSON),
+        OutputMetadata = JSON_OBJECT(
+            'status': 'completed',
+            'tokens_generated': @tokenCount,
+            'temperature': @temperature,
+            'prompt_length': LEN(@prompt),
+            'result_length': LEN(@generatedText)
+        )
+    WHERE InferenceId = @inferenceId;
+
+    INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)
+    SELECT @inferenceId, StepNumber, 'text_generation_step', DurationMs, ModelCount
+    FROM @sequence;
+
+    SELECT
+        @inferenceId AS InferenceId,
+        @prompt AS OriginalPrompt,
+        @generatedText AS GeneratedText,
+        @tokenCount AS TokensGenerated,
+        @totalDuration AS DurationMs,
+        JSON_QUERY(@tokensJson) AS TokenDetails;
+END
+GO

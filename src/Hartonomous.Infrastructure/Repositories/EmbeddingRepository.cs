@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Core.ValueObjects;
 using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
@@ -68,7 +69,8 @@ FROM dbo.Embeddings_Production WITH(READUNCOMMITTED)
 WHERE EmbeddingFull IS NOT NULL
 ORDER BY VECTOR_DISTANCE(@metric, EmbeddingFull, @vector);";
 
-        AddParameter(command, "@vector", new SqlVector<float>(queryVector));
+    var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+    AddParameter(command, "@vector", padded.ToSqlVector());
         AddParameter(command, "@metric", metric);
         AddParameter(command, "@top_k", topK);
 
@@ -119,7 +121,8 @@ FROM spatial_candidates s
 JOIN dbo.Embeddings_Production ep ON ep.EmbeddingId = s.EmbeddingId
 ORDER BY VECTOR_DISTANCE('cosine', ep.EmbeddingFull, @vector);";
 
-        AddParameter(command, "@vector", new SqlVector<float>(queryVector));
+    var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+    AddParameter(command, "@vector", padded.ToSqlVector());
         AddParameter(command, "@x", queryX);
         AddParameter(command, "@y", queryY);
         AddParameter(command, "@z", queryZ);
@@ -170,7 +173,8 @@ FROM dbo.Embeddings_Production WITH(READUNCOMMITTED)
 WHERE EmbeddingFull IS NOT NULL
 ORDER BY VECTOR_DISTANCE('cosine', EmbeddingFull, @vector);";
 
-        AddParameter(command, "@vector", new SqlVector<float>(queryVector));
+    var padded = VectorUtility.PadToSqlLength(queryVector, out _);
+    AddParameter(command, "@vector", padded.ToSqlVector());
 
         Embedding? match = null;
         await ExecuteReaderAsync(command, async reader =>
@@ -208,7 +212,8 @@ ORDER BY VECTOR_DISTANCE('cosine', EmbeddingFull, @vector);";
         command.CommandText = "dbo.sp_ComputeSpatialProjection";
         command.CommandType = System.Data.CommandType.StoredProcedure;
 
-        AddParameter(command, "@input_vector", new SqlVector<float>(fullVector));
+    var paddedFull = VectorUtility.PadToSqlLength(fullVector, out _);
+    AddParameter(command, "@input_vector", paddedFull.ToSqlVector());
         AddParameter(command, "@input_dimension", fullVector.Length);
 
         var xParam = new SqlParameter("@output_x", System.Data.SqlDbType.Float) { Direction = System.Data.ParameterDirection.Output };
@@ -276,7 +281,8 @@ VALUES
 
         AddParameter(command, "@SourceText", (object?)sourceText ?? DBNull.Value);
         AddParameter(command, "@SourceType", sourceType);
-        AddParameter(command, "@vector", new SqlVector<float>(embeddingFull));
+    var padded = VectorUtility.PadToSqlLength(embeddingFull, out _);
+    AddParameter(command, "@vector", padded.ToSqlVector());
         AddParameter(command, "@model", "production");
         AddParameter(command, "@x", spatial3D[0]);
         AddParameter(command, "@y", spatial3D[1]);

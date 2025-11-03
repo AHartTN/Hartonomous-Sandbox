@@ -10,6 +10,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using System.Data;
+using System.Globalization;
+using System.Linq;
+using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace Hartonomous.Infrastructure.Services;
 
@@ -73,7 +77,7 @@ public sealed class InferenceOrchestrator : IInferenceService
         _logger.LogInformation("Executing semantic search with topK={TopK}", topK);
 
         var padded = VectorUtility.PadToSqlLength(queryVector, out _);
-        var vectorParam = new SqlParameter("@query_vector", new SqlVector<float>(padded));
+        var vectorParam = new SqlParameter("@query_vector", padded.ToSqlVector());
 
         return await _sql.ExecuteAsync(async (command, token) =>
         {
@@ -109,7 +113,7 @@ public sealed class InferenceOrchestrator : IInferenceService
         _logger.LogInformation("Executing spatial search with topK={TopK}", topK);
 
         var padded = VectorUtility.PadToSqlLength(queryVector, out _);
-        var sqlVector = new SqlVector<float>(padded);
+        var sqlVector = padded.ToSqlVector();
         var spatialPoint = await _atomEmbeddings
             .ComputeSpatialProjectionAsync(sqlVector, queryVector.Length, cancellationToken)
             .ConfigureAwait(false);
@@ -137,7 +141,7 @@ public sealed class InferenceOrchestrator : IInferenceService
             candidateCount);
 
         var padded = VectorUtility.PadToSqlLength(queryVector, out _);
-        var sqlVector = new SqlVector<float>(padded);
+        var sqlVector = padded.ToSqlVector();
         var spatialPoint = await _atomEmbeddings
             .ComputeSpatialProjectionAsync(sqlVector, queryVector.Length, cancellationToken)
             .ConfigureAwait(false);
@@ -216,31 +220,148 @@ public sealed class InferenceOrchestrator : IInferenceService
             maxTokens,
             temperature);
 
-        var connection = _context.Database.GetDbConnection();
-        await connection.OpenAsync(cancellationToken);
-
-        using var command = connection.CreateCommand();
-        command.CommandText = "dbo.sp_GenerateViaSpatial";
-        command.CommandType = System.Data.CommandType.StoredProcedure;
-
-        var paddedPrompt = VectorUtility.PadToSqlLength(promptEmbedding, out _);
-        command.Parameters.Add(new SqlParameter("@promptEmbedding", new SqlVector<float>(paddedPrompt)));
-        command.Parameters.Add(new SqlParameter("@maxTokens", maxTokens));
-        command.Parameters.Add(new SqlParameter("@temperature", temperature));
-
-        var result = await command.ExecuteScalarAsync(cancellationToken);
-
-        _logger.LogInformation("Generation completed");
-
-        return new GenerationResult
+        if (promptEmbedding is null || promptEmbedding.Length == 0)
         {
-            GeneratedText = result?.ToString() ?? string.Empty,
-            TokenIds = Array.Empty<int>(),
-            TokenConfidences = Array.Empty<float>(),
-            TokenCount = 0,
-            AverageConfidence = 0.0f,
-            InferenceId = 0
-        };
+            throw new ArgumentException("Prompt embedding must contain at least one value", nameof(promptEmbedding));
+        }
+
+        var padded = VectorUtility.PadToSqlLength(promptEmbedding, out _);
+        var sqlVector = padded.ToSqlVector();
+        var spatialPoint = await _atomEmbeddings
+            .ComputeSpatialProjectionAsync(sqlVector, promptEmbedding.Length, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Use hybrid search to recover representative context terms for the prompt.
+        var nearestContext = await _atomEmbeddings
+            .HybridSearchAsync(promptEmbedding, spatialPoint, 32, 8, cancellationToken)
+            .ConfigureAwait(false);
+
+        var promptTokens = nearestContext
+            .Select(result => result.Embedding?.Atom?.CanonicalText)
+            .Where(text => !string.IsNullOrWhiteSpace(text))
+            .Select(text => text!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToList();
+
+        if (promptTokens.Count == 0)
+        {
+            // Fall back to a numeric fingerprint so the stored procedure receives a non-empty prompt.
+            var fallback = string.Join(
+                ' ',
+                promptEmbedding
+                    .Take(Math.Min(16, promptEmbedding.Length))
+                    .Select(value => value.ToString("0.###", CultureInfo.InvariantCulture)));
+
+            promptTokens.Add(string.IsNullOrWhiteSpace(fallback) ? "[vector-context]" : fallback);
+        }
+
+        var promptText = string.Join(' ', promptTokens);
+
+        return await _sql.ExecuteAsync(async (command, token) =>
+        {
+            command.CommandText = "dbo.sp_GenerateText";
+            command.CommandType = CommandType.StoredProcedure;
+            command.Parameters.Add(new SqlParameter("@prompt", promptText));
+            command.Parameters.Add(new SqlParameter("@max_tokens", maxTokens));
+            command.Parameters.Add(new SqlParameter("@temperature", temperature));
+            command.Parameters.Add(new SqlParameter("@ModelIds", DBNull.Value));
+            command.Parameters.Add(new SqlParameter("@top_k", Math.Clamp(maxTokens, 1, 12)));
+
+            await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            if (!await reader.ReadAsync(token).ConfigureAwait(false))
+            {
+                _logger.LogWarning("Stored procedure sp_GenerateText returned no rows");
+                return new GenerationResult
+                {
+                    GeneratedText = string.Empty,
+                    TokenIds = Array.Empty<int>(),
+                    TokenConfidences = Array.Empty<float>(),
+                    TokenCount = 0,
+                    AverageConfidence = 0.0f,
+                    InferenceId = 0
+                };
+            }
+
+            var inferenceId = GetInt64(reader, "InferenceId");
+            var generatedText = GetString(reader, "GeneratedText") ?? string.Empty;
+            var tokenCount = GetNullableInt(reader, "TokensGenerated") ?? 0;
+            var tokenDetailsJson = GetString(reader, "TokenDetails");
+
+            var tokenDetails = new List<(int? TokenId, float Score)>();
+
+            if (!string.IsNullOrWhiteSpace(tokenDetailsJson))
+            {
+                try
+                {
+                    using var json = JsonDocument.Parse(tokenDetailsJson);
+                    foreach (var element in json.RootElement.EnumerateArray())
+                    {
+                        int? tokenId = null;
+                        if (element.TryGetProperty("AtomId", out var atomIdProperty) &&
+                            atomIdProperty.ValueKind == JsonValueKind.Number)
+                        {
+                            var atomId = atomIdProperty.GetInt64();
+                            if (atomId <= int.MaxValue)
+                            {
+                                tokenId = (int)atomId;
+                            }
+                        }
+
+                        float scoreValue = 0f;
+                        if (element.TryGetProperty("Score", out var scoreProperty) &&
+                            scoreProperty.ValueKind == JsonValueKind.Number &&
+                            scoreProperty.TryGetDouble(out var scoreDouble))
+                        {
+                            scoreValue = (float)scoreDouble;
+                        }
+                        else if (element.TryGetProperty("Distance", out var distanceProperty) &&
+                            distanceProperty.ValueKind == JsonValueKind.Number)
+                        {
+                            var distance = (float)distanceProperty.GetDouble();
+                            scoreValue = distance == 0 ? 1.0f : 1.0f / (1.0f + distance);
+                        }
+
+                        tokenDetails.Add((tokenId, scoreValue));
+                    }
+                }
+                catch (JsonException ex)
+                {
+                    _logger.LogWarning(ex, "Failed to parse token details JSON from sp_GenerateText");
+                }
+            }
+
+            var tokenConfidencesAll = NormalizeScores(tokenDetails.Select(detail => detail.Score).ToList());
+
+            var tokenIds = new List<int>();
+            var tokenConfidences = new List<float>();
+            for (var i = 0; i < tokenDetails.Count; i++)
+            {
+                var detail = tokenDetails[i];
+                if (!detail.TokenId.HasValue)
+                {
+                    continue;
+                }
+
+                tokenIds.Add(detail.TokenId.Value);
+                tokenConfidences.Add(i < tokenConfidencesAll.Count ? tokenConfidencesAll[i] : 0f);
+            }
+
+            var finalTokenCount = tokenCount > 0 ? tokenCount : tokenIds.Count;
+            var averageConfidence = tokenConfidences.Count > 0
+                ? tokenConfidences.Average()
+                : 0f;
+
+            return new GenerationResult
+            {
+                GeneratedText = generatedText,
+                TokenIds = tokenIds,
+                TokenConfidences = tokenConfidences,
+                TokenCount = finalTokenCount,
+                AverageConfidence = averageConfidence,
+                InferenceId = inferenceId
+            };
+        }, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -257,6 +378,11 @@ public sealed class InferenceOrchestrator : IInferenceService
             "Computing semantic features for {Count} embeddings",
             atomEmbeddingIds.Count);
 
+        if (atomEmbeddingIds.Count == 0)
+        {
+            return new SemanticFeatures();
+        }
+
         foreach (var atomEmbeddingId in atomEmbeddingIds)
         {
             await _sql.ExecuteAsync(async (command, token) =>
@@ -269,18 +395,72 @@ public sealed class InferenceOrchestrator : IInferenceService
             }, cancellationToken).ConfigureAwait(false);
         }
 
-        _logger.LogInformation("Semantic features computed");
-
-        // Placeholder - real implementation would parse procedure output
-        return new SemanticFeatures
+        var featureRows = await _sql.ExecuteAsync(async (command, token) =>
         {
-            Topics = Array.Empty<string>(),
-            SentimentScore = 0.0f,
-            Entities = Array.Empty<string>(),
-            Keywords = Array.Empty<string>(),
-            TemporalRelevance = 0.0f,
-            FeatureScores = new Dictionary<string, float>()
-        };
+            var parameterNames = new string[atomEmbeddingIds.Count];
+            for (var i = 0; i < atomEmbeddingIds.Count; i++)
+            {
+                var parameterName = $"@id{i}";
+                parameterNames[i] = parameterName;
+                command.Parameters.Add(new SqlParameter(parameterName, atomEmbeddingIds[i]));
+            }
+
+            command.CommandText = $@"
+SELECT
+    sf.AtomEmbeddingId,
+    sf.TopicTechnical,
+    sf.TopicBusiness,
+    sf.TopicScientific,
+    sf.TopicCreative,
+    sf.SentimentScore,
+    sf.FormalityScore,
+    sf.ComplexityScore,
+    sf.TemporalRelevance,
+    sf.TextLength,
+    sf.WordCount,
+    sf.AvgWordLength,
+    sf.UniqueWordRatio,
+    a.CanonicalText
+FROM dbo.SemanticFeatures AS sf
+INNER JOIN dbo.AtomEmbeddings AS ae ON ae.AtomEmbeddingId = sf.AtomEmbeddingId
+INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+WHERE sf.AtomEmbeddingId IN ({string.Join(",", parameterNames)});";
+            command.CommandType = CommandType.Text;
+
+            var rows = new List<SemanticFeatureRow>();
+            await using var reader = await command.ExecuteReaderAsync(token).ConfigureAwait(false);
+            while (await reader.ReadAsync(token).ConfigureAwait(false))
+            {
+                rows.Add(new SemanticFeatureRow(
+                    GetInt64(reader, "AtomEmbeddingId"),
+                    GetNullableDouble(reader, "TopicTechnical") ?? 0.0,
+                    GetNullableDouble(reader, "TopicBusiness") ?? 0.0,
+                    GetNullableDouble(reader, "TopicScientific") ?? 0.0,
+                    GetNullableDouble(reader, "TopicCreative") ?? 0.0,
+                    GetNullableDouble(reader, "SentimentScore") ?? 0.0,
+                    GetNullableDouble(reader, "FormalityScore") ?? 0.0,
+                    GetNullableDouble(reader, "ComplexityScore") ?? 0.0,
+                    GetNullableDouble(reader, "TemporalRelevance") ?? 0.0,
+                    GetNullableInt(reader, "TextLength") ?? 0,
+                    GetNullableInt(reader, "WordCount") ?? 0,
+                    GetNullableDouble(reader, "AvgWordLength") ?? 0.0,
+                    GetNullableDouble(reader, "UniqueWordRatio") ?? 0.0,
+                    GetString(reader, "CanonicalText") ?? string.Empty));
+            }
+
+            return rows;
+        }, cancellationToken).ConfigureAwait(false);
+
+        if (featureRows.Count == 0)
+        {
+            _logger.LogWarning("Semantic feature rows were not returned for embeddings {Ids}", string.Join(',', atomEmbeddingIds));
+            return new SemanticFeatures();
+        }
+
+        var aggregate = AggregateSemanticFeatures(featureRows);
+
+        _logger.LogInformation("Semantic features computed for {Count} embeddings", featureRows.Count);
+        return aggregate;
     }
 
     /// <summary>
@@ -312,7 +492,7 @@ public sealed class InferenceOrchestrator : IInferenceService
         {
             command.CommandText = "dbo.sp_SemanticSearch";
             command.CommandType = CommandType.StoredProcedure;
-            command.Parameters.Add(new SqlParameter("@query_embedding", new SqlVector<float>(padded)));
+            command.Parameters.Add(new SqlParameter("@query_embedding", padded.ToSqlVector()));
             command.Parameters.Add(new SqlParameter("@query_text", DBNull.Value));
             command.Parameters.Add(new SqlParameter("@top_k", topK));
             command.Parameters.Add(new SqlParameter("@category", (object?)topicFilter ?? DBNull.Value));
@@ -564,4 +744,170 @@ public sealed class InferenceOrchestrator : IInferenceService
 
         return -1;
     }
+
+    private static IReadOnlyList<float> NormalizeScores(IReadOnlyList<float> rawScores)
+    {
+        if (rawScores.Count == 0)
+        {
+            return Array.Empty<float>();
+        }
+
+        var maxScore = rawScores.Max();
+        var expScores = new double[rawScores.Count];
+        double sum = 0;
+        for (var i = 0; i < rawScores.Count; i++)
+        {
+            var value = Math.Exp(rawScores[i] - maxScore);
+            expScores[i] = value;
+            sum += value;
+        }
+
+        if (sum <= double.Epsilon)
+        {
+            return rawScores.Select(_ => 0f).ToArray();
+        }
+
+        var confidences = new float[rawScores.Count];
+        for (var i = 0; i < rawScores.Count; i++)
+        {
+            confidences[i] = (float)(expScores[i] / sum);
+        }
+
+        return confidences;
+    }
+
+    private static SemanticFeatures AggregateSemanticFeatures(IReadOnlyList<SemanticFeatureRow> rows)
+    {
+        var count = rows.Count;
+
+        var topicScores = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["technical"] = rows.Sum(row => row.TopicTechnical) / count,
+            ["business"] = rows.Sum(row => row.TopicBusiness) / count,
+            ["scientific"] = rows.Sum(row => row.TopicScientific) / count,
+            ["creative"] = rows.Sum(row => row.TopicCreative) / count
+        };
+
+        var sortedTopics = topicScores
+            .OrderByDescending(pair => pair.Value)
+            .Where(pair => pair.Value > 0.15)
+            .Select(pair => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(pair.Key))
+            .ToList();
+
+        if (sortedTopics.Count == 0)
+        {
+            sortedTopics.Add(CultureInfo.InvariantCulture.TextInfo.ToTitleCase(
+                topicScores.OrderByDescending(pair => pair.Value).First().Key));
+        }
+
+        var sentiment = rows.Average(row => row.SentimentScore);
+        var temporalRelevance = rows.Average(row => row.TemporalRelevance);
+
+        var keywordsFrequency = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var entityFrequency = new Dictionary<string, int>(StringComparer.Ordinal);
+
+        foreach (var row in rows)
+        {
+            if (string.IsNullOrWhiteSpace(row.CanonicalText))
+            {
+                continue;
+            }
+
+            foreach (Match match in WordRegex.Matches(row.CanonicalText))
+            {
+                var token = match.Value;
+                if (string.IsNullOrWhiteSpace(token))
+                {
+                    continue;
+                }
+
+                var lower = token.ToLowerInvariant();
+                if (StopWords.Contains(lower))
+                {
+                    continue;
+                }
+
+                keywordsFrequency[lower] = keywordsFrequency.TryGetValue(lower, out var countValue)
+                    ? countValue + 1
+                    : 1;
+
+                if (char.IsUpper(token[0]) && token.Any(char.IsLetter))
+                {
+                    entityFrequency[token] = entityFrequency.TryGetValue(token, out var entityCount)
+                        ? entityCount + 1
+                        : 1;
+                }
+            }
+        }
+
+        var keywords = keywordsFrequency
+            .OrderByDescending(pair => pair.Value)
+            .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .Select(pair => pair.Key)
+            .ToArray();
+
+        var entities = entityFrequency.Count > 0
+            ? entityFrequency
+                .OrderByDescending(pair => pair.Value)
+                .ThenBy(pair => pair.Key, StringComparer.Ordinal)
+                .Take(8)
+                .Select(pair => pair.Key)
+                .ToArray()
+            : keywords
+                .Take(5)
+                .Select(word => CultureInfo.InvariantCulture.TextInfo.ToTitleCase(word))
+                .ToArray();
+
+        var featureScores = new Dictionary<string, float>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["TopicTechnical"] = (float)topicScores["technical"],
+            ["TopicBusiness"] = (float)topicScores["business"],
+            ["TopicScientific"] = (float)topicScores["scientific"],
+            ["TopicCreative"] = (float)topicScores["creative"],
+            ["FormalityScore"] = (float)(rows.Sum(row => row.FormalityScore) / count),
+            ["ComplexityScore"] = (float)(rows.Sum(row => row.ComplexityScore) / count),
+            ["TemporalRelevance"] = (float)temporalRelevance,
+            ["AverageWordLength"] = (float)(rows.Sum(row => row.AverageWordLength) / count),
+            ["UniqueWordRatio"] = (float)(rows.Sum(row => row.UniqueWordRatio) / count)
+        };
+
+        return new SemanticFeatures
+        {
+            Topics = sortedTopics,
+            SentimentScore = (float)sentiment,
+            Entities = entities,
+            Keywords = keywords,
+            TemporalRelevance = (float)temporalRelevance,
+            FeatureScores = featureScores
+        };
+    }
+
+    private static readonly Regex WordRegex = new("[A-Za-z0-9']+", RegexOptions.Compiled);
+
+    private static readonly HashSet<string> StopWords = new(
+        new[]
+        {
+            "the", "and", "or", "to", "a", "of", "in", "for", "on", "with", "is",
+            "are", "was", "were", "be", "by", "as", "at", "it", "an", "this", "that",
+            "from", "but", "not", "have", "has", "had", "will", "would", "can", "could", "should",
+            "we", "you", "they", "their", "its", "our", "your", "i"
+        },
+        StringComparer.OrdinalIgnoreCase);
+
+    private sealed record SemanticFeatureRow(
+        long AtomEmbeddingId,
+        double TopicTechnical,
+        double TopicBusiness,
+        double TopicScientific,
+        double TopicCreative,
+        double SentimentScore,
+        double FormalityScore,
+        double ComplexityScore,
+        double TemporalRelevance,
+        int TextLength,
+        int WordCount,
+        double AverageWordLength,
+        double UniqueWordRatio,
+        string CanonicalText);
 }

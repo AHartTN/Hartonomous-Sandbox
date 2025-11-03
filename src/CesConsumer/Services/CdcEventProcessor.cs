@@ -12,13 +12,13 @@ using Microsoft.Extensions.Logging;
 namespace CesConsumer.Services;
 
 /// <summary>
-/// Processes SQL Server Change Data Capture (CDC) events and publishes enriched events to messaging infrastructure.
-/// Thin orchestrator that delegates to mapper, enricher, and publisher.
+/// Processes SQL Server Change Data Capture (CDC) events and publishes enriched events to the message broker.
+/// Thin orchestrator that delegates to mapper, enricher, and broker.
 /// </summary>
 public class CdcEventProcessor : BaseEventProcessor
 {
     private readonly ICdcRepository _cdcRepository;
-    private readonly IEventPublisher _eventPublisher;
+    private readonly IMessageBroker _messageBroker;
     private readonly IEventEnricher _enricher;
     private readonly ICdcCheckpointManager _checkpointManager;
     private readonly IEventMapperBidirectional<CdcChangeEvent, BaseEvent> _mapper;
@@ -26,7 +26,7 @@ public class CdcEventProcessor : BaseEventProcessor
 
     public CdcEventProcessor(
         ICdcRepository cdcRepository,
-        IEventPublisher eventPublisher,
+        IMessageBroker messageBroker,
         IEventEnricher enricher,
         ILogger<CdcEventProcessor> logger,
         ICdcCheckpointManager checkpointManager,
@@ -34,7 +34,7 @@ public class CdcEventProcessor : BaseEventProcessor
         : base(logger)
     {
         _cdcRepository = cdcRepository ?? throw new ArgumentNullException(nameof(cdcRepository));
-        _eventPublisher = eventPublisher ?? throw new ArgumentNullException(nameof(eventPublisher));
+        _messageBroker = messageBroker ?? throw new ArgumentNullException(nameof(messageBroker));
         _enricher = enricher ?? throw new ArgumentNullException(nameof(enricher));
         _checkpointManager = checkpointManager ?? throw new ArgumentNullException(nameof(checkpointManager));
         _mapper = mapper ?? throw new ArgumentNullException(nameof(mapper));
@@ -49,20 +49,20 @@ public class CdcEventProcessor : BaseEventProcessor
     protected override async Task ProcessBatchAsync(CancellationToken cancellationToken)
     {
         var changeEvents = await _cdcRepository.GetChangeEventsSinceAsync(_lastLsn, cancellationToken);
-        
+
         if (!changeEvents.Any())
         {
             return;
         }
 
         // Map CDC events to platform events
-        var events = _mapper.MapMany(changeEvents).ToList();
+        var events = _mapper.MapMany(changeEvents).Where(e => e != null).ToList();
 
         // Enrich all events
         await _enricher.EnrichBatchAsync(events, cancellationToken);
 
         // Publish in batch
-        await _eventPublisher.PublishBatchAsync(events, cancellationToken);
+        await _messageBroker.PublishBatchAsync(events!, cancellationToken);
 
         // Update checkpoint
         var maxLsn = changeEvents.Max(e => e.Lsn);

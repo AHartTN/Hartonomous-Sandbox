@@ -384,9 +384,6 @@ namespace Hartonomous.Data.Migrations
                     b.Property<byte>("NumChannels")
                         .HasColumnType("tinyint");
 
-                    b.Property<byte[]>("RawData")
-                        .HasColumnType("varbinary(max)");
-
                     b.Property<int>("SampleRate")
                         .HasColumnType("int");
 
@@ -453,6 +450,155 @@ namespace Hartonomous.Data.Migrations
                     b.HasKey("AudioId", "FrameNumber");
 
                     b.ToTable("AudioFrames", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingMultiplier", b =>
+                {
+                    b.Property<Guid>("MultiplierId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Dimension")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)")
+                        .HasDefaultValue("");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasDefaultValue("");
+
+                    b.Property<decimal>("Multiplier")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<Guid>("RatePlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("MultiplierId");
+
+                    b.HasIndex("RatePlanId", "Dimension", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BillingMultipliers_Active")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("BillingMultipliers", (string)null);
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingOperationRate", b =>
+                {
+                    b.Property<Guid>("OperationRateId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasDefaultValue("");
+
+                    b.Property<decimal>("Rate")
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<Guid>("RatePlanId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("OperationRateId");
+
+                    b.HasIndex("RatePlanId", "Operation")
+                        .IsUnique()
+                        .HasDatabaseName("UX_BillingOperationRates_Active")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("BillingOperationRates", (string)null);
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingRatePlan", b =>
+                {
+                    b.Property<Guid>("RatePlanId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<decimal>("DefaultRate")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(0.01m);
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("TenantId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.HasKey("RatePlanId");
+
+                    b.HasIndex("TenantId", "IsActive")
+                        .HasDatabaseName("IX_BillingRatePlans_Tenant_IsActive");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("TenantId", "IsActive"), new[] { "UpdatedUtc" });
+
+                    b.ToTable("BillingRatePlans", (string)null);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.CachedActivation", b =>
@@ -674,9 +820,6 @@ namespace Hartonomous.Data.Migrations
                     b.Property<Geometry>("PixelCloud")
                         .HasColumnType("GEOMETRY");
 
-                    b.Property<byte[]>("RawData")
-                        .HasColumnType("varbinary(max)");
-
                     b.Property<Geometry>("SaliencyRegions")
                         .HasColumnType("GEOMETRY");
 
@@ -741,9 +884,6 @@ namespace Hartonomous.Data.Migrations
 
                     b.Property<float?>("StdIntensity")
                         .HasColumnType("real");
-
-                    b.Property<byte[]>("TextureFeatures")
-                        .HasColumnType("varbinary(max)");
 
                     b.HasKey("PatchId");
 
@@ -1358,9 +1498,6 @@ namespace Hartonomous.Data.Migrations
                     b.Property<long>("NumFrames")
                         .HasColumnType("bigint");
 
-                    b.Property<byte[]>("RawData")
-                        .HasColumnType("varbinary(max)");
-
                     b.Property<int>("ResolutionHeight")
                         .HasColumnType("int");
 
@@ -1488,6 +1625,28 @@ namespace Hartonomous.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Audio");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingMultiplier", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.BillingRatePlan", "RatePlan")
+                        .WithMany("Multipliers")
+                        .HasForeignKey("RatePlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RatePlan");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingOperationRate", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.BillingRatePlan", "RatePlan")
+                        .WithMany("OperationRates")
+                        .HasForeignKey("RatePlanId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RatePlan");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.CachedActivation", b =>
@@ -1671,6 +1830,13 @@ namespace Hartonomous.Data.Migrations
             modelBuilder.Entity("Hartonomous.Core.Entities.AudioData", b =>
                 {
                     b.Navigation("Frames");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingRatePlan", b =>
+                {
+                    b.Navigation("Multipliers");
+
+                    b.Navigation("OperationRates");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.Image", b =>

@@ -52,7 +52,7 @@ namespace ModelIngestion
             if (existingPixel != null)
             {
                 // Increment reference count
-                await _pixelRepository.UpdateReferenceCountAsync(pixelHash, cancellationToken);
+                await _pixelRepository.UpdateReferenceCountAsync(pixelHash, cancellationToken: cancellationToken);
                 return ConvertHashToKey(existingPixel.PixelHash);
             }
 
@@ -103,7 +103,7 @@ namespace ModelIngestion
             var existingSample = await _audioSampleRepository.GetByHashAsync(sampleHash, cancellationToken);
             if (existingSample != null)
             {
-                await _audioSampleRepository.UpdateReferenceCountAsync(sampleHash, cancellationToken);
+                await _audioSampleRepository.UpdateReferenceCountAsync(sampleHash, cancellationToken: cancellationToken);
                 return ConvertHashToKey(existingSample.SampleHash);
             }
 
@@ -131,7 +131,7 @@ namespace ModelIngestion
             var existingToken = await _textTokenRepository.GetByHashAsync(tokenHash, cancellationToken);
             if (existingToken != null)
             {
-                await _textTokenRepository.UpdateReferenceCountAsync(existingToken.TokenId, cancellationToken);
+                await _textTokenRepository.UpdateReferenceCountAsync(existingToken.TokenId, cancellationToken: cancellationToken);
                 return existingToken.TokenId;
             }
 

@@ -167,7 +167,7 @@ public sealed class SqlServerTestFixture : IAsyncLifetime
             var modelLayerRepository = new ModelLayerRepository(DbContext, modelLayerLogger);
             StudentModelService = new StudentModelService(DbContext, modelLayerRepository);
             InferenceService = new InferenceOrchestrator(DbContext, AtomEmbeddings, sqlExecutor, _loggerFactory.CreateLogger<InferenceOrchestrator>());
-            SpatialService = new SpatialInferenceService(DbContext);
+            SpatialService = new SpatialInferenceService(sqlExecutor);
 
             var resolvedConnectionString = DbContext.Database.GetConnectionString();
             if (string.IsNullOrWhiteSpace(resolvedConnectionString))

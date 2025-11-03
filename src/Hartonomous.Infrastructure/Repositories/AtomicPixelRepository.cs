@@ -3,7 +3,6 @@ using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Repositories;
@@ -12,7 +11,7 @@ namespace Hartonomous.Infrastructure.Repositories;
 /// EF Core implementation of <see cref="IAtomicPixelRepository"/>.
 /// Inherits base CRUD from EfRepository, adds hash-based deduplication and reference counting.
 /// </summary>
-public class AtomicPixelRepository : EfRepository<AtomicPixel, byte[]>, IAtomicPixelRepository
+public class AtomicPixelRepository : AtomicReferenceRepository<AtomicPixel, byte[], byte[]>, IAtomicPixelRepository
 {
     public AtomicPixelRepository(HartonomousDbContext context, ILogger<AtomicPixelRepository> logger)
         : base(context, logger)
@@ -24,35 +23,9 @@ public class AtomicPixelRepository : EfRepository<AtomicPixel, byte[]>, IAtomicP
     /// </summary>
     protected override Expression<Func<AtomicPixel, byte[]>> GetIdExpression() => p => p.PixelHash;
 
-    // Domain-specific queries
+    protected override Expression<Func<AtomicPixel, byte[]>> GetHashExpression() => p => p.PixelHash;
 
-    public async Task<AtomicPixel?> GetByHashAsync(byte[] pixelHash, CancellationToken cancellationToken = default)
-    {
-        return await GetByIdAsync(pixelHash, cancellationToken);
-    }
+    protected override Expression<Func<AtomicPixel, bool>> BuildKeyPredicate(byte[] key) => pixel => pixel.PixelHash == key;
 
-    /// <summary>
-    /// Efficiently increment reference count using ExecuteUpdateAsync.
-    /// Avoids loading the entity into memory.
-    /// </summary>
-    public async Task UpdateReferenceCountAsync(byte[] pixelHash, CancellationToken cancellationToken = default)
-    {
-        await DbSet
-            .Where(p => p.PixelHash == pixelHash)
-            .ExecuteUpdateAsync(setters => setters
-                .SetProperty(p => p.ReferenceCount, p => p.ReferenceCount + 1)
-                .SetProperty(p => p.LastReferenced, DateTime.UtcNow),
-                cancellationToken);
-    }
-
-    public async Task<long> GetReferenceCountAsync(byte[] pixelHash, CancellationToken cancellationToken = default)
-    {
-        var pixel = await DbSet
-            .Where(p => p.PixelHash == pixelHash)
-            .Select(p => new { p.ReferenceCount })
-            .AsNoTracking()
-            .FirstOrDefaultAsync(cancellationToken);
-        
-        return pixel?.ReferenceCount ?? 0;
-    }
+    // Domain-specific queries stay available via base implementations.
 }

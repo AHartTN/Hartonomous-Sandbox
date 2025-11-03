@@ -7,7 +7,7 @@ namespace Hartonomous.Core.Entities;
 /// Represents a unique atomic pixel with content-addressable deduplication.
 /// Stores RGBA values and spatial color representation.
 /// </summary>
-public class AtomicPixel
+public class AtomicPixel : IReferenceTrackedEntity
 {
     /// <summary>
     /// Gets or sets the SHA256 hash of the pixel (r,g,b,a) - serves as primary key.

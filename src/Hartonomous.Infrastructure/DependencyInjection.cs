@@ -1,17 +1,28 @@
 using System;
 using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Billing;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Resilience;
+using Hartonomous.Core.Security;
+using Hartonomous.Core.Serialization;
 using Hartonomous.Core.Services;
+using Hartonomous.Core.Messaging;
 using Hartonomous.Data;
 using Hartonomous.Infrastructure.Data;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Infrastructure.Services.Enrichment;
+using Hartonomous.Infrastructure.Services.Messaging;
+using Hartonomous.Infrastructure.Services.Billing;
+using Hartonomous.Infrastructure.Services.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Hartonomous.Infrastructure;
 
@@ -32,6 +43,12 @@ public static class DependencyInjection
             ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found");
 
         services.Configure<SqlServerOptions>(configuration.GetSection(SqlServerOptions.SectionName));
+        services.Configure<MessageBrokerOptions>(configuration.GetSection(MessageBrokerOptions.SectionName));
+        services.Configure<CdcOptions>(configuration.GetSection(CdcOptions.SectionName));
+        services.Configure<ServiceBrokerResilienceOptions>(configuration.GetSection(ServiceBrokerResilienceOptions.SectionName));
+        services.Configure<BillingOptions>(configuration.GetSection(BillingOptions.SectionName));
+        services.Configure<SecurityOptions>(configuration.GetSection(SecurityOptions.SectionName));
+        services.Configure<AtomGraphOptions>(configuration.GetSection(AtomGraphOptions.SectionName));
         services.PostConfigure<SqlServerOptions>(options =>
         {
             if (string.IsNullOrWhiteSpace(options.ConnectionString))
@@ -79,8 +96,40 @@ public static class DependencyInjection
             }
         });
 
+        services.AddSingleton<IJsonSerializer, SystemTextJsonSerializer>();
         services.AddSingleton<ISqlServerConnectionFactory, SqlServerConnectionFactory>();
+        services.AddSingleton<ITransientErrorDetector, SqlServerTransientErrorDetector>();
+        services.AddSingleton<Func<RetryPolicyOptions, IRetryPolicy>>(sp => options =>
+        {
+            var detector = sp.GetRequiredService<ITransientErrorDetector>();
+            var logger = sp.GetRequiredService<ILogger<ExponentialBackoffRetryPolicy>>();
+            return new ExponentialBackoffRetryPolicy(options, detector, logger);
+        });
+        services.AddSingleton<ICircuitBreakerPolicy>(sp =>
+        {
+            var resilienceOptions = sp.GetRequiredService<IOptions<ServiceBrokerResilienceOptions>>().Value;
+            var options = new CircuitBreakerOptions
+            {
+                FailureThreshold = resilienceOptions.CircuitBreakerFailureThreshold,
+                BreakDuration = resilienceOptions.CircuitBreakerBreakDuration,
+                HalfOpenSuccessThreshold = resilienceOptions.CircuitBreakerHalfOpenSuccessThreshold
+            };
+
+            return new CircuitBreakerPolicy(options, sp.GetRequiredService<ITransientErrorDetector>(), sp.GetRequiredService<ILogger<CircuitBreakerPolicy>>());
+        });
+        services.AddSingleton<IServiceBrokerResilienceStrategy, ServiceBrokerResilienceStrategy>();
+        services.AddSingleton<IMessageDeadLetterSink, SqlMessageDeadLetterSink>();
+        services.AddMemoryCache();
+
+        services.AddSingleton<IAccessPolicyRule, TenantAccessPolicyRule>();
+        services.AddSingleton<IAccessPolicyEngine, AccessPolicyEngine>();
+        services.AddSingleton<IThrottleEvaluator, InMemoryThrottleEvaluator>();
+        services.AddSingleton<IBillingConfigurationProvider, SqlBillingConfigurationProvider>();
+        services.AddSingleton<IBillingMeter, UsageBillingMeter>();
+        services.AddSingleton<IBillingUsageSink, SqlBillingUsageSink>();
         services.AddScoped<ISqlCommandExecutor, SqlCommandExecutor>();
+        services.AddScoped<IAtomGraphWriter, AtomGraphWriter>();
+        services.AddSingleton<IMessageBroker, SqlMessageBroker>();
 
         // Core services (centralized configuration and validation)
         services.AddSingleton<IConfigurationService, ConfigurationService>();

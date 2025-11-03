@@ -4,7 +4,7 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Core.Entities;
 
 /// <summary>
-/// Primary image storage with multiple representations (raw data, spatial, vector).
+/// Primary image storage with spatial and vector representations.
 /// Maps to dbo.Images table from 02_MultiModalData.sql.
 /// </summary>
 public sealed class Image
@@ -13,8 +13,6 @@ public sealed class Image
     public string? SourcePath { get; set; }
     public string? SourceUrl { get; set; }
 
-    // Raw data
-    public byte[]? RawData { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
     public int Channels { get; set; } // 1 (grayscale), 3 (RGB), 4 (RGBA)

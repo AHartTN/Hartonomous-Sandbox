@@ -11,6 +11,7 @@
     <RootNamespace>SqlClrFunctions</RootNamespace>
     <AssemblyName>SqlClrFunctions</AssemblyName>
     <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
     <FileAlignment>512</FileAlignment>
     <Deterministic>true</Deterministic>
   </PropertyGroup>
@@ -52,6 +53,7 @@
     <Compile Include="AudioProcessing.cs" />
     <Compile Include="ImageGeneration.cs" />
     <Compile Include="SemanticAnalysis.cs" />
+    <Compile Include="SqlBytesInterop.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

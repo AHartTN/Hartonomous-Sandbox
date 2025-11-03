@@ -26,14 +26,14 @@ public sealed class EventHubOptions
     public string ConsumerGroup { get; set; } = "$Default";
 
     /// <summary>
-    /// Blob storage connection string for checkpointing (consumers only)
+    /// Optional legacy blob checkpoint connection string. Retained for backwards compatibility.
     /// </summary>
     public string? BlobStorageConnectionString { get; set; }
 
     /// <summary>
-    /// Blob container name for checkpoints
+    /// Name of the SQL table that stores Event Hub checkpoints. Defaults to dbo.EventHubCheckpoints.
     /// </summary>
-    public string BlobContainerName { get; set; } = "eventhub-checkpoints";
+    public string CheckpointTableName { get; set; } = "EventHubCheckpoints";
 
     /// <summary>
     /// Maximum batch size for publishing

@@ -37,8 +37,8 @@ public class QueryService
         var queryEmbedding = GenerateRandomEmbedding(random, 768);
 
         // Execute exact search
-        var padded = VectorUtility.PadToSqlLength(queryEmbedding, out _);
-        var sqlVector = new SqlVector<float>(padded);
+    var padded = VectorUtility.PadToSqlLength(queryEmbedding, out _);
+    var sqlVector = padded.ToSqlVector();
         var spatialPoint = await _atomEmbeddings
             .ComputeSpatialProjectionAsync(sqlVector, queryEmbedding.Length, cancellationToken)
             .ConfigureAwait(false);

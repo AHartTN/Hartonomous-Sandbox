@@ -1,9 +1,12 @@
 using System.Linq.Expressions;
+using System.Linq;
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Infrastructure.Repositories;
@@ -14,9 +17,18 @@ namespace Hartonomous.Infrastructure.Repositories;
 /// </summary>
 public class AtomRepository : EfRepository<Atom, long>, IAtomRepository
 {
-    public AtomRepository(HartonomousDbContext context, ILogger<AtomRepository> logger)
+    private readonly IAtomGraphWriter _graphWriter;
+    private readonly IOptionsMonitor<AtomGraphOptions> _graphOptions;
+
+    public AtomRepository(
+        HartonomousDbContext context,
+        ILogger<AtomRepository> logger,
+        IAtomGraphWriter graphWriter,
+        IOptionsMonitor<AtomGraphOptions> graphOptions)
         : base(context, logger)
     {
+        _graphWriter = graphWriter ?? throw new ArgumentNullException(nameof(graphWriter));
+        _graphOptions = graphOptions ?? throw new ArgumentNullException(nameof(graphOptions));
     }
 
     /// <summary>
@@ -44,6 +56,18 @@ public class AtomRepository : EfRepository<Atom, long>, IAtomRepository
             .Include(a => a.Embeddings)
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.ContentHash == contentHash, cancellationToken);
+    }
+
+    public override async Task<Atom> AddAsync(Atom entity, CancellationToken cancellationToken = default)
+    {
+        var atom = await base.AddAsync(entity, cancellationToken).ConfigureAwait(false);
+
+        if (_graphOptions.CurrentValue.EnableSqlGraphWrites)
+        {
+            await _graphWriter.UpsertAtomNodeAsync(atom, atom.Embeddings.FirstOrDefault(), cancellationToken).ConfigureAwait(false);
+        }
+
+        return atom;
     }
 
     public async Task<IReadOnlyList<Atom>> GetByModalityAsync(string modality, int take = 100, CancellationToken cancellationToken = default)

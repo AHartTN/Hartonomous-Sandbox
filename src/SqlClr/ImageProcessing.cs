@@ -25,9 +25,9 @@ namespace SqlClrFunctions
 
             int w = Math.Max(1, width.Value);
             int h = Math.Max(1, height.Value);
-            byte[] pixels = imageData.Value;
+            var pixels = SqlBytesInterop.GetBuffer(imageData, out var bufferLength);
 
-            int channels = InferChannelCount(pixels.Length, w, h);
+            int channels = InferChannelCount(bufferLength, w, h);
             if (channels == 0)
             {
                 return SqlGeometry.Null;
@@ -46,7 +46,7 @@ namespace SqlClrFunctions
                 for (int x = 0; x < w; x += step)
                 {
                     int pixelIndex = y * w + x;
-                    if (!TryReadPixel(pixels, pixelIndex, channels, out byte r, out byte g, out byte b, out byte a))
+                    if (!TryReadPixel(pixels, bufferLength, pixelIndex, channels, out byte r, out byte g, out byte b, out byte a))
                     {
                         continue;
                     }
@@ -80,9 +80,9 @@ namespace SqlClrFunctions
 
             int w = Math.Max(1, width.Value);
             int h = Math.Max(1, height.Value);
-            byte[] pixels = imageData.Value;
+            var pixels = SqlBytesInterop.GetBuffer(imageData, out var bufferLength);
 
-            int channels = InferChannelCount(pixels.Length, w, h);
+            int channels = InferChannelCount(bufferLength, w, h);
             if (channels == 0)
             {
                 return SqlString.Null;
@@ -90,10 +90,11 @@ namespace SqlClrFunctions
 
             long sumR = 0, sumG = 0, sumB = 0, sumA = 0;
             int totalPixels = w * h;
+            int samples = 0;
 
             for (int i = 0; i < totalPixels; i++)
             {
-                if (!TryReadPixel(pixels, i, channels, out byte r, out byte g, out byte b, out byte a))
+                if (!TryReadPixel(pixels, bufferLength, i, channels, out byte r, out byte g, out byte b, out byte a))
                 {
                     continue;
                 }
@@ -102,17 +103,18 @@ namespace SqlClrFunctions
                 sumG += g;
                 sumB += b;
                 sumA += a;
+                samples++;
             }
 
-            if (totalPixels == 0)
+            if (samples == 0)
             {
                 return new SqlString("#000000");
             }
 
-            byte avgR = (byte)(sumR / totalPixels);
-            byte avgG = (byte)(sumG / totalPixels);
-            byte avgB = (byte)(sumB / totalPixels);
-            byte avgA = (byte)(sumA / totalPixels);
+            byte avgR = (byte)(sumR / samples);
+            byte avgG = (byte)(sumG / samples);
+            byte avgB = (byte)(sumB / samples);
+            byte avgA = (byte)(sumA / samples);
 
             string hex = channels == 4
                 ? $"#{avgR:X2}{avgG:X2}{avgB:X2}{avgA:X2}"
@@ -136,8 +138,8 @@ namespace SqlClrFunctions
             int h = Math.Max(1, height.Value);
             int bins = binCount.IsNull || binCount.Value <= 0 ? 32 : Math.Min(512, binCount.Value);
 
-            byte[] pixels = imageData.Value;
-            int channels = InferChannelCount(pixels.Length, w, h);
+            var pixels = SqlBytesInterop.GetBuffer(imageData, out var bufferLength);
+            int channels = InferChannelCount(bufferLength, w, h);
             if (channels == 0)
             {
                 return SqlString.Null;
@@ -148,7 +150,7 @@ namespace SqlClrFunctions
 
             for (int i = 0; i < totalPixels; i++)
             {
-                if (!TryReadPixel(pixels, i, channels, out byte r, out byte g, out byte b, out byte a))
+                if (!TryReadPixel(pixels, bufferLength, i, channels, out byte r, out byte g, out byte b, out byte a))
                 {
                     continue;
                 }
@@ -200,10 +202,10 @@ namespace SqlClrFunctions
             return 0;
         }
 
-        private static bool TryReadPixel(byte[] buffer, int pixelIndex, int channels, out byte r, out byte g, out byte b, out byte a)
+        private static bool TryReadPixel(byte[] buffer, int bufferLength, int pixelIndex, int channels, out byte r, out byte g, out byte b, out byte a)
         {
             int offset = pixelIndex * channels;
-            if (offset + channels > buffer.Length)
+            if (offset + channels > bufferLength)
             {
                 r = g = b = 0;
                 a = 255;
