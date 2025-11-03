@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
@@ -23,10 +24,14 @@ public sealed class ModelIngestionProcessorTests
             ResultToReturn = new Model { ModelId = 99, ModelName = "Original", ModelType = "LLM" }
         };
         var layerRepository = new StubModelLayerRepository();
+        var atomRepository = new StubAtomRepository();
+        var relationRepository = new StubAtomRelationRepository();
         var processor = new ModelIngestionProcessor(
             TestLogger.Create<ModelIngestionProcessor>(),
             modelRepository,
             layerRepository,
+            atomRepository,
+            relationRepository,
             orchestrator);
 
         var request = new ModelIngestionRequest { ModelPath = "C:/models/model.onnx" };
@@ -38,6 +43,26 @@ public sealed class ModelIngestionProcessorTests
         Assert.Equal("Original", modelRepository.LastSavedModel?.ModelName);
         Assert.True(layerRepository.BulkInsertInvoked);
         Assert.All(layerRepository.LastLayers!, layer => Assert.Equal(99, layer.ModelId));
+        Assert.Equal(layerRepository.LastLayers!.Count, atomRepository.AddedAtoms.Count);
+        Assert.All(layerRepository.LastLayers!, layer => Assert.NotNull(layer.LayerAtomId));
+
+        var orderedLayers = layerRepository.LastLayers!
+            .OrderBy(l => l.LayerIdx)
+            .ToList();
+
+        if (orderedLayers.Count > 1)
+        {
+            Assert.Equal(orderedLayers.Count - 1, relationRepository.AddedRelations.Count);
+            for (var i = 0; i < orderedLayers.Count - 1; i++)
+            {
+                var sourceAtomId = orderedLayers[i].LayerAtomId;
+                var targetAtomId = orderedLayers[i + 1].LayerAtomId;
+                var relation = relationRepository.AddedRelations[i];
+                Assert.Equal(sourceAtomId, relation.SourceAtomId);
+                Assert.Equal(targetAtomId, relation.TargetAtomId);
+                Assert.Equal("architecture.successor", relation.RelationType);
+            }
+        }
     }
 
     [Fact]
@@ -50,10 +75,14 @@ public sealed class ModelIngestionProcessorTests
             ResultToReturn = new Model { ModelId = 7, ModelName = "Persisted", ModelType = "LLM" }
         };
         var layerRepository = new StubModelLayerRepository();
+        var atomRepository = new StubAtomRepository();
+        var relationRepository = new StubAtomRelationRepository();
         var processor = new ModelIngestionProcessor(
             TestLogger.Create<ModelIngestionProcessor>(),
             modelRepository,
             layerRepository,
+            atomRepository,
+            relationRepository,
             orchestrator);
 
         var request = new ModelIngestionRequest
@@ -79,12 +108,16 @@ public sealed class ModelIngestionProcessorTests
         var orchestrator = CreateOrchestrator(new Model { ModelName = "ShouldNotPersist", ModelType = "LLM" }, failingReader);
         var modelRepository = new StubModelRepository();
         var layerRepository = new StubModelLayerRepository();
+        var atomRepository = new StubAtomRepository();
+        var relationRepository = new StubAtomRelationRepository();
         var logger = TestLogger.Create<ModelIngestionProcessor>();
 
         var processor = new ModelIngestionProcessor(
             logger,
             modelRepository,
             layerRepository,
+            atomRepository,
+            relationRepository,
             orchestrator);
 
         var request = new ModelIngestionRequest { ModelPath = "C:/models/invalid.onnx" };
@@ -94,6 +127,8 @@ public sealed class ModelIngestionProcessorTests
         Assert.NotNull(result.ErrorMessage);
         Assert.Null(modelRepository.LastSavedModel);
         Assert.False(layerRepository.BulkInsertInvoked);
+        Assert.Empty(atomRepository.AddedAtoms);
+        Assert.Empty(relationRepository.AddedRelations);
         Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Error);
     }
 
@@ -128,9 +163,17 @@ public sealed class ModelIngestionProcessorTests
             {
                 new()
                 {
-                    LayerId = 1,
                     LayerIdx = 0,
-                    LayerName = "Embedding"
+                    LayerName = "Embedding",
+                    LayerType = "embedding",
+                    ParameterCount = 128
+                },
+                new()
+                {
+                    LayerIdx = 1,
+                    LayerName = "Attention",
+                    LayerType = "attention",
+                    ParameterCount = 256
                 }
             }
         };
@@ -181,6 +224,44 @@ public sealed class ModelIngestionProcessorTests
         public Task<IReadOnlyList<ModelLayer>> GetLayersByImportanceAsync(int modelId, double minImportance, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public float[] ExtractWeightsFromGeometry(NetTopologySuite.Geometries.LineString geometry) => throw new NotSupportedException();
         public NetTopologySuite.Geometries.LineString CreateGeometryFromWeights(float[] weights, float[]? importanceScores = null, float[]? temporalMetadata = null) => throw new NotSupportedException();
+    }
+
+    private sealed class StubAtomRepository : IAtomRepository
+    {
+        private long _nextId = 1;
+
+        public List<Atom> AddedAtoms { get; } = new();
+
+        public Task<Atom> AddAsync(Atom atom, CancellationToken cancellationToken = default)
+        {
+            atom.AtomId = _nextId++;
+            AddedAtoms.Add(atom);
+            return Task.FromResult(atom);
+        }
+
+        public Task<Atom?> GetByContentHashAsync(byte[] contentHash, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Atom?> GetByIdAsync(long atomId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Atom>> GetByModalityAsync(string modality, int take = 100, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task IncrementReferenceCountAsync(long atomId, long delta = 1, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task UpdateMetadataAsync(long atomId, string? metadata, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UpdateSpatialKeyAsync(long atomId, NetTopologySuite.Geometries.Point spatialKey, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class StubAtomRelationRepository : IAtomRelationRepository
+    {
+        private long _nextId = 1;
+
+        public List<AtomRelation> AddedRelations { get; } = new();
+
+        public Task<AtomRelation> AddAsync(AtomRelation relation, CancellationToken cancellationToken = default)
+        {
+            relation.AtomRelationId = _nextId++;
+            AddedRelations.Add(relation);
+            return Task.FromResult(relation);
+        }
+
+        public Task<AtomRelation?> GetByIdAsync(long relationId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<AtomRelation>> GetRelationsForAtomAsync(long atomId, int take = 256, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class StubDiscoveryService : IModelDiscoveryService

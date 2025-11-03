@@ -396,10 +396,10 @@ END;
     }
     Write-Host " OK" -ForegroundColor Green
 
-    $typeScriptPath = Join-Path $repoRoot "sql\types\provenance.AtomicStream.sql"
-    if (Test-Path $typeScriptPath) {
+    $atomicStreamTypeScript = Join-Path $repoRoot "sql\types\provenance.AtomicStream.sql"
+    if (Test-Path $atomicStreamTypeScript) {
         Write-Host "  Binding provenance.AtomicStream type..." -NoNewline
-        $typeResult = Invoke-SqlFile -FilePath $typeScriptPath -Database $DatabaseName
+        $typeResult = Invoke-SqlFile -FilePath $atomicStreamTypeScript -Database $DatabaseName
         if ($typeResult.ExitCode -ne 0) {
             Write-Host " FAILED" -ForegroundColor Red
             $typeResult.Output | ForEach-Object { Write-Host "    $_" }
@@ -409,6 +409,21 @@ END;
     }
     else {
         Write-Host "  WARNING: sql/types/provenance.AtomicStream.sql not found, type not refreshed." -ForegroundColor Yellow
+    }
+
+    $componentStreamTypeScript = Join-Path $repoRoot "sql\types\provenance.ComponentStream.sql"
+    if (Test-Path $componentStreamTypeScript) {
+        Write-Host "  Binding provenance.ComponentStream type..." -NoNewline
+        $componentTypeResult = Invoke-SqlFile -FilePath $componentStreamTypeScript -Database $DatabaseName
+        if ($componentTypeResult.ExitCode -ne 0) {
+            Write-Host " FAILED" -ForegroundColor Red
+            $componentTypeResult.Output | ForEach-Object { Write-Host "    $_" }
+            exit 1
+        }
+        Write-Host " OK" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  WARNING: sql/types/provenance.ComponentStream.sql not found, type not refreshed." -ForegroundColor Yellow
     }
 
     Write-Host ""

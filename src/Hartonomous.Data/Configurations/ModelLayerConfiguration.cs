@@ -18,6 +18,8 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
         builder.Property(l => l.LayerType)
             .HasMaxLength(50);
 
+        builder.Property(l => l.LayerAtomId);
+
         // Layer weights as GEOMETRY (LINESTRING ZM) for variable-dimension tensors
         // X = index, Y = weight, Z = importance/gradient, M = iteration/depth
         // No dimension limits (up to 1B+ points vs VECTOR's 1998 max)
@@ -67,5 +69,13 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
             .WithOne(c => c.ParentLayer)
             .HasForeignKey(c => c.ParentLayerId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(l => l.LayerAtom)
+            .WithMany()
+            .HasForeignKey(l => l.LayerAtomId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.HasIndex(l => l.LayerAtomId)
+            .HasDatabaseName("IX_ModelLayers_LayerAtomId");
     }
 }

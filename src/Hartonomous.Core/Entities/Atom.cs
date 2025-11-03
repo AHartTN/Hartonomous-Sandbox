@@ -35,6 +35,8 @@ public class Atom
 
     public Point? SpatialKey { get; set; }
 
+    public byte[]? ComponentStream { get; set; }
+
     public ICollection<AtomEmbedding> Embeddings { get; set; } = new List<AtomEmbedding>();
 
     public ICollection<TensorAtom> TensorAtoms { get; set; } = new List<TensorAtom>();

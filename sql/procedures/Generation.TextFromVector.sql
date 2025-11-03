@@ -67,110 +67,44 @@ BEGIN
         DurationMs INT
     );
 
-    DECLARE @generatedText NVARCHAR(MAX) = LTRIM(RTRIM(@prompt));
-    DECLARE @currentEmbedding VECTOR(1998) = @promptEmbedding;
-    DECLARE @tokenIndex INT = 0;
     DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
-    WHILE @tokenIndex < @max_tokens
+    INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
+    SELECT
+        step_number,
+        atom_id,
+        token,
+        score,
+        distance,
+        model_count,
+        duration_ms
+    FROM dbo.clr_GenerateSequence(
+        CAST(@promptEmbedding AS VARBINARY(MAX)),
+        @modelsJson,
+        @max_tokens,
+        @temperature,
+        @top_k,
+        'text'
+    );
+
+    DECLARE @generatedText NVARCHAR(MAX) = LTRIM(RTRIM(@prompt));
+    DECLARE @tokenSuffix NVARCHAR(MAX) = (
+        SELECT STRING_AGG(Token, ' ') WITHIN GROUP (ORDER BY StepNumber)
+        FROM @sequence
+        WHERE Token IS NOT NULL AND LTRIM(RTRIM(Token)) <> ''
+    );
+
+    IF @tokenSuffix IS NOT NULL AND LTRIM(RTRIM(@tokenSuffix)) <> ''
     BEGIN
-        DECLARE @iterationStart DATETIME2 = SYSUTCDATETIME();
-
-        DECLARE @candidates TABLE (
-            AtomId BIGINT,
-            Token NVARCHAR(400),
-            Score FLOAT,
-            Distance FLOAT,
-            ModelCount INT
-        );
-
-        INSERT INTO @candidates (AtomId, Token, Score, Distance, ModelCount)
-        SELECT
-            AtomId,
-            MAX(CanonicalText) AS Token,
-            SUM(WeightedScore) AS Score,
-            AVG(Distance) AS Distance,
-            COUNT(DISTINCT ModelId) AS ModelCount
-        FROM dbo.fn_EnsembleAtomScores(@currentEmbedding, @modelsJson, @top_k * 2, 'text')
-        WHERE CanonicalText IS NOT NULL
-          AND LTRIM(RTRIM(CanonicalText)) <> ''
-          AND AtomId NOT IN (SELECT AtomId FROM @sequence WHERE AtomId IS NOT NULL)
-        GROUP BY AtomId;
-
-        IF NOT EXISTS (SELECT 1 FROM @candidates)
-            BREAK;
-
-        DECLARE @selectedAtomId BIGINT;
-        DECLARE @selectedToken NVARCHAR(400);
-        DECLARE @selectedScore FLOAT;
-        DECLARE @selectedDistance FLOAT;
-        DECLARE @selectedModelCount INT;
-
-        DECLARE @rankedCandidates TABLE (
-            RowNum INT IDENTITY(1,1),
-            AtomId BIGINT,
-            Token NVARCHAR(400),
-            Score FLOAT,
-            Distance FLOAT,
-            ModelCount INT,
-            Weight FLOAT
-        );
-
-        INSERT INTO @rankedCandidates (AtomId, Token, Score, Distance, ModelCount, Weight)
-        SELECT TOP (@top_k)
-            AtomId,
-            Token,
-            Score,
-            Distance,
-            ModelCount,
-            EXP(-Distance / NULLIF(@temperature, 0.0001)) * (CASE WHEN Score <= 0 THEN 0.0001 ELSE Score END)
-        FROM @candidates
-        ORDER BY Score DESC, Distance ASC;
-
-        DECLARE @weightSum FLOAT = (SELECT SUM(Weight) FROM @rankedCandidates);
-        IF @weightSum IS NULL OR @weightSum = 0
+        DECLARE @basePrompt NVARCHAR(MAX) = LTRIM(RTRIM(@generatedText));
+        IF RIGHT(@basePrompt, 1) = ' '
         BEGIN
-            UPDATE @rankedCandidates SET Weight = 1.0 / NULLIF((SELECT COUNT(*) FROM @rankedCandidates), 0);
+            SET @generatedText = LTRIM(RTRIM(@basePrompt + @tokenSuffix));
         END
         ELSE
         BEGIN
-            UPDATE @rankedCandidates SET Weight = Weight / @weightSum;
-        END;
-
-        DECLARE @random FLOAT = RAND(CHECKSUM(NEWID()));
-
-        SELECT TOP (1)
-            @selectedAtomId = AtomId,
-            @selectedToken = Token,
-            @selectedScore = Score,
-            @selectedDistance = Distance,
-            @selectedModelCount = ModelCount
-        FROM (
-            SELECT *, SUM(Weight) OVER (ORDER BY Weight DESC, AtomId) AS CumulativeWeight
-            FROM @rankedCandidates
-        ) ranked
-        WHERE @random <= CumulativeWeight
-        ORDER BY CumulativeWeight;
-
-        IF @selectedAtomId IS NULL OR @selectedToken IS NULL
-            BREAK;
-
-        SET @generatedText = LTRIM(RTRIM(@generatedText + CASE WHEN RIGHT(@generatedText, 1) = ' ' THEN '' ELSE ' ' END + @selectedToken));
-
-        DECLARE @iterationDuration INT = DATEDIFF(MILLISECOND, @iterationStart, SYSUTCDATETIME());
-
-        INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
-        VALUES (@tokenIndex + 1, @selectedAtomId, @selectedToken, @selectedScore, @selectedDistance, @selectedModelCount, @iterationDuration);
-
-        SELECT TOP (1) @currentEmbedding = ae.EmbeddingVector
-        FROM dbo.AtomEmbeddings ae
-        WHERE ae.AtomId = @selectedAtomId AND ae.EmbeddingVector IS NOT NULL
-        ORDER BY ae.CreatedAt DESC;
-
-        IF @selectedToken IN ('[EOS]', '</s>', '<|endoftext|>')
-            BREAK;
-
-        SET @tokenIndex += 1;
+            SET @generatedText = LTRIM(RTRIM(@basePrompt + ' ' + @tokenSuffix));
+        END
     END;
 
     DECLARE @totalDuration INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());

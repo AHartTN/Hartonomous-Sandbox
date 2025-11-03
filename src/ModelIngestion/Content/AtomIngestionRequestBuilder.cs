@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Models;
 using Hartonomous.Core.Utilities;
 
 namespace ModelIngestion.Content;
@@ -17,6 +20,7 @@ internal sealed class AtomIngestionRequestBuilder
     private string? _policyName;
     private string? _metadata;
     private string? _payloadLocator;
+    private List<AtomComponentDescriptor>? _components;
 
     private string? _hashSource;
     private string? _hashSalt;
@@ -45,6 +49,22 @@ internal sealed class AtomIngestionRequestBuilder
     public AtomIngestionRequestBuilder WithPayloadLocator(string? locator)
     {
         _payloadLocator = locator;
+        return this;
+    }
+
+    public AtomIngestionRequestBuilder WithComponents(IEnumerable<AtomComponentDescriptor>? components)
+    {
+        if (components is null)
+        {
+            _components = null;
+            return this;
+        }
+
+        _components = components
+            .Where(component => component is not null)
+            .Select(component => new AtomComponentDescriptor(component.ComponentHash, component.Quantity))
+            .ToList();
+
         return this;
     }
 
@@ -122,7 +142,10 @@ internal sealed class AtomIngestionRequestBuilder
             Embedding = _embedding,
             EmbeddingType = _embeddingType ?? "default",
             ModelId = _modelId,
-            PolicyName = _policyName ?? "default"
+            PolicyName = _policyName ?? "default",
+            Components = _components is { Count: > 0 }
+                ? _components.ToArray()
+                : Array.Empty<AtomComponentDescriptor>()
         };
     }
 }

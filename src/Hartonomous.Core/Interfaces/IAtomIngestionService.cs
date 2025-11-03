@@ -1,4 +1,7 @@
+using System;
+using System.Collections.Generic;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Models;
 
 namespace Hartonomous.Core.Interfaces;
 
@@ -56,6 +59,11 @@ public class AtomIngestionRequest
     /// Override to use a non-default deduplication policy.
     /// </summary>
     public string PolicyName { get; init; } = "default";
+
+    /// <summary>
+    /// Ordered component descriptors representing the aggregated makeup of the atom.
+    /// </summary>
+    public IReadOnlyList<AtomComponentDescriptor> Components { get; init; } = Array.Empty<AtomComponentDescriptor>();
 }
 
 /// <summary>

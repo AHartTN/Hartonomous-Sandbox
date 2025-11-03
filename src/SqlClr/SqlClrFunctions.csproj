@@ -48,6 +48,8 @@
   </ItemGroup>
   <ItemGroup>
   <Compile Include="AtomicStream.cs" />
+  <Compile Include="ComponentStream.cs" />
+  <Compile Include="GenerationFunctions.cs" />
   <Compile Include="AtomicStreamFunctions.cs" />
   <Compile Include="SpatialOperations.cs" />
     <Compile Include="VectorOperations.cs" />

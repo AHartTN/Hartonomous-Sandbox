@@ -86,6 +86,24 @@ WHERE p.is_ms_shipped = 0;");
         Assert.True(count > 0, "provenance.AtomicStream user-defined type must be installed.");
     }
 
+    [Fact]
+    public async Task ComponentStreamTypeIsRegistered()
+    {
+        if (ShouldSkip())
+        {
+            return;
+        }
+
+        await using var connection = new SqlConnection(_fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT COUNT(*) FROM sys.types WHERE name = 'ComponentStream' AND schema_id = SCHEMA_ID('provenance');";
+
+        var count = Convert.ToInt32(await command.ExecuteScalarAsync());
+        Assert.True(count > 0, "provenance.ComponentStream user-defined type must be installed.");
+    }
+
     private bool ShouldSkip()
     {
         if (_fixture.IsAvailable)

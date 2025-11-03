@@ -173,6 +173,11 @@ public class AtomIngestionService : IAtomIngestionService
             IsActive = true
         };
 
+        if (request.Components is { Count: > 0 })
+        {
+            atom.ComponentStream = ComponentStreamEncoder.Encode(request.Components);
+        }
+
         AtomEmbedding? newEmbedding = null;
         if (embedding is { Length: > 0 } && hasVector)
         {

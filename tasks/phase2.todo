@@ -1,0 +1,20 @@
+# Phase 2 Test Suite Revamp
+
+- [ ] Update SqlServerContainerFixture to deploy full schema via deploy-database.ps1
+- [ ] Seed billing plans (Publisher, Pro, Team) and multipliers in fixture bootstrap
+- [ ] Create Hartonomous.UnitTests suites
+  - [ ] UsageBillingMeterTests.cs covers multiplier stacking
+  - [ ] AtomicStreamUnitTests.cs serialization roundtrip
+  - [ ] VectorOperationsUnitTests.cs dot product
+  - [ ] SecurityServicesTests.cs publisher vs pro access policy
+- [ ] Create Hartonomous.DatabaseTests suites
+  - [ ] test_sp_GenerateText.sql auditing segments
+  - [ ] test_sp_ExtractStudentModel.sql layer clone validation
+  - [ ] test_sp_ExtractStudentModel.sql ensure feedback proc invoked (expected fail until Phase 1 complete)
+- [ ] Create Hartonomous.IntegrationTests suites
+  - [ ] Update SqlServerTestFixture for database deployment
+  - [ ] AtomIngestionIntegrationTests.cs idempotency and reference count
+  - [ ] GenerationIntegrationTests.cs stream audit and performance (expected fail pre-Phase1 TVF)
+  - [ ] BillingIntegrationTests.cs premium cost calculation
+- [ ] Create Hartonomous.EndToEndTests suites
+  - [ ] ModelDistillationFlowTests.cs using bUnit and Testcontainers fixture

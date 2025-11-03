@@ -99,6 +99,17 @@ public class ModelLayer
     public Model Model { get; set; } = null!;
 
     /// <summary>
+    /// Gets or sets the atom representing this layer in the architecture graph.
+    /// </summary>
+    public long? LayerAtomId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the backing atom node for graph traversals.
+    /// Optional because legacy layers may not be projected yet.
+    /// </summary>
+    public Atom? LayerAtom { get; set; }
+
+    /// <summary>
     /// Gets or sets the collection of cached activations for this layer.
     /// </summary>
     public ICollection<CachedActivation> CachedActivations { get; set; } = new List<CachedActivation>();

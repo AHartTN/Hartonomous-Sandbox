@@ -1,0 +1,28 @@
+# Phase 1 Core Implementation
+
+- [ ] ComponentStream CLR UDT
+  - [x] Design RLE payload model and serialization contract
+  - [x] Implement ComponentStream.cs with IBinarySerialize
+  - [ ] Unit-test serialization/deserialization roundtrip
+  - [x] Register UDT in SQL project and update deployment script
+  - [x] Add ComponentStream column to dbo.Atoms and adjust schema scripts
+  - [x] Update AtomIngestionService to emit ComponentStream for composite media
+
+- [ ] clr_GenerateSequence TVF
+  - [x] Design iterator signature and row schema in SqlClr project
+  - [x] Implement context-connection loop invoking fn_EnsembleAtomScores
+  - [x] Add sampling strategy and yield results to SqlDataRecord
+  - [x] Register TVF in SQL project and deployment script
+  - [x] Refactor sp_GenerateText to consume CLR TVF and remove T-SQL loop
+  - [x] Extend telemetry capture to align with new pipeline
+
+- [ ] Distillation feedback integration
+  - [x] Add optional @ModelId filter to sp_UpdateModelWeightsFromFeedback
+  - [x] Invoke feedback procedure at end of sp_ExtractStudentModel
+  - [x] Validate transactional consistency and rollback semantics
+
+- [ ] Architecture-aware distillation
+  - [ ] Extend ModelIngestionService to create Layer atoms and AtomRelation graph edges
+  - [ ] Update data model mappings (EF configurations, SQL scripts)
+  - [ ] Refactor sp_ExtractStudentModel to use GRAPH MATCH SHORTEST_PATH
+  - [ ] Ensure compatibility with existing layer selection logic and tests
