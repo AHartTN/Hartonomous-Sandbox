@@ -31,13 +31,14 @@ This guide explains how to stand up Hartonomous environments and operate them da
    dotnet ef database update --project src/Hartonomous.Data --startup-project src/Hartonomous.Infrastructure --context HartonomousDbContext
    ```
 
-4. **Publish SQL CLR artifacts.** Build the assembly, deploy the `AtomicStream` type, then recreate CLR helper bindings.
+4. **Publish SQL CLR artifacts.** Build the assembly, enable CLR integration, bind the `AtomicStream` type, then restore helper bindings.
 
    ```powershell
-   msbuild src/SqlClr/SqlClrFunctions.csproj /p:Configuration=Release
-   sqlcmd -S . -d Hartonomous -i sql/types/provenance.AtomicStream.sql -v SqlClrAssemblyPath="D:\\deploy\\SqlClrFunctions.dll"
+   dotnet build src/SqlClr/SqlClrFunctions.csproj -c Release
+   sqlcmd -S . -d master -Q "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'clr enabled', 1; RECONFIGURE;"
+   sqlcmd -S . -d Hartonomous -i sql/types/provenance.AtomicStream.sql
    sqlcmd -S . -d Hartonomous -i sql/procedures/Common.ClrBindings.sql
-   sqlcmd -S . -d Hartonomous -i sql/tables/provenance.GenerationStreams.sql
+   sqlcmd -S . -d Hartonomous -i sql/procedures/provenance.AtomicStreamSegments.sql
    ```
 
 5. **Seed reference data.** The deployment script (`deploy-database.ps1`) can seed base rate plans and sample atoms when `-Seed $true` is provided.

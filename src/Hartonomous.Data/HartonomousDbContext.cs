@@ -49,6 +49,9 @@ public class HartonomousDbContext : DbContext
     public DbSet<InferenceRequest> InferenceRequests => Set<InferenceRequest>();
     public DbSet<InferenceStep> InferenceSteps => Set<InferenceStep>();
 
+    // Provenance streams
+    public DbSet<GenerationStream> GenerationStreams => Set<GenerationStream>();
+
     // Atom substrate
     public DbSet<Atom> Atoms => Set<Atom>();
     public DbSet<AtomEmbedding> AtomEmbeddings => Set<AtomEmbedding>();

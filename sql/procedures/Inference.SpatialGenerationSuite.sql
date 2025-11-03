@@ -36,7 +36,7 @@ BEGIN
     )
     SELECT TOP (@ContextSize)
         ae.AtomId AS TokenId,
-        CAST(a.AtomData AS NVARCHAR(100)) AS TokenText,
+    CAST(a.CanonicalText AS NVARCHAR(100)) AS TokenText,
         fn.SpatialDistance,
         1.0 / (1.0 + fn.SpatialDistance) AS AttentionWeight,
         CASE
@@ -89,7 +89,7 @@ BEGIN
     INSERT INTO @candidates (AtomId, AtomText, SpatialDistance, Logit, ProbabilityScore)
     SELECT TOP (@resolved_top_k)
         ae.AtomId,
-        CAST(a.AtomData AS NVARCHAR(100)) AS AtomText,
+    CAST(a.CanonicalText AS NVARCHAR(100)) AS AtomText,
         nn.SpatialDistance,
         -1.0 * nn.SpatialDistance AS Logit,
         0.0
@@ -142,9 +142,9 @@ BEGIN
     DECLARE @NextAtomText NVARCHAR(100);
 
     INSERT INTO @context (AtomId, AtomText)
-    SELECT a.AtomId, CAST(a.AtomData AS NVARCHAR(100))
+    SELECT a.AtomId, CAST(a.CanonicalText AS NVARCHAR(100))
     FROM dbo.Atoms a
-    WHERE CAST(a.AtomData AS NVARCHAR(100)) IN (
+    WHERE CAST(a.CanonicalText AS NVARCHAR(100)) IN (
         SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@prompt, ' ')
     );
 

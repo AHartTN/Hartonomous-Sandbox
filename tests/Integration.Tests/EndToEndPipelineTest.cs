@@ -1,8 +1,12 @@
+using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using System.Text;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Utilities;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using Xunit;
 
 namespace Integration.Tests;
@@ -121,5 +125,95 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
 
         Assert.True(comparison.ModelAParameters >= comparison.ModelBParameters);
         Assert.True(comparison.CompressionRatio >= 1d);
+    }
+
+    [Fact]
+    public async Task TextGeneration_PersistsProvenanceStream()
+    {
+        var prompt = $"integration provenance {Guid.NewGuid():N}";
+
+        await using var connection = new SqlConnection(Fixture.ConnectionString);
+        await connection.OpenAsync();
+
+        Guid streamId;
+        await using (var command = new SqlCommand("dbo.sp_GenerateText", connection)
+        {
+            CommandType = CommandType.StoredProcedure
+        })
+        {
+            command.Parameters.Add(new SqlParameter("@prompt", SqlDbType.NVarChar, -1) { Value = prompt });
+            command.Parameters.Add(new SqlParameter("@max_tokens", SqlDbType.Int) { Value = 4 });
+            command.Parameters.Add(new SqlParameter("@temperature", SqlDbType.Float) { Value = 0.6 });
+            command.Parameters.Add(new SqlParameter("@ModelIds", SqlDbType.NVarChar, -1) { Value = DBNull.Value });
+            command.Parameters.Add(new SqlParameter("@top_k", SqlDbType.Int) { Value = 4 });
+
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            streamId = reader.GetGuid(reader.GetOrdinal("StreamId"));
+            Assert.NotEqual(Guid.Empty, streamId);
+            Assert.True(reader.GetInt64(reader.GetOrdinal("InferenceId")) > 0);
+
+            while (await reader.NextResultAsync())
+            {
+            }
+        }
+
+        var segments = new List<(string Kind, string? ContentType, string? Metadata, byte[] Payload)>();
+        await using (var segmentCommand = new SqlCommand(@"
+SELECT
+    seg.segment_ordinal,
+    seg.segment_kind,
+    seg.content_type,
+    seg.metadata,
+    seg.payload
+FROM provenance.GenerationStreams AS gs
+CROSS APPLY provenance.clr_AtomicStreamSegments(gs.Stream) AS seg
+WHERE gs.StreamId = @streamId
+ORDER BY seg.segment_ordinal;", connection))
+        {
+            segmentCommand.Parameters.Add(new SqlParameter("@streamId", SqlDbType.UniqueIdentifier) { Value = streamId });
+
+            await using var segmentReader = await segmentCommand.ExecuteReaderAsync();
+            while (await segmentReader.ReadAsync())
+            {
+                var kind = segmentReader.GetString(segmentReader.GetOrdinal("segment_kind"));
+                var contentType = segmentReader.IsDBNull(segmentReader.GetOrdinal("content_type"))
+                    ? null
+                    : segmentReader.GetString(segmentReader.GetOrdinal("content_type"));
+                var metadata = segmentReader.IsDBNull(segmentReader.GetOrdinal("metadata"))
+                    ? null
+                    : segmentReader.GetString(segmentReader.GetOrdinal("metadata"));
+                var payload = segmentReader.IsDBNull(segmentReader.GetOrdinal("payload"))
+                    ? Array.Empty<byte>()
+                    : (byte[])segmentReader["payload"];
+
+                segments.Add((kind, contentType, metadata, payload));
+            }
+        }
+
+        Assert.True(segments.Count >= 3);
+
+        var inputSegment = Assert.Single(segments, s => s.Kind.Equals("Input", StringComparison.OrdinalIgnoreCase));
+        var outputSegment = Assert.Single(segments, s => s.Kind.Equals("Output", StringComparison.OrdinalIgnoreCase));
+        var telemetrySegment = Assert.Single(segments, s => s.Kind.Equals("Telemetry", StringComparison.OrdinalIgnoreCase));
+
+        var promptText = Encoding.Unicode.GetString(inputSegment.Payload);
+        Assert.Contains(prompt, promptText, StringComparison.Ordinal);
+
+        var completion = Encoding.Unicode.GetString(outputSegment.Payload);
+        Assert.False(string.IsNullOrWhiteSpace(completion));
+
+        Assert.Contains("duration_ms", telemetrySegment.Metadata ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+
+        await using var streamCommand = new SqlCommand(@"
+SELECT Scope, Model, PayloadSizeBytes
+FROM provenance.GenerationStreams
+WHERE StreamId = @streamId;", connection);
+        streamCommand.Parameters.Add(new SqlParameter("@streamId", SqlDbType.UniqueIdentifier) { Value = streamId });
+
+        await using var streamReader = await streamCommand.ExecuteReaderAsync();
+        Assert.True(await streamReader.ReadAsync());
+        Assert.Equal("text_generation", streamReader.GetString(streamReader.GetOrdinal("Scope")));
+        Assert.True(streamReader.GetInt64(streamReader.GetOrdinal("PayloadSizeBytes")) > 0);
     }
 }

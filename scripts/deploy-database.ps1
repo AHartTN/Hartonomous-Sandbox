@@ -28,21 +28,21 @@ function Get-SqlcmdArgs {
     )
 
     $arguments = [System.Collections.Generic.List[string]]::new()
-    $arguments.AddRange(@("-S", $ServerName, "-d", $Database, "-C", "-b"))
+    $arguments.AddRange([string[]]@("-S", $ServerName, "-d", $Database, "-C", "-b"))
 
     if ($useSqlAuth) {
-        $arguments.AddRange(@("-U", $SqlUser, "-P", $SqlPassword))
+        $arguments.AddRange([string[]]@("-U", $SqlUser, "-P", $SqlPassword))
     }
     else {
         $arguments.Add("-E")
     }
 
     if ($Query) {
-        $arguments.AddRange(@("-Q", $Query))
+        $arguments.AddRange([string[]]@("-Q", $Query))
     }
 
     if ($InputFile) {
-        $arguments.AddRange(@("-i", $InputFile))
+        $arguments.AddRange([string[]]@("-i", $InputFile))
     }
 
     return $arguments.ToArray()
@@ -118,97 +118,7 @@ $env:ConnectionStrings__HartonomousDb = $connectionString
 
 try {
     Write-Host ""
-    Write-Host "Step 3: Applying EF Core migrations..." -ForegroundColor Yellow
-    $dataProjectPath = Join-Path $repoRoot "src\Hartonomous.Data"
-
-    if (-not (Test-Path $dataProjectPath)) {
-        Write-Host "  ERROR: Data project not found" -ForegroundColor Red
-        exit 1
-    }
-
-    Push-Location $repoRoot
-    try {
-        $efArgs = @("ef", "database", "update", "--project", $dataProjectPath, "--connection", $connectionString)
-        dotnet @efArgs
-        if ($LASTEXITCODE -ne 0) {
-            throw "Migration failed"
-        }
-        Write-Host "  SUCCESS: Migrations applied" -ForegroundColor Green
-    }
-    catch {
-        Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
-        exit 1
-    }
-    finally {
-        Pop-Location
-    }
-
-    Write-Host ""
-    Write-Host "Step 4: Deploying tables..." -ForegroundColor Yellow
-
-    $sqlTableDir = Join-Path $repoRoot "sql\tables"
-    if (Test-Path $sqlTableDir) {
-        $tableFiles = Get-ChildItem -Path $sqlTableDir -Filter "*.sql" | Sort-Object Name
-        foreach ($file in $tableFiles) {
-            Write-Host "  Ensuring $($file.Name)..." -NoNewline
-            $tableResult = Invoke-SqlFile -FilePath $file.FullName -Database $DatabaseName
-            if ($tableResult.ExitCode -eq 0) {
-                Write-Host " OK" -ForegroundColor Green
-            }
-            else {
-                Write-Host " FAILED" -ForegroundColor Red
-                $tableResult.Output | ForEach-Object { Write-Host "    $_" }
-                exit 1
-            }
-        }
-    }
-    else {
-        Write-Host "  WARNING: sql/tables directory not found, skipping." -ForegroundColor Yellow
-    }
-
-    Write-Host ""
-    Write-Host "Step 5: Deploying stored procedures..." -ForegroundColor Yellow
-
-    $sqlProcDir = Join-Path $repoRoot "sql\procedures"
-    $procFiles = Get-ChildItem -Path $sqlProcDir -Filter "*.sql" | Sort-Object Name
-
-    $deployed = 0
-    $failed = 0
-
-    foreach ($file in $procFiles) {
-        Write-Host "  Deploying $($file.Name)..." -NoNewline
-
-        $sqlContent = Get-Content $file.FullName -Raw
-        $sqlContent = $sqlContent -replace '\bCREATE\s+PROCEDURE\b', 'CREATE OR ALTER PROCEDURE'
-        $sqlContent = $sqlContent -replace '\bCREATE\s+PROC\b', 'CREATE OR ALTER PROC'
-
-        $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-        $sqlContent | Out-File -FilePath $tempFile -Encoding UTF8
-
-        $procResult = Invoke-SqlFile -FilePath $tempFile -Database $DatabaseName
-
-        if ($procResult.ExitCode -eq 0) {
-            Write-Host " OK" -ForegroundColor Green
-            $deployed++
-        }
-        else {
-            Write-Host " FAILED" -ForegroundColor Red
-            $procResult.Output | ForEach-Object { Write-Host "    $_" }
-            $failed++
-        }
-
-        Remove-Item $tempFile -ErrorAction SilentlyContinue
-    }
-
-    Write-Host ""
-    Write-Host "  Summary: $deployed deployed, $failed failed"
-    if ($failed -gt 0) {
-        Write-Host "  ERROR: One or more stored procedures failed." -ForegroundColor Red
-        exit 1
-    }
-
-    Write-Host ""
-    Write-Host "Step 6: Deploying SQL CLR assembly..." -ForegroundColor Yellow
+    Write-Host "Step 3: Deploying SQL CLR assets..." -ForegroundColor Yellow
 
     Write-Host "  Enabling CLR integration..." -NoNewline
     $enableClrScript = "EXEC sp_configure 'show advanced options', 1; RECONFIGURE; EXEC sp_configure 'clr enabled', 1; RECONFIGURE;"
@@ -216,6 +126,150 @@ try {
     if ($clrEnableResult.ExitCode -ne 0) {
         Write-Host " FAILED" -ForegroundColor Red
         $clrEnableResult.Output | ForEach-Object { Write-Host "    $_" }
+        exit 1
+    }
+    Write-Host " OK" -ForegroundColor Green
+
+    Write-Host "  Disabling CLR strict security..." -NoNewline
+    $disableStrictQuery = "EXEC sp_configure 'clr strict security', 0; RECONFIGURE;"
+    $disableStrictResult = Invoke-SqlQuery -Query $disableStrictQuery -Database "master"
+    if ($disableStrictResult.ExitCode -ne 0) {
+        Write-Host " FAILED" -ForegroundColor Red
+        $disableStrictResult.Output | ForEach-Object { Write-Host "    $_" }
+        exit 1
+    }
+    Write-Host " OK" -ForegroundColor Green
+
+    Write-Host "  Dropping CLR-bound modules..." -NoNewline
+    $dropClrBindingsScript = @"
+DECLARE @assemblyName sysname = N'SqlClrFunctions';
+DECLARE @assemblyId INT = (SELECT assembly_id FROM sys.assemblies WHERE name = @assemblyName);
+
+IF @assemblyId IS NULL
+BEGIN
+    PRINT 'Assembly not present; nothing to drop.';
+END
+ELSE
+BEGIN
+    DECLARE @drops TABLE
+    (
+        RowId INT IDENTITY(1,1),
+        SortOrder INT NOT NULL,
+        Summary NVARCHAR(200) NOT NULL,
+        Command NVARCHAR(MAX) NOT NULL
+    );
+
+    INSERT INTO @drops (SortOrder, Summary, Command)
+    SELECT
+        CASE
+            WHEN o.type IN ('TR', 'TA') THEN 3
+            WHEN o.type IN ('PC', 'P') THEN 2
+            ELSE 1
+        END AS SortOrder,
+        o.type_desc + ' ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) AS Summary,
+        dropInfo.Command
+    FROM sys.assembly_modules am
+    INNER JOIN sys.objects o ON am.object_id = o.object_id
+    INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+    CROSS APPLY (
+        SELECT
+            CASE o.type
+                WHEN 'AF' THEN 'DROP AGGREGATE ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'FS' THEN 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'FT' THEN 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'TF' THEN 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'IF' THEN 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'PC' THEN 'DROP PROCEDURE ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'P' THEN 'DROP PROCEDURE ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'TR' THEN 'DROP TRIGGER ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                WHEN 'TA' THEN 'DROP TRIGGER ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';'
+                ELSE NULL
+            END AS Command
+    ) AS dropInfo
+    WHERE am.assembly_id = @assemblyId
+      AND o.is_ms_shipped = 0
+      AND dropInfo.Command IS NOT NULL;
+
+    IF EXISTS (SELECT 1 FROM @drops)
+    BEGIN
+        DECLARE drop_cursor CURSOR LOCAL FAST_FORWARD FOR
+            SELECT Command, Summary
+            FROM @drops
+            ORDER BY SortOrder, RowId;
+
+        DECLARE @command NVARCHAR(MAX);
+        DECLARE @summary NVARCHAR(200);
+
+        OPEN drop_cursor;
+        FETCH NEXT FROM drop_cursor INTO @command, @summary;
+
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            PRINT 'Dropping ' + @summary;
+            EXEC (@command);
+            FETCH NEXT FROM drop_cursor INTO @command, @summary;
+        END
+
+        CLOSE drop_cursor;
+        DEALLOCATE drop_cursor;
+    END
+    ELSE
+    BEGIN
+        PRINT 'No dependent modules found.';
+    END
+END;
+"@
+    $dropClrBindingsResult = Invoke-SqlQuery -Query $dropClrBindingsScript -Database $DatabaseName
+    if ($dropClrBindingsResult.ExitCode -ne 0) {
+        Write-Host " FAILED" -ForegroundColor Red
+        $dropClrBindingsResult.Output | ForEach-Object { Write-Host "    $_" }
+        exit 1
+    }
+    Write-Host " OK" -ForegroundColor Green
+    $dropClrBindingsResult.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+        Write-Host "    $_"
+    }
+
+    Write-Host "  Dropping computed columns referencing CLR assembly (if any)..." -NoNewline
+    $dropComputedColumnsScript = @"
+IF COL_LENGTH('provenance.GenerationStreams', 'PayloadSizeBytes') IS NOT NULL
+BEGIN
+    PRINT 'Dropping provenance.GenerationStreams.PayloadSizeBytes';
+    ALTER TABLE provenance.GenerationStreams DROP COLUMN PayloadSizeBytes;
+END;
+"@
+    $dropComputedResult = Invoke-SqlQuery -Query $dropComputedColumnsScript -Database $DatabaseName
+    if ($dropComputedResult.ExitCode -ne 0) {
+        Write-Host " FAILED" -ForegroundColor Red
+        $dropComputedResult.Output | ForEach-Object { Write-Host "    $_" }
+        exit 1
+    }
+    Write-Host " OK" -ForegroundColor Green
+    $dropComputedResult.Output | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | ForEach-Object {
+        Write-Host "    $_"
+    }
+
+    Write-Host "  Dropping provenance.AtomicStream type (if unused)..." -NoNewline
+    $dropTypeQuery = @"
+DECLARE @typeId INT = TYPE_ID(N'provenance.AtomicStream');
+IF @typeId IS NULL
+BEGIN
+    PRINT 'Type does not exist.';
+END
+ELSE IF EXISTS (SELECT 1 FROM sys.columns WHERE user_type_id = @typeId)
+BEGIN
+    PRINT 'Type referenced by existing columns; skipping drop.';
+END
+ELSE
+BEGIN
+    DROP TYPE provenance.AtomicStream;
+    PRINT 'Type dropped.';
+END;
+"@
+    $dropTypeResult = Invoke-SqlQuery -Query $dropTypeQuery -Database $DatabaseName
+    if ($dropTypeResult.ExitCode -ne 0) {
+        Write-Host " FAILED" -ForegroundColor Red
+        $dropTypeResult.Output | ForEach-Object { Write-Host "    $_" }
         exit 1
     }
     Write-Host " OK" -ForegroundColor Green
@@ -248,9 +302,88 @@ try {
     Write-Host "  Deploying CLR assembly..." -NoNewline
     $clrScript = @"
 USE [$DatabaseName];
+DECLARE @assemblyBits VARBINARY(MAX) = 0x$assemblyHex;
+
 IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions')
-    DROP ASSEMBLY SqlClrFunctions;
-CREATE ASSEMBLY SqlClrFunctions FROM 0x$assemblyHex WITH PERMISSION_SET = SAFE;
+BEGIN
+    DECLARE @alterHadUnchecked BIT = 0;
+
+    BEGIN TRY
+        ALTER ASSEMBLY SqlClrFunctions FROM @assemblyBits WITH UNCHECKED DATA;
+    END TRY
+    BEGIN CATCH
+        IF ERROR_NUMBER() = 6288
+        BEGIN
+            SET @alterHadUnchecked = 1;
+            PRINT 'ALTER ASSEMBLY completed with unchecked assembly data marks. Running DBCC to clear flags.';
+        END
+        ELSE IF ERROR_NUMBER() = 6285
+        BEGIN
+            PRINT 'ALTER ASSEMBLY skipped: deployed bits already match current assembly (MVID unchanged).';
+        END
+        ELSE
+        BEGIN
+            THROW;
+        END
+    END CATCH;
+
+    IF @alterHadUnchecked = 0
+    BEGIN
+        PRINT 'ALTER ASSEMBLY completed without unchecked data flags.';
+    END
+END
+ELSE
+BEGIN
+    CREATE ASSEMBLY SqlClrFunctions FROM @assemblyBits WITH PERMISSION_SET = SAFE;
+END;
+
+DECLARE @unchecked TABLE
+(
+    SchemaName sysname NOT NULL,
+    ObjectName sysname NOT NULL,
+    ObjectType NVARCHAR(60) NOT NULL
+);
+
+INSERT INTO @unchecked (SchemaName, ObjectName, ObjectType)
+SELECT s.name, o.name, o.type_desc
+FROM sys.objects o
+INNER JOIN sys.schemas s ON o.schema_id = s.schema_id
+LEFT JOIN sys.tables t ON o.object_id = t.object_id
+LEFT JOIN sys.views v ON o.object_id = v.object_id
+WHERE o.type IN ('U', 'V')
+    AND (
+                (o.type = 'U' AND t.has_unchecked_assembly_data = 1)
+                OR
+                (o.type = 'V' AND v.has_unchecked_assembly_data = 1)
+            );
+
+DECLARE @rowcount INT = (SELECT COUNT(1) FROM @unchecked);
+
+IF @rowcount > 0
+BEGIN
+    DECLARE @schemaName sysname;
+    DECLARE @objectName sysname;
+    DECLARE @command NVARCHAR(MAX);
+
+    WHILE EXISTS (SELECT 1 FROM @unchecked)
+    BEGIN
+        SELECT TOP (1)
+               @schemaName = SchemaName,
+               @objectName = ObjectName
+        FROM @unchecked
+        ORDER BY SchemaName, ObjectName;
+
+        SET @command = N'DBCC CHECKTABLE (' + N'''' + QUOTENAME(@schemaName) + N'.' + QUOTENAME(@objectName) + N'''' + N') WITH ALL_ERRORMSGS;';
+        PRINT 'Running ' + @command;
+        EXEC (@command);
+
+        DELETE FROM @unchecked WHERE SchemaName = @schemaName AND ObjectName = @objectName;
+    END
+END
+ELSE
+BEGIN
+    PRINT 'No tables or views require DBCC CHECKTABLE after ALTER ASSEMBLY.';
+END;
 "@
     $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
     $clrScript | Out-File -FilePath $tempFile -Encoding UTF8
@@ -262,6 +395,115 @@ CREATE ASSEMBLY SqlClrFunctions FROM 0x$assemblyHex WITH PERMISSION_SET = SAFE;
         exit 1
     }
     Write-Host " OK" -ForegroundColor Green
+
+    $typeScriptPath = Join-Path $repoRoot "sql\types\provenance.AtomicStream.sql"
+    if (Test-Path $typeScriptPath) {
+        Write-Host "  Binding provenance.AtomicStream type..." -NoNewline
+        $typeResult = Invoke-SqlFile -FilePath $typeScriptPath -Database $DatabaseName
+        if ($typeResult.ExitCode -ne 0) {
+            Write-Host " FAILED" -ForegroundColor Red
+            $typeResult.Output | ForEach-Object { Write-Host "    $_" }
+            exit 1
+        }
+        Write-Host " OK" -ForegroundColor Green
+    }
+    else {
+        Write-Host "  WARNING: sql/types/provenance.AtomicStream.sql not found, type not refreshed." -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "Step 4: Applying EF Core migrations..." -ForegroundColor Yellow
+    $dataProjectPath = Join-Path $repoRoot "src\Hartonomous.Data"
+
+    if (-not (Test-Path $dataProjectPath)) {
+        Write-Host "  ERROR: Data project not found" -ForegroundColor Red
+        exit 1
+    }
+
+    Push-Location $repoRoot
+    try {
+        $efArgs = @("ef", "database", "update", "--project", $dataProjectPath, "--connection", $connectionString)
+        dotnet @efArgs
+        if ($LASTEXITCODE -ne 0) {
+            throw "Migration failed"
+        }
+        Write-Host "  SUCCESS: Migrations applied" -ForegroundColor Green
+    }
+    catch {
+        Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        exit 1
+    }
+    finally {
+        Pop-Location
+    }
+
+    Write-Host ""
+    Write-Host "Step 5: Deploying tables..." -ForegroundColor Yellow
+
+    $sqlTableDir = Join-Path $repoRoot "sql\tables"
+    if (Test-Path $sqlTableDir) {
+        $tableFiles = Get-ChildItem -Path $sqlTableDir -Filter "*.sql" | Sort-Object Name
+        foreach ($file in $tableFiles) {
+            Write-Host "  Ensuring $($file.Name)..." -NoNewline
+            $tableResult = Invoke-SqlFile -FilePath $file.FullName -Database $DatabaseName
+            if ($tableResult.ExitCode -eq 0) {
+                Write-Host " OK" -ForegroundColor Green
+            }
+            else {
+                Write-Host " FAILED" -ForegroundColor Red
+                $tableResult.Output | ForEach-Object { Write-Host "    $_" }
+                exit 1
+            }
+        }
+    }
+    else {
+        Write-Host "  WARNING: sql/tables directory not found, skipping." -ForegroundColor Yellow
+    }
+
+    Write-Host ""
+    Write-Host "Step 6: Deploying stored procedures and functions..." -ForegroundColor Yellow
+
+    $sqlProcDir = Join-Path $repoRoot "sql\procedures"
+    $procFiles = Get-ChildItem -Path $sqlProcDir -Filter "*.sql" | Sort-Object Name
+
+    $deployed = 0
+    $failed = 0
+
+    foreach ($file in $procFiles) {
+        Write-Host "  Deploying $($file.Name)..." -NoNewline
+
+        $sqlContent = Get-Content $file.FullName -Raw
+        $sqlContent = $sqlContent -replace '\bCREATE\s+PROCEDURE\b', 'CREATE OR ALTER PROCEDURE'
+        $sqlContent = $sqlContent -replace '\bCREATE\s+PROC\b', 'CREATE OR ALTER PROC'
+    $sqlContent = $sqlContent -replace '\bCREATE\s+FUNCTION\b', 'CREATE OR ALTER FUNCTION'
+    $sqlContent = $sqlContent -replace '\bCREATE\s+VIEW\b', 'CREATE OR ALTER VIEW'
+    $sqlContent = $sqlContent -replace '\bCREATE\s+TRIGGER\b', 'CREATE OR ALTER TRIGGER'
+
+        $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+        $sqlContent | Out-File -FilePath $tempFile -Encoding UTF8
+
+        $procResult = Invoke-SqlFile -FilePath $tempFile -Database $DatabaseName
+
+        if ($procResult.ExitCode -eq 0) {
+            Write-Host " OK" -ForegroundColor Green
+            $deployed++
+        }
+        else {
+            Write-Host " FAILED" -ForegroundColor Red
+            $procResult.Output | ForEach-Object { Write-Host "    $_" }
+            $failed++
+        }
+
+        Remove-Item $tempFile -ErrorAction SilentlyContinue
+    }
+
+    Write-Host ""
+    Write-Host "  Summary: $deployed deployed, $failed failed"
+    if ($failed -gt 0) {
+        Write-Host "  ERROR: One or more stored procedures failed." -ForegroundColor Red
+        exit 1
+    }
+
 }
 finally {
     if ($null -eq $previousConnectionString) {

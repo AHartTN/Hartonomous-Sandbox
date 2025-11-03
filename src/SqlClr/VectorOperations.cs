@@ -19,25 +19,16 @@ namespace SqlClrFunctions
             if (vector1.IsNull || vector2.IsNull)
                 return SqlDouble.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector1, out var buffer1, out var length1);
-            SqlBytesInterop.GetFloatBuffer(vector2, out var buffer2, out var length2);
+            var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
+            var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
             double result = 0;
-            unsafe
+            for (int i = 0; i < length1; i++)
             {
-                fixed (byte* p1 = buffer1)
-                fixed (byte* p2 = buffer2)
-                {
-                    var v1 = (float*)p1;
-                    var v2 = (float*)p2;
-                    for (int i = 0; i < length1; i++)
-                    {
-                        result += v1[i] * v2[i];
-                    }
-                }
+                result += values1[i] * values2[i];
             }
 
             return new SqlDouble(result);
@@ -52,8 +43,8 @@ namespace SqlClrFunctions
             if (vector1.IsNull || vector2.IsNull)
                 return SqlDouble.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector1, out var buffer1, out var length1);
-            SqlBytesInterop.GetFloatBuffer(vector2, out var buffer2, out var length2);
+            var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
+            var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
@@ -61,23 +52,13 @@ namespace SqlClrFunctions
             double dotProduct = 0;
             double norm1 = 0;
             double norm2 = 0;
-
-            unsafe
+            for (int i = 0; i < length1; i++)
             {
-                fixed (byte* p1 = buffer1)
-                fixed (byte* p2 = buffer2)
-                {
-                    var v1 = (float*)p1;
-                    var v2 = (float*)p2;
-                    for (int i = 0; i < length1; i++)
-                    {
-                        var left = v1[i];
-                        var right = v2[i];
-                        dotProduct += left * right;
-                        norm1 += left * left;
-                        norm2 += right * right;
-                    }
-                }
+                var left = values1[i];
+                var right = values2[i];
+                dotProduct += left * right;
+                norm1 += left * left;
+                norm2 += right * right;
             }
 
             if (norm1 == 0 || norm2 == 0)
@@ -95,26 +76,17 @@ namespace SqlClrFunctions
             if (vector1.IsNull || vector2.IsNull)
                 return SqlDouble.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector1, out var buffer1, out var length1);
-            SqlBytesInterop.GetFloatBuffer(vector2, out var buffer2, out var length2);
+            var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
+            var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
             double sumSquares = 0;
-            unsafe
+            for (int i = 0; i < length1; i++)
             {
-                fixed (byte* p1 = buffer1)
-                fixed (byte* p2 = buffer2)
-                {
-                    var v1 = (float*)p1;
-                    var v2 = (float*)p2;
-                    for (int i = 0; i < length1; i++)
-                    {
-                        double diff = v1[i] - v2[i];
-                        sumSquares += diff * diff;
-                    }
-                }
+                double diff = values1[i] - values2[i];
+                sumSquares += diff * diff;
             }
 
             return new SqlDouble(Math.Sqrt(sumSquares));
@@ -129,27 +101,16 @@ namespace SqlClrFunctions
             if (vector1.IsNull || vector2.IsNull)
                 return SqlBytes.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector1, out var buffer1, out var length1);
-            SqlBytesInterop.GetFloatBuffer(vector2, out var buffer2, out var length2);
+            var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
+            var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
             var result = new float[length1];
-
-            unsafe
+            for (int i = 0; i < length1; i++)
             {
-                fixed (byte* p1 = buffer1)
-                fixed (byte* p2 = buffer2)
-                fixed (float* pr = result)
-                {
-                    var v1 = (float*)p1;
-                    var v2 = (float*)p2;
-                    for (int i = 0; i < length1; i++)
-                    {
-                        pr[i] = v1[i] + v2[i];
-                    }
-                }
+                result[i] = values1[i] + values2[i];
             }
 
             return SqlBytesInterop.CreateFromFloats(result);
@@ -164,27 +125,16 @@ namespace SqlClrFunctions
             if (vector1.IsNull || vector2.IsNull)
                 return SqlBytes.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector1, out var buffer1, out var length1);
-            SqlBytesInterop.GetFloatBuffer(vector2, out var buffer2, out var length2);
+            var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
+            var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
             var result = new float[length1];
-
-            unsafe
+            for (int i = 0; i < length1; i++)
             {
-                fixed (byte* p1 = buffer1)
-                fixed (byte* p2 = buffer2)
-                fixed (float* pr = result)
-                {
-                    var v1 = (float*)p1;
-                    var v2 = (float*)p2;
-                    for (int i = 0; i < length1; i++)
-                    {
-                        pr[i] = v1[i] - v2[i];
-                    }
-                }
+                result[i] = values1[i] - values2[i];
             }
 
             return SqlBytesInterop.CreateFromFloats(result);
@@ -199,22 +149,13 @@ namespace SqlClrFunctions
             if (vector.IsNull || scalar.IsNull)
                 return SqlBytes.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector, out var buffer, out var length);
+            var values = SqlBytesInterop.GetFloatArray(vector, out var length);
             float s = (float)scalar.Value;
 
             var result = new float[length];
-
-            unsafe
+            for (int i = 0; i < length; i++)
             {
-                fixed (byte* p = buffer)
-                fixed (float* pr = result)
-                {
-                    var values = (float*)p;
-                    for (int i = 0; i < length; i++)
-                    {
-                        pr[i] = values[i] * s;
-                    }
-                }
+                result[i] = values[i] * s;
             }
 
             return SqlBytesInterop.CreateFromFloats(result);
@@ -229,21 +170,13 @@ namespace SqlClrFunctions
             if (vector.IsNull)
                 return SqlDouble.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector, out var buffer, out var length);
+            var values = SqlBytesInterop.GetFloatArray(vector, out var length);
 
             double sumSquares = 0;
-
-            unsafe
+            for (int i = 0; i < length; i++)
             {
-                fixed (byte* p = buffer)
-                {
-                    var values = (float*)p;
-                    for (int i = 0; i < length; i++)
-                    {
-                        double value = values[i];
-                        sumSquares += value * value;
-                    }
-                }
+                double value = values[i];
+                sumSquares += value * value;
             }
 
             return new SqlDouble(Math.Sqrt(sumSquares));
@@ -258,21 +191,13 @@ namespace SqlClrFunctions
             if (vector.IsNull)
                 return SqlBytes.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector, out var buffer, out var length);
+            var values = SqlBytesInterop.GetFloatArray(vector, out var length);
 
             double sumSquares = 0;
-
-            unsafe
+            for (int i = 0; i < length; i++)
             {
-                fixed (byte* p = buffer)
-                {
-                    var values = (float*)p;
-                    for (int i = 0; i < length; i++)
-                    {
-                        double value = values[i];
-                        sumSquares += value * value;
-                    }
-                }
+                double value = values[i];
+                sumSquares += value * value;
             }
 
             var norm = Math.Sqrt(sumSquares);
@@ -284,18 +209,9 @@ namespace SqlClrFunctions
 
             var scale = (float)(1.0 / norm);
             var result = new float[length];
-
-            unsafe
+            for (int i = 0; i < length; i++)
             {
-                fixed (byte* p = buffer)
-                fixed (float* pr = result)
-                {
-                    var values = (float*)p;
-                    for (int i = 0; i < length; i++)
-                    {
-                        pr[i] = values[i] * scale;
-                    }
-                }
+                result[i] = values[i] * scale;
             }
 
             return SqlBytesInterop.CreateFromFloats(result);
@@ -310,8 +226,8 @@ namespace SqlClrFunctions
             if (vector1.IsNull || vector2.IsNull || t.IsNull)
                 return SqlBytes.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector1, out var buffer1, out var length1);
-            SqlBytesInterop.GetFloatBuffer(vector2, out var buffer2, out var length2);
+            var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
+            var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
             float tVal = (float)t.Value;
 
             if (length1 != length2)
@@ -319,20 +235,9 @@ namespace SqlClrFunctions
 
             float complement = 1 - tVal;
             var result = new float[length1];
-
-            unsafe
+            for (int i = 0; i < length1; i++)
             {
-                fixed (byte* p1 = buffer1)
-                fixed (byte* p2 = buffer2)
-                fixed (float* pr = result)
-                {
-                    var v1 = (float*)p1;
-                    var v2 = (float*)p2;
-                    for (int i = 0; i < length1; i++)
-                    {
-                        pr[i] = v1[i] * complement + v2[i] * tVal;
-                    }
-                }
+                result[i] = values1[i] * complement + values2[i] * tVal;
             }
 
             return SqlBytesInterop.CreateFromFloats(result);
@@ -348,41 +253,26 @@ namespace SqlClrFunctions
             if (vector.IsNull)
                 return SqlBytes.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector, out var buffer, out var length);
+            var values = SqlBytesInterop.GetFloatArray(vector, out var length);
             if (length == 0)
                 return new SqlBytes(Array.Empty<byte>());
 
             double max = double.NegativeInfinity;
-            unsafe
+            for (int i = 0; i < length; i++)
             {
-                fixed (byte* p = buffer)
+                if (values[i] > max)
                 {
-                    var values = (float*)p;
-                    for (int i = 0; i < length; i++)
-                    {
-                        if (values[i] > max)
-                        {
-                            max = values[i];
-                        }
-                    }
+                    max = values[i];
                 }
             }
 
             double sum = 0;
             var result = new float[length];
-            unsafe
+            for (int i = 0; i < length; i++)
             {
-                fixed (byte* p = buffer)
-                fixed (float* pr = result)
-                {
-                    var values = (float*)p;
-                    for (int i = 0; i < length; i++)
-                    {
-                        double exp = Math.Exp(values[i] - max);
-                        pr[i] = (float)exp;
-                        sum += exp;
-                    }
-                }
+                double exp = Math.Exp(values[i] - max);
+                result[i] = (float)exp;
+                sum += exp;
             }
 
             if (sum == 0)
@@ -408,27 +298,18 @@ namespace SqlClrFunctions
             if (vector.IsNull)
                 return SqlInt32.Null;
 
-            SqlBytesInterop.GetFloatBuffer(vector, out var buffer, out var length);
+            var values = SqlBytesInterop.GetFloatArray(vector, out var length);
             if (length == 0)
                 return SqlInt32.Null;
 
             int index = 0;
-            float max;
-
-            unsafe
+            float max = values[0];
+            for (int i = 1; i < length; i++)
             {
-                fixed (byte* p = buffer)
+                if (values[i] > max)
                 {
-                    var values = (float*)p;
-                    max = values[0];
-                    for (int i = 1; i < length; i++)
-                    {
-                        if (values[i] > max)
-                        {
-                            max = values[i];
-                            index = i;
-                        }
-                    }
+                    max = values[i];
+                    index = i;
                 }
             }
 

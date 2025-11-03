@@ -20,6 +20,26 @@ namespace SqlClrFunctions
         private SqlString _metadata;
         private List<Segment> _segments;
 
+        internal IEnumerable<AtomicStreamSegmentSnapshot> EnumerateSegments()
+        {
+            if (_segments is null)
+            {
+                yield break;
+            }
+
+            for (int index = 0; index < _segments.Count; index++)
+            {
+                var segment = _segments[index];
+                yield return new AtomicStreamSegmentSnapshot(
+                    index,
+                    segment.Kind,
+                    segment.TimestampTicks,
+                    segment.ContentType,
+                    segment.Metadata,
+                    segment.Payload);
+            }
+        }
+
         public bool IsNull => _isNull;
 
         public static AtomicStream Null => new AtomicStream { _isNull = true };
@@ -36,8 +56,8 @@ namespace SqlClrFunctions
 
         public SqlInt32 SegmentCount => !_isNull && _segments != null ? new SqlInt32(_segments.Count) : SqlInt32.Zero;
 
-        [SqlMethod(IsMutator = true)]
-        public void Initialize(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
+        [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = false)]
+        public AtomicStream Initialize(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
         {
             if (streamId.IsNull || streamId.Value == Guid.Empty)
             {
@@ -45,17 +65,26 @@ namespace SqlClrFunctions
             }
 
             _streamId = streamId.Value;
-            _createdUtcTicks = createdUtc.IsNull ? DateTime.UtcNow.Ticks : EnsureUtc(createdUtc.Value.Value).Ticks;
+            _createdUtcTicks = createdUtc.IsNull ? DateTime.UtcNow.Ticks : EnsureUtc(createdUtc.Value).Ticks;
             _scope = Normalize(scope);
             _model = Normalize(model);
             _metadata = metadata.IsNull ? SqlString.Null : metadata;
             _segments ??= new List<Segment>(8);
             _segments.Clear();
             _isNull = false;
+
+            return this;
         }
 
-        [SqlMethod(IsMutator = true)]
-        public void AddSegment(SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
+        [SqlMethod(IsDeterministic = false, IsPrecise = false)]
+        public static AtomicStream Create(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
+        {
+            var stream = Null;
+            return stream.Initialize(streamId, createdUtc, scope, model, metadata);
+        }
+
+        [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = false)]
+        public AtomicStream AddSegment(SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
         {
             EnsureInitialized();
 
@@ -64,12 +93,20 @@ namespace SqlClrFunctions
 
             var segment = new Segment(
                 ParseSegmentKind(kind),
-                timestampUtc.IsNull ? DateTime.UtcNow.Ticks : EnsureUtc(timestampUtc.Value.Value).Ticks,
+                timestampUtc.IsNull ? DateTime.UtcNow.Ticks : EnsureUtc(timestampUtc.Value).Ticks,
                 contentType.IsNull ? null : contentType.Value,
                 metadata.IsNull ? null : metadata.Value,
                 clone);
 
             _segments.Add(segment);
+
+            return this;
+        }
+
+        [SqlMethod(IsDeterministic = false, IsPrecise = false)]
+        public static AtomicStream AppendSegment(AtomicStream stream, SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
+        {
+            return stream.AddSegment(kind, timestampUtc, contentType, metadata, payload);
         }
 
         [SqlMethod(IsDeterministic = true, IsPrecise = true)]
@@ -390,6 +427,37 @@ namespace SqlClrFunctions
             var clone = new byte[length];
             Buffer.BlockCopy(buffer, 0, clone, 0, length);
             return clone;
+        }
+
+        internal readonly struct AtomicStreamSegmentSnapshot
+        {
+            internal AtomicStreamSegmentSnapshot(
+                int ordinal,
+                AtomicStreamSegmentKind kind,
+                long timestampTicks,
+                string contentType,
+                string metadata,
+                byte[] payload)
+            {
+                Ordinal = ordinal;
+                Kind = kind;
+                TimestampTicks = timestampTicks;
+                ContentType = contentType;
+                Metadata = metadata;
+                Payload = payload ?? Array.Empty<byte>();
+            }
+
+            internal int Ordinal { get; }
+
+            internal AtomicStreamSegmentKind Kind { get; }
+
+            internal long TimestampTicks { get; }
+
+            internal string ContentType { get; }
+
+            internal string Metadata { get; }
+
+            internal byte[] Payload { get; }
         }
 
         private sealed class Segment

@@ -10,8 +10,18 @@ GO
 
 IF OBJECT_ID('dbo.SpatialAnchors', 'U') IS NULL
 BEGIN
-    RAISERROR('SpatialAnchors table missing - run migrations first', 16, 1);
-    RETURN;
+    PRINT 'Creating dbo.SpatialAnchors anchor table...';
+
+    CREATE TABLE dbo.SpatialAnchors
+    (
+        AnchorId INT NOT NULL PRIMARY KEY,
+        AnchorName NVARCHAR(128) NOT NULL,
+        AnchorVector VECTOR(1998) NOT NULL,
+        SelectionMethod NVARCHAR(64) NOT NULL,
+        CreatedAt DATETIME2(3) NOT NULL CONSTRAINT DF_SpatialAnchors_CreatedAt DEFAULT SYSUTCDATETIME()
+    );
+
+    PRINT '  ✓ SpatialAnchors table created.';
 END;
 GO
 

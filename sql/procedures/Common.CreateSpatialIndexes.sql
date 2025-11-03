@@ -1,6 +1,13 @@
 -- Creates and repairs spatial indexes required by the platform. Runnable multiple times safely.
 
 SET NOCOUNT ON;
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
 GO
 
 PRINT '============================================================';
@@ -272,46 +279,50 @@ BEGIN
 END;
 GO
 
--- ==========================================
--- TokenEmbeddingsGeo.SpatialProjection (Geo search)
--- ==========================================
-IF EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'idx_spatial_embedding'
-      AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo')
-)
+IF OBJECT_ID('dbo.TokenEmbeddingsGeo', 'U') IS NOT NULL
 BEGIN
-    PRINT 'Dropping legacy idx_spatial_embedding on TokenEmbeddingsGeo.SpatialProjection...';
-    DROP INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo;
-END;
+    IF EXISTS (
+        SELECT 1 FROM sys.indexes 
+        WHERE name = 'idx_spatial_embedding'
+          AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo')
+    )
+    BEGIN
+        PRINT 'Dropping legacy idx_spatial_embedding on TokenEmbeddingsGeo.SpatialProjection...';
+        DROP INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo;
+    END;
 
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_TokenEmbeddingsGeo_SpatialProjection' 
-    AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo')
-)
-BEGIN
-    PRINT 'Creating IX_TokenEmbeddingsGeo_SpatialProjection on TokenEmbeddingsGeo.SpatialProjection...';
-    
-    CREATE SPATIAL INDEX IX_TokenEmbeddingsGeo_SpatialProjection
-    ON dbo.TokenEmbeddingsGeo(SpatialProjection)
-    USING GEOMETRY_GRID
-    WITH (
-        BOUNDING_BOX = (-100, -100, 100, 100),
-        GRIDS = (
-            LEVEL_1 = HIGH,
-            LEVEL_2 = HIGH,
-            LEVEL_3 = MEDIUM,
-            LEVEL_4 = LOW
-        ),
-        CELLS_PER_OBJECT = 16
-    );
-    
-    PRINT '  ✓ IX_TokenEmbeddingsGeo_SpatialProjection created';
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes 
+        WHERE name = 'IX_TokenEmbeddingsGeo_SpatialProjection' 
+        AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo')
+    )
+    BEGIN
+        PRINT 'Creating IX_TokenEmbeddingsGeo_SpatialProjection on TokenEmbeddingsGeo.SpatialProjection...';
+        
+        CREATE SPATIAL INDEX IX_TokenEmbeddingsGeo_SpatialProjection
+        ON dbo.TokenEmbeddingsGeo(SpatialProjection)
+        USING GEOMETRY_GRID
+        WITH (
+            BOUNDING_BOX = (-100, -100, 100, 100),
+            GRIDS = (
+                LEVEL_1 = HIGH,
+                LEVEL_2 = HIGH,
+                LEVEL_3 = MEDIUM,
+                LEVEL_4 = LOW
+            ),
+            CELLS_PER_OBJECT = 16
+        );
+        
+        PRINT '  ✓ IX_TokenEmbeddingsGeo_SpatialProjection created';
+    END
+    ELSE
+    BEGIN
+        PRINT '  ✓ IX_TokenEmbeddingsGeo_SpatialProjection already exists';
+    END;
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_TokenEmbeddingsGeo_SpatialProjection already exists';
+    PRINT '  WARNING: TokenEmbeddingsGeo table not found; skipping spatial projection index.';
 END;
 GO
 

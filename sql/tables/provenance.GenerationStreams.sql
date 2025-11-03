@@ -1,5 +1,14 @@
 -- Creates the provenance.GenerationStreams table to persist AtomicStream payloads.
 
+SET ANSI_NULLS ON;
+SET QUOTED_IDENTIFIER ON;
+SET ANSI_PADDING ON;
+SET ANSI_WARNINGS ON;
+SET CONCAT_NULL_YIELDS_NULL ON;
+SET ARITHABORT ON;
+SET NUMERIC_ROUNDABORT OFF;
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'provenance')
 BEGIN
     EXEC('CREATE SCHEMA provenance AUTHORIZATION dbo');
@@ -18,6 +27,14 @@ BEGIN
         PayloadSizeBytes AS CONVERT(BIGINT, DATALENGTH(Stream)) PERSISTED,
         CONSTRAINT PK_GenerationStreams PRIMARY KEY CLUSTERED (StreamId)
     );
+END;
+GO
+
+IF COL_LENGTH('provenance.GenerationStreams', 'PayloadSizeBytes') IS NULL
+BEGIN
+    PRINT 'Adding persisted column provenance.GenerationStreams.PayloadSizeBytes';
+    ALTER TABLE provenance.GenerationStreams
+    ADD PayloadSizeBytes AS CONVERT(BIGINT, DATALENGTH(Stream)) PERSISTED;
 END;
 GO
 

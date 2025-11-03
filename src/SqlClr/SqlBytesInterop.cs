@@ -64,6 +64,25 @@ namespace SqlClrFunctions
             floatCount = byteLength / sizeof(float);
         }
 
+        internal static float[] GetFloatArray(SqlBytes value, out int floatCount)
+        {
+            var buffer = GetBuffer(value, out var byteLength);
+            if ((byteLength & (sizeof(float) - 1)) != 0)
+            {
+                throw new ArgumentException("Vector byte length must be a multiple of 4 bytes.", nameof(value));
+            }
+
+            floatCount = byteLength / sizeof(float);
+            if (floatCount == 0)
+            {
+                return Array.Empty<float>();
+            }
+
+            var result = new float[floatCount];
+            Buffer.BlockCopy(buffer, 0, result, 0, byteLength);
+            return result;
+        }
+
         internal static SqlBytes CreateFromFloats(float[] values)
         {
             if (values is null)

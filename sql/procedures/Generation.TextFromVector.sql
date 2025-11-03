@@ -183,6 +183,31 @@ BEGIN
         FOR JSON PATH
     );
 
+    DECLARE @streamId UNIQUEIDENTIFIER = NEWID();
+
+    DECLARE @stream provenance.AtomicStream;
+    SET @stream = CONVERT(provenance.AtomicStream, NULL);
+    DECLARE @streamCreated DATETIME2(3) = SYSUTCDATETIME();
+    DECLARE @primaryModel NVARCHAR(128) = (
+        SELECT TOP (1) ModelName FROM @models ORDER BY Weight DESC, ModelId
+    );
+    DECLARE @modelCount INT = (SELECT COUNT(*) FROM @models);
+    DECLARE @streamScope NVARCHAR(128) = 'text_generation';
+
+    DECLARE @streamMetadata NVARCHAR(MAX) = JSON_OBJECT('inference_id': @inferenceId, 'model_count': @modelCount);
+
+    SET @stream = provenance.clr_CreateAtomicStream(@streamId, @streamCreated, @streamScope, @primaryModel, @streamMetadata);
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Input', @streamCreated, 'text/plain; charset=utf-16', JSON_OBJECT('prompt_length': LEN(@prompt)), CONVERT(VARBINARY(MAX), @prompt));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Control', @streamCreated, 'application/json', JSON_OBJECT('max_tokens': @max_tokens, 'temperature': @temperature, 'top_k': @top_k), CONVERT(VARBINARY(MAX), JSON_QUERY(@modelsJson)));
+
+    IF @promptEmbedding IS NOT NULL
+    BEGIN
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Embedding', @streamCreated, 'application/octet-stream', JSON_OBJECT('dimension': @embeddingDim), CAST(@promptEmbedding AS VARBINARY(MAX)));
+    END;
+
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Telemetry', SYSUTCDATETIME(), 'application/json', JSON_OBJECT('token_count': @tokenCount, 'duration_ms': @totalDuration), CONVERT(VARBINARY(MAX), JSON_QUERY(@tokensJson)));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CONVERT(VARBINARY(MAX), @generatedText));
+
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @totalDuration,
         OutputData = TRY_CAST(JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @generatedText) AS JSON),
@@ -199,8 +224,12 @@ BEGIN
     SELECT @inferenceId, StepNumber, 'text_generation_step', DurationMs, ModelCount
     FROM @sequence;
 
+    INSERT INTO provenance.GenerationStreams (StreamId, Scope, Model, CreatedUtc, Stream)
+    VALUES (@streamId, @streamScope, @primaryModel, @streamCreated, @stream);
+
     SELECT
         @inferenceId AS InferenceId,
+        @streamId AS StreamId,
         @prompt AS OriginalPrompt,
         @generatedText AS GeneratedText,
         @tokenCount AS TokensGenerated,

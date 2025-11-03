@@ -115,7 +115,7 @@ BEGIN
     IF EXISTS (SELECT 1 FROM @audioCandidates)
     BEGIN
         INSERT INTO @segments
-        SELECT TOP (CEILING(@targetDurationMs / 50.0))
+    SELECT TOP (CONVERT(INT, CEILING(@targetDurationMs / 50.0)))
             af.AudioId,
             af.FrameNumber,
             af.TimestampMs,
