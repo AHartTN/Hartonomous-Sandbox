@@ -31,11 +31,20 @@ This guide explains how to stand up Hartonomous environments and operate them da
    dotnet ef database update --project src/Hartonomous.Data --startup-project src/Hartonomous.Infrastructure --context HartonomousDbContext
    ```
 
-4. **Seed reference data.** The deployment script (`deploy-database.ps1`) can seed base rate plans and sample atoms when `-Seed $true` is provided.
-5. **Configure applications.**
+4. **Publish SQL CLR artifacts.** Build the assembly, deploy the `AtomicStream` type, then recreate CLR helper bindings.
+
+   ```powershell
+   msbuild src/SqlClr/SqlClrFunctions.csproj /p:Configuration=Release
+   sqlcmd -S . -d Hartonomous -i sql/types/provenance.AtomicStream.sql -v SqlClrAssemblyPath="D:\\deploy\\SqlClrFunctions.dll"
+   sqlcmd -S . -d Hartonomous -i sql/procedures/Common.ClrBindings.sql
+   sqlcmd -S . -d Hartonomous -i sql/tables/provenance.GenerationStreams.sql
+   ```
+
+5. **Seed reference data.** The deployment script (`deploy-database.ps1`) can seed base rate plans and sample atoms when `-Seed $true` is provided.
+6. **Configure applications.**
    - Update `appsettings.Production.json` (or equivalent) with connection strings, Service Broker queue name, security options, and billing defaults.
    - Register `IServiceBrokerResilienceStrategy`, throttle rules, and policy rules in DI during host bootstrap.
-6. **Launch services.** Start `CesConsumer`, `Neo4jSync`, admin UI, and any worker processes.  Confirm they can connect to SQL Server and Neo4j.
+7. **Launch services.** Start `CesConsumer`, `Neo4jSync`, admin UI, and any worker processes.  Confirm they can connect to SQL Server and Neo4j.
 
 ## Operational Runbooks
 
