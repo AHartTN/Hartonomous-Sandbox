@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hartonomous.Core\Hartonomous.Core.csproj" />
+    <ProjectReference Include="..\..\src\Hartonomous.Data\Hartonomous.Data.csproj" />
+    <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>

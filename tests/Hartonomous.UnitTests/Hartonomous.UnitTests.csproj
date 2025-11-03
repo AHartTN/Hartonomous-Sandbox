@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-rc.2.25502.107" />
+    <PackageReference Include="NetTopologySuite" Version="2.6.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Hartonomous.Core\Hartonomous.Core.csproj" />
+    <ProjectReference Include="..\..\src\Hartonomous.Data\Hartonomous.Data.csproj" />
+    <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ModelIngestion\ModelIngestion.csproj" />
+    <ProjectReference Include="..\..\src\Neo4jSync\Neo4jSync.csproj" />
+  </ItemGroup>
+
+</Project>

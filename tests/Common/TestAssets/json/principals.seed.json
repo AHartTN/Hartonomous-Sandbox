@@ -1,0 +1,23 @@
+[
+  {
+    "principalId": "10000000-0000-0000-0000-000000000001",
+    "tenantId": "00000000-0000-0000-0000-000000000001",
+    "upn": "avery.thomas@atlas.example",
+    "roles": ["admin", "billing"],
+    "status": "active"
+  },
+  {
+    "principalId": "10000000-0000-0000-0000-000000000002",
+    "tenantId": "00000000-0000-0000-0000-000000000002",
+    "upn": "mika.cho@lumen.example",
+    "roles": ["admin"],
+    "status": "active"
+  },
+  {
+    "principalId": "10000000-0000-0000-0000-000000000003",
+    "tenantId": "00000000-0000-0000-0000-000000000003",
+    "upn": "casey.garcia@northwind-k12.example",
+    "roles": ["observer"],
+    "status": "suspended"
+  }
+]
