@@ -325,60 +325,116 @@ END;
 
         var database = DbContext.Database;
 
-        const string spatialIndexSql = """
-IF EXISTS (
-    SELECT 1
-    FROM sys.indexes
-    WHERE name = N'idx_spatial_embedding'
-      AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
-)
+        const string ensureTableSql = """
+IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NULL
 BEGIN
-    DROP INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo;
-END;
+    CREATE TABLE dbo.TokenEmbeddingsGeo
+    (
+        TokenEmbeddingsGeoId BIGINT IDENTITY(1,1) PRIMARY KEY,
+        TokenText NVARCHAR(128) NOT NULL,
+        SpatialProjection GEOMETRY NOT NULL,
+        CoarseSpatial GEOMETRY NULL,
+        FineSpatial GEOMETRY NULL,
+        Frequency INT NOT NULL,
+        CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+        UpdatedAt DATETIME2 NULL
+    );
 
-IF NOT EXISTS (
-    SELECT 1
-    FROM sys.indexes
-    WHERE name = N'IX_TokenEmbeddingsGeo_SpatialProjection'
-      AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
-)
+    CREATE UNIQUE INDEX UX_TokenEmbeddingsGeo_TokenText
+        ON dbo.TokenEmbeddingsGeo(TokenText);
+END;
+""";
+        await database.ExecuteSqlRawAsync(ensureTableSql, cancellationToken).ConfigureAwait(false);
+
+        const string spatialIndexSql = """
+IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NOT NULL
 BEGIN
-    DECLARE @sql NVARCHAR(MAX) = N'
-        CREATE SPATIAL INDEX IX_TokenEmbeddingsGeo_SpatialProjection
-        ON dbo.TokenEmbeddingsGeo(SpatialProjection)
-        USING GEOMETRY_GRID
-        WITH (
-            BOUNDING_BOX = (-100, -100, 100, 100),
-            GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = MEDIUM, LEVEL_4 = LOW),
-            CELLS_PER_OBJECT = 16
-        );';
-    EXEC(@sql);
+    IF EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = N'idx_spatial_embedding'
+          AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
+    )
+    BEGIN
+        DROP INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo;
+    END;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM sys.indexes
+        WHERE name = N'IX_TokenEmbeddingsGeo_SpatialProjection'
+          AND object_id = OBJECT_ID(N'dbo.TokenEmbeddingsGeo')
+    )
+    BEGIN
+        DECLARE @sql NVARCHAR(MAX) = N'
+            CREATE SPATIAL INDEX IX_TokenEmbeddingsGeo_SpatialProjection
+            ON dbo.TokenEmbeddingsGeo(SpatialProjection)
+            USING GEOMETRY_GRID
+            WITH (
+                BOUNDING_BOX = (-100, -100, 100, 100),
+                GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = MEDIUM, LEVEL_4 = LOW),
+                CELLS_PER_OBJECT = 16
+            );';
+        EXEC(@sql);
+    END;
 END;
 """;
         await database.ExecuteSqlRawAsync(spatialIndexSql, cancellationToken).ConfigureAwait(false);
 
-        const string resetSeedTokensSql = """
-DELETE FROM dbo.TokenEmbeddingsGeo
-WHERE TokenText IN ('the', 'is', 'machine', 'learning', 'database', 'query', 'neural', 'network');
-""";
-        await database.ExecuteSqlRawAsync(resetSeedTokensSql, cancellationToken).ConfigureAwait(false);
-
         const string seedTokensSql = """
-INSERT INTO dbo.TokenEmbeddingsGeo (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
-VALUES
-('the', geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.10 0.20 0.10)', 0), 512),
-('is', geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), geometry::STGeomFromText('POINT (0 0 0)', 0), geometry::STGeomFromText('POINT (0.15 0.18 0.12)', 0), 384),
-('machine', geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.2 3.1 1.8)', 0), 120),
-('learning', geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.5 3.3 2.1)', 0), 110),
-('database', geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-3.1 4.2 -1.5)', 0), 95),
-('query', geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), geometry::STGeomFromText('POINT (-3 4 -2)', 0), geometry::STGeomFromText('POINT (-2.8 4.5 -1.3)', 0), 88),
-('neural', geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (5.8 2.9 2.3)', 0), 140),
-('network', geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), geometry::STGeomFromText('POINT (5 3 2)', 0), geometry::STGeomFromText('POINT (6.1 3.2 2.5)', 0), 135);
+IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NOT NULL
+BEGIN
+    DECLARE @SeedTokens TABLE
+    (
+        TokenText NVARCHAR(128),
+        SpatialProjectionWkt NVARCHAR(200),
+        CoarseSpatialWkt NVARCHAR(200),
+        FineSpatialWkt NVARCHAR(200),
+        Frequency INT
+    );
+
+    INSERT INTO @SeedTokens (TokenText, SpatialProjectionWkt, CoarseSpatialWkt, FineSpatialWkt, Frequency) VALUES
+    (N'the', N'POINT (0.10 0.20 0.10)', N'POINT (0 0 0)', N'POINT (0.10 0.20 0.10)', 512),
+    (N'is', N'POINT (0.15 0.18 0.12)', N'POINT (0 0 0)', N'POINT (0.15 0.18 0.12)', 384),
+    (N'machine', N'POINT (5.2 3.1 1.8)', N'POINT (5 3 2)', N'POINT (5.2 3.1 1.8)', 120),
+    (N'learning', N'POINT (5.5 3.3 2.1)', N'POINT (5 3 2)', N'POINT (5.5 3.3 2.1)', 110),
+    (N'database', N'POINT (-3.1 4.2 -1.5)', N'POINT (-3 4 -2)', N'POINT (-3.1 4.2 -1.5)', 95),
+    (N'query', N'POINT (-2.8 4.5 -1.3)', N'POINT (-3 4 -2)', N'POINT (-2.8 4.5 -1.3)', 88),
+    (N'neural', N'POINT (5.8 2.9 2.3)', N'POINT (5 3 2)', N'POINT (5.8 2.9 2.3)', 140),
+    (N'network', N'POINT (6.1 3.2 2.5)', N'POINT (5 3 2)', N'POINT (6.1 3.2 2.5)', 135);
+
+    MERGE dbo.TokenEmbeddingsGeo AS target
+    USING (
+        SELECT
+            TokenText,
+            SpatialProjectionWkt,
+            CoarseSpatialWkt,
+            FineSpatialWkt,
+            Frequency
+        FROM @SeedTokens
+    ) AS source
+        ON target.TokenText = source.TokenText
+    WHEN MATCHED THEN UPDATE SET
+        SpatialProjection = geometry::STGeomFromText(source.SpatialProjectionWkt, 0),
+        CoarseSpatial = geometry::STGeomFromText(source.CoarseSpatialWkt, 0),
+        FineSpatial = geometry::STGeomFromText(source.FineSpatialWkt, 0),
+        Frequency = source.Frequency,
+        UpdatedAt = SYSUTCDATETIME()
+    WHEN NOT MATCHED THEN INSERT (TokenText, SpatialProjection, CoarseSpatial, FineSpatial, Frequency)
+    VALUES (
+        source.TokenText,
+        geometry::STGeomFromText(source.SpatialProjectionWkt, 0),
+        geometry::STGeomFromText(source.CoarseSpatialWkt, 0),
+        geometry::STGeomFromText(source.FineSpatialWkt, 0),
+        source.Frequency
+    );
+END;
 """;
         await database.ExecuteSqlRawAsync(seedTokensSql, cancellationToken).ConfigureAwait(false);
 
         const string ensureAnchorsSql = """
-IF NOT EXISTS (SELECT 1 FROM dbo.SpatialAnchors)
+IF OBJECT_ID(N'dbo.TokenEmbeddingsGeo', N'U') IS NOT NULL
+   AND NOT EXISTS (SELECT 1 FROM dbo.SpatialAnchors)
 BEGIN
     EXEC dbo.sp_InitializeSpatialAnchors;
 END;
@@ -456,16 +512,17 @@ END;
         for (var index = 0; index < sampleTexts.Length; index++)
         {
             var text = sampleTexts[index];
+            var contentHash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
+
             var atom = await DbContext.Atoms
-                .FirstOrDefaultAsync(a => a.CanonicalText == text, cancellationToken)
+                .FirstOrDefaultAsync(a => a.ContentHash == contentHash, cancellationToken)
                 .ConfigureAwait(false);
 
             if (atom is null)
             {
-                var hash = SHA256.HashData(Encoding.UTF8.GetBytes(text));
                 atom = new Atom
                 {
-                    ContentHash = hash,
+                    ContentHash = contentHash,
                     Modality = "text",
                     Subtype = "document",
                     SourceUri = "integration://seed",
@@ -480,10 +537,38 @@ END;
                 DbContext.Atoms.Add(atom);
                 await DbContext.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
             }
-            else if (atom.ReferenceCount < 1)
+            else
             {
-                atom.ReferenceCount = 1;
-                saveRequired = true;
+                var atomUpdated = false;
+
+                if (!string.Equals(atom.CanonicalText, text, StringComparison.Ordinal))
+                {
+                    atom.CanonicalText = text;
+                    atomUpdated = true;
+                }
+
+                if (!string.Equals(atom.SourceType, "integration-test", StringComparison.Ordinal))
+                {
+                    atom.SourceType = "integration-test";
+                    atomUpdated = true;
+                }
+
+                if (atom.ReferenceCount < 1)
+                {
+                    atom.ReferenceCount = 1;
+                    atomUpdated = true;
+                }
+
+                if (!atom.IsActive)
+                {
+                    atom.IsActive = true;
+                    atomUpdated = true;
+                }
+
+                if (atomUpdated)
+                {
+                    saveRequired = true;
+                }
             }
 
             var embedding = await DbContext.AtomEmbeddings

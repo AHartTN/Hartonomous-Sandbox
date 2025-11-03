@@ -17,7 +17,7 @@ SQL Server CDC ──► CesConsumer ──► Service Broker Queue ──► Ne
 | Project | Responsibility |
 | --- | --- |
 | `Hartonomous.Core` | Domain primitives: atoms, embeddings, billing entities, access policy contracts |
-| `Hartonomous.Data` | EF Core `HartonomousDbContext`, entity configuration, and migrations (`AddBillingTables`, etc.) |
+| `Hartonomous.Data` | EF Core `HartonomousDbContext`, entity configuration, and migrations (`AddBillingTables`, `EnrichBillingPlans`, etc.) |
 | `Hartonomous.Infrastructure` | Implementations for billing, messaging, security, throttling, repositories, and SQL graph sync |
 | `CesConsumer` | Listens to SQL CDC, enriches change events, publishes CloudEvents to Service Broker |
 | `Neo4jSync` | Consumes broker messages, enforces policy/throttle, records billing, projects data into Neo4j |
@@ -29,7 +29,7 @@ SQL Server CDC ──► CesConsumer ──► Service Broker Queue ──► Ne
 ### SQL Server 2025
 
 - **Multimodal atoms.** Tables such as `Atoms`, `AtomEmbeddings`, `AtomicAudioSamples` store deduplicated content and vector data (`VECTOR`, `GEOMETRY`).
-- **Billing schema.** New tables `BillingRatePlans`, `BillingOperationRates`, `BillingMultipliers`, `BillingUsageLedger` are managed via EF Core migrations.  Seeding and updates must go through the DbContext.
+- **Billing schema.** `BillingRatePlans`, `BillingOperationRates`, `BillingMultipliers`, and `BillingUsageLedger` are managed via migrations (`AddBillingTables`, `EnrichBillingPlans`).  Columns now include plan codes, monthly fees, DCU pricing, storage/seat entitlements, operation metadata, and unique plan indexes.  Seeding and updates must go through the DbContext.
 - **Messaging.** Service Broker queue (`HartonomousQueue` by default) is the backbone for domain events handled by downstream services.
 
 ### Neo4j 5.x
@@ -43,7 +43,7 @@ SQL Server CDC ──► CesConsumer ──► Service Broker Queue ──► Ne
 2. **Service Broker publish.** `SqlMessageBroker` encapsulates send/receive logic with automatic conversation management, retry, and dead-letter routing via `SqlMessageDeadLetterSink`.
 3. **Resilience.** `ServiceBrokerResilienceStrategy` wraps publish/receive operations with retry policies and circuit breaker semantics.
 4. **Dispatch.** `EventDispatcher` in `Neo4jSync` routes messages to specific handlers (model, inference, knowledge, generic) after evaluating access policies and throttling.
-5. **Billing.** `UsageBillingMeter` constructs `BillingUsageRecord` objects written to the ledger through `SqlBillingUsageSink`.
+5. **Billing.** `UsageBillingMeter` resolves tenant rate plans via `SqlBillingConfigurationProvider`, applies modality/complexity/content type/grounding/guarantee/provenance multipliers, enriches operation metadata, and persists `BillingUsageRecord` objects through `SqlBillingUsageSink`.
 
 ## Security & Governance
 

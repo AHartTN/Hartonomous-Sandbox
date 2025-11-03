@@ -31,13 +31,22 @@ BEGIN
     ORDER BY UpdatedUtc DESC;
 END
 
-SELECT @ResolvedRatePlanId AS RatePlanId;
-
-SELECT DefaultRate
+SELECT
+    RatePlanId,
+    PlanCode,
+    Name,
+    DefaultRate,
+    MonthlyFee,
+    UnitPricePerDcu,
+    IncludedPublicStorageGb,
+    IncludedPrivateStorageGb,
+    IncludedSeatCount,
+    AllowsPrivateData,
+    CanQueryPublicCorpus
 FROM dbo.BillingRatePlans
 WHERE RatePlanId = @ResolvedRatePlanId;
 
-SELECT Operation, Rate
+SELECT Operation, Rate, UnitOfMeasure, Category
 FROM dbo.BillingOperationRates
 WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;
 
@@ -104,30 +113,39 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
 
         await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
+        var options = _optionsMonitor.CurrentValue;
+
         if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
         {
-            return MapOptionsToConfiguration(_optionsMonitor.CurrentValue);
+            return MapOptionsToConfiguration(options);
         }
 
         if (reader.IsDBNull(0))
         {
-            return MapOptionsToConfiguration(_optionsMonitor.CurrentValue);
+            return MapOptionsToConfiguration(options);
         }
 
-    var ratePlanId = reader.GetGuid(0);
-
-        if (!await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
+        var ratePlanId = reader.GetGuid(0);
+        var planCode = reader.IsDBNull(1) ? options.DefaultPlanCode : reader.GetString(1);
+        var planName = reader.IsDBNull(2) ? options.DefaultPlanName : reader.GetString(2);
+        var defaultRate = reader.IsDBNull(3) ? options.DefaultRate : reader.GetDecimal(3);
+        var monthlyFee = reader.IsDBNull(4) ? options.DefaultMonthlyFee : reader.GetDecimal(4);
+        var unitPricePerDcu = reader.IsDBNull(5) ? options.UnitPricePerDcu : reader.GetDecimal(5);
+        if (unitPricePerDcu <= 0)
         {
-            return MapOptionsToConfiguration(_optionsMonitor.CurrentValue);
+            unitPricePerDcu = options.UnitPricePerDcu;
         }
 
-        decimal defaultRate = _optionsMonitor.CurrentValue.DefaultRate;
-        if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false) && !reader.IsDBNull(0))
-        {
-            defaultRate = reader.GetDecimal(0);
-        }
+        var includedPublicStorage = reader.IsDBNull(6) ? options.DefaultIncludedPublicStorageGb : reader.GetDecimal(6);
+        var includedPrivateStorage = reader.IsDBNull(7) ? options.DefaultIncludedPrivateStorageGb : reader.GetDecimal(7);
+        var includedSeatCount = reader.IsDBNull(8) ? options.DefaultIncludedSeatCount : reader.GetInt32(8);
+        var allowsPrivateData = !reader.IsDBNull(9) && reader.GetBoolean(9);
+        var canQueryPublicCorpus = !reader.IsDBNull(10) && reader.GetBoolean(10);
 
         var operationRates = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var operationUnits = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        var operationCategories = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+
         if (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
@@ -140,12 +158,33 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
                 var operation = reader.GetString(0);
                 var rate = reader.GetDecimal(1);
                 operationRates[operation] = rate;
+
+                if (!reader.IsDBNull(2))
+                {
+                    var unit = reader.GetString(2);
+                    if (!string.IsNullOrWhiteSpace(unit))
+                    {
+                        operationUnits[operation] = unit;
+                    }
+                }
+
+                if (!reader.IsDBNull(3))
+                {
+                    var category = reader.GetString(3);
+                    if (!string.IsNullOrWhiteSpace(category))
+                    {
+                        operationCategories[operation] = category;
+                    }
+                }
             }
         }
 
         var generationMultipliers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         var complexityMultipliers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
         var contentTypeMultipliers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var groundingMultipliers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var guaranteeMultipliers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
+        var provenanceMultipliers = new Dictionary<string, decimal>(StringComparer.OrdinalIgnoreCase);
 
         if (await reader.NextResultAsync(cancellationToken).ConfigureAwait(false))
         {
@@ -173,6 +212,15 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
                     case "contenttype":
                         contentTypeMultipliers[key] = multiplier;
                         break;
+                    case "grounding":
+                        groundingMultipliers[key] = multiplier;
+                        break;
+                    case "guarantee":
+                        guaranteeMultipliers[key] = multiplier;
+                        break;
+                    case "provenance":
+                        provenanceMultipliers[key] = multiplier;
+                        break;
                 }
             }
         }
@@ -180,11 +228,25 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
         return new BillingConfiguration
         {
             RatePlanId = ratePlanId,
+            PlanCode = planCode,
+            PlanName = planName,
             DefaultRate = defaultRate,
+            MonthlyFee = monthlyFee,
+            UnitPricePerDcu = unitPricePerDcu,
+            IncludedPublicStorageGb = includedPublicStorage,
+            IncludedPrivateStorageGb = includedPrivateStorage,
+            IncludedSeatCount = includedSeatCount,
+            AllowsPrivateData = allowsPrivateData,
+            CanQueryPublicCorpus = canQueryPublicCorpus,
             OperationRates = operationRates,
+            OperationUnits = operationUnits,
+            OperationCategories = operationCategories,
             GenerationTypeMultipliers = generationMultipliers,
             ComplexityMultipliers = complexityMultipliers,
-            ContentTypeMultipliers = contentTypeMultipliers
+            ContentTypeMultipliers = contentTypeMultipliers,
+            GroundingMultipliers = groundingMultipliers,
+            GuaranteeMultipliers = guaranteeMultipliers,
+            ProvenanceMultipliers = provenanceMultipliers
         };
     }
 
@@ -193,11 +255,25 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
         return new BillingConfiguration
         {
             RatePlanId = null,
+            PlanCode = options.DefaultPlanCode,
+            PlanName = options.DefaultPlanName,
             DefaultRate = options.DefaultRate,
+            MonthlyFee = options.DefaultMonthlyFee,
+            UnitPricePerDcu = options.UnitPricePerDcu,
+            IncludedPublicStorageGb = options.DefaultIncludedPublicStorageGb,
+            IncludedPrivateStorageGb = options.DefaultIncludedPrivateStorageGb,
+            IncludedSeatCount = options.DefaultIncludedSeatCount,
+            AllowsPrivateData = options.DefaultAllowsPrivateData,
+            CanQueryPublicCorpus = options.DefaultCanQueryPublicCorpus,
             OperationRates = new Dictionary<string, decimal>(options.OperationRates, StringComparer.OrdinalIgnoreCase),
+            OperationUnits = new Dictionary<string, string>(options.OperationUnits, StringComparer.OrdinalIgnoreCase),
+            OperationCategories = new Dictionary<string, string?>(options.OperationCategories, StringComparer.OrdinalIgnoreCase),
             GenerationTypeMultipliers = new Dictionary<string, decimal>(options.GenerationTypeMultipliers, StringComparer.OrdinalIgnoreCase),
             ComplexityMultipliers = new Dictionary<string, decimal>(options.ComplexityMultipliers, StringComparer.OrdinalIgnoreCase),
-            ContentTypeMultipliers = new Dictionary<string, decimal>(options.ContentTypeMultipliers, StringComparer.OrdinalIgnoreCase)
+            ContentTypeMultipliers = new Dictionary<string, decimal>(options.ContentTypeMultipliers, StringComparer.OrdinalIgnoreCase),
+            GroundingMultipliers = new Dictionary<string, decimal>(options.GroundingMultipliers, StringComparer.OrdinalIgnoreCase),
+            GuaranteeMultipliers = new Dictionary<string, decimal>(options.GuaranteeMultipliers, StringComparer.OrdinalIgnoreCase),
+            ProvenanceMultipliers = new Dictionary<string, decimal>(options.ProvenanceMultipliers, StringComparer.OrdinalIgnoreCase)
         };
     }
 }

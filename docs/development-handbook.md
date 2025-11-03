@@ -13,10 +13,10 @@ This handbook describes how to contribute to Hartonomous without breaking the pl
    dotnet restore
    ```
 
-3. Create a developer database.  Use the deployment script with `-Environment Dev` to seed sample content and a default billing rate plan.
+3. Create a developer database.  Use the deployment script with `-Environment Dev` to seed sample content and the default `publisher_core` billing plan (plan code, monthly fee, DCU pricing, storage/seat allowances, privacy flags).
 4. Set up appsettings:
    - Copy `src/Hartonomous.Infrastructure/appsettings.Development.example.json` to `appsettings.Development.json` (create if missing).
-   - Set `ConnectionStrings:HartonomousDb`, `Neo4j` credentials, and Service Broker configuration.
+   - Set `ConnectionStrings:HartonomousDb`, `Neo4j` credentials, Service Broker configuration, and ensure the `Billing` section includes the enriched defaults (plan metadata, operation rates/categories/units, multiplier catalogs).
 5. Start the core services you need (Neo4jSync worker, CesConsumer, admin UI).  For local development, you can run them in separate terminals.
 
 ## Coding Guidelines

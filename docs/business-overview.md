@@ -22,13 +22,14 @@ Hartonomous packages the heavy lifting of multimodal AI infrastructure into a pl
 
 Hartonomous itself is an internal platform.  The new billing tables support several commercial motions:
 
-1. **Consumption plans.** Default rate per operation with multipliers for modality, complexity, and content type.
-2. **Enterprise commitments.** Provisioning multiple rate plans per tenant allows negotiated pricing and experiment tracking.
-3. **Internal chargeback.** Ledger data aggregates per tenant/operation and can be exported to ERP tooling.
+1. **Consumption plans.** Default rate per operation with multipliers for modality, complexity, content type, grounding, guarantee tier, and provenance requirements.
+2. **Plan subscriptions.** Each plan carries a code, named tier, monthly platform fee, unit price per DCU, and bundled storage/seat entitlements while enforcing private data access flags.
+3. **Enterprise commitments.** Provisioning multiple rate plans per tenant allows negotiated pricing, contract variance, and experiment tracking.
+4. **Internal chargeback.** Ledger data aggregates per tenant/operation and can be exported to ERP tooling.
 
 Finance teams can extend the ledger by:
 
-- Adding additional dimensions to the `BillingMultipliers` table (lookups via EF Core configuration).
+- Adding additional dimensions to the `BillingMultipliers` table (lookups via EF Core configuration and configuration defaults).
 - Connecting external invoicing by streaming ledger entries into analytics pipelines.
 - Building dashboards on top of the admin UI’s forthcoming billing workspace.
 

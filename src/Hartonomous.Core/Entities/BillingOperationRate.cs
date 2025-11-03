@@ -10,6 +10,12 @@ public sealed class BillingOperationRate
 
     public string Operation { get; set; } = string.Empty;
 
+    public string UnitOfMeasure { get; set; } = string.Empty;
+
+    public string? Category { get; set; }
+
+    public string? Description { get; set; }
+
     public decimal Rate { get; set; }
 
     public bool IsActive { get; set; } = true;

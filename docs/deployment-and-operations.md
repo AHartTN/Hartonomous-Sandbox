@@ -25,7 +25,7 @@ This guide explains how to stand up Hartonomous environments and operate them da
    ALTER DATABASE [Hartonomous] SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE;
    ```
 
-3. **Apply migrations.** Run from the CI/CD agent or the machine hosting deployments.
+3. **Apply migrations.** Run from the CI/CD agent or the machine hosting deployments.  Ensure both `AddBillingTables` and `EnrichBillingPlans` (and any newer migrations) are executed before services start.
 
    ```powershell
    dotnet ef database update --project src/Hartonomous.Data --startup-project src/Hartonomous.Infrastructure --context HartonomousDbContext
@@ -41,7 +41,7 @@ This guide explains how to stand up Hartonomous environments and operate them da
    sqlcmd -S . -d Hartonomous -i sql/procedures/provenance.AtomicStreamSegments.sql
    ```
 
-5. **Seed reference data.** The deployment script (`deploy-database.ps1`) can seed base rate plans and sample atoms when `-Seed $true` is provided.
+5. **Seed reference data.** The deployment script (`deploy-database.ps1`) can seed the default `publisher_core` rate plan (plan code, monthly fee, DCU pricing, storage/seat entitlements, privacy flags) plus sample atoms when `-Seed $true` is provided.
 6. **Configure applications.**
    - Update `appsettings.Production.json` (or equivalent) with connection strings, Service Broker queue name, security options, and billing defaults.
    - Register `IServiceBrokerResilienceStrategy`, throttle rules, and policy rules in DI during host bootstrap.
@@ -95,7 +95,7 @@ This guide explains how to stand up Hartonomous environments and operate them da
 - `Neo4j:Uri`, `Neo4j:User`, `Neo4j:Password`: Graph database access.
 - `MessageBroker`: Initiator/target service names, queue name, contract, message type, conversation lifetime.
 - `ServiceBrokerResilience`: Retry counts, jitter, circuit breaker thresholds, poison message attempts.
-- `Billing`: Default rate, per-operation rates, multipliers.
+- `Billing`: Default plan code/name, monthly fee, unit price per DCU, bundled storage/seat entitlements, operation rates/categories/units, and multiplier catalogs (modality, complexity, content type, grounding, guarantee, provenance).
 - `Security`: Rate limit rules, banned tenants/principals.
 
 ## Backups & Disaster Recovery

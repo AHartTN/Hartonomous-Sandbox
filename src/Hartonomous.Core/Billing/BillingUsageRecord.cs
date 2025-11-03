@@ -24,7 +24,12 @@ public sealed class BillingUsageRecord
     public decimal Multiplier { get; init; }
         = 1m;
 
-    public decimal TotalCost => Math.Round(Units * BaseRate * Multiplier, 6, MidpointRounding.AwayFromZero);
+    public decimal UnitPrice { get; init; }
+        = 0.00008m;
+
+    public decimal TotalDcu => Math.Round(Units * BaseRate * Multiplier, 6, MidpointRounding.AwayFromZero);
+
+    public decimal TotalCost => Math.Round(TotalDcu * UnitPrice, 6, MidpointRounding.AwayFromZero);
 
     public IReadOnlyDictionary<string, object?> Metadata { get; init; } = new Dictionary<string, object?>();
 

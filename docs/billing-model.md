@@ -5,14 +5,14 @@ The November 2025 release introduces native billing support across the Hartonomo
 ## Schema Overview
 
 ```text
-BillingRatePlans (RatePlanId, TenantId, Name, DefaultRate, IsActive, CreatedUtc, UpdatedUtc)
-  ├─ BillingOperationRates (OperationRateId, RatePlanId, Operation, Rate, IsActive, CreatedUtc, UpdatedUtc)
+BillingRatePlans (RatePlanId, TenantId, PlanCode, Name, Description, DefaultRate, MonthlyFee, UnitPricePerDcu, IncludedPublicStorageGb, IncludedPrivateStorageGb, IncludedSeatCount, AllowsPrivateData, CanQueryPublicCorpus, IsActive, CreatedUtc, UpdatedUtc)
+  ├─ BillingOperationRates (OperationRateId, RatePlanId, Operation, UnitOfMeasure, Category, Description, Rate, IsActive, CreatedUtc, UpdatedUtc)
   └─ BillingMultipliers (MultiplierId, RatePlanId, Dimension, Key, Multiplier, IsActive, CreatedUtc, UpdatedUtc)
 
 BillingUsageLedger (LedgerId, TenantId, PrincipalId, Operation, MessageType, Handler, Units, BaseRate, Multiplier, TotalCost, MetadataJson, TimestampUtc)
 ```
 
-All tables are managed by the EF Core migration `20251103040827_AddBillingTables`.  They live in the default schema (`dbo`) and should only be modified through migrations.
+Tables are created by migration `20251103040827_AddBillingTables` and enriched with plan metadata by `20251103094500_EnrichBillingPlans`.  They live in the default schema (`dbo`) and should only be modified through migrations.
 
 ## EF Core Configuration
 
@@ -25,10 +25,13 @@ All tables are managed by the EF Core migration `20251103040827_AddBillingTables
 
 1. `EventDispatcher` receives a Service Broker message.
 2. `AccessPolicyEngine` and `InMemoryThrottleEvaluator` validate tenant and rate limits.
+
 3. `UsageBillingMeter` pulls the effective rate plan for the tenant using `SqlBillingConfigurationProvider`.
-   - Falls back to default plan when a tenant-specific plan is missing.
-   - Applies multipliers for generation type, complexity, and content type based on CloudEvent metadata.
-4. A `BillingUsageRecord` is produced and persisted to `BillingUsageLedger` with computed `TotalCost`.
+    - Falls back to default plan when a tenant-specific plan is missing.
+    - Applies multipliers for generation type, complexity, content type, grounding, guarantee, and provenance dimensions based on CloudEvent metadata.
+    - Emits per-operation metadata (unit of measure, category, unit price, monthly entitlements) into the usage record metadata payload.
+
+4. A `BillingUsageRecord` is produced and persisted to `BillingUsageLedger` with computed DCU and cost totals.
 5. Ledger entries can be exported or aggregated for invoicing/chargeback workflows.
 
 ## Configuration
@@ -37,11 +40,30 @@ Sample `appsettings.json` snippet:
 
 ```json
 "Billing": {
+  "DefaultPlanName": "Publisher Core",
+  "DefaultPlanCode": "publisher_core",
+  "DefaultMonthlyFee": 2500.0,
   "DefaultRate": 0.0105,
+  "UnitPricePerDcu": 0.00008,
+  "DefaultIncludedPublicStorageGb": 120,
+  "DefaultIncludedPrivateStorageGb": 40,
+  "DefaultIncludedSeatCount": 25,
+  "DefaultAllowsPrivateData": true,
+  "DefaultCanQueryPublicCorpus": true,
   "OperationRates": {
     "neo4j_sync.model_updated": 0.025,
     "neo4j_sync.inference_completed": 0.04,
     "neo4j_sync.ingest_completed": 0.018
+  },
+  "OperationUnits": {
+    "neo4j_sync.model_updated": "dcu",
+    "neo4j_sync.inference_completed": "dcu",
+    "neo4j_sync.ingest_completed": "dcu"
+  },
+  "OperationCategories": {
+    "neo4j_sync.model_updated": "model_management",
+    "neo4j_sync.inference_completed": "generation",
+    "neo4j_sync.ingest_completed": "ingestion"
   },
   "GenerationTypeMultipliers": {
     "text": 1.0,
@@ -58,6 +80,21 @@ Sample `appsettings.json` snippet:
     "knowledge_graph": 1.2,
     "time_series": 1.4,
     "spatial": 1.6
+  },
+  "GroundingMultipliers": {
+    "none": 1.0,
+    "enterprise_context": 1.3,
+    "private_vector_index": 1.55
+  },
+  "GuaranteeMultipliers": {
+    "standard_sla": 1.0,
+    "premium_sla": 1.35,
+    "model_lock": 1.2
+  },
+  "ProvenanceMultipliers": {
+    "basic": 1.0,
+    "audit_trail": 1.25,
+    "immutable_ledger": 1.5
   }
 }
 ```

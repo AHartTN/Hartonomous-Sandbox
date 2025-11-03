@@ -24,6 +24,17 @@ public sealed class BillingOperationRateConfiguration : IEntityTypeConfiguration
             .HasMaxLength(128)
             .HasDefaultValue(string.Empty);
 
+        builder.Property(rate => rate.UnitOfMeasure)
+            .IsRequired()
+            .HasMaxLength(64)
+            .HasDefaultValue(string.Empty);
+
+        builder.Property(rate => rate.Category)
+            .HasMaxLength(64);
+
+        builder.Property(rate => rate.Description)
+            .HasMaxLength(256);
+
         builder.Property(rate => rate.Rate)
             .HasColumnType("decimal(18,6)");
 
