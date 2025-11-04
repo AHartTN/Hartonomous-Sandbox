@@ -12,35 +12,8 @@ namespace Hartonomous.Infrastructure.Services.Billing;
 
 public sealed class SqlBillingUsageSink : IBillingUsageSink
 {
-    private const string InsertCommandText = @"
-INSERT INTO dbo.BillingUsageLedger
-(
-    TenantId,
-    PrincipalId,
-    Operation,
-    MessageType,
-    Handler,
-    Units,
-    BaseRate,
-    Multiplier,
-    TotalCost,
-    MetadataJson,
-    TimestampUtc
-)
-VALUES
-(
-    @TenantId,
-    @PrincipalId,
-    @Operation,
-    @MessageType,
-    @Handler,
-    @Units,
-    @BaseRate,
-    @Multiplier,
-    @TotalCost,
-    @MetadataJson,
-    SYSUTCDATETIME()
-);";
+    // Using In-Memory OLTP natively compiled procedure for 2-10x performance improvement
+    private const string InsertProcedureName = "dbo.sp_InsertBillingUsageRecord_Native";
 
     private readonly ISqlServerConnectionFactory _connectionFactory;
     private readonly IJsonSerializer _serializer;
@@ -62,13 +35,13 @@ VALUES
 
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-        command.CommandType = CommandType.Text;
-        command.CommandText = InsertCommandText;
+        command.CommandType = CommandType.StoredProcedure;
+        command.CommandText = InsertProcedureName;
         command.Parameters.Add(new SqlParameter("@TenantId", record.TenantId));
         command.Parameters.Add(new SqlParameter("@PrincipalId", record.PrincipalId));
         command.Parameters.Add(new SqlParameter("@Operation", record.Operation));
-        command.Parameters.Add(new SqlParameter("@MessageType", record.MessageType));
-        command.Parameters.Add(new SqlParameter("@Handler", record.Handler));
+        command.Parameters.Add(new SqlParameter("@MessageType", (object?)record.MessageType ?? DBNull.Value));
+        command.Parameters.Add(new SqlParameter("@Handler", (object?)record.Handler ?? DBNull.Value));
         command.Parameters.Add(new SqlParameter("@Units", SqlDbType.Decimal)
         {
             Precision = 18,
@@ -100,6 +73,6 @@ VALUES
         command.Parameters.Add(new SqlParameter("@MetadataJson", (object?)metadataJson ?? DBNull.Value));
 
         var rows = await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
-        _logger.LogDebug("Persisted billing usage record for tenant {TenantId}, operation {Operation}. Rows affected: {Rows}", record.TenantId, record.Operation, rows);
+        _logger.LogDebug("Persisted billing usage record via In-Memory OLTP for tenant {TenantId}, operation {Operation}. Rows affected: {Rows}", record.TenantId, record.Operation, rows);
     }
 }
