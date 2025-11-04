@@ -1,8 +1,10 @@
+using Hartonomous.Core.Performance;
+
 namespace Hartonomous.Core.Services;
 
 /// <summary>
 /// Default implementation of inference metadata determination.
-/// Extracts business logic for inference parameter calculation from infrastructure layer.
+/// OPTIMIZED: Zero-allocation string operations with ReadOnlySpan&lt;char&gt;.
 /// </summary>
 public class InferenceMetadataService : IInferenceMetadataService
 {
@@ -18,18 +20,23 @@ public class InferenceMetadataService : IInferenceMetadataService
             return "direct";
         }
 
-        var lowerTask = taskDescription.ToLowerInvariant();
+        // OPTIMIZED: Use AsSpan() for zero-allocation case-insensitive search
+        var taskSpan = taskDescription.AsSpan();
         
         // Complex reasoning indicators
-        if (lowerTask.Contains("analyze") || lowerTask.Contains("reason") || 
-            lowerTask.Contains("explain") || lowerTask.Contains("compare"))
+        if (StringUtilities.ContainsIgnoreCase(taskSpan, "analyze") || 
+            StringUtilities.ContainsIgnoreCase(taskSpan, "reason") || 
+            StringUtilities.ContainsIgnoreCase(taskSpan, "explain") || 
+            StringUtilities.ContainsIgnoreCase(taskSpan, "compare"))
         {
             return "analytical";
         }
         
         // Creative tasks
-        if (lowerTask.Contains("create") || lowerTask.Contains("generate") || 
-            lowerTask.Contains("design") || lowerTask.Contains("write"))
+        if (StringUtilities.ContainsIgnoreCase(taskSpan, "create") || 
+            StringUtilities.ContainsIgnoreCase(taskSpan, "generate") || 
+            StringUtilities.ContainsIgnoreCase(taskSpan, "design") || 
+            StringUtilities.ContainsIgnoreCase(taskSpan, "write"))
         {
             return "creative";
         }
@@ -59,14 +66,18 @@ public class InferenceMetadataService : IInferenceMetadataService
 
     public string DetermineSla(string priority, int complexity)
     {
-        var lowerPriority = priority?.ToLowerInvariant() ?? "medium";
+        // OPTIMIZED: Use AsSpan() for zero-allocation comparison
+        var prioritySpan = priority.AsSpan();
         
-        if (lowerPriority == "critical" || (lowerPriority == "high" && complexity <= 3))
+        // Case-insensitive equality using Span
+        if (prioritySpan.Equals("critical".AsSpan(), StringComparison.OrdinalIgnoreCase) || 
+            (prioritySpan.Equals("high".AsSpan(), StringComparison.OrdinalIgnoreCase) && complexity <= 3))
         {
             return "realtime";
         }
         
-        if (lowerPriority == "high" || (lowerPriority == "medium" && complexity <= 5))
+        if (prioritySpan.Equals("high".AsSpan(), StringComparison.OrdinalIgnoreCase) || 
+            (prioritySpan.Equals("medium".AsSpan(), StringComparison.OrdinalIgnoreCase) && complexity <= 5))
         {
             return "expedited";
         }
@@ -81,24 +92,29 @@ public class InferenceMetadataService : IInferenceMetadataService
             return complexity * 5; // Base estimate
         }
 
-        var lowerName = modelName.ToLowerInvariant();
+        // OPTIMIZED: Use AsSpan() for zero-allocation contains checks
+        var nameSpan = modelName.AsSpan();
         
         // Fast models (GPT-3.5, embeddings)
-        if (lowerName.Contains("gpt-3.5") || lowerName.Contains("gpt-35") || 
-            lowerName.Contains("embedding") || lowerName.Contains("ada"))
+        if (StringUtilities.ContainsIgnoreCase(nameSpan, "gpt-3.5") || 
+            StringUtilities.ContainsIgnoreCase(nameSpan, "gpt-35") || 
+            StringUtilities.ContainsIgnoreCase(nameSpan, "embedding") || 
+            StringUtilities.ContainsIgnoreCase(nameSpan, "ada"))
         {
             return complexity * 2;
         }
         
         // Medium speed (GPT-4)
-        if (lowerName.Contains("gpt-4"))
+        if (StringUtilities.ContainsIgnoreCase(nameSpan, "gpt-4"))
         {
             return complexity * 5;
         }
         
         // Slower models (image generation, audio)
-        if (lowerName.Contains("dall-e") || lowerName.Contains("stable-diffusion") || 
-            lowerName.Contains("whisper") || lowerName.Contains("tts"))
+        if (StringUtilities.ContainsIgnoreCase(nameSpan, "dall-e") || 
+            StringUtilities.ContainsIgnoreCase(nameSpan, "stable-diffusion") || 
+            StringUtilities.ContainsIgnoreCase(nameSpan, "whisper") || 
+            StringUtilities.ContainsIgnoreCase(nameSpan, "tts"))
         {
             return complexity * 10;
         }

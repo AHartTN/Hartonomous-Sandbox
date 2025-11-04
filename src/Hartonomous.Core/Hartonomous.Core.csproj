@@ -15,4 +15,8 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.10" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Hartonomous.Core.Performance\Hartonomous.Core.Performance.csproj" />
+  </ItemGroup>
+
 </Project>
