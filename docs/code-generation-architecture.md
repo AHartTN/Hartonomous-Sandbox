@@ -3,6 +3,36 @@
 ## Overview
 T-SQL code generation uses the **existing Atom/AtomEmbedding architecture** - no separate CodeAtom table needed.
 
+## Field Usage for Code Atoms
+
+| Field | Purpose | Example Values |
+|-------|---------|----------------|
+| `Modality` | PRIMARY categorization - what type of atom | `"code"` |
+| `Subtype` | SECONDARY categorization - language/dialect | `"tsql"`, `"csharp"`, `"fsharp"`, `"clr"` |
+| `SourceType` | Where the code came from | `"filesystem"`, `"git"`, `"generated"`, `"optimized"` |
+| `Metadata.CodeType` | Specific artifact type (stored in JSON) | `"procedure"`, `"function"`, `"view"`, `"trigger"` |
+| `Metadata.Language` | Full language name | `"TSql"`, `"CSharp"`, `"FSharp"` |
+| `Metadata.Framework` | Runtime/platform | `"SQL Server 2025"`, `".NET 10 CLR"` |
+
+### Query Examples
+
+```sql
+-- Find all T-SQL code
+SELECT * FROM Atoms WHERE Modality = 'code' AND Subtype = 'tsql'
+
+-- Find AI-generated code (any language)
+SELECT * FROM Atoms WHERE Modality = 'code' AND SourceType = 'generated'
+
+-- Find T-SQL stored procedures specifically
+SELECT * FROM Atoms 
+WHERE Modality = 'code' 
+  AND Subtype = 'tsql'
+  AND JSON_VALUE(Metadata, '$.CodeType') = 'procedure'
+
+-- Find CLR functions
+SELECT * FROM Atoms WHERE Modality = 'code' AND Subtype = 'clr'
+```
+
 ## Ingesting T-SQL Code
 
 ### Example: Store a T-SQL Procedure
@@ -24,14 +54,14 @@ END";
 var ingestionRequest = new AtomIngestionRequest
 {
     HashInput = tsqlCode,
-    Modality = "code",              // Code modality
-    Subtype = "tsql",               // T-SQL language
+    Modality = "code",              // Code modality (PRIMARY: what type of atom)
+    Subtype = "tsql",               // Language/dialect (SECONDARY: language category)
     CanonicalText = tsqlCode,       // The actual code
     Metadata = JsonSerializer.Serialize(new
     {
         Language = "TSql",
         Framework = "SQL Server 2025",
-        CodeType = "StoredProcedure",
+        CodeType = "StoredProcedure",  // Metadata.CodeType: procedure/function/view/trigger/clr
         Description = "Optimized vector similarity search using VECTOR_DISTANCE",
         Tags = new[] { "vector-search", "optimization", "spatial" },
         QualityScore = 0.95,
