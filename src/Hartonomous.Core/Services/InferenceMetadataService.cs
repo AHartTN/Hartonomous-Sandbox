@@ -1,13 +1,26 @@
+using System.Text.Json;
+using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Performance;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Core.Services;
 
 /// <summary>
-/// Default implementation of inference metadata determination.
+/// Database-native implementation of inference metadata determination.
+/// ARCHITECTURAL FIX: Queries Model.Metadata.PerformanceMetrics instead of hardcoding model names.
 /// OPTIMIZED: Zero-allocation string operations with ReadOnlySpan&lt;char&gt;.
 /// </summary>
 public class InferenceMetadataService : IInferenceMetadataService
 {
+    private readonly IModelRepository _modelRepository;
+    private readonly ILogger<InferenceMetadataService> _logger;
+
+    public InferenceMetadataService(IModelRepository modelRepository, ILogger<InferenceMetadataService> logger)
+    {
+        _modelRepository = modelRepository;
+        _logger = logger;
+    }
+
     public string DetermineReasoningMode(string taskDescription, bool requiresMultiStep)
     {
         if (requiresMultiStep)
@@ -85,41 +98,46 @@ public class InferenceMetadataService : IInferenceMetadataService
         return "standard";
     }
 
-    public int EstimateResponseTime(string modelName, int complexity)
+    public async Task<int> EstimateResponseTimeAsync(string modelName, int complexity, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(modelName))
         {
             return complexity * 5; // Base estimate
         }
 
-        // OPTIMIZED: Use AsSpan() for zero-allocation contains checks
-        var nameSpan = modelName.AsSpan();
-        
-        // Fast models (GPT-3.5, embeddings)
-        if (StringUtilities.ContainsIgnoreCase(nameSpan, "gpt-3.5") || 
-            StringUtilities.ContainsIgnoreCase(nameSpan, "gpt-35") || 
-            StringUtilities.ContainsIgnoreCase(nameSpan, "embedding") || 
-            StringUtilities.ContainsIgnoreCase(nameSpan, "ada"))
+        try
         {
-            return complexity * 2;
-        }
-        
-        // Medium speed (GPT-4)
-        if (StringUtilities.ContainsIgnoreCase(nameSpan, "gpt-4"))
-        {
+            // Query model from database
+            var model = await _modelRepository.GetByNameAsync(modelName, cancellationToken);
+            
+            if (model?.Metadata?.PerformanceMetrics != null)
+            {
+                // Parse PerformanceMetrics JSON: { "avgLatencyMs": 150, "tokensPerSecond": 50 }
+                var metrics = JsonSerializer.Deserialize<PerformanceMetrics>(model.Metadata.PerformanceMetrics);
+                
+                if (metrics?.AvgLatencyMs > 0)
+                {
+                    // Use actual latency from database
+                    int baseLatency = metrics.AvgLatencyMs;
+                    return baseLatency + (complexity * (baseLatency / 10));
+                }
+            }
+            
+            // Fallback: no metadata available
+            _logger.LogWarning("Model '{ModelName}' has no PerformanceMetrics. Using default estimate.", modelName);
             return complexity * 5;
         }
-        
-        // Slower models (image generation, audio)
-        if (StringUtilities.ContainsIgnoreCase(nameSpan, "dall-e") || 
-            StringUtilities.ContainsIgnoreCase(nameSpan, "stable-diffusion") || 
-            StringUtilities.ContainsIgnoreCase(nameSpan, "whisper") || 
-            StringUtilities.ContainsIgnoreCase(nameSpan, "tts"))
+        catch (Exception ex)
         {
-            return complexity * 10;
+            _logger.LogError(ex, "Error estimating response time for model '{ModelName}'", modelName);
+            return complexity * 5;
         }
-        
-        // Default estimate
-        return complexity * 5;
+    }
+
+    // HELPER: Deserialize PerformanceMetrics JSON
+    private class PerformanceMetrics
+    {
+        public int AvgLatencyMs { get; set; }
+        public int TokensPerSecond { get; set; }
     }
 }

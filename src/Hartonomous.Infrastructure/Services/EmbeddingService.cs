@@ -12,6 +12,17 @@ namespace Hartonomous.Infrastructure.Services;
 /// Database-native embedding generation for all modalities (text, image, audio, video).
 /// NO external models (CLIP/Whisper). Embeddings computed from relationships in existing database data.
 /// Learning happens through spatial clustering + feedback loop SQL UPDATEs.
+/// 
+/// ARCHITECTURAL NOTE - KNOWN LIMITATIONS:
+/// - Text embeddings: TF-IDF from TokenVocabulary (REAL implementation, database-native)
+/// - Image embeddings: Feature extraction uses PLACEHOLDER random initialization (InitializeRandomEmbedding)
+/// - Audio embeddings: FFT/MFCC computations use PLACEHOLDER random data
+/// - Video embeddings: Combines placeholder image + audio features
+/// 
+/// FUTURE WORK (per architecture audit):
+/// - Implement ONNX model inference via SQL Server 2025 CLR integration
+/// - Or query TensorAtoms for actual model weights from ingested models
+/// - Replace InitializeRandomEmbedding calls with real feature extraction
 /// </summary>
 public sealed class EmbeddingService : IEmbeddingService
 {

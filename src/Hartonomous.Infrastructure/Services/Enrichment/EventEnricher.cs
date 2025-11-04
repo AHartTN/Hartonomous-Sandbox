@@ -74,13 +74,13 @@ public class EventEnricher : IEventEnricher
         };
     }
 
-    private Task EnrichModelEventAsync(BaseEvent evt, CancellationToken cancellationToken)
+    private async Task EnrichModelEventAsync(BaseEvent evt, CancellationToken cancellationToken)
     {
         if (evt.Data is Dictionary<string, object> data &&
             data.TryGetValue("ModelName", out var modelNameObj) &&
             modelNameObj is string modelName)
         {
-            var capabilities = _capabilityService.InferFromModelName(modelName);
+            var capabilities = await _capabilityService.GetCapabilitiesAsync(modelName, cancellationToken);
             evt.Extensions["semantic"] = new Dictionary<string, object>
             {
                 ["primary_modality"] = capabilities.PrimaryModality,
@@ -91,8 +91,6 @@ public class EventEnricher : IEventEnricher
                 ["context_window"] = capabilities.MaxContextWindow
             };
         }
-
-        return Task.CompletedTask;
     }
 
     private Task EnrichInferenceEventAsync(BaseEvent evt, CancellationToken cancellationToken)

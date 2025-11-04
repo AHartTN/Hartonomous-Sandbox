@@ -26,12 +26,13 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
     protected override Expression<Func<Model, int>> GetIdExpression() => model => model.ModelId;
 
     /// <summary>
-    /// Include model layers for complete model queries.
+    /// Include model layers and metadata for complete model queries.
     /// Uses AsSplitQuery to prevent cartesian explosion.
     /// </summary>
     protected override IQueryable<Model> IncludeRelatedEntities(IQueryable<Model> query)
     {
         return query
+            .Include(m => m.Metadata)
             .Include(m => m.Layers)
             .AsSplitQuery();
     }

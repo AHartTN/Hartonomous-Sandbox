@@ -4,7 +4,7 @@ namespace Hartonomous.Core.Services;
 
 /// <summary>
 /// Service for determining inference metadata such as reasoning modes, complexity, and SLA requirements.
-/// Provides centralized business logic for inference parameter determination.
+/// Database-native: queries Model.Metadata.PerformanceMetrics for actual latency data.
 /// </summary>
 public interface IInferenceMetadataService
 {
@@ -34,10 +34,12 @@ public interface IInferenceMetadataService
     string DetermineSla(string priority, int complexity);
     
     /// <summary>
-    /// Estimates the expected response time in seconds based on model and complexity.
+    /// Estimates the expected response time by querying Model.Metadata.PerformanceMetrics from the database.
+    /// Falls back to complexity-based estimation if no performance data available.
     /// </summary>
     /// <param name="modelName">The model being used</param>
     /// <param name="complexity">Task complexity score</param>
+    /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Estimated response time in seconds</returns>
-    int EstimateResponseTime(string modelName, int complexity);
+    Task<int> EstimateResponseTimeAsync(string modelName, int complexity, CancellationToken cancellationToken = default);
 }
