@@ -450,6 +450,13 @@ END;
             throw new InvalidOperationException("DbContext must be initialised before seeding integration data.");
         }
 
+        // Check if seed data already exists to prevent duplicate key violations
+        var existingDataCount = await DbContext.Atoms.CountAsync(cancellationToken).ConfigureAwait(false);
+        if (existingDataCount > 0)
+        {
+            return; // Data already seeded
+        }
+
         var model = await DbContext.Models
             .OrderBy(m => m.ModelId)
             .FirstOrDefaultAsync(cancellationToken)

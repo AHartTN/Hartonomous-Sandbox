@@ -69,23 +69,24 @@ BEGIN
 
     DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
+    DECLARE @promptEmbeddingBinary VARBINARY(MAX) = CAST(@promptEmbedding AS VARBINARY(MAX));
+
     INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
     SELECT
-        step_number,
-        atom_id,
-        token,
-        score,
-        distance,
-        model_count,
-        duration_ms
-    FROM dbo.clr_GenerateSequence(
-        CAST(@promptEmbedding AS VARBINARY(MAX)),
+        ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS StepNumber,
+        t.AtomId,
+        t.Token,
+        t.Score,
+        t.Distance,
+        t.ModelCount,
+        t.DurationMs
+    FROM dbo.clr_GenerateTextSequence(
+        @promptEmbeddingBinary,
         @modelsJson,
         @max_tokens,
         @temperature,
-        @top_k,
-        'text'
-    );
+        @top_k
+    ) AS t;
 
     DECLARE @generatedText NVARCHAR(MAX) = LTRIM(RTRIM(@prompt));
     DECLARE @tokenSuffix NVARCHAR(MAX) = (

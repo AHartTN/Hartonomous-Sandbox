@@ -11,7 +11,6 @@ namespace SqlClrFunctions;
 public struct ComponentStream : INullable, IBinarySerialize
 {
     private const int SerializerVersion = 1;
-    private const int MaxHashLength = 64;
 
     private bool _isNull;
     private List<ComponentRun> _runs;
@@ -36,22 +35,22 @@ public struct ComponentStream : INullable, IBinarySerialize
     }
 
     [SqlMethod(IsDeterministic = false, IsPrecise = true, IsMutator = true)]
-    public ComponentStream Append(SqlBytes componentHash, SqlInt32 repetitions)
+    public ComponentStream Append(SqlInt64 atomId, SqlInt32 repetitions)
     {
         EnsureWritable();
 
-        var hash = ExtractHash(componentHash);
+        var id = ValidateAtomId(atomId);
         var count = ValidateRepetitions(repetitions);
 
-        AppendRun(hash, count);
+        AppendRun(id, count);
         return this;
     }
 
     [SqlMethod(IsDeterministic = true, IsPrecise = true)]
-    public SqlBytes GetComponentHash(SqlInt32 ordinal)
+    public SqlInt64 GetComponentAtomId(SqlInt32 ordinal)
     {
         var run = RequireRun(ordinal);
-        return new SqlBytes((byte[])run.Hash.Clone());
+        return new SqlInt64(run.AtomId);
     }
 
     [SqlMethod(IsDeterministic = true, IsPrecise = true)]
@@ -75,6 +74,30 @@ public struct ComponentStream : INullable, IBinarySerialize
         }
 
         return Convert.ToBase64String(stream.ToArray());
+    }
+
+    [SqlMethod(IsDeterministic = true, IsPrecise = true)]
+    public SqlBytes Write()
+    {
+        if (_isNull)
+        {
+            return SqlBytes.Null;
+        }
+
+        using var buffer = new MemoryStream();
+        using (var writer = new BinaryWriter(buffer, System.Text.Encoding.UTF8, leaveOpen: true))
+        {
+            Write(writer);
+        }
+
+        return new SqlBytes(buffer.ToArray());
+    }
+
+    [SqlMethod(IsDeterministic = true, IsPrecise = true)]
+    public byte[] ToByteArray()
+    {
+        var sqlBytes = Write();
+        return sqlBytes.IsNull ? Array.Empty<byte>() : sqlBytes.Value;
     }
 
     public static ComponentStream Parse(SqlString input)
@@ -126,16 +149,10 @@ public struct ComponentStream : INullable, IBinarySerialize
 
         for (var index = 0; index < count; index++)
         {
-            var hashLength = reader.ReadInt32();
-            if (hashLength <= 0 || hashLength > MaxHashLength)
+            var atomId = reader.ReadInt64();
+            if (atomId <= 0)
             {
-                throw new InvalidDataException("Component hash length is out of range.");
-            }
-
-            var hash = reader.ReadBytes(hashLength);
-            if (hash.Length != hashLength)
-            {
-                throw new EndOfStreamException("Unexpected end of stream while reading component hash.");
+                throw new InvalidDataException("Atom identifier must be a positive value.");
             }
 
             var repetitions = reader.ReadInt32();
@@ -144,7 +161,7 @@ public struct ComponentStream : INullable, IBinarySerialize
                 throw new InvalidDataException("Run length must be greater than zero.");
             }
 
-            _runs.Add(new ComponentRun(hash, repetitions));
+            _runs.Add(new ComponentRun(atomId, repetitions));
             _totalCount += repetitions;
         }
     }
@@ -169,8 +186,7 @@ public struct ComponentStream : INullable, IBinarySerialize
         for (var index = 0; index < count; index++)
         {
             var run = _runs[index];
-            writer.Write(run.Hash.Length);
-            writer.Write(run.Hash);
+            writer.Write(run.AtomId);
             writer.Write(run.Count);
         }
     }
@@ -184,7 +200,7 @@ public struct ComponentStream : INullable, IBinarySerialize
 
         foreach (var run in _runs)
         {
-            yield return new ComponentRunSnapshot(run.Hash, run.Count);
+            yield return new ComponentRunSnapshot(run.AtomId, run.Count);
         }
     }
 
@@ -200,7 +216,7 @@ public struct ComponentStream : INullable, IBinarySerialize
                 continue;
             }
 
-            stream.AppendRun(CloneHash(run.Hash), run.Count);
+            stream.AppendRun(run.AtomId, run.Count);
         }
 
         return stream;
@@ -239,37 +255,36 @@ public struct ComponentStream : INullable, IBinarySerialize
         return _runs[ordinal.Value];
     }
 
-    private void AppendRun(byte[] hash, int count)
+    private void AppendRun(long atomId, int count)
     {
         if (_runs.Count > 0)
         {
             var last = _runs[_runs.Count - 1];
-            if (HashesEqual(last.Hash, hash))
+            if (last.AtomId == atomId)
             {
-                _runs[_runs.Count - 1] = new ComponentRun(last.Hash, checked(last.Count + count));
+                _runs[_runs.Count - 1] = new ComponentRun(last.AtomId, checked(last.Count + count));
                 _totalCount += count;
                 return;
             }
         }
 
-        _runs.Add(new ComponentRun(hash, count));
+        _runs.Add(new ComponentRun(atomId, count));
         _totalCount += count;
     }
 
-    private static byte[] ExtractHash(SqlBytes componentHash)
+    private static long ValidateAtomId(SqlInt64 atomId)
     {
-        if (componentHash is null || componentHash.IsNull)
+        if (atomId.IsNull)
         {
-            throw new ArgumentNullException(nameof(componentHash), "Component hash cannot be null.");
+            throw new ArgumentNullException(nameof(atomId), "Atom identifier cannot be null.");
         }
 
-        var buffer = componentHash.Value;
-        if (buffer.Length == 0 || buffer.Length > MaxHashLength)
+        if (atomId.Value <= 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(componentHash), $"Component hash length must be between 1 and {MaxHashLength} bytes.");
+            throw new ArgumentOutOfRangeException(nameof(atomId), "Atom identifier must be positive.");
         }
 
-        return CloneHash(buffer);
+        return atomId.Value;
     }
 
     private static int ValidateRepetitions(SqlInt32 repetitions)
@@ -287,53 +302,28 @@ public struct ComponentStream : INullable, IBinarySerialize
         return repetitions.Value;
     }
 
-    private static bool HashesEqual(byte[] left, byte[] right)
-    {
-        if (left.Length != right.Length)
-        {
-            return false;
-        }
-
-        for (var i = 0; i < left.Length; i++)
-        {
-            if (left[i] != right[i])
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    private static byte[] CloneHash(byte[] hash)
-    {
-        var clone = new byte[hash.Length];
-        Buffer.BlockCopy(hash, 0, clone, 0, hash.Length);
-        return clone;
-    }
-
     internal readonly struct ComponentRunSnapshot
     {
-        internal ComponentRunSnapshot(byte[] hash, int count)
+        internal ComponentRunSnapshot(long atomId, int count)
         {
-            Hash = hash ?? Array.Empty<byte>();
+            AtomId = atomId;
             Count = count;
         }
 
-        internal byte[] Hash { get; }
+        internal long AtomId { get; }
 
         internal int Count { get; }
     }
 
     private readonly struct ComponentRun
     {
-        internal ComponentRun(byte[] hash, int count)
+        internal ComponentRun(long atomId, int count)
         {
-            Hash = hash ?? Array.Empty<byte>();
+            AtomId = atomId;
             Count = count;
         }
 
-        internal byte[] Hash { get; }
+        internal long AtomId { get; }
 
         internal int Count { get; }
     }

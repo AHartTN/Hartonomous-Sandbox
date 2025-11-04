@@ -51,9 +51,9 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
         builder.Property(a => a.SpatialKey)
             .HasColumnType("geometry");
 
-        builder.Property(a => a.ComponentStream)
-            .HasColumnType("provenance.ComponentStream")
-            .IsRequired(false);
+            builder.Property(a => a.ComponentStream)
+                .HasColumnType("varbinary(max)")
+                .IsRequired(false);
 
         builder.HasMany(a => a.Embeddings)
             .WithOne(e => e.Atom)

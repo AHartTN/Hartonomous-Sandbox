@@ -210,3 +210,23 @@ RETURNS TABLE (
 )
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.GenerationFunctions].GenerateSequence;
 GO
+
+IF OBJECT_ID('dbo.clr_GenerateTextSequence', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_GenerateTextSequence;
+GO
+CREATE FUNCTION dbo.clr_GenerateTextSequence(
+    @seedEmbedding VARBINARY(MAX),
+    @modelsJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT
+)
+RETURNS TABLE (
+    AtomId BIGINT,
+    Token NVARCHAR(400),
+    Score FLOAT,
+    Distance FLOAT,
+    ModelCount INT,
+    DurationMs INT
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.GenerationFunctions].GenerateTextSequence;
+GO

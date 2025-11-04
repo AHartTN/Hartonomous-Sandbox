@@ -218,6 +218,16 @@ BEGIN
         DECLARE @SelectedLayers TABLE (LayerIdx INT PRIMARY KEY);
         DECLARE @has_filter BIT = 0;
 
+        DECLARE @GraphLayerOrder TABLE
+        (
+            LayerId BIGINT PRIMARY KEY,
+            Sequence INT NOT NULL
+        );
+
+        DECLARE @RootLayerId BIGINT;
+        DECLARE @RootAtomId BIGINT;
+        DECLARE @ArchitectureRelationType NVARCHAR(128) = N'architecture.successor';
+
         IF @layer_subset IS NOT NULL AND LTRIM(RTRIM(@layer_subset)) <> ''
         BEGIN
             SET @has_filter = 1;
@@ -226,6 +236,53 @@ BEGIN
             SELECT DISTINCT TRY_CAST(value AS INT)
             FROM STRING_SPLIT(@layer_subset, ',')
             WHERE TRY_CAST(value AS INT) IS NOT NULL;
+        END;
+
+        SELECT TOP (1)
+            @RootLayerId = ml.LayerId,
+            @RootAtomId = ml.LayerAtomId
+        FROM dbo.ModelLayers AS ml
+        WHERE ml.ModelId = @ParentModelId
+        ORDER BY ml.LayerIdx;
+
+        IF @RootAtomId IS NOT NULL
+        BEGIN
+            INSERT INTO @GraphLayerOrder (LayerId, Sequence)
+            SELECT DISTINCT
+                destLayer.LayerId,
+                path.$length
+            FROM graph.AtomGraphNodes AS startNode,
+                 graph.AtomGraphEdges FOR PATH AS path,
+                 graph.AtomGraphNodes AS destNode,
+                 dbo.ModelLayers AS destLayer
+            WHERE MATCH(SHORTEST_PATH(startNode(-(path)-> destNode)))
+              AND startNode.AtomId = @RootAtomId
+              AND path.RelationType = @ArchitectureRelationType
+              AND destNode.AtomId = destLayer.LayerAtomId
+              AND destLayer.ModelId = @ParentModelId;
+        END;
+
+        IF @RootLayerId IS NOT NULL
+           AND NOT EXISTS (SELECT 1 FROM @GraphLayerOrder WHERE LayerId = @RootLayerId)
+        BEGIN
+            INSERT INTO @GraphLayerOrder (LayerId, Sequence)
+            VALUES (@RootLayerId, 0);
+        END;
+
+        IF EXISTS (SELECT 1 FROM @GraphLayerOrder)
+        BEGIN
+            INSERT INTO @GraphLayerOrder (LayerId, Sequence)
+            SELECT ml.LayerId, ml.LayerIdx
+            FROM dbo.ModelLayers AS ml
+            WHERE ml.ModelId = @ParentModelId
+              AND NOT EXISTS (SELECT 1 FROM @GraphLayerOrder AS existing WHERE existing.LayerId = ml.LayerId);
+        END
+        ELSE
+        BEGIN
+            INSERT INTO @GraphLayerOrder (LayerId, Sequence)
+            SELECT ml.LayerId, ml.LayerIdx
+            FROM dbo.ModelLayers AS ml
+            WHERE ml.ModelId = @ParentModelId;
         END;
 
         DECLARE @LayerData TABLE
@@ -246,28 +303,29 @@ BEGIN
             AvgComputeTimeMs FLOAT NULL
         );
 
-        INSERT INTO @LayerData
-        SELECT
-            ml.LayerId,
-            ml.LayerIdx,
-            ml.LayerName,
-            ml.LayerType,
-            ml.WeightsGeometry,
-            ml.TensorShape,
-            ml.TensorDtype,
-            ml.QuantizationType,
-            ml.QuantizationScale,
-            ml.QuantizationZeroPoint,
-            ml.Parameters,
-            ml.ParameterCount,
-            ml.CacheHitRate,
-            ml.AvgComputeTimeMs
-        FROM dbo.ModelLayers AS ml
-        WHERE ml.ModelId = @ParentModelId
-          AND (
-                @has_filter = 0
-                OR EXISTS (SELECT 1 FROM @SelectedLayers AS sl WHERE sl.LayerIdx = ml.LayerIdx)
-              );
+                INSERT INTO @LayerData
+                SELECT
+                        ml.LayerId,
+                        ml.LayerIdx,
+                        ml.LayerName,
+                        ml.LayerType,
+                        ml.WeightsGeometry,
+                        ml.TensorShape,
+                        ml.TensorDtype,
+                        ml.QuantizationType,
+                        ml.QuantizationScale,
+                        ml.QuantizationZeroPoint,
+                        ml.Parameters,
+                        ml.ParameterCount,
+                        ml.CacheHitRate,
+                        ml.AvgComputeTimeMs
+                        FROM dbo.ModelLayers AS ml
+                        INNER JOIN @GraphLayerOrder AS gl ON gl.LayerId = ml.LayerId
+                        WHERE ml.ModelId = @ParentModelId
+                            AND (
+                                @has_filter = 0
+                                OR EXISTS (SELECT 1 FROM @SelectedLayers AS sl WHERE sl.LayerIdx = ml.LayerIdx)
+                            );
 
         DECLARE @LayerMap TABLE
         (
@@ -439,7 +497,12 @@ BEGIN
             UsageCount = 0
         WHERE ModelId = @StudentModelId;
 
-        EXEC dbo.sp_UpdateModelWeightsFromFeedback @ModelId = @ParentModelId WITH RESULT SETS NONE;
+        PRINT 'Student model pruned. Now executing fine-tuning pass...';
+        EXEC dbo.sp_UpdateModelWeightsFromFeedback
+            @ModelId = @StudentModelId,
+            @learningRate = 0.01,
+            @minRatings = 1
+        WITH RESULT SETS NONE;
 
         SELECT
             @StudentModelId AS student_model_id,

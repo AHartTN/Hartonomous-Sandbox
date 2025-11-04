@@ -27,6 +27,77 @@ namespace SqlClrFunctions
             SqlInt32 topK,
             SqlString requiredModality)
         {
+            foreach (var row in EnumerateSequence(seedEmbedding, modelsJson, maxTokens, temperature, topK, requiredModality))
+            {
+                yield return row;
+            }
+        }
+
+        [SqlFunction(
+            DataAccess = DataAccessKind.Read,
+            SystemDataAccess = SystemDataAccessKind.Read,
+            FillRowMethodName = nameof(FillTextSequenceRow),
+            TableDefinition = "atom_id BIGINT, token NVARCHAR(400), score FLOAT, distance FLOAT, model_count INT, duration_ms INT")]
+        public static IEnumerable GenerateTextSequence(
+            SqlBytes seedEmbedding,
+            SqlString modelsJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK)
+        {
+            var modality = new SqlString("text");
+            foreach (var row in EnumerateSequence(seedEmbedding, modelsJson, maxTokens, temperature, topK, modality))
+            {
+                yield return row;
+            }
+        }
+
+        public static void FillSequenceRow(
+            object rowObject,
+            out int stepNumber,
+            out long atomId,
+            out string token,
+            out double score,
+            out double distance,
+            out int modelCount,
+            out int durationMs)
+        {
+            var row = (SequenceRow)rowObject;
+            stepNumber = row.StepNumber;
+            atomId = row.AtomId;
+            token = row.Token;
+            score = row.Score;
+            distance = row.Distance;
+            modelCount = row.ModelCount;
+            durationMs = row.DurationMs;
+        }
+
+        public static void FillTextSequenceRow(
+            object rowObject,
+            out long atomId,
+            out string token,
+            out double score,
+            out double distance,
+            out int modelCount,
+            out int durationMs)
+        {
+            var row = (SequenceRow)rowObject;
+            atomId = row.AtomId;
+            token = row.Token;
+            score = row.Score;
+            distance = row.Distance;
+            modelCount = row.ModelCount;
+            durationMs = row.DurationMs;
+        }
+
+        private static IEnumerable<SequenceRow> EnumerateSequence(
+            SqlBytes seedEmbedding,
+            SqlString modelsJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlString requiredModality)
+        {
             if (seedEmbedding == null || seedEmbedding.IsNull || seedEmbedding.Length == 0)
             {
                 yield break;
@@ -91,26 +162,6 @@ namespace SqlClrFunctions
                     }
                 }
             }
-        }
-
-        public static void FillSequenceRow(
-            object rowObject,
-            out int stepNumber,
-            out long atomId,
-            out string token,
-            out double score,
-            out double distance,
-            out int modelCount,
-            out int durationMs)
-        {
-            var row = (SequenceRow)rowObject;
-            stepNumber = row.StepNumber;
-            atomId = row.AtomId;
-            token = row.Token;
-            score = row.Score;
-            distance = row.Distance;
-            modelCount = row.ModelCount;
-            durationMs = row.DurationMs;
         }
 
         private static List<CandidateAggregate> QueryCandidates(

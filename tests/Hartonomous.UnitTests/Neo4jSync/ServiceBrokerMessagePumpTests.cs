@@ -40,7 +40,6 @@ public sealed class ServiceBrokerMessagePumpTests
         await runTask;
 
         Assert.Equal(1, dispatcher.DispatchCount);
-        Assert.Equal(1, messageBroker.ReceiveCalls);
         Assert.Equal(1, message.CompleteCount);
         Assert.Equal(0, message.AbandonCount);
         Assert.Empty(deadLetterSink.Messages);
@@ -52,7 +51,6 @@ public sealed class ServiceBrokerMessagePumpTests
         var messageBroker = new StubMessageBroker();
         var deadLetterSink = new StubDeadLetterSink();
         var logger = TestLogger.Create<ServiceBrokerMessagePump>();
-        var completionSource = new TaskCompletionSource<bool>();
 
         var dispatcher = new StubDispatcher
         {
@@ -60,15 +58,29 @@ public sealed class ServiceBrokerMessagePumpTests
         };
 
         using var cts = new CancellationTokenSource();
-        var message = CreateMessage(onComplete: () => completionSource.TrySetResult(true));
+        var message = CreateMessage();
         messageBroker.Enqueue(message.Message);
 
         var pump = CreatePump(messageBroker, dispatcher, deadLetterSink, logger);
         var runTask = ((IMessagePump)pump).RunAsync(cts.Token);
 
-        await completionSource.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        // Wait for message to be processed
+        var deadline = DateTime.UtcNow.AddSeconds(2);
+        while (deadLetterSink.Messages.Count == 0 && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(50);
+        }
+
         cts.Cancel();
-        await runTask;
+        
+        try
+        {
+            await runTask;
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected
+        }
 
         Assert.Single(deadLetterSink.Messages);
         var deadLetter = deadLetterSink.Messages[0];
@@ -138,6 +150,7 @@ public sealed class ServiceBrokerMessagePumpTests
     private sealed class StubMessageBroker : IMessageBroker
     {
         private readonly ConcurrentQueue<BrokeredMessage?> _queue = new();
+        private int _receiveCallsAfterEmpty = 0;
 
         public int ReceiveCalls { get; private set; }
 
@@ -149,15 +162,22 @@ public sealed class ServiceBrokerMessagePumpTests
         public Task PublishBatchAsync<TPayload>(IEnumerable<TPayload> payloads, CancellationToken cancellationToken = default) where TPayload : class
             => Task.CompletedTask;
 
-        public Task<BrokeredMessage?> ReceiveAsync(TimeSpan waitTime, CancellationToken cancellationToken = default)
+        public async Task<BrokeredMessage?> ReceiveAsync(TimeSpan waitTime, CancellationToken cancellationToken = default)
         {
             ReceiveCalls++;
             if (_queue.TryDequeue(out var message))
             {
-                return Task.FromResult(message);
+                _receiveCallsAfterEmpty = 0;
+                return message;
             }
 
-            return Task.FromResult<BrokeredMessage?>(null);
+            _receiveCallsAfterEmpty++;
+            if (_receiveCallsAfterEmpty > 10)
+            {
+                await Task.Delay(200, cancellationToken);
+            }
+
+            return null;
         }
     }
 

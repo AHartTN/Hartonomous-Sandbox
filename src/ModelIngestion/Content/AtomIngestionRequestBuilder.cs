@@ -62,7 +62,7 @@ internal sealed class AtomIngestionRequestBuilder
 
         _components = components
             .Where(component => component is not null)
-            .Select(component => new AtomComponentDescriptor(component.ComponentHash, component.Quantity))
+            .Select(component => new AtomComponentDescriptor(component.AtomId, component.Quantity))
             .ToList();
 
         return this;

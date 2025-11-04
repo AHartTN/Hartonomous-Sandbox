@@ -27,7 +27,7 @@ namespace SqlClrFunctions
             }
         }
 
-        public static void FillSegmentRow(object rowObject, out int ordinal, out string kind, out DateTime timestampUtc, out string contentType, out string metadata, out SqlBytes payload)
+        public static void FillSegmentRow(object rowObject, out int ordinal, out string kind, out DateTime timestampUtc, out string contentType, out string metadata, out byte[] payload)
         {
             var row = (SegmentRow)rowObject;
             ordinal = row.Ordinal;
@@ -35,7 +35,7 @@ namespace SqlClrFunctions
             timestampUtc = row.TimestampUtc;
             contentType = row.ContentType;
             metadata = row.Metadata;
-            payload = SqlBytesInterop.CreateFromBytes(row.Payload);
+            payload = row.Payload;
         }
 
         private sealed class SegmentRow

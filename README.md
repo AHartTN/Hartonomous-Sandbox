@@ -158,50 +158,60 @@ dotnet run
 - ✅ Health monitoring: TelemetryHub with SignalR real-time updates, AdminTelemetryCache
 - ✅ Deployment scripts: deploy-database.ps1 with schema versioning, index creation, seeding
 
-### ⚠️ **Defined but Not Implemented**
+### 🚧 **In Progress - Client Layer Development**
+
+The platform has been built **inside-out**: database engine first, client interfaces next. The core SQL-native inference, provenance tracking, billing, and worker services are production-ready. Client-facing layers are the next major push.
 
 #### External Embedder Integration
-- ⚠️ ITextEmbedder interface defined, **no production implementation** (placeholder TF-IDF in sp_TextToEmbedding)
-- ⚠️ IImageEmbedder interface defined, **no implementation**
-- ⚠️ IAudioEmbedder interface defined, **no implementation**
-- ⚠️ IVideoEmbedder interface defined, **no implementation**
-- ⚠️ EmbeddingIngestionService stores embeddings but cannot generate them (requires embedder implementations)
 
-**Impact**: Platform can store and search embeddings but cannot create them from raw content. Workarounds:
-- Pre-compute embeddings externally (OpenAI API, local CLIP/Wav2Vec2 models) and ingest via EmbeddingService
-- Use SQL Server ML Services with Python/R to call embedding models inside stored procedures
-- Implement embedders following interfaces in Hartonomous.Core/Interfaces/
+- ⚠️ ITextEmbedder, IImageEmbedder, IAudioEmbedder, IVideoEmbedder interfaces defined
+- ⚠️ No production implementations yet (placeholder TF-IDF in sp_TextToEmbedding for text)
+- ⚠️ EmbeddingIngestionService stores/searches embeddings but doesn't generate them
 
-#### Public API Layer
-- ⚠️ No REST API project (no HTTP endpoints for external clients)
+**Current Access Pattern**: Pre-compute embeddings externally (OpenAI API, local CLIP/Wav2Vec2 models) and ingest via EmbeddingService, or use SQL Server ML Services with Python/R to call embedding models inside stored procedures.
+
+**Next Steps**: Implement embedder wrappers for OpenAI, Azure Cognitive Services, local ONNX models.
+
+#### Public API Layer & Admin Interface
+
+- ⚠️ DTOs defined in `Hartonomous.Api/DTOs/` (GenerationRequest, EmbeddingRequest, SearchRequest, etc.)
+- ⚠️ No REST API controllers/endpoints yet
 - ⚠️ No gRPC service definitions
 - ⚠️ No API authentication/authorization middleware
 - ⚠️ No OpenAPI/Swagger documentation
-- ⚠️ Admin UI and ModelIngestion CLI are only access points
+- ⚠️ Blazor Admin UI scaffolded (model browser, ingestion, extraction pages) but incomplete
 
-**Impact**: Platform is library/service-oriented; cannot be accessed via HTTP. Access requires:
-- Direct database connections (SQL Server Management Studio, Azure Data Studio)
-- Blazor Admin UI (localhost Blazor Server app)
-- ModelIngestion CLI (command-line tool)
+**Current Access Pattern**: Direct database connections (SQL Server Management Studio, Azure Data Studio), ModelIngestion CLI, partial Blazor Admin UI.
 
-#### Inference Request Tracking
-- ⚠️ IInferenceRepository interface defined, **no EF Core implementation**
-- ⚠️ InferenceOrchestrator.EnsembleInferenceAsync has placeholder return values (hardcoded confidence scores, empty model contributions)
+**Next Steps**: Build REST/gRPC thin client API with authentication, complete Blazor Admin UI for administration and testing workflows.
 
-**Impact**: Inference requests not persisted to database, no audit trail. Workarounds:
-- Service Broker messages and Neo4j provenance graph capture inference lineage
-- Implement InferenceRepository following pattern in Hartonomous.Infrastructure/Repositories/
+#### Inference Result Parsing
 
-### 🔮 **Future Capabilities** (Not Started)
+- ⚠️ InferenceOrchestrator.EnsembleInferenceAsync returns placeholder confidence scores
+- ⚠️ InferenceRequests table populated by stored procedures, but C# orchestrator doesn't parse T-SQL output sets
 
-- Image/audio/video generation endpoints (SQL procedures exist but stub implementations)
-- Real-time streaming inference (currently batch-oriented)
-- Multi-tenant data isolation (single tenant per database instance)
-- Automated model quantization/compression
-- Cross-modal retrieval (text → image search)
-- Federated learning support
-- Model versioning/rollback
-- A/B testing framework
+**Current Access Pattern**: Service Broker messages and Neo4j provenance graph capture full inference lineage. Query `InferenceRequests`/`InferenceSteps` tables directly for execution metadata.
+
+**Next Steps**: Implement InferenceRepository to parse stored procedure result sets and correlate with C# response objects.
+
+#### Multimodal Generation
+
+- ✅ Image generation: Retrieval-guided spatial diffusion with patch-based composition via CLR functions
+- ✅ Audio generation: Retrieval-based segment composition or synthetic harmonic tone generation
+- ✅ Video generation: Temporal frame recombination from retrieved clips with synthetic fallback
+- ✅ CLR generation functions: `clr_GenerateImagePatches`, `clr_GenerateImageGeometry`, `clr_GenerateHarmonicTone`, `clr_AudioToWaveform`
+
+### 🔮 **Future Capabilities** (Post Client-Layer)
+
+Once the API/Admin interfaces are complete, the roadmap includes:
+
+- **Real-time streaming inference**: Model supports streaming flag (`ModelCapabilities.SupportsStreaming`), but no IAsyncEnumerable token stream implementation yet
+- **Enhanced multi-tenant isolation**: TenantId tracked in BillingRatePlans and access policies, but no row-level security policies or SESSION_CONTEXT enforcement yet
+- **Automated quantization pipelines**: `ModelLayer.QuantizationType/QuantizationScale/QuantizationZeroPoint` columns exist, but no INT8/INT4 compression automation
+- **Model versioning/rollback**: No version tracking or temporal snapshots - single current version per model
+- **A/B testing framework**: No experiment tracking or variant comparison infrastructure
+- **Federated learning**: No distributed model update aggregation or edge deployment support
+- **Distributed inference**: No cross-instance partitioned execution or sharding strategy
 
 ---
 

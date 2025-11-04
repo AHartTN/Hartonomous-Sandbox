@@ -1,9 +1,10 @@
 # Phase 1 Core Implementation
 
 - [ ] ComponentStream CLR UDT
+ - [ ] ComponentStream CLR UDT
   - [x] Design RLE payload model and serialization contract
   - [x] Implement ComponentStream.cs with IBinarySerialize
-  - [ ] Unit-test serialization/deserialization roundtrip
+  - [x] Unit-test serialization/deserialization roundtrip
   - [x] Register UDT in SQL project and update deployment script
   - [x] Add ComponentStream column to dbo.Atoms and adjust schema scripts
   - [x] Update AtomIngestionService to emit ComponentStream for composite media
@@ -22,7 +23,7 @@
   - [x] Validate transactional consistency and rollback semantics
 
 - [ ] Architecture-aware distillation
-  - [ ] Extend ModelIngestionService to create Layer atoms and AtomRelation graph edges
-  - [ ] Update data model mappings (EF configurations, SQL scripts)
-  - [ ] Refactor sp_ExtractStudentModel to use GRAPH MATCH SHORTEST_PATH
-  - [ ] Ensure compatibility with existing layer selection logic and tests
+  - [x] Extend ModelIngestionService to create Layer atoms and AtomRelation graph edges
+  - [x] Update data model mappings (EF configurations, SQL scripts)
+  - [x] Refactor sp_ExtractStudentModel to use GRAPH MATCH SHORTEST_PATH
+  - [x] Ensure compatibility with existing layer selection logic and tests

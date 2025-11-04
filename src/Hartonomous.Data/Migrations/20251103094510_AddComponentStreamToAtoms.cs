@@ -14,7 +14,7 @@ namespace Hartonomous.Data.Migrations
             migrationBuilder.AddColumn<byte[]>(
                 name: "ComponentStream",
                 table: "Atoms",
-                type: "provenance.ComponentStream",
+                type: "varbinary(max)",
                 nullable: true);
         }
 

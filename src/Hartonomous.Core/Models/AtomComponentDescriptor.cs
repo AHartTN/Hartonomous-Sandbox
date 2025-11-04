@@ -3,25 +3,20 @@ using System;
 namespace Hartonomous.Core.Models;
 
 /// <summary>
-/// Describes an atom component contribution identified by a hash and repetition count.
+/// Describes an atom component contribution identified by an atom identifier and repetition count.
 /// </summary>
 public sealed class AtomComponentDescriptor
 {
     /// <summary>
-    /// Creates a descriptor for a component hash and the number of times it appears in the aggregate atom.
+    /// Creates a descriptor for a component atom and the number of times it appears in the aggregate atom.
     /// </summary>
-    /// <param name="componentHash">Hash bytes identifying the component payload.</param>
+    /// <param name="atomId">Identifier of the component atom.</param>
     /// <param name="quantity">Number of occurrences for the component hash.</param>
-    public AtomComponentDescriptor(byte[] componentHash, int quantity = 1)
+    public AtomComponentDescriptor(long atomId, int quantity = 1)
     {
-        if (componentHash is null)
+        if (atomId <= 0)
         {
-            throw new ArgumentNullException(nameof(componentHash));
-        }
-
-        if (componentHash.Length == 0)
-        {
-            throw new ArgumentException("Component hash must contain at least one byte.", nameof(componentHash));
+            throw new ArgumentOutOfRangeException(nameof(atomId), "Atom identifier must be positive.");
         }
 
         if (quantity <= 0)
@@ -29,24 +24,17 @@ public sealed class AtomComponentDescriptor
             throw new ArgumentOutOfRangeException(nameof(quantity), "Quantity must be positive.");
         }
 
-        ComponentHash = Clone(componentHash);
+        AtomId = atomId;
         Quantity = quantity;
     }
 
     /// <summary>
-    /// Copy of the component hash bytes.
+    /// Identifier of the component atom.
     /// </summary>
-    public byte[] ComponentHash { get; }
+    public long AtomId { get; }
 
     /// <summary>
     /// Number of times the component occurs in sequence.
     /// </summary>
     public int Quantity { get; }
-
-    private static byte[] Clone(byte[] source)
-    {
-        var clone = new byte[source.Length];
-        Buffer.BlockCopy(source, 0, clone, 0, source.Length);
-        return clone;
-    }
 }

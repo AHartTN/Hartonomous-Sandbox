@@ -39,7 +39,7 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<byte[]>("ComponentStream")
-                        .HasColumnType("provenance.ComponentStream");
+                        .HasColumnType("varbinary(max)");
 
                     b.Property<byte[]>("ContentHash")
                         .IsRequired()

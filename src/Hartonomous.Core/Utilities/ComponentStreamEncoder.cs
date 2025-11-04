@@ -12,7 +12,6 @@ namespace Hartonomous.Core.Utilities;
 public static class ComponentStreamEncoder
 {
     private const int SerializerVersion = 1;
-    private const int MaxHashLength = 64;
 
     /// <summary>
     /// Serialises component descriptors into the UDT binary layout, merging contiguous identical hashes.
@@ -32,22 +31,7 @@ public static class ComponentStreamEncoder
             return null;
         }
 
-        using var buffer = new MemoryStream();
-        using (var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true))
-        {
-            writer.Write(false); // IsNull flag
-            writer.Write(SerializerVersion);
-            writer.Write(runs.Count);
-
-            foreach (var run in runs)
-            {
-                writer.Write(run.Hash.Length);
-                writer.Write(run.Hash);
-                writer.Write(run.Count);
-            }
-        }
-
-        return buffer.ToArray();
+        return EncodeRuns(runs);
     }
 
     private static List<ComponentRun> BuildRuns(IEnumerable<AtomComponentDescriptor> components)
@@ -61,60 +45,48 @@ public static class ComponentStreamEncoder
                 continue;
             }
 
-            ValidateHash(descriptor.ComponentHash);
+            ValidateAtom(descriptor.AtomId);
 
-            var hash = Clone(descriptor.ComponentHash);
             var count = descriptor.Quantity;
-
-            if (runs.Count > 0 && HashesEqual(runs[^1].Hash, hash))
+            if (runs.Count > 0 && runs[^1].AtomId == descriptor.AtomId)
             {
                 runs[^1] = runs[^1] with { Count = checked(runs[^1].Count + count) };
             }
             else
             {
-                runs.Add(new ComponentRun(hash, count));
+                runs.Add(new ComponentRun(descriptor.AtomId, count));
             }
         }
 
         return runs;
     }
 
-    private static void ValidateHash(IReadOnlyCollection<byte> hash)
+    private static byte[] EncodeRuns(List<ComponentRun> runs)
     {
-        if (hash.Count == 0 || hash.Count > MaxHashLength)
+        using var buffer = new MemoryStream();
+        using (var writer = new BinaryWriter(buffer, Encoding.UTF8, leaveOpen: true))
         {
-            throw new ArgumentOutOfRangeException(nameof(hash), $"Component hash length must be between 1 and {MaxHashLength} bytes.");
-        }
-    }
+            writer.Write(false);
+            writer.Write(SerializerVersion);
+            writer.Write(runs.Count);
 
-    private static bool HashesEqual(IReadOnlyList<byte> left, IReadOnlyList<byte> right)
-    {
-        if (left.Count != right.Count)
-        {
-            return false;
-        }
-
-        for (var index = 0; index < left.Count; index++)
-        {
-            if (left[index] != right[index])
+            foreach (var run in runs)
             {
-                return false;
+                writer.Write(run.AtomId);
+                writer.Write(run.Count);
             }
         }
 
-        return true;
+        return buffer.ToArray();
     }
 
-    private static byte[] Clone(IReadOnlyList<byte> source)
+    private static void ValidateAtom(long atomId)
     {
-        var clone = new byte[source.Count];
-        for (var index = 0; index < source.Count; index++)
+        if (atomId <= 0)
         {
-            clone[index] = source[index];
+            throw new ArgumentOutOfRangeException(nameof(atomId), "Component atom identifier must be positive.");
         }
-
-        return clone;
     }
 
-    private readonly record struct ComponentRun(byte[] Hash, int Count);
+    private readonly record struct ComponentRun(long AtomId, int Count);
 }
