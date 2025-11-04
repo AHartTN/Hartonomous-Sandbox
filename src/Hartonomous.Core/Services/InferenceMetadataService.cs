@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Core.Performance;
+
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Core.Services;
@@ -37,19 +37,19 @@ public class InferenceMetadataService : IInferenceMetadataService
         var taskSpan = taskDescription.AsSpan();
         
         // Complex reasoning indicators
-        if (StringUtilities.ContainsIgnoreCase(taskSpan, "analyze") || 
-            StringUtilities.ContainsIgnoreCase(taskSpan, "reason") || 
-            StringUtilities.ContainsIgnoreCase(taskSpan, "explain") || 
-            StringUtilities.ContainsIgnoreCase(taskSpan, "compare"))
+        if (taskDescription.Contains("analyze", StringComparison.OrdinalIgnoreCase) || 
+            taskDescription.Contains("reason", StringComparison.OrdinalIgnoreCase) || 
+            taskDescription.Contains("explain", StringComparison.OrdinalIgnoreCase) || 
+            taskDescription.Contains("compare", StringComparison.OrdinalIgnoreCase))
         {
             return "analytical";
         }
         
         // Creative tasks
-        if (StringUtilities.ContainsIgnoreCase(taskSpan, "create") || 
-            StringUtilities.ContainsIgnoreCase(taskSpan, "generate") || 
-            StringUtilities.ContainsIgnoreCase(taskSpan, "design") || 
-            StringUtilities.ContainsIgnoreCase(taskSpan, "write"))
+        if (taskDescription.Contains("create", StringComparison.OrdinalIgnoreCase) || 
+            taskDescription.Contains("generate", StringComparison.OrdinalIgnoreCase) || 
+            taskDescription.Contains("design", StringComparison.OrdinalIgnoreCase) || 
+            taskDescription.Contains("write", StringComparison.OrdinalIgnoreCase))
         {
             return "creative";
         }

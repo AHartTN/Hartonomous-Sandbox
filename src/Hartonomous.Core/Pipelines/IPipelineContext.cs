@@ -8,7 +8,7 @@ namespace Hartonomous.Core.Pipelines;
 /// Execution context for pipeline operations with correlation tracking and telemetry.
 /// Immutable context passed through all pipeline steps for observability.
 /// </summary>
-public interface IPipelineContext
+public interface IPipelineContext : IDisposable
 {
     /// <summary>
     /// Unique correlation ID for distributed tracing (propagated across service boundaries).
@@ -112,5 +112,10 @@ public sealed class PipelineContext : IPipelineContext
             childActivity,
             Properties, // Inherit parent properties
             DateTime.UtcNow);
+    }
+
+    public void Dispose()
+    {
+        TraceActivity?.Dispose();
     }
 }

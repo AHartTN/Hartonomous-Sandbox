@@ -5,7 +5,10 @@ using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Interfaces;
+using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Core.Data;
 
@@ -110,6 +113,8 @@ public static class CompiledQueries
     /// <summary>
     /// Gets recent inference requests by correlation ID.
     /// </summary>
+    // DISABLED: InferenceRequest.CorrelationId property doesn't exist yet
+    /*
     public static readonly Func<HartonomousDbContext, string, int, CancellationToken, Task<List<InferenceRequest>>> GetInferenceRequestsByCorrelationId =
         EF.CompileAsyncQuery((HartonomousDbContext ctx, string correlationId, int limit, CancellationToken ct) =>
             ctx.InferenceRequests
@@ -118,10 +123,13 @@ public static class CompiledQueries
                 .OrderByDescending(i => i.CreatedAt)
                 .Take(limit)
                 .ToList());
+    */
 
     /// <summary>
     /// Gets inference requests with high confidence.
     /// </summary>
+    // DISABLED: InferenceRequest.Confidence property doesn't exist yet
+    /*
     public static readonly Func<HartonomousDbContext, double, int, CancellationToken, Task<List<InferenceRequest>>> GetHighConfidenceInferences =
         EF.CompileAsyncQuery((HartonomousDbContext ctx, double minConfidence, int limit, CancellationToken ct) =>
             ctx.InferenceRequests
@@ -131,6 +139,7 @@ public static class CompiledQueries
                 .ThenByDescending(i => i.CreatedAt)
                 .Take(limit)
                 .ToList());
+    */
 
     // ============================================================
     // Model Queries
@@ -139,6 +148,8 @@ public static class CompiledQueries
     /// <summary>
     /// Gets active models ordered by weight.
     /// </summary>
+    // DISABLED: Model.IsActive property doesn't exist yet
+    /*
     public static readonly Func<HartonomousDbContext, CancellationToken, Task<List<Model>>> GetActiveModelsByWeight =
         EF.CompileAsyncQuery((HartonomousDbContext ctx, CancellationToken ct) =>
             ctx.Models
@@ -147,6 +158,7 @@ public static class CompiledQueries
                 .OrderByDescending(m => m.Weight ?? 1.0)
                 .ThenBy(m => m.ModelName)
                 .ToList());
+    */
 
     /// <summary>
     /// Gets models by IDs. Compiled for ensemble invocation.
@@ -345,13 +357,40 @@ public sealed class OptimizedAtomRepository : IAtomRepository
         return atom;
     }
 
-    public async Task IncrementReferenceCountAsync(long atomId, int increment, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<Atom>> GetByModalityAsync(string modality, int take = 100, CancellationToken cancellationToken = default)
+    {
+        // Delegate to compiled query
+        return CompiledQueries.GetActiveAtomsByModality(_context, modality, take, cancellationToken)
+            .ContinueWith(t => (IReadOnlyList<Atom>)t.Result, cancellationToken);
+    }
+
+    public async Task UpdateMetadataAsync(long atomId, string? metadata, CancellationToken cancellationToken = default)
     {
         // Use ExecuteUpdate for efficient single-field update (no tracking)
         await _context.Atoms
             .Where(a => a.AtomId == atomId)
             .ExecuteUpdateAsync(
-                setters => setters.SetProperty(a => a.ReferenceCount, a => a.ReferenceCount + increment),
+                setters => setters.SetProperty(a => a.Metadata, metadata),
+                cancellationToken);
+    }
+
+    public async Task UpdateSpatialKeyAsync(long atomId, Point spatialKey, CancellationToken cancellationToken = default)
+    {
+        // Use ExecuteUpdate for efficient single-field update (no tracking)
+        await _context.Atoms
+            .Where(a => a.AtomId == atomId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(a => a.SpatialKey, spatialKey),
+                cancellationToken);
+    }
+
+    public async Task IncrementReferenceCountAsync(long atomId, long delta = 1, CancellationToken cancellationToken = default)
+    {
+        // Use ExecuteUpdate for efficient single-field update (no tracking)
+        await _context.Atoms
+            .Where(a => a.AtomId == atomId)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(a => a.ReferenceCount, a => a.ReferenceCount + delta),
                 cancellationToken);
     }
 }

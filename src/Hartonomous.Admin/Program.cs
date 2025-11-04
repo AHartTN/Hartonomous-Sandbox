@@ -4,6 +4,9 @@ using Hartonomous.Admin.Models;
 using Hartonomous.Admin.Operations;
 using Hartonomous.Admin.Services;
 using Hartonomous.Infrastructure;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -13,6 +16,30 @@ builder.Services.AddRazorComponents()
 builder.Services.AddSignalR();
 builder.Services.AddHartonomousInfrastructure(builder.Configuration);
 builder.Services.AddHartonomousHealthChecks(builder.Configuration);
+
+// ============================================================================
+// OPENTELEMETRY CONFIGURATION - Pipeline Observability
+// ============================================================================
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService("Hartonomous.Admin")
+        .AddAttributes(new[] {
+            new KeyValuePair<string, object>("environment", builder.Environment.EnvironmentName),
+            new KeyValuePair<string, object>("version", "1.0.0")
+        }))
+    .WithTracing(tracing => tracing
+        .AddSource("Hartonomous.Pipelines")
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddEntityFrameworkCoreInstrumentation()
+        .AddConsoleExporter()) // TODO: Replace with OTLP/AppInsights in production
+    .WithMetrics(metrics => metrics
+        .AddMeter("Hartonomous.Pipelines")
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddRuntimeInstrumentation()
+        .AddPrometheusExporter()); // Exposes /metrics endpoint
+
 builder.Services.Configure<AdminTelemetryOptions>(builder.Configuration.GetSection(AdminTelemetryOptions.SectionName));
 
 builder.Services.AddSingleton<AdminTelemetryCache>();
@@ -41,5 +68,6 @@ app.MapRazorComponents<App>()
 
 app.MapHub<TelemetryHub>("/hubs/telemetry");
 app.MapHealthChecks("/health");
+app.MapPrometheusScrapingEndpoint(); // Exposes /metrics for Grafana/Prometheus
 
 app.Run();

@@ -44,11 +44,11 @@ public sealed record AtomIngestionPipelineResult
 /// <summary>
 /// Step 1: Compute content hash for deduplication.
 /// </summary>
-public sealed class ComputeContentHashStep : PipelineStepBase<AtomIngestionPipelineRequest, (AtomIngestionPipelineRequest Request, byte[] ContentHash)>
+public sealed class ComputeContentHashStep : PipelineStepBase<AtomIngestionPipelineRequest, HashComputationResult>
 {
     public override string StepName => "compute-content-hash";
 
-    protected override Task<(AtomIngestionPipelineRequest, byte[])> ExecuteStepAsync(
+    protected override Task<HashComputationResult> ExecuteStepAsync(
         AtomIngestionPipelineRequest input,
         IPipelineContext context,
         CancellationToken cancellationToken)
@@ -59,16 +59,20 @@ public sealed class ComputeContentHashStep : PipelineStepBase<AtomIngestionPipel
         context.TraceActivity?.SetTag("atom.modality", input.Modality);
         context.TraceActivity?.SetTag("atom.subtype", input.Subtype ?? "none");
 
-        return Task.FromResult((input, contentHash));
+        var result = new HashComputationResult
+        {
+            Request = input,
+            ContentHash = contentHash
+        };
+
+        return Task.FromResult(result);
     }
 }
 
 /// <summary>
 /// Step 2: Check for exact content hash duplicates.
 /// </summary>
-public sealed class CheckExactDuplicateStep : PipelineStepBase<
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash),
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom)>
+public sealed class CheckExactDuplicateStep : PipelineStepBase<HashComputationResult, ExactDuplicateCheckResult>
 {
     private readonly IAtomRepository _atomRepository;
 
@@ -79,8 +83,8 @@ public sealed class CheckExactDuplicateStep : PipelineStepBase<
         _atomRepository = atomRepository ?? throw new ArgumentNullException(nameof(atomRepository));
     }
 
-    protected override async Task<(AtomIngestionPipelineRequest, byte[], Atom?)> ExecuteStepAsync(
-        (AtomIngestionPipelineRequest Request, byte[] ContentHash) input,
+    protected override async Task<ExactDuplicateCheckResult> ExecuteStepAsync(
+        HashComputationResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
@@ -103,16 +107,19 @@ public sealed class CheckExactDuplicateStep : PipelineStepBase<
             context.TraceActivity?.SetTag("atom.duplicate.exact", false);
         }
 
-        return (input.Request, input.ContentHash, existing);
+        return new ExactDuplicateCheckResult
+        {
+            Request = input.Request,
+            ContentHash = input.ContentHash,
+            ExistingAtom = existing
+        };
     }
 }
 
 /// <summary>
 /// Step 3: Generate embedding if not a duplicate (optimized to skip if duplicate found).
 /// </summary>
-public sealed class GenerateEmbeddingStep : PipelineStepBase<
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom),
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom, float[]? Embedding)>
+public sealed class GenerateEmbeddingStep : PipelineStepBase<ExactDuplicateCheckResult, EmbeddingGenerationResult>
 {
     private readonly IEmbeddingService _embeddingService;
     private readonly ILogger<GenerateEmbeddingStep> _logger;
@@ -127,8 +134,8 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    protected override async Task<(AtomIngestionPipelineRequest, byte[], Atom?, float[]?)> ExecuteStepAsync(
-        (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom) input,
+    protected override async Task<EmbeddingGenerationResult> ExecuteStepAsync(
+        ExactDuplicateCheckResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
@@ -137,7 +144,14 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<
         {
             context.TraceActivity?.SetTag("embedding.skipped", true);
             context.TraceActivity?.SetTag("embedding.skip_reason", "exact_duplicate");
-            return (input.Request, input.ContentHash, input.ExistingAtom, null);
+            
+            return new EmbeddingGenerationResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = input.ExistingAtom,
+                EmbeddingVector = Array.Empty<float>()
+            };
         }
 
         // Only generate embedding if we have text content
@@ -145,7 +159,14 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<
         {
             context.TraceActivity?.SetTag("embedding.skipped", true);
             context.TraceActivity?.SetTag("embedding.skip_reason", "no_text_content");
-            return (input.Request, input.ContentHash, null, null);
+            
+            return new EmbeddingGenerationResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = Array.Empty<float>()
+            };
         }
 
         try
@@ -156,14 +177,20 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<
                 input.Request.CanonicalText.Length);
 
             // Generate embedding using the embedding service
-            var embedding = await _embeddingService.GenerateEmbeddingAsync(
+            var embedding = await _embeddingService.EmbedTextAsync(
                 input.Request.CanonicalText,
                 cancellationToken);
 
             context.TraceActivity?.SetTag("embedding.generated", true);
             context.TraceActivity?.SetTag("embedding.dimension", embedding?.Length ?? 0);
 
-            return (input.Request, input.ContentHash, null, embedding);
+            return new EmbeddingGenerationResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = embedding ?? Array.Empty<float>()
+            };
         }
         catch (Exception ex)
         {
@@ -175,7 +202,13 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<
             context.TraceActivity?.SetTag("embedding.error", ex.Message);
 
             // Continue pipeline without embedding (non-fatal)
-            return (input.Request, input.ContentHash, null, null);
+            return new EmbeddingGenerationResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = Array.Empty<float>()
+            };
         }
     }
 }
@@ -183,9 +216,7 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<
 /// <summary>
 /// Step 4: Check for semantic duplicates if embedding was generated.
 /// </summary>
-public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom, float[]? Embedding),
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom, float[]? Embedding, (Atom Atom, AtomEmbedding Embedding, double Similarity)? SemanticMatch)>
+public sealed class CheckSemanticDuplicateStep : PipelineStepBase<EmbeddingGenerationResult, SemanticDuplicateCheckResult>
 {
     private readonly IAtomEmbeddingRepository _embeddingRepository;
     private readonly IDeduplicationPolicyRepository _policyRepository;
@@ -203,8 +234,8 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
         _atomRepository = atomRepository ?? throw new ArgumentNullException(nameof(atomRepository));
     }
 
-    protected override async Task<(AtomIngestionPipelineRequest, byte[], Atom?, float[]?, (Atom, AtomEmbedding, double)?)> ExecuteStepAsync(
-        (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom, float[]? Embedding) input,
+    protected override async Task<SemanticDuplicateCheckResult> ExecuteStepAsync(
+        EmbeddingGenerationResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
@@ -213,15 +244,33 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "exact_duplicate_found");
-            return (input.Request, input.ContentHash, input.ExistingAtom, input.Embedding, null);
+            
+            return new SemanticDuplicateCheckResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = input.ExistingAtom,
+                EmbeddingVector = input.EmbeddingVector,
+                SimilarAtom = null,
+                SimilarityScore = null
+            };
         }
 
         // Skip if no embedding generated
-        if (input.Embedding == null || input.Embedding.Length == 0)
+        if (input.EmbeddingVector == null || input.EmbeddingVector.Length == 0)
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "no_embedding");
-            return (input.Request, input.ContentHash, null, null, null);
+            
+            return new SemanticDuplicateCheckResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = Array.Empty<float>(),
+                SimilarAtom = null,
+                SimilarityScore = null
+            };
         }
 
         // Get deduplication policy
@@ -233,11 +282,20 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "no_policy");
-            return (input.Request, input.ContentHash, null, input.Embedding, null);
+            
+            return new SemanticDuplicateCheckResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = input.EmbeddingVector,
+                SimilarAtom = null,
+                SimilarityScore = null
+            };
         }
 
         // Pad embedding to SQL vector length
-        var padded = VectorUtility.PadToSqlLength(input.Embedding, out var usedPadding);
+        var padded = VectorUtility.PadToSqlLength(input.EmbeddingVector, out var usedPadding);
         var sqlVector = padded.ToSqlVector();
 
         var semanticThreshold = Math.Clamp(policy.SemanticThreshold.Value, -1d, 1d);
@@ -247,7 +305,16 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "threshold_too_high");
-            return (input.Request, input.ContentHash, null, input.Embedding, null);
+            
+            return new SemanticDuplicateCheckResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = input.EmbeddingVector,
+                SimilarAtom = null,
+                SimilarityScore = null
+            };
         }
 
         // Search for semantic duplicates
@@ -263,7 +330,16 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
         if (semanticDuplicate == null)
         {
             context.TraceActivity?.SetTag("atom.duplicate.semantic", false);
-            return (input.Request, input.ContentHash, null, input.Embedding, null);
+            
+            return new SemanticDuplicateCheckResult
+            {
+                Request = input.Request,
+                ContentHash = input.ContentHash,
+                ExistingAtom = null,
+                EmbeddingVector = input.EmbeddingVector,
+                SimilarAtom = null,
+                SimilarityScore = null
+            };
         }
 
         // Load the duplicate atom
@@ -283,16 +359,22 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<
         context.TraceActivity?.SetTag("atom.duplicate.threshold", semanticThreshold);
         context.TraceActivity?.SetTag("atom.duplicate.atom_id", duplicateAtom.AtomId);
 
-        return (input.Request, input.ContentHash, null, input.Embedding, (duplicateAtom, semanticDuplicate.Embedding, similarity));
+        return new SemanticDuplicateCheckResult
+        {
+            Request = input.Request,
+            ContentHash = input.ContentHash,
+            ExistingAtom = null,
+            EmbeddingVector = input.EmbeddingVector,
+            SimilarAtom = duplicateAtom,
+            SimilarityScore = (float)similarity
+        };
     }
 }
 
 /// <summary>
 /// Step 5: Persist new atom if no duplicates found.
 /// </summary>
-public sealed class PersistAtomStep : PipelineStepBase<
-    (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom, float[]? Embedding, (Atom Atom, AtomEmbedding Embedding, double Similarity)? SemanticMatch),
-    AtomIngestionPipelineResult>
+public sealed class PersistAtomStep : PipelineStepBase<SemanticDuplicateCheckResult, AtomIngestionPipelineResult>
 {
     private readonly IAtomRepository _atomRepository;
     private readonly IAtomEmbeddingRepository _embeddingRepository;
@@ -311,7 +393,7 @@ public sealed class PersistAtomStep : PipelineStepBase<
     }
 
     protected override async Task<AtomIngestionPipelineResult> ExecuteStepAsync(
-        (AtomIngestionPipelineRequest Request, byte[] ContentHash, Atom? ExistingAtom, float[]? Embedding, (Atom Atom, AtomEmbedding Embedding, double Similarity)? SemanticMatch) input,
+        SemanticDuplicateCheckResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
@@ -321,10 +403,13 @@ public sealed class PersistAtomStep : PipelineStepBase<
             context.TraceActivity?.SetTag("atom.persisted", false);
             context.TraceActivity?.SetTag("atom.duplicate_type", "exact");
 
+            // Load embedding for existing atom
+            var embedding = input.ExistingAtom.Embeddings?.FirstOrDefault();
+
             return new AtomIngestionPipelineResult
             {
                 Atom = input.ExistingAtom,
-                Embedding = null, // TODO: Select matching embedding
+                Embedding = embedding,
                 WasDuplicate = true,
                 DuplicateReason = "Exact content hash match",
                 SemanticSimilarity = null,
@@ -334,18 +419,21 @@ public sealed class PersistAtomStep : PipelineStepBase<
         }
 
         // Return semantic duplicate
-        if (input.SemanticMatch != null)
+        if (input.SimilarAtom != null)
         {
             context.TraceActivity?.SetTag("atom.persisted", false);
             context.TraceActivity?.SetTag("atom.duplicate_type", "semantic");
 
+            // Load embedding for similar atom
+            var embedding = input.SimilarAtom.Embeddings?.FirstOrDefault();
+
             return new AtomIngestionPipelineResult
             {
-                Atom = input.SemanticMatch.Value.Atom,
-                Embedding = input.SemanticMatch.Value.Embedding,
+                Atom = input.SimilarAtom,
+                Embedding = embedding,
                 WasDuplicate = true,
-                DuplicateReason = $"Semantic similarity {input.SemanticMatch.Value.Similarity:F4}",
-                SemanticSimilarity = input.SemanticMatch.Value.Similarity,
+                DuplicateReason = $"Semantic similarity {input.SimilarityScore:F4}",
+                SemanticSimilarity = input.SimilarityScore,
                 TotalDuration = context.TraceActivity?.Duration ?? TimeSpan.Zero,
                 CorrelationId = context.CorrelationId
             };
@@ -369,19 +457,19 @@ public sealed class PersistAtomStep : PipelineStepBase<
 
         // Add embedding if generated
         AtomEmbedding? newEmbedding = null;
-        if (input.Embedding != null && input.Embedding.Length > 0)
+        if (input.EmbeddingVector != null && input.EmbeddingVector.Length > 0)
         {
-            var padded = VectorUtility.PadToSqlLength(input.Embedding, out var usedPadding);
+            var padded = VectorUtility.PadToSqlLength(input.EmbeddingVector, out var usedPadding);
             var sqlVector = padded.ToSqlVector();
 
             var spatialPoint = await _embeddingRepository
-                .ComputeSpatialProjectionAsync(sqlVector, input.Embedding.Length, cancellationToken)
+                .ComputeSpatialProjectionAsync(sqlVector, input.EmbeddingVector.Length, cancellationToken)
                 .ConfigureAwait(false);
 
             newEmbedding = new AtomEmbedding
             {
                 EmbeddingType = input.Request.EmbeddingType,
-                Dimension = input.Embedding.Length,
+                Dimension = input.EmbeddingVector.Length,
                 ModelId = input.Request.ModelId,
                 SpatialGeometry = spatialPoint,
                 EmbeddingVector = sqlVector,

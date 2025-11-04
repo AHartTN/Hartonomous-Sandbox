@@ -357,7 +357,7 @@ internal sealed class ComposedPipeline<TInput, TOutput> : IPipeline<TInput, TOut
                 PipelineName);
 
             context.TraceActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            context.TraceActivity?.RecordException(ex);
+            context.TraceActivity?.AddException(ex);
 
             return PipelineResult<TOutput>.Failure(
                 new PipelineError

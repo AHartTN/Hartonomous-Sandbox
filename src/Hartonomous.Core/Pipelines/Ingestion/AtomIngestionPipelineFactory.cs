@@ -18,7 +18,8 @@ public sealed class AtomIngestionPipelineFactory
     private readonly IAtomEmbeddingRepository _embeddingRepository;
     private readonly IDeduplicationPolicyRepository _policyRepository;
     private readonly IEmbeddingService _embeddingService;
-    private readonly ILogger<AtomIngestionPipelineFactory> _logger;
+    private readonly ILoggerFactory _loggerFactory;
+    private readonly ILogger _logger;
     private readonly ActivitySource? _activitySource;
 
     public AtomIngestionPipelineFactory(
@@ -26,14 +27,15 @@ public sealed class AtomIngestionPipelineFactory
         IAtomEmbeddingRepository embeddingRepository,
         IDeduplicationPolicyRepository policyRepository,
         IEmbeddingService embeddingService,
-        ILogger<AtomIngestionPipelineFactory> logger,
+        ILoggerFactory loggerFactory,
         ActivitySource? activitySource = null)
     {
         _atomRepository = atomRepository ?? throw new ArgumentNullException(nameof(atomRepository));
         _embeddingRepository = embeddingRepository ?? throw new ArgumentNullException(nameof(embeddingRepository));
         _policyRepository = policyRepository ?? throw new ArgumentNullException(nameof(policyRepository));
         _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _logger = loggerFactory.CreateLogger<AtomIngestionPipelineFactory>();
         _activitySource = activitySource;
     }
 
@@ -49,13 +51,13 @@ public sealed class AtomIngestionPipelineFactory
         int maxRetries = 3,
         TimeSpan? timeout = null)
     {
-        var builder = PipelineBuilder<AtomIngestionPipelineRequest, AtomIngestionPipelineResult>
+        var builder = PipelineBuilder<AtomIngestionPipelineRequest, AtomIngestionPipelineRequest>
             .Create("atom-ingestion", _logger, _activitySource)
             .AddStep(new ComputeContentHashStep())
             .AddStep(new CheckExactDuplicateStep(_atomRepository))
             .AddStep(new GenerateEmbeddingStep(
                 _embeddingService,
-                _logger.CreateLogger<GenerateEmbeddingStep>()))
+                _loggerFactory.CreateLogger<GenerateEmbeddingStep>()))
             .AddStep(new CheckSemanticDuplicateStep(
                 _embeddingRepository,
                 _policyRepository,
@@ -63,7 +65,7 @@ public sealed class AtomIngestionPipelineFactory
             .AddStep(new PersistAtomStep(
                 _atomRepository,
                 _embeddingRepository,
-                _logger.CreateLogger<PersistAtomStep>()));
+                _loggerFactory.CreateLogger<PersistAtomStep>()));
 
         if (enableResilience)
         {
@@ -114,13 +116,13 @@ public sealed class AtomIngestionPipelineFactory
     public IPipeline<AtomIngestionPipelineRequest, AtomIngestionPipelineResult> CreateCustomPipeline(
         Action<Polly.ResiliencePipelineBuilder> configureResilience)
     {
-        return PipelineBuilder<AtomIngestionPipelineRequest, AtomIngestionPipelineResult>
+        return PipelineBuilder<AtomIngestionPipelineRequest, AtomIngestionPipelineRequest>
             .Create("atom-ingestion-custom", _logger, _activitySource)
             .AddStep(new ComputeContentHashStep())
             .AddStep(new CheckExactDuplicateStep(_atomRepository))
             .AddStep(new GenerateEmbeddingStep(
                 _embeddingService,
-                _logger.CreateLogger<GenerateEmbeddingStep>()))
+                _loggerFactory.CreateLogger<GenerateEmbeddingStep>()))
             .AddStep(new CheckSemanticDuplicateStep(
                 _embeddingRepository,
                 _policyRepository,
@@ -128,7 +130,7 @@ public sealed class AtomIngestionPipelineFactory
             .AddStep(new PersistAtomStep(
                 _atomRepository,
                 _embeddingRepository,
-                _logger.CreateLogger<PersistAtomStep>()))
+                _loggerFactory.CreateLogger<PersistAtomStep>()))
             .WithResilience(configureResilience)
             .Build();
     }
@@ -173,14 +175,14 @@ public sealed class AtomIngestionServiceAdapter : IAtomIngestionService
 
         var pipelineResult = await _pipelineFactory.IngestAtomAsync(pipelineRequest, cancellationToken);
 
-        // Map pipeline result to old DTO
+        // Map pipeline result to interface contract
         return new AtomIngestionResult
         {
-            AtomId = pipelineResult.Atom.AtomId,
+            Atom = pipelineResult.Atom,
+            Embedding = pipelineResult.Embedding,
             WasDuplicate = pipelineResult.WasDuplicate,
             DuplicateReason = pipelineResult.DuplicateReason,
-            SemanticSimilarity = pipelineResult.SemanticSimilarity,
-            CorrelationId = pipelineResult.CorrelationId
+            SemanticSimilarity = pipelineResult.SemanticSimilarity
         };
     }
 }

@@ -165,4 +165,18 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }
+
+    public async Task<List<Model>> GetByIdsAsync(IReadOnlyList<int> modelIds, CancellationToken cancellationToken = default)
+    {
+        return await IncludeRelatedEntities(DbSet.AsNoTracking())
+            .Where(m => modelIds.Contains(m.ModelId))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<List<Model>> GetActiveModelsAsync(CancellationToken cancellationToken = default)
+    {
+        // For now, return all models. In future, could filter by IsActive flag if added to entity
+        return await IncludeRelatedEntities(DbSet.AsNoTracking())
+            .ToListAsync(cancellationToken);
+    }
 }

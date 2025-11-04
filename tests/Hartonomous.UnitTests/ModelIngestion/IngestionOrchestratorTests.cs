@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Testing.Common;
 using Microsoft.Data.SqlTypes;
@@ -150,6 +151,15 @@ public sealed class IngestionOrchestratorTests : IDisposable
             LastRequestedModelId = modelId;
             return Task.FromResult(LayersToReturn);
         }
+
+        public Task<IEnumerable<Model>> GetModelsByCapabilityAsync(TaskType[] tasks, Modality requiredModalities = Modality.None, int minCount = 1, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IEnumerable<Model>>(Array.Empty<Model>());
+
+        public Task<List<Model>> GetByIdsAsync(IReadOnlyList<int> modelIds, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new List<Model>());
+
+        public Task<List<Model>> GetActiveModelsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(new List<Model>());
     }
 
     private sealed class StubModelIngestionService : IModelIngestionService

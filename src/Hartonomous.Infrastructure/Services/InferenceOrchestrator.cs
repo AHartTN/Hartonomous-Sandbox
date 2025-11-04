@@ -13,6 +13,7 @@ using System.Data;
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -990,4 +991,47 @@ WHERE sf.AtomEmbeddingId IN ({string.Join(",", parameterNames)});";
         double AverageWordLength,
         double UniqueWordRatio,
         string CanonicalText);
+
+    /// <summary>
+    /// Invokes a specific model for inference using sp_EnsembleInference.
+    /// </summary>
+    public async Task<string> InvokeModelAsync(
+        int modelId,
+        string prompt,
+        string? context,
+        Dictionary<string, object>? parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // Build input data JSON
+        var inputDataBuilder = new StringBuilder("{");
+        inputDataBuilder.Append($"\"prompt\":\"{prompt.Replace("\"", "\\\"")}\"");
+        
+        if (!string.IsNullOrEmpty(context))
+        {
+            inputDataBuilder.Append($",\"context\":\"{context.Replace("\"", "\\\"")}\"");
+        }
+
+        if (parameters != null && parameters.Count > 0)
+        {
+            inputDataBuilder.Append(",\"parameters\":{");
+            var paramList = parameters.Select(kvp => $"\"{kvp.Key}\":{System.Text.Json.JsonSerializer.Serialize(kvp.Value)}");
+            inputDataBuilder.Append(string.Join(",", paramList));
+            inputDataBuilder.Append("}");
+        }
+
+        inputDataBuilder.Append("}");
+
+        var result = await _sql.ExecuteAsync(async (cmd, ct) =>
+        {
+            cmd.CommandText = "EXEC dbo.sp_EnsembleInference @inputData, @modelIds, @taskType";
+            cmd.Parameters.AddWithValue("@inputData", inputDataBuilder.ToString());
+            cmd.Parameters.AddWithValue("@modelIds", modelId.ToString());
+            cmd.Parameters.AddWithValue("@taskType", "text-generation");
+            
+            var output = await cmd.ExecuteScalarAsync(ct);
+            return output?.ToString() ?? string.Empty;
+        }, cancellationToken);
+
+        return result;
+    }
 }

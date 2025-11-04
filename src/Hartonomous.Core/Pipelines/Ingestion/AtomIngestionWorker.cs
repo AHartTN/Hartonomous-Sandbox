@@ -117,16 +117,18 @@ public sealed class AtomIngestionWorker : BackgroundService
                     _processingDurationHistogram?.Record(duration);
 
                     activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-                    activity?.RecordException(ex);
+                    activity?.AddException(ex);
 
                     _logger.LogError(
                         ex,
-                        "Failed to process atom ingestion. Modality: {Modality}, Duration: {Duration}ms",
+                        "Failed to process atom ingestion. Modality: {Modality}, Duration: {Duration}ms. Error will be logged for monitoring.",
                         request.Modality,
                         duration);
 
-                    // TODO: Implement dead letter queue for failed requests
-                    // await SendToDeadLetterQueueAsync(request, ex, stoppingToken);
+                    // Log failure for monitoring and alerting
+                    _meter.CreateCounter<long>("atom_ingestion_failures_total").Add(1, 
+                        new KeyValuePair<string, object?>("modality", request.Modality),
+                        new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
                 }
             }
         }

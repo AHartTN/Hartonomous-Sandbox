@@ -1,3 +1,5 @@
+using System;
+using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -128,7 +130,7 @@ public abstract class PipelineStepBase<TInput, TOutput> : IPipelineStep<TInput, 
             };
 
             context.TraceActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            context.TraceActivity?.RecordException(ex);
+            context.TraceActivity?.AddException(ex);
 
             return StepResult<TOutput>.Failure(error, duration, StepName);
         }

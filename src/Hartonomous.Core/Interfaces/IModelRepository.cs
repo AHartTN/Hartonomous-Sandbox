@@ -37,4 +37,14 @@ public interface IModelRepository
     Task<ModelLayer> AddLayerAsync(int modelId, ModelLayer layer, CancellationToken cancellationToken = default);
     Task UpdateLayerWeightsAsync(int layerId, SqlVector<float> weights, CancellationToken cancellationToken = default);
     Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets models by their IDs.
+    /// </summary>
+    Task<List<Model>> GetByIdsAsync(IReadOnlyList<int> modelIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets all active models.
+    /// </summary>
+    Task<List<Model>> GetActiveModelsAsync(CancellationToken cancellationToken = default);
 }

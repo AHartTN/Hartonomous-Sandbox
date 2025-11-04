@@ -256,7 +256,7 @@ public static partial class PipelineLogMessages
     [LoggerMessage(
         EventId = 5003,
         Level = LogLevel.Debug,
-        Message = "Enqueued request to worker '{WorkerName}'. QueueDepth: {QueueDepth}")]
+        Message = "Request enqueued for background processing. Worker: {workerName}, Queue Depth: {queueDepth}")]
     public static partial void LogRequestEnqueued(
         this ILogger logger,
         string workerName,
@@ -265,9 +265,10 @@ public static partial class PipelineLogMessages
     [LoggerMessage(
         EventId = 5004,
         Level = LogLevel.Error,
-        Message = "Background worker '{WorkerName}' encountered fatal error.")]
+        Message = "Background worker '{workerName}' encountered fatal error.")]
     public static partial void LogWorkerFatalError(
         this ILogger logger,
+        string workerName,
         Exception exception);
 
     // ============================================================

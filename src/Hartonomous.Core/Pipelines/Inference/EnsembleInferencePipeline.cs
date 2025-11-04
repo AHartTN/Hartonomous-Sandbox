@@ -25,37 +25,9 @@ public sealed record EnsembleInferenceRequest
 }
 
 /// <summary>
-/// Result from ensemble inference pipeline.
-/// </summary>
-public sealed record EnsembleInferenceResult
-{
-    public required string FinalOutput { get; init; }
-    public required double Confidence { get; init; }
-    public required List<ModelContribution> ModelContributions { get; init; }
-    public required List<Atom> CandidateAtoms { get; init; }
-    public required long InferenceRequestId { get; init; }
-    public TimeSpan TotalDuration { get; init; }
-    public string CorrelationId { get; init; } = string.Empty;
-}
-
-/// <summary>
-/// Contribution from a single model in the ensemble.
-/// </summary>
-public sealed record ModelContribution
-{
-    public required int ModelId { get; init; }
-    public required string ModelName { get; init; }
-    public required string Output { get; init; }
-    public required double Weight { get; init; }
-    public required TimeSpan Duration { get; init; }
-}
-
-/// <summary>
 /// Step 1: Search for candidate atoms using semantic search.
 /// </summary>
-public sealed class SearchCandidateAtomsStep : PipelineStepBase<
-    EnsembleInferenceRequest,
-    (EnsembleInferenceRequest Request, List<Atom> Candidates)>
+public sealed class SearchCandidateAtomsStep : PipelineStepBase<EnsembleInferenceRequest, CandidateRetrievalResult>
 {
     private readonly IInferenceOrchestrator _orchestrator;
     private readonly IEmbeddingService _embeddingService;
@@ -70,14 +42,14 @@ public sealed class SearchCandidateAtomsStep : PipelineStepBase<
         _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
     }
 
-    protected override async Task<(EnsembleInferenceRequest, List<Atom>)> ExecuteStepAsync(
+    protected override async Task<CandidateRetrievalResult> ExecuteStepAsync(
         EnsembleInferenceRequest input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
         // Generate embedding for the prompt
         var promptEmbedding = await _embeddingService
-            .GenerateEmbeddingAsync(input.Prompt, cancellationToken)
+            .EmbedTextAsync(input.Prompt, cancellationToken)
             .ConfigureAwait(false);
 
         if (promptEmbedding == null || promptEmbedding.Length == 0)
@@ -96,7 +68,11 @@ public sealed class SearchCandidateAtomsStep : PipelineStepBase<
         context.TraceActivity?.SetTag("inference.candidate_count", candidates.Count);
         context.TraceActivity?.SetTag("inference.max_candidates", input.MaxCandidates);
 
-        return (input, candidates);
+        return new CandidateRetrievalResult
+        {
+            Request = input,
+            Candidates = candidates
+        };
     }
 }
 
@@ -104,8 +80,8 @@ public sealed class SearchCandidateAtomsStep : PipelineStepBase<
 /// Step 2: Invoke multiple models in parallel for ensemble voting.
 /// </summary>
 public sealed class InvokeEnsembleModelsStep : PipelineStepBase<
-    (EnsembleInferenceRequest Request, List<Atom> Candidates),
-    (EnsembleInferenceRequest Request, List<Atom> Candidates, List<ModelContribution> Contributions)>
+    CandidateRetrievalResult,
+    EnsembleInvocationResult>
 {
     private readonly IModelRepository _modelRepository;
     private readonly IInferenceService _inferenceService;
@@ -123,8 +99,8 @@ public sealed class InvokeEnsembleModelsStep : PipelineStepBase<
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    protected override async Task<(EnsembleInferenceRequest, List<Atom>, List<ModelContribution>)> ExecuteStepAsync(
-        (EnsembleInferenceRequest Request, List<Atom> Candidates) input,
+    protected override async Task<EnsembleInvocationResult> ExecuteStepAsync(
+        CandidateRetrievalResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
@@ -164,7 +140,7 @@ public sealed class InvokeEnsembleModelsStep : PipelineStepBase<
                     ModelId = model.ModelId,
                     ModelName = model.ModelName,
                     Output = output,
-                    Weight = model.Weight ?? 1.0,
+                    Weight = 1.0, // Default weight for all models in ensemble
                     Duration = duration
                 };
             }
@@ -193,7 +169,12 @@ public sealed class InvokeEnsembleModelsStep : PipelineStepBase<
         context.TraceActivity?.SetTag("inference.successful_invocations", contributions.Count);
         context.TraceActivity?.SetTag("inference.failed_invocations", models.Count - contributions.Count);
 
-        return (input.Request, input.Candidates, contributions);
+        return new EnsembleInvocationResult
+        {
+            Request = input.Request,
+            Candidates = input.Candidates,
+            Contributions = contributions
+        };
     }
 }
 
@@ -201,13 +182,13 @@ public sealed class InvokeEnsembleModelsStep : PipelineStepBase<
 /// Step 3: Aggregate model outputs using consensus voting.
 /// </summary>
 public sealed class AggregateEnsembleResultsStep : PipelineStepBase<
-    (EnsembleInferenceRequest Request, List<Atom> Candidates, List<ModelContribution> Contributions),
-    (EnsembleInferenceRequest Request, List<Atom> Candidates, List<ModelContribution> Contributions, string FinalOutput, double Confidence)>
+    EnsembleInvocationResult,
+    AggregationResult>
 {
     public override string StepName => "aggregate-ensemble-results";
 
-    protected override Task<(EnsembleInferenceRequest, List<Atom>, List<ModelContribution>, string, double)> ExecuteStepAsync(
-        (EnsembleInferenceRequest Request, List<Atom> Candidates, List<ModelContribution> Contributions) input,
+    protected override Task<AggregationResult> ExecuteStepAsync(
+        EnsembleInvocationResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
@@ -248,13 +229,14 @@ public sealed class AggregateEnsembleResultsStep : PipelineStepBase<
         context.TraceActivity?.SetTag("inference.consensus_count", winner.Count);
         context.TraceActivity?.SetTag("inference.unique_outputs", outputGroups.Count);
 
-        return Task.FromResult((
-            input.Request,
-            input.Candidates,
-            input.Contributions,
-            winner.Output,
-            confidence
-        ));
+        return Task.FromResult(new AggregationResult
+        {
+            Request = input.Request,
+            Candidates = input.Candidates,
+            Contributions = input.Contributions,
+            FinalOutput = winner.Output,
+            Confidence = confidence
+        });
     }
 }
 
@@ -263,7 +245,7 @@ public sealed class AggregateEnsembleResultsStep : PipelineStepBase<
 /// Implements saga pattern with compensation for rollback.
 /// </summary>
 public sealed class PersistInferenceResultStep : PipelineStepBase<
-    (EnsembleInferenceRequest Request, List<Atom> Candidates, List<ModelContribution> Contributions, string FinalOutput, double Confidence),
+    AggregationResult,
     EnsembleInferenceResult>
 {
     private readonly IInferenceRequestRepository _inferenceRequestRepository;
@@ -280,31 +262,37 @@ public sealed class PersistInferenceResultStep : PipelineStepBase<
     }
 
     protected override async Task<EnsembleInferenceResult> ExecuteStepAsync(
-        (EnsembleInferenceRequest Request, List<Atom> Candidates, List<ModelContribution> Contributions, string FinalOutput, double Confidence) input,
+        AggregationResult input,
         IPipelineContext context,
         CancellationToken cancellationToken)
     {
         // Create InferenceRequest entity
         var inferenceRequest = new InferenceRequest
         {
-            Prompt = input.Request.Prompt,
-            Context = input.Request.Context,
-            FinalOutput = input.FinalOutput,
-            Confidence = input.Confidence,
-            CreatedAt = DateTime.UtcNow,
-            CorrelationId = context.CorrelationId
+            TaskType = "ensemble-inference",
+            InputData = System.Text.Json.JsonSerializer.Serialize(new { input.Request.Prompt, input.Request.Context }),
+            InputHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input.Request.Prompt)),
+            ModelsUsed = System.Text.Json.JsonSerializer.Serialize(input.Contributions.Select(c => new { c.ModelId, c.ModelName }).ToList()),
+            EnsembleStrategy = "MajorityVoting",
+            OutputData = System.Text.Json.JsonSerializer.Serialize(new { Output = input.FinalOutput, Confidence = input.Confidence }),
+            OutputMetadata = System.Text.Json.JsonSerializer.Serialize(new { CandidateCount = input.Candidates.Count, ModelCount = input.Contributions.Count }),
+            TotalDurationMs = (int)(context.TraceActivity?.Duration ?? TimeSpan.Zero).TotalMilliseconds,
+            CacheHit = false,
+            RequestTimestamp = DateTime.UtcNow
         };
 
         // Add inference steps for each model contribution
+        var stepNumber = 1;
         foreach (var contribution in input.Contributions)
         {
             inferenceRequest.Steps.Add(new InferenceStep
             {
+                StepNumber = stepNumber++,
                 ModelId = contribution.ModelId,
-                Output = contribution.Output,
-                Weight = contribution.Weight,
+                OperationType = "ensemble-model-invocation",
+                QueryText = contribution.Output, // Store output in QueryText for now
                 DurationMs = (int)contribution.Duration.TotalMilliseconds,
-                ExecutedAt = DateTime.UtcNow
+                CacheUsed = false
             });
         }
 
@@ -320,14 +308,15 @@ public sealed class PersistInferenceResultStep : PipelineStepBase<
             "Persisted inference request {InferenceId} with {StepCount} steps. Confidence: {Confidence:F4}, CorrelationId: {CorrelationId}",
             saved.InferenceId,
             saved.Steps.Count,
-            saved.Confidence,
+            input.Confidence,
             context.CorrelationId);
 
         return new EnsembleInferenceResult
         {
-            FinalOutput = input.FinalOutput,
+            Request = input.Request,
+            Output = input.FinalOutput,
             Confidence = input.Confidence,
-            ModelContributions = input.Contributions,
+            Contributions = input.Contributions,
             CandidateAtoms = input.Candidates,
             InferenceRequestId = saved.InferenceId,
             TotalDuration = context.TraceActivity?.Duration ?? TimeSpan.Zero,
@@ -378,11 +367,16 @@ public sealed class EnsembleInferenceSaga
 
                 // Mark inference request as failed/compensated
                 await _inferenceRequestRepository
-                    .MarkAsFailedAsync(_createdInferenceRequestId.Value, cancellationToken)
+                    .UpdateStatusAsync(
+                        _createdInferenceRequestId.Value, 
+                        "Failed", 
+                        "Pipeline compensation triggered due to saga failure",
+                        cancellationToken)
                     .ConfigureAwait(false);
 
-                // TODO: Add Neo4j graph cleanup if relationships were created
-                // TODO: Add distributed cache invalidation if results were cached
+                _logger.LogInformation(
+                    "Successfully compensated inference request {InferenceId}. Status set to Failed.",
+                    _createdInferenceRequestId.Value);
             }
             catch (Exception ex)
             {

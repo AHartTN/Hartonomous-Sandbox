@@ -31,6 +31,21 @@ public class InferenceRequest
     public byte[]? InputHash { get; set; }
 
     /// <summary>
+    /// Gets or sets the correlation ID for grouping related inference requests.
+    /// </summary>
+    public string? CorrelationId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the current status of the inference request (e.g., 'Pending', 'InProgress', 'Completed', 'Failed').
+    /// </summary>
+    public string? Status { get; set; }
+
+    /// <summary>
+    /// Gets or sets the confidence score of the inference result (0.0 to 1.0).
+    /// </summary>
+    public double? Confidence { get; set; }
+
+    /// <summary>
     /// Gets or sets the models used in this inference as a JSON array (mapped to SQL Server 2025 JSON type).
     /// </summary>
     public string? ModelsUsed { get; set; }

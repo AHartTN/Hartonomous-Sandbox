@@ -138,4 +138,20 @@ public interface IInferenceService
         float learningRate = 0.001f,
         int minRatings = 10,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Invokes a specific model for inference.
+    /// </summary>
+    /// <param name="modelId">The ID of the model to invoke.</param>
+    /// <param name="prompt">The input prompt for inference.</param>
+    /// <param name="context">Additional context for the model.</param>
+    /// <param name="parameters">Optional model-specific parameters.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The model output as a string.</returns>
+    Task<string> InvokeModelAsync(
+        int modelId,
+        string prompt,
+        string? context,
+        Dictionary<string, object>? parameters,
+        CancellationToken cancellationToken = default);
 }

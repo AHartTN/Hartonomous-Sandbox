@@ -1,9 +1,15 @@
 using System;
+using System.Diagnostics;
+using System.Diagnostics.Metrics;
+using System.Threading.Channels;
 using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Billing;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Pipelines;
+using Hartonomous.Core.Pipelines.Inference;
+using Hartonomous.Core.Pipelines.Ingestion;
 using Hartonomous.Core.Resilience;
 using Hartonomous.Core.Security;
 using Hartonomous.Core.Serialization;
@@ -159,6 +165,50 @@ public static class DependencyInjection
         services.AddScoped<ModelIngestionProcessor>();
         services.AddScoped<ModelIngestionOrchestrator>();
         services.AddScoped<ModelDownloader>();
+
+        // ============================================================================
+        // PIPELINE ARCHITECTURE - MS-Validated Enterprise Patterns
+        // ============================================================================
+        
+        // OpenTelemetry resources (static instances for pipeline tracing and metrics)
+        var activitySource = new ActivitySource("Hartonomous.Pipelines", "1.0.0");
+        var meter = new Meter("Hartonomous.Pipelines", "1.0.0");
+        services.AddSingleton(activitySource);
+        services.AddSingleton(meter);
+
+        // Atom Ingestion Channel (bounded queue with MS-recommended backpressure)
+        services.AddSingleton(_ => 
+        {
+            var capacity = configuration.GetValue("AtomIngestion:QueueCapacity", 1000);
+            var options = new BoundedChannelOptions(capacity)
+            {
+                FullMode = BoundedChannelFullMode.Wait, // MS-recommended: blocks producer when full
+                SingleReader = false,
+                SingleWriter = false,
+                AllowSynchronousContinuations = false
+            };
+            return Channel.CreateBounded<AtomIngestionPipelineRequest>(options);
+        });
+
+        // Register ChannelReader/Writer for DI
+        services.AddSingleton(sp => 
+            sp.GetRequiredService<Channel<AtomIngestionPipelineRequest>>().Reader);
+        services.AddSingleton(sp => 
+            sp.GetRequiredService<Channel<AtomIngestionPipelineRequest>>().Writer);
+
+        // Pipeline factories (scoped for per-request DbContext)
+        services.AddScoped<AtomIngestionPipelineFactory>();
+        services.AddScoped<EnsembleInferencePipelineFactory>();
+
+        // Inference adapters and repositories
+        services.AddScoped<IInferenceOrchestrator, InferenceOrchestratorAdapter>();
+        services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
+
+        // Adapter: Allows existing code using IAtomIngestionService to use the pipeline
+        services.AddScoped<IAtomIngestionService, AtomIngestionServiceAdapter>();
+
+        // Background worker for async atom ingestion
+        services.AddHostedService<AtomIngestionWorker>();
 
         return services;
     }

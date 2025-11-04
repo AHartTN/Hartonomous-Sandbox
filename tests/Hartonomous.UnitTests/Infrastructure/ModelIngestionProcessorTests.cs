@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Testing.Common;
@@ -201,6 +202,9 @@ public sealed class ModelIngestionProcessorTests
         public Task<ModelLayer> AddLayerAsync(int modelId, ModelLayer layer, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task UpdateLayerWeightsAsync(int layerId, Microsoft.Data.SqlTypes.SqlVector<float> weights, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IEnumerable<Model>> GetModelsByCapabilityAsync(TaskType[] tasks, Modality requiredModalities = Modality.None, int minCount = 1, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<Model>> GetByIdsAsync(IReadOnlyList<int> modelIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<Model>> GetActiveModelsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class StubModelLayerRepository : IModelLayerRepository

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Core.Pipelines.Inference;
@@ -17,6 +18,7 @@ public sealed class EnsembleInferencePipelineFactory
     private readonly IModelRepository _modelRepository;
     private readonly IInferenceService _inferenceService;
     private readonly IInferenceRequestRepository _inferenceRequestRepository;
+    private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<EnsembleInferencePipelineFactory> _logger;
     private readonly ActivitySource? _activitySource;
 
@@ -26,7 +28,7 @@ public sealed class EnsembleInferencePipelineFactory
         IModelRepository modelRepository,
         IInferenceService inferenceService,
         IInferenceRequestRepository inferenceRequestRepository,
-        ILogger<EnsembleInferencePipelineFactory> logger,
+        ILoggerFactory loggerFactory,
         ActivitySource? activitySource = null)
     {
         _orchestrator = orchestrator ?? throw new ArgumentNullException(nameof(orchestrator));
@@ -34,7 +36,8 @@ public sealed class EnsembleInferencePipelineFactory
         _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
         _inferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
         _inferenceRequestRepository = inferenceRequestRepository ?? throw new ArgumentNullException(nameof(inferenceRequestRepository));
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _logger = loggerFactory.CreateLogger<EnsembleInferencePipelineFactory>();
         _activitySource = activitySource;
     }
 
@@ -46,24 +49,26 @@ public sealed class EnsembleInferencePipelineFactory
         int maxRetries = 3,
         TimeSpan? timeout = null)
     {
-        var builder = PipelineBuilder<EnsembleInferenceRequest, EnsembleInferenceResult>
+        var builder = PipelineBuilder<EnsembleInferenceRequest, EnsembleInferenceRequest>
             .Create("ensemble-inference", _logger, _activitySource)
-            .AddStep(new SearchCandidateAtomsStep(_orchestrator, _embeddingService))
+            .AddStep(new SearchCandidateAtomsStep(_orchestrator, _embeddingService)) // Request -> CandidateRetrieval
             .AddStep(new InvokeEnsembleModelsStep(
                 _modelRepository,
                 _inferenceService,
-                _logger.CreateLogger<InvokeEnsembleModelsStep>()))
-            .AddStep(new AggregateEnsembleResultsStep())
+                _loggerFactory.CreateLogger<InvokeEnsembleModelsStep>())) // CandidateRetrieval -> EnsembleInvocation
+            .AddStep(new AggregateEnsembleResultsStep()) // EnsembleInvocation -> Aggregation
             .AddStep(new PersistInferenceResultStep(
                 _inferenceRequestRepository,
-                _logger.CreateLogger<PersistInferenceResultStep>()));
+                _loggerFactory.CreateLogger<PersistInferenceResultStep>())); // Aggregation -> Result
 
         if (enableResilience)
         {
-            builder = builder.WithStandardResilience(
+            var resilientBuilder = builder.WithStandardResilience(
                 maxRetries: maxRetries,
                 timeout: timeout ?? TimeSpan.FromSeconds(60), // Longer timeout for model invocations
                 circuitBreakerFailureThreshold: 0.5);
+            
+            return resilientBuilder.Build();
         }
 
         return builder.Build();
@@ -76,7 +81,7 @@ public sealed class EnsembleInferencePipelineFactory
         EnsembleInferenceRequest request,
         CancellationToken cancellationToken = default)
     {
-        var saga = new EnsembleInferenceSaga(_inferenceRequestRepository, _logger.CreateLogger<EnsembleInferenceSaga>());
+        var saga = new EnsembleInferenceSaga(_inferenceRequestRepository, _loggerFactory.CreateLogger<EnsembleInferenceSaga>());
         var pipeline = CreatePipeline(enableResilience: true);
 
         var context = PipelineContext.Create(
@@ -104,7 +109,10 @@ public sealed class EnsembleInferencePipelineFactory
             }
 
             // Track created inference request ID for potential compensation
-            saga.TrackInferenceRequestCreation(result.Output!.InferenceRequestId);
+            if (result.Output!.InferenceRequestId.HasValue)
+            {
+                saga.TrackInferenceRequestCreation(result.Output.InferenceRequestId.Value);
+            }
 
             return result.Output!;
         }
