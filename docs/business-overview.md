@@ -16,7 +16,7 @@ Hartonomous packages the heavy lifting of multimodal AI infrastructure into a pl
 | Head of AI/ML | Scalable experimentation, compliance, explainability | Neo4j provenance, model ingestion pipeline |
 | Platform Engineer | Stable infrastructure, operability, automation | Service Broker, EF Core migrations, deployment scripts |
 | Finance / RevOps | Transparent chargebacks, contract alignment | Billing rate plans, multiplier catalog, usage ledger |
-| Product Manager | Feature velocity with guardrails | Thin client SDKs, admin UI (roadmap), throttling & policy engine |
+| Product Manager | Feature velocity with guardrails | ModelIngestion CLI, Blazor Admin UI, throttling & policy engine |
 
 ## Packaging & Monetisation
 
@@ -31,13 +31,8 @@ Finance teams can extend the ledger by:
 
 - Adding additional dimensions to the `BillingMultipliers` table (lookups via EF Core configuration and configuration defaults).
 - Connecting external invoicing by streaming ledger entries into analytics pipelines.
-- Building dashboards on top of the admin UI’s forthcoming billing workspace.
+- Building dashboards on top of the admin UI's billing workspace.
 
-## Roadmap Themes
-
-- **Admin Experience.** Finish the Blazor admin portal: billing dashboards, provenance explorer, and policy management.
-- **Client Ecosystem.** Expand the CLI and thin clients with opinionated workflows for ingestion, re-indexing, and inference replay.
-- **Operations Intelligence.** Ship Grafana dashboards built from the telemetry emitted by billing and messaging services.
-- **Model Marketplace.** Curate pre-ingested models with metadata, licensing, and automated student model creation.
+---
 
 Keep this document honest — revisit after major releases to verify that positioning and monetisation assumptions are still valid.
