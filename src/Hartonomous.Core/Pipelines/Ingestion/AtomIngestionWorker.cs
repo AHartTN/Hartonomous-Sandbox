@@ -113,22 +113,26 @@ public sealed class AtomIngestionWorker : BackgroundService
                     var duration = (DateTime.UtcNow - startTime).TotalMilliseconds;
 
                     // Record failure metrics
-                    _requestsFailedCounter?.Add(1, new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
+                    _requestsProcessedCounter?.Add(1, new KeyValuePair<string, object?>("status", "failed"));
                     _processingDurationHistogram?.Record(duration);
 
-                    activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                    activity?.SetStatus(ActivityStatusCode.Error);
                     activity?.AddException(ex);
 
                     _logger.LogError(
                         ex,
                         "Failed to process atom ingestion. Modality: {Modality}, Duration: {Duration}ms. Error will be logged for monitoring.",
-                        request.Modality,
+                        request.Modality ?? "unknown",
                         duration);
 
                     // Log failure for monitoring and alerting
-                    _meter.CreateCounter<long>("atom_ingestion_failures_total").Add(1, 
-                        new KeyValuePair<string, object?>("modality", request.Modality),
-                        new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
+                    if (_meter != null)
+                    {
+                        var failureCounter = _meter.CreateCounter<long>("atom_ingestion_failures_total");
+                        failureCounter.Add(1, 
+                            new KeyValuePair<string, object?>("modality", request.Modality ?? "unknown"),
+                            new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
+                    }
                 }
             }
         }

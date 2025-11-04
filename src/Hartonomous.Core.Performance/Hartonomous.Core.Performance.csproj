@@ -26,17 +26,6 @@
     <!-- GPU Compute -->
     <PackageReference Include="ILGPU" Version="1.5.1" />
     <PackageReference Include="ILGPU.Algorithms" Version="1.5.1" />
-    
-    <!-- High-performance primitives -->
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
-    <PackageReference Include="System.Memory" Version="4.5.5" />
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
-    
-    <!-- JSON -->
-    <PackageReference Include="System.Text.Json" Version="8.0.5" />
-    
-    <!-- Channels -->
-    <PackageReference Include="System.Threading.Channels" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
