@@ -1,5 +1,6 @@
 using System.Linq.Expressions;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Data;
@@ -50,6 +51,64 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
         return await IncludeRelatedEntities(DbSet.AsNoTracking())
             .Where(m => m.ModelType == modelType)
             .ToListAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Query models by capability for ensemble orchestration.
+    /// Returns models that support ANY of the specified tasks and ALL of the required modalities.
+    /// Filters by parsing Model.Metadata.SupportedTasks/SupportedModalities JSON.
+    /// </summary>
+    public async Task<IEnumerable<Model>> GetModelsByCapabilityAsync(
+        TaskType[] tasks,
+        Modality requiredModalities = Modality.None,
+        int minCount = 1,
+        CancellationToken cancellationToken = default)
+    {
+        // Convert enum arrays to JSON strings for comparison
+        var taskStrings = tasks.Select(t => t.ToJsonString()).ToArray();
+        
+        // Get all models with metadata
+        var modelsWithMetadata = await IncludeRelatedEntities(DbSet.AsNoTracking())
+            .Where(m => m.Metadata != null && 
+                       m.Metadata.SupportedTasks != null &&
+                       m.Metadata.SupportedModalities != null)
+            .ToListAsync(cancellationToken);
+
+        // Filter in-memory by parsing JSON (client-side evaluation for complex JSON queries)
+        var matchingModels = modelsWithMetadata
+            .Where(model =>
+            {
+                // Parse supported tasks
+                var supportedTasks = EnumExtensions.ParseTaskTypes(model.Metadata!.SupportedTasks);
+                var supportsAnyTask = tasks.Any(t => supportedTasks.Contains(t));
+                
+                if (!supportsAnyTask)
+                    return false;
+
+                // Parse supported modalities
+                if (requiredModalities != Modality.None)
+                {
+                    var supportedModalities = EnumExtensions.ParseModalities(model.Metadata!.SupportedModalities);
+                    var supportsAllModalities = (supportedModalities & requiredModalities) == requiredModalities;
+                    
+                    if (!supportsAllModalities)
+                        return false;
+                }
+
+                return true;
+            })
+            .OrderByDescending(m => m.Metadata!.SupportedTasks != null ? 1 : 0) // Prioritize models with complete metadata
+            .ThenByDescending(m => m.ParameterCount ?? 0) // Larger models first (assumes higher capability)
+            .Take(Math.Max(minCount, 100)) // Safety limit
+            .ToList();
+
+        Logger.LogInformation(
+            "Found {Count} models matching capabilities: Tasks={Tasks}, Modalities={Modalities}",
+            matchingModels.Count,
+            string.Join(",", tasks.Select(t => t.ToJsonString())),
+            requiredModalities.ToJsonArray());
+
+        return matchingModels;
     }
 
     // Model layer management
