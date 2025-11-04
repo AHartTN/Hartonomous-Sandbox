@@ -22,9 +22,22 @@ namespace ModelIngestion
             {
                 var host = CreateHostBuilder(args).Build();
 
-                // Get the ingestion service and run
-                var ingestionService = host.Services.GetRequiredService<IngestionOrchestrator>();
-                await ingestionService.RunAsync(args);
+                // Simple command routing - bypass orchestrator for model ingestion
+                if (args.Length > 0 && args[0].ToLowerInvariant() == "ingest-model" && args.Length > 1)
+                {
+                    var modelIngestion = host.Services.GetRequiredService<IModelIngestionService>();
+                    var modelPath = args[1];
+                    
+                    Console.WriteLine($"Ingesting model from: {modelPath}");
+                    var modelId = await modelIngestion.IngestAsync(modelPath, null, default);
+                    Console.WriteLine($"✓ Model ingestion complete: ModelId={modelId}");
+                    
+                    return 0;
+                }
+
+                // Get the ingestion orchestrator for other commands
+                var orchestrator = host.Services.GetRequiredService<IngestionOrchestrator>();
+                await orchestrator.RunAsync(args);
 
                 return 0;
             }
@@ -59,7 +72,10 @@ namespace ModelIngestion
                     // Register ingestion services with DI
                     services.AddScoped<IngestionOrchestrator>();
                     services.AddScoped<ModelIngestionService>();
+                    services.AddScoped<IModelIngestionService>(sp => sp.GetRequiredService<ModelIngestionService>());
                     services.AddScoped<ModelDownloader>();
+                    services.AddScoped<Hartonomous.Infrastructure.Services.EmbeddingService>();
+                    services.AddScoped<IEmbeddingService>(sp => sp.GetRequiredService<Hartonomous.Infrastructure.Services.EmbeddingService>());
 
                     // Register new focused services
                     services.AddScoped<EmbeddingTestService>();
@@ -69,6 +85,7 @@ namespace ModelIngestion
                     // Register model format readers
                     services.AddScoped<IModelFormatReader<OnnxMetadata>, ModelFormats.OnnxModelReader>();
                     services.AddScoped<IModelFormatReader<SafetensorsMetadata>, ModelFormats.SafetensorsModelReader>();
+                    services.AddScoped<IModelFormatReader<GGUFMetadata>, ModelFormats.GGUFModelReader>();
                     services.AddScoped<ModelFormats.ModelReaderFactory>();
 
                     services.AddScoped<EmbeddingIngestionService>();

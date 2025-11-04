@@ -14,16 +14,22 @@ namespace ModelIngestion.ModelFormats
     {
         private readonly ILogger<OnnxModelReader> _onnxLogger;
         private readonly ILogger<SafetensorsModelReader> _safetensorsLogger;
+        private readonly ILogger<GGUFModelReader> _ggufLogger;
         private readonly IModelLayerRepository _layerRepository;
+        private readonly IModelRepository _modelRepository;
 
         public ModelReaderFactory(
             ILogger<OnnxModelReader> onnxLogger,
             ILogger<SafetensorsModelReader> safetensorsLogger,
-            IModelLayerRepository layerRepository)
+            ILogger<GGUFModelReader> ggufLogger,
+            IModelLayerRepository layerRepository,
+            IModelRepository modelRepository)
         {
             _onnxLogger = onnxLogger ?? throw new ArgumentNullException(nameof(onnxLogger));
             _safetensorsLogger = safetensorsLogger ?? throw new ArgumentNullException(nameof(safetensorsLogger));
+            _ggufLogger = ggufLogger ?? throw new ArgumentNullException(nameof(ggufLogger));
             _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
+            _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
         }
 
         public IModelFormatReader<OnnxMetadata> GetOnnxReader()
@@ -34,6 +40,11 @@ namespace ModelIngestion.ModelFormats
         public IModelFormatReader<SafetensorsMetadata> GetSafetensorsReader()
         {
             return new SafetensorsModelReader(_safetensorsLogger, _layerRepository);
+        }
+
+        public IModelFormatReader<GGUFMetadata> GetGgufReader()
+        {
+            return new GGUFModelReader(_modelRepository, _layerRepository, _ggufLogger);
         }
 
         /// <summary>
@@ -50,6 +61,8 @@ namespace ModelIngestion.ModelFormats
                     return GetOnnxReader();
                 case ".safetensors":
                     return GetSafetensorsReader();
+                case ".gguf":
+                    return GetGgufReader();
                 default:
                     throw new NotSupportedException($"File type not supported: {extension}");
             }
