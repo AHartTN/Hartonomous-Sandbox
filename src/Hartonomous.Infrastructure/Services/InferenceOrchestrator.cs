@@ -172,33 +172,108 @@ public sealed class InferenceOrchestrator : IInferenceService
             "Executing ensemble inference with {ModelCount} models",
             modelIds.Count);
 
-        // For ensemble, we need to call sp_EnsembleInference which returns JSON
-        // This is a simplified implementation - full version would parse JSON result
-
         var connection = _context.Database.GetDbConnection();
         await connection.OpenAsync(cancellationToken);
 
-        using var command = connection.CreateCommand();
-        command.CommandText = "dbo.sp_EnsembleInference";
-        command.CommandType = System.Data.CommandType.StoredProcedure;
+        long inferenceId = 0;
+        var resultRows = new List<EnsembleAtomScore>();
 
-        command.Parameters.Add(new SqlParameter("@inputData", inputData));
-        command.Parameters.Add(new SqlParameter("@modelIds", string.Join(",", modelIds)));
-        command.Parameters.Add(new SqlParameter("@taskType", "classification"));
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "dbo.sp_EnsembleInference";
+            command.CommandType = System.Data.CommandType.StoredProcedure;
 
-        var result = await command.ExecuteScalarAsync(cancellationToken);
+            command.Parameters.Add(new SqlParameter("@inputData", inputData));
+            command.Parameters.Add(new SqlParameter("@modelIds", string.Join(",", modelIds)));
+            command.Parameters.Add(new SqlParameter("@taskType", "classification"));
 
-        _logger.LogInformation("Ensemble inference completed");
+            // Execute and read result set
+            using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                // First row contains InferenceId
+                if (inferenceId == 0)
+                    inferenceId = reader.GetInt64(reader.GetOrdinal("InferenceId"));
 
-        // Placeholder result - real implementation would parse T-SQL output
+                resultRows.Add(new EnsembleAtomScore
+                {
+                    AtomEmbeddingId = reader.GetInt64(reader.GetOrdinal("AtomEmbeddingId")),
+                    AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
+                    CanonicalText = reader.IsDBNull(reader.GetOrdinal("CanonicalText")) 
+                        ? string.Empty 
+                        : reader.GetString(reader.GetOrdinal("CanonicalText")),
+                    ModelCount = reader.GetInt32(reader.GetOrdinal("ModelCount")),
+                    EnsembleScore = reader.GetDouble(reader.GetOrdinal("EnsembleScore")),
+                    IsConsensus = reader.GetInt32(reader.GetOrdinal("IsConsensus")) == 1
+                });
+            }
+        }
+
+        // Query InferenceRequests table to get metadata and steps
+        var inferenceRequest = await _context.InferenceRequests
+            .Include(i => i.Steps)
+                .ThenInclude(s => s.Model)
+            .FirstOrDefaultAsync(i => i.InferenceId == inferenceId, cancellationToken);
+
+        if (inferenceRequest == null)
+        {
+            _logger.LogWarning("InferenceRequest {InferenceId} not found after ensemble execution", inferenceId);
+            return new EnsembleInferenceResult
+            {
+                InferenceId = inferenceId,
+                OutputData = JsonSerializer.Serialize(resultRows),
+                ConfidenceScore = 0.0f,
+                ModelContributions = Array.Empty<ModelContribution>(),
+                CompletedTimestamp = DateTime.UtcNow
+            };
+        }
+
+        // Calculate confidence from consensus
+        var totalModels = inferenceRequest.Steps.Count;
+        var consensusCount = resultRows.Count(r => r.IsConsensus);
+        var confidence = totalModels > 0 && resultRows.Count > 0
+            ? (float)consensusCount / resultRows.Count
+            : 0.0f;
+
+        // Build ModelContributions from InferenceSteps
+        var contributions = inferenceRequest.Steps
+            .Where(s => s.Model != null)
+            .Select(step => new ModelContribution
+            {
+                ModelId = step.ModelId ?? 0,
+                ModelName = step.Model?.ModelName ?? "Unknown",
+                IndividualOutput = $"Step {step.StepNumber}: {step.OperationType}",
+                Weight = 1.0f / totalModels, // Equal weight for now (TODO: parse from ModelsUsed JSON)
+                ConfidenceScore = step.DurationMs.HasValue && inferenceRequest.TotalDurationMs.HasValue
+                    ? 1.0f - ((float)step.DurationMs.Value / inferenceRequest.TotalDurationMs.Value)
+                    : 0.5f
+            })
+            .ToList();
+
+        _logger.LogInformation(
+            "Ensemble inference completed: InferenceId={InferenceId}, Confidence={Confidence:F2}, Results={ResultCount}",
+            inferenceId, confidence, resultRows.Count);
+
         return new EnsembleInferenceResult
         {
-            InferenceId = 0,
-            OutputData = result?.ToString() ?? string.Empty,
-            ConfidenceScore = 0.85f,
-            ModelContributions = Array.Empty<ModelContribution>(),
+            InferenceId = inferenceId,
+            OutputData = JsonSerializer.Serialize(resultRows.Take(10)), // Top 10 results
+            ConfidenceScore = confidence,
+            ModelContributions = contributions,
             CompletedTimestamp = DateTime.UtcNow
         };
+    }
+
+    // Helper class for parsing ensemble results
+    private sealed class EnsembleAtomScore
+    {
+        public long AtomEmbeddingId { get; init; }
+        public long AtomId { get; init; }
+        public string CanonicalText { get; init; } = string.Empty;
+        public int ModelCount { get; init; }
+        public double EnsembleScore { get; init; }
+        public bool IsConsensus { get; init; }
     }
 
     /// <summary>

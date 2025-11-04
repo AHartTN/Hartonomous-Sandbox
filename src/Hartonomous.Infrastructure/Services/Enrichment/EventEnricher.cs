@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Models;
 using Hartonomous.Core.Services;
 using Microsoft.Extensions.Logging;
@@ -83,10 +84,11 @@ public class EventEnricher : IEventEnricher
             var capabilities = await _capabilityService.GetCapabilitiesAsync(modelName, cancellationToken);
             evt.Extensions["semantic"] = new Dictionary<string, object>
             {
-                ["primary_modality"] = capabilities.PrimaryModality,
-                ["supports_text"] = capabilities.SupportsTextGeneration,
-                ["supports_vision"] = capabilities.SupportsVisionAnalysis,
-                ["supports_function_calling"] = capabilities.SupportsFunctionCalling,
+                ["primary_modality"] = capabilities.PrimaryModality.ToJsonString(),
+                ["supports_text"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.TextGeneration),
+                ["supports_vision"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ObjectDetection) || 
+                                      capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ImageEmbedding),
+                ["supports_function_calling"] = capabilities.SupportedTasks.Any(), // Placeholder - need specific function calling enum
                 ["max_tokens"] = capabilities.MaxTokens,
                 ["context_window"] = capabilities.MaxContextWindow
             };
