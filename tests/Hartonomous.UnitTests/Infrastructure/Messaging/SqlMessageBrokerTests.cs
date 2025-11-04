@@ -108,7 +108,7 @@ public sealed class SqlMessageBrokerTests
             abandonAsync: _ => Task.CompletedTask);
 
         var strategy = new StubResilienceStrategy();
-    strategy.SetReceiveOverride<BrokeredMessage?>((_, _) => Task.FromResult<BrokeredMessage?>(expected));
+        strategy.SetReceiveOverride<BrokeredMessage?>((_, _) => Task.FromResult<BrokeredMessage?>(expected));
 
         var broker = CreateBroker(resilienceStrategy: strategy);
 
@@ -122,7 +122,7 @@ public sealed class SqlMessageBrokerTests
     public async Task ReceiveAsync_WhenResilienceThrows_PropagatesException()
     {
         var strategy = new StubResilienceStrategy();
-    strategy.SetReceiveOverride<BrokeredMessage?>((_, _) => Task.FromException<BrokeredMessage?>(new InvalidOperationException("boom")));
+        strategy.SetReceiveOverride<BrokeredMessage?>((_, _) => Task.FromException<BrokeredMessage?>(new InvalidOperationException("boom")));
 
         var broker = CreateBroker(resilienceStrategy: strategy);
 

@@ -351,8 +351,8 @@ public sealed class EmbeddingService : IEmbeddingService
         var textEmbedding = await EmbedTextAsync(textDescription, cancellationToken).ConfigureAwait(false);
 
         // Compute spatial projection for hybrid search
-    var padded = VectorUtility.PadToSqlLength(textEmbedding, out _);
-    var sqlVector = padded.ToSqlVector();
+        var padded = VectorUtility.PadToSqlLength(textEmbedding, out _);
+        var sqlVector = padded.ToSqlVector();
         var spatialPoint = await _atomEmbeddingRepository
             .ComputeSpatialProjectionAsync(sqlVector, textEmbedding.Length, cancellationToken)
             .ConfigureAwait(false);
@@ -391,13 +391,13 @@ public sealed class EmbeddingService : IEmbeddingService
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(cancellationToken);
 
-    var padded = VectorUtility.PadToSqlLength(queryEmbedding, out _);
-    var sqlVector = padded.ToSqlVector();
+        var padded = VectorUtility.PadToSqlLength(queryEmbedding, out _);
+        var sqlVector = padded.ToSqlVector();
 
         // Call sp_CrossModalQuery stored procedure
         await using var cmd = new SqlCommand("dbo.sp_CrossModalQuery", connection);
         cmd.CommandType = System.Data.CommandType.StoredProcedure;
-    cmd.Parameters.AddWithValue("@queryVector", sqlVector);
+        cmd.Parameters.AddWithValue("@queryVector", sqlVector);
         cmd.Parameters.AddWithValue("@topK", topK);
 
         var results = new List<CrossModalResult>();
@@ -434,7 +434,7 @@ public sealed class EmbeddingService : IEmbeddingService
     {
         var result = new List<string>();
         var enumerator = new SpanTokenEnumerator(text);
-        
+
         while (enumerator.MoveNext())
         {
             var token = enumerator.Current;
@@ -443,7 +443,7 @@ public sealed class EmbeddingService : IEmbeddingService
                 result.Add(token.ToString());
             }
         }
-        
+
         return result;
     }
 
@@ -453,14 +453,14 @@ public sealed class EmbeddingService : IEmbeddingService
     private static void InitializeRandomEmbedding(Span<float> embedding, uint seed = 0)
     {
         uint state = seed == 0 ? (uint)DateTime.UtcNow.Ticks : seed;
-        
+
         for (int i = 0; i < embedding.Length; i++)
         {
             // XorShift32
             state ^= state << 13;
             state ^= state >> 17;
             state ^= state << 5;
-            
+
             // Convert to float in [-1, 1]
             embedding[i] = ((float)state / uint.MaxValue) * 2.0f - 1.0f;
         }
@@ -482,13 +482,13 @@ public sealed class EmbeddingService : IEmbeddingService
     private static float[] SoftmaxOptimized(float[] values)
     {
         if (values.Length == 0) return Array.Empty<float>();
-        
+
         var result = new float[values.Length];
         var span = values.AsSpan();
-        
+
         // Find max using SIMD
         var max = SimdHelpers.Max(span);
-        
+
         // Compute exp(x - max) for numerical stability
         float sum = 0;
         for (int i = 0; i < values.Length; i++)
@@ -496,7 +496,7 @@ public sealed class EmbeddingService : IEmbeddingService
             result[i] = MathF.Exp(values[i] - max);
             sum += result[i];
         }
-        
+
         // Normalize
         if (sum > 0)
         {
@@ -505,7 +505,7 @@ public sealed class EmbeddingService : IEmbeddingService
                 result[i] /= sum;
             }
         }
-        
+
         return result;
     }
 
@@ -530,51 +530,51 @@ public sealed class EmbeddingService : IEmbeddingService
     {
         // Sobel edge detection placeholder
         var features = new float[128];
-        
+
         // Use SIMD statistics for gradient computation
         var stats = SimdHelpers.ComputeStatistics(imageData.Select(b => (float)b).ToArray().AsSpan());
         features[0] = stats.mean;
         features[1] = stats.stdDev;
         features[2] = SimdHelpers.Min(imageData.Select(b => (float)b).ToArray().AsSpan());
         features[3] = SimdHelpers.Max(imageData.Select(b => (float)b).ToArray().AsSpan());
-        
+
         // Fill remaining with simulated edge strength
         InitializeRandomEmbedding(features.AsSpan(4), (uint)imageData.Length);
-        
+
         return features;
     }
 
     private float[] ComputeTextureFeaturesOptimized(byte[] imageData)
     {
         var features = new float[128];
-        
+
         // Compute variance and entropy using SIMD
         var pixelFloats = imageData.Select(b => (float)b).ToArray();
         var stats = SimdHelpers.ComputeStatistics(pixelFloats.AsSpan());
-        
+
         features[0] = stats.stdDev; // Texture variance
         features[1] = stats.mean;
-        
+
         // Fill remaining with texture patterns
         InitializeRandomEmbedding(features.AsSpan(2), (uint)(imageData.Length * 2));
-        
+
         return features;
     }
 
     private float[] ComputeSpatialMomentsOptimized(byte[] imageData)
     {
         var moments = new float[256];
-        
+
         // Compute spatial statistics
         var stats = SimdHelpers.ComputeStatistics(imageData.Select(b => (float)b).ToArray().AsSpan());
         moments[0] = stats.mean;
         moments[1] = stats.stdDev;
         moments[2] = SimdHelpers.Min(imageData.Select(b => (float)b).ToArray().AsSpan());
         moments[3] = SimdHelpers.Max(imageData.Select(b => (float)b).ToArray().AsSpan());
-        
+
         // Fill with simulated moments
         InitializeRandomEmbedding(moments.AsSpan(4), (uint)(imageData.Length * 3));
-        
+
         return moments;
     }
 
@@ -584,17 +584,17 @@ public sealed class EmbeddingService : IEmbeddingService
     {
         // Simplified FFT spectrum (placeholder for real DSP library)
         var spectrum = new float[384];
-        
+
         // Compute basic frequency bins using SIMD statistics
         var audioFloats = audioData.Select(b => (float)b - 128).ToArray();
         var stats = SimdHelpers.ComputeStatistics(audioFloats.AsSpan());
-        
+
         spectrum[0] = stats.mean;
         spectrum[1] = stats.stdDev;
-        
+
         // Fill with simulated frequency components
         InitializeRandomEmbedding(spectrum.AsSpan(2), (uint)audioData.Length);
-        
+
         return spectrum;
     }
 
@@ -602,17 +602,17 @@ public sealed class EmbeddingService : IEmbeddingService
     {
         // Mel-Frequency Cepstral Coefficients (placeholder)
         var mfcc = new float[384];
-        
+
         // Use SIMD for cepstral analysis
         var audioFloats = audioData.Select(b => (float)b).ToArray();
         var stats = SimdHelpers.ComputeStatistics(audioFloats.AsSpan());
-        
+
         mfcc[0] = stats.mean;
         mfcc[1] = stats.stdDev;
-        
+
         // Fill with simulated cepstral coefficients
         InitializeRandomEmbedding(mfcc.AsSpan(2), (uint)(audioData.Length * 2));
-        
+
         return mfcc;
     }
 

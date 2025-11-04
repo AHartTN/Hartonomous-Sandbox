@@ -66,8 +66,8 @@ public sealed class ExponentialBackoffRetryPolicy : IRetryPolicy
     {
         var exponentialDelay = _options.BaseDelay.TotalMilliseconds * Math.Pow(_options.ExponentialFactor, attempt - 1);
         exponentialDelay = Math.Min(exponentialDelay, _options.MaxDelay.TotalMilliseconds);
-    var jitterSample = RandomNumberGenerator.GetInt32(0, int.MaxValue) / (double)int.MaxValue;
-    var jitter = exponentialDelay * _options.JitterFactor * (jitterSample - 0.5) * 2;
+        var jitterSample = RandomNumberGenerator.GetInt32(0, int.MaxValue) / (double)int.MaxValue;
+        var jitter = exponentialDelay * _options.JitterFactor * (jitterSample - 0.5) * 2;
         var final = Math.Max(_options.BaseDelay.TotalMilliseconds, exponentialDelay + jitter);
         return TimeSpan.FromMilliseconds(final);
     }

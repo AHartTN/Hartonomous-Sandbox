@@ -164,9 +164,9 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="weights">Optional weighting factors for each model.</param>
     /// <param name="cancellationToken">Token for cancelling database work.</param>
     /// <returns>Aggregate inference result with placeholder contribution metrics.</returns>
-    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access", 
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access",
         Justification = "EnsembleAtomScore is a simple DTO with public properties, safe for JSON serialization")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", 
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality",
         Justification = "EnsembleAtomScore is a simple DTO with public properties, safe for JSON serialization")]
     public async Task<EnsembleInferenceResult> EnsembleInferenceAsync(
         string inputData,
@@ -195,7 +195,7 @@ public sealed class InferenceOrchestrator : IInferenceService
 
             // Execute and read result set
             using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            
+
             while (await reader.ReadAsync(cancellationToken))
             {
                 // First row contains InferenceId
@@ -206,8 +206,8 @@ public sealed class InferenceOrchestrator : IInferenceService
                 {
                     AtomEmbeddingId = reader.GetInt64(reader.GetOrdinal("AtomEmbeddingId")),
                     AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
-                    CanonicalText = reader.IsDBNull(reader.GetOrdinal("CanonicalText")) 
-                        ? string.Empty 
+                    CanonicalText = reader.IsDBNull(reader.GetOrdinal("CanonicalText"))
+                        ? string.Empty
                         : reader.GetString(reader.GetOrdinal("CanonicalText")),
                     ModelCount = reader.GetInt32(reader.GetOrdinal("ModelCount")),
                     EnsembleScore = reader.GetDouble(reader.GetOrdinal("EnsembleScore")),
@@ -1005,7 +1005,7 @@ WHERE sf.AtomEmbeddingId IN ({string.Join(",", parameterNames)});";
         // Build input data JSON
         var inputDataBuilder = new StringBuilder("{");
         inputDataBuilder.Append($"\"prompt\":\"{prompt.Replace("\"", "\\\"")}\"");
-        
+
         if (!string.IsNullOrEmpty(context))
         {
             inputDataBuilder.Append($",\"context\":\"{context.Replace("\"", "\\\"")}\"");
@@ -1027,7 +1027,7 @@ WHERE sf.AtomEmbeddingId IN ({string.Join(",", parameterNames)});";
             cmd.Parameters.AddWithValue("@inputData", inputDataBuilder.ToString());
             cmd.Parameters.AddWithValue("@modelIds", modelId.ToString());
             cmd.Parameters.AddWithValue("@taskType", "text-generation");
-            
+
             var output = await cmd.ExecuteScalarAsync(ct);
             return output?.ToString() ?? string.Empty;
         }, cancellationToken);

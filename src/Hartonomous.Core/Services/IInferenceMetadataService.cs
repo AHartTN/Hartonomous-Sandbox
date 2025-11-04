@@ -15,7 +15,7 @@ public interface IInferenceMetadataService
     /// <param name="requiresMultiStep">Whether multi-step reasoning is required</param>
     /// <returns>The recommended reasoning mode</returns>
     string DetermineReasoningMode(string taskDescription, bool requiresMultiStep);
-    
+
     /// <summary>
     /// Calculates the complexity score for an inference task.
     /// </summary>
@@ -24,7 +24,7 @@ public interface IInferenceMetadataService
     /// <param name="requiresToolUse">Whether function/tool calling is needed</param>
     /// <returns>Complexity score from 1 (simple) to 10 (very complex)</returns>
     int CalculateComplexity(int inputTokenCount, bool requiresMultiModal, bool requiresToolUse);
-    
+
     /// <summary>
     /// Determines the appropriate SLA tier based on task priority and complexity.
     /// </summary>
@@ -32,7 +32,7 @@ public interface IInferenceMetadataService
     /// <param name="complexity">Task complexity score</param>
     /// <returns>SLA tier (standard, expedited, realtime)</returns>
     string DetermineSla(string priority, int complexity);
-    
+
     /// <summary>
     /// Estimates the expected response time by querying Model.Metadata.PerformanceMetrics from the database.
     /// Falls back to complexity-based estimation if no performance data available.

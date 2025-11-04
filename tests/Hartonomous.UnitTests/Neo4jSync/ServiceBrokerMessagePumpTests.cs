@@ -72,7 +72,7 @@ public sealed class ServiceBrokerMessagePumpTests
         }
 
         cts.Cancel();
-        
+
         try
         {
             await runTask;

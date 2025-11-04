@@ -74,14 +74,14 @@ public static class ValidationUtility
         {
             throw new ArgumentException("Vector dimensions must be positive.", parameterName);
         }
-        
+
         if (dimensions > 100000)
         {
             throw new ArgumentException(
                 "Vector dimensions exceed maximum supported size of 100,000.",
                 parameterName);
         }
-        
+
         return dimensions;
     }
 
@@ -92,14 +92,14 @@ public static class ValidationUtility
     public static float[] ValidateVectorLength(float[]? vector, int expectedDimensions, string parameterName = "vector")
     {
         NotNull(vector, parameterName);
-        
+
         if (vector!.Length != expectedDimensions)
         {
             throw new ArgumentException(
                 $"Vector length ({vector.Length}) does not match expected dimensions ({expectedDimensions}).",
                 parameterName);
         }
-        
+
         return vector;
     }
 

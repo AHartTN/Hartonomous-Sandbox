@@ -33,7 +33,7 @@ public abstract class BaseEventProcessor
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         Logger.LogInformation("Starting {ProcessorType}", GetType().Name);
-        
+
         await OnStartingAsync(cancellationToken);
 
         while (!cancellationToken.IsCancellationRequested)

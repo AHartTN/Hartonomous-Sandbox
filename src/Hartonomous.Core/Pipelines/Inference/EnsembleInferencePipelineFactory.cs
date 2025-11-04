@@ -67,7 +67,7 @@ public sealed class EnsembleInferencePipelineFactory
                 maxRetries: maxRetries,
                 timeout: timeout ?? TimeSpan.FromSeconds(60), // Longer timeout for model invocations
                 circuitBreakerFailureThreshold: 0.5);
-            
+
             return resilientBuilder.Build();
         }
 

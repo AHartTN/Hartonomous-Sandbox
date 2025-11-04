@@ -30,7 +30,7 @@ public sealed class InferenceOrchestratorAdapter : IInferenceOrchestrator
         CancellationToken cancellationToken = default)
     {
         var inputJson = inputData is string str ? str : System.Text.Json.JsonSerializer.Serialize(inputData);
-        
+
         var result = await _inferenceService.EnsembleInferenceAsync(
             inputJson,
             modelIds,
@@ -58,7 +58,7 @@ public sealed class InferenceOrchestratorAdapter : IInferenceOrchestrator
         CancellationToken cancellationToken = default)
     {
         var inputJson = inputData is string str ? str : System.Text.Json.JsonSerializer.Serialize(inputData);
-        
+
         var result = await _inferenceService.EnsembleInferenceAsync(
             inputJson,
             new[] { modelId },
@@ -86,12 +86,12 @@ public sealed class InferenceOrchestratorAdapter : IInferenceOrchestrator
         CancellationToken cancellationToken = default)
     {
         var models = await _modelRepository.GetActiveModelsAsync(cancellationToken);
-        
+
         if (!string.IsNullOrEmpty(modality))
         {
-            models = models.Where(m => 
-                m.Metadata != null && 
-                m.Metadata.SupportedModalities != null && 
+            models = models.Where(m =>
+                m.Metadata != null &&
+                m.Metadata.SupportedModalities != null &&
                 m.Metadata.SupportedModalities.Contains(modality, StringComparison.OrdinalIgnoreCase)
             ).ToList();
         }

@@ -76,7 +76,7 @@ internal static class TensorDataReader
 
         private NullLogger() { }
 
-    public IDisposable BeginScope<TState>(TState state) where TState : notnull => Disposable.Instance;
+        public IDisposable BeginScope<TState>(TState state) where TState : notnull => Disposable.Instance;
 
         public bool IsEnabled(LogLevel logLevel) => false;
 

@@ -129,7 +129,7 @@ public sealed class AtomIngestionWorker : BackgroundService
                     if (_meter != null)
                     {
                         var failureCounter = _meter.CreateCounter<long>("atom_ingestion_failures_total");
-                        failureCounter.Add(1, 
+                        failureCounter.Add(1,
                             new KeyValuePair<string, object?>("modality", request.Modality ?? "unknown"),
                             new KeyValuePair<string, object?>("error_type", ex.GetType().Name));
                     }

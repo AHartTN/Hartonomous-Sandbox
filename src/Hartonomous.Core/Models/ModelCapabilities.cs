@@ -23,8 +23,8 @@ public class ModelCapabilities
     /// <summary>
     /// Primary modality for single-modality models. For multimodal, returns first flag.
     /// </summary>
-    public Modality PrimaryModality => SupportedModalities == Modality.None 
-        ? Modality.Text 
+    public Modality PrimaryModality => SupportedModalities == Modality.None
+        ? Modality.Text
         : GetPrimaryModality(SupportedModalities);
 
     /// <summary>

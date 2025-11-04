@@ -144,7 +144,7 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<ExactDuplicateCheck
         {
             context.TraceActivity?.SetTag("embedding.skipped", true);
             context.TraceActivity?.SetTag("embedding.skip_reason", "exact_duplicate");
-            
+
             return new EmbeddingGenerationResult
             {
                 Request = input.Request,
@@ -159,7 +159,7 @@ public sealed class GenerateEmbeddingStep : PipelineStepBase<ExactDuplicateCheck
         {
             context.TraceActivity?.SetTag("embedding.skipped", true);
             context.TraceActivity?.SetTag("embedding.skip_reason", "no_text_content");
-            
+
             return new EmbeddingGenerationResult
             {
                 Request = input.Request,
@@ -244,7 +244,7 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<EmbeddingGener
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "exact_duplicate_found");
-            
+
             return new SemanticDuplicateCheckResult
             {
                 Request = input.Request,
@@ -261,7 +261,7 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<EmbeddingGener
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "no_embedding");
-            
+
             return new SemanticDuplicateCheckResult
             {
                 Request = input.Request,
@@ -282,7 +282,7 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<EmbeddingGener
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "no_policy");
-            
+
             return new SemanticDuplicateCheckResult
             {
                 Request = input.Request,
@@ -305,7 +305,7 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<EmbeddingGener
         {
             context.TraceActivity?.SetTag("semantic_check.skipped", true);
             context.TraceActivity?.SetTag("semantic_check.skip_reason", "threshold_too_high");
-            
+
             return new SemanticDuplicateCheckResult
             {
                 Request = input.Request,
@@ -330,7 +330,7 @@ public sealed class CheckSemanticDuplicateStep : PipelineStepBase<EmbeddingGener
         if (semanticDuplicate == null)
         {
             context.TraceActivity?.SetTag("atom.duplicate.semantic", false);
-            
+
             return new SemanticDuplicateCheckResult
             {
                 Request = input.Request,

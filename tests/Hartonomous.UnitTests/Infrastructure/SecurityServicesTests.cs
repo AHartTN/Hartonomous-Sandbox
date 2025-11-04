@@ -13,7 +13,7 @@ public sealed class AccessPolicyEngineTests
     [Fact]
     public async Task EvaluateAsync_ReturnsFirstDenyAndLogs()
     {
-    var logger = TestLogger.Create<AccessPolicyEngine>();
+        var logger = TestLogger.Create<AccessPolicyEngine>();
         var rules = new IAccessPolicyRule[]
         {
             new StubRule(null),
@@ -31,13 +31,13 @@ public sealed class AccessPolicyEngineTests
 
         Assert.False(result.IsAllowed);
         Assert.Equal("test-policy", result.Policy);
-    Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Access denied", StringComparison.Ordinal));
+        Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Warning && entry.Message.Contains("Access denied", StringComparison.Ordinal));
     }
 
     [Fact]
     public async Task EvaluateAsync_AllRulesPass_ReturnsAllow()
     {
-    var logger = TestLogger.Create<AccessPolicyEngine>();
+        var logger = TestLogger.Create<AccessPolicyEngine>();
         var engine = new AccessPolicyEngine(new[]
         {
             new StubRule(null),
@@ -73,7 +73,7 @@ public sealed class TenantAccessPolicyRuleTests
         options.BannedTenants.Add("tenant-a");
         options.BannedPrincipals.Add("principal-x");
 
-    var rule = new TenantAccessPolicyRule(new TestOptionsMonitor<SecurityOptions>(options));
+        var rule = new TenantAccessPolicyRule(new TestOptionsMonitor<SecurityOptions>(options));
 
         var tenantResult = await rule.EvaluateAsync(new AccessPolicyContext { TenantId = "tenant-a" });
         Assert.NotNull(tenantResult);
@@ -95,7 +95,7 @@ public sealed class TenantAccessPolicyRuleTests
             "analytics"
         };
 
-    var rule = new TenantAccessPolicyRule(new TestOptionsMonitor<SecurityOptions>(options));
+        var rule = new TenantAccessPolicyRule(new TestOptionsMonitor<SecurityOptions>(options));
 
         var result = await rule.EvaluateAsync(new AccessPolicyContext
         {

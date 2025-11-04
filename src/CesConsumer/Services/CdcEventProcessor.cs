@@ -101,7 +101,7 @@ public class CdcEventProcessor : BaseEventProcessor
         {
             await _checkpointManager.UpdateLastProcessedLsnAsync(maxLsn, cancellationToken);
             _lastLsn = maxLsn;
-            Logger.LogInformation("Processed {Count} change events, new LSN: {MaxLsn}", 
+            Logger.LogInformation("Processed {Count} change events, new LSN: {MaxLsn}",
                 changeEvents.Count, maxLsn);
         }
     }

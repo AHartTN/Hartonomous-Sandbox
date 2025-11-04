@@ -29,7 +29,7 @@ public sealed class BrokeredMessage : IAsyncDisposable
         EnqueueTime = enqueueTime;
         _completeAsync = completeAsync ?? throw new ArgumentNullException(nameof(completeAsync));
         _abandonAsync = abandonAsync ?? throw new ArgumentNullException(nameof(abandonAsync));
-    _serializer = serializer ?? new SystemTextJsonSerializer();
+        _serializer = serializer ?? new SystemTextJsonSerializer();
     }
 
     /// <summary>

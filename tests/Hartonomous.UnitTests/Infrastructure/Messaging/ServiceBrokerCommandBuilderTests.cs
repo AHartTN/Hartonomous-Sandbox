@@ -21,7 +21,7 @@ public sealed class ServiceBrokerCommandBuilderTests
             QueueName = "dbo.CustomQueue"
         };
 
-    var (send, receive) = InvokeBuildCommands(options);
+        var (send, receive) = InvokeBuildCommands(options);
 
         Assert.Contains("FROM SERVICE [Hartonomous.Initiator]", send, StringComparison.Ordinal);
         Assert.Contains("TO SERVICE 'Hartonomous.Target'", send, StringComparison.Ordinal);
@@ -39,9 +39,9 @@ public sealed class ServiceBrokerCommandBuilderTests
         var options = new MessageBrokerOptions();
         mutate(options);
 
-    var ex = Assert.Throws<TargetInvocationException>(() => InvokeBuildCommands(options));
-    var inner = Assert.IsType<InvalidOperationException>(ex.InnerException);
-    Assert.Contains(expectedMessage, inner.Message, StringComparison.Ordinal);
+        var ex = Assert.Throws<TargetInvocationException>(() => InvokeBuildCommands(options));
+        var inner = Assert.IsType<InvalidOperationException>(ex.InnerException);
+        Assert.Contains(expectedMessage, inner.Message, StringComparison.Ordinal);
     }
 
     public static IEnumerable<object[]> GetInvalidOptions()
@@ -53,19 +53,19 @@ public sealed class ServiceBrokerCommandBuilderTests
         yield return new object[] { (Action<MessageBrokerOptions>)(o => o.QueueName = ""), "Queue name" };
     }
 
-        [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Unit test invoking internal helper.")]
-        [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2067", Justification = "Unit test invoking internal helper.")]
-        private static (string Send, string Receive) InvokeBuildCommands(MessageBrokerOptions options)
-        {
-            var builderType = Type.GetType(
-                "Hartonomous.Infrastructure.Services.Messaging.ServiceBrokerCommandBuilder, Hartonomous.Infrastructure",
-                throwOnError: true)!;
+    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Unit test invoking internal helper.")]
+    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2067", Justification = "Unit test invoking internal helper.")]
+    private static (string Send, string Receive) InvokeBuildCommands(MessageBrokerOptions options)
+    {
+        var builderType = Type.GetType(
+            "Hartonomous.Infrastructure.Services.Messaging.ServiceBrokerCommandBuilder, Hartonomous.Infrastructure",
+            throwOnError: true)!;
 
-            var method = builderType.GetMethod(
-                "BuildCommands",
-                BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
+        var method = builderType.GetMethod(
+            "BuildCommands",
+            BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic);
 
-            var result = method!.Invoke(null, new object[] { options })!;
-            return ((string SendCommand, string ReceiveCommand))result;
-        }
+        var result = method!.Invoke(null, new object[] { options })!;
+        return ((string SendCommand, string ReceiveCommand))result;
+    }
 }

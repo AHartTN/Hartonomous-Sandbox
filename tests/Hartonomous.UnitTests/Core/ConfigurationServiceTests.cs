@@ -17,9 +17,9 @@ public sealed class ConfigurationServiceTests : IDisposable
             })
             .Build();
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var value = service.GetValue("Hartonomous:Queue:Name");
+        var value = service.GetValue("Hartonomous:Queue:Name");
 
         Assert.Equal("PrimaryQueue", value);
     }
@@ -31,9 +31,9 @@ public sealed class ConfigurationServiceTests : IDisposable
         const string key = "Hartonomous:Queue:Retries";
         SetEnv("Hartonomous__Queue__Retries", "5");
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var value = service.GetValue(key);
+        var value = service.GetValue(key);
 
         Assert.Equal("5", value);
     }
@@ -43,9 +43,9 @@ public sealed class ConfigurationServiceTests : IDisposable
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var value = service.GetValue("Missing:Key", "fallback");
+        var value = service.GetValue("Missing:Key", "fallback");
 
         Assert.Equal("fallback", value);
     }
@@ -55,9 +55,9 @@ public sealed class ConfigurationServiceTests : IDisposable
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var ex = Assert.Throws<InvalidOperationException>(() => service.GetRequiredValue("Missing:Required"));
+        var ex = Assert.Throws<InvalidOperationException>(() => service.GetRequiredValue("Missing:Required"));
         Assert.Contains("Missing:Required", ex.Message, StringComparison.Ordinal);
     }
 
@@ -75,9 +75,9 @@ public sealed class ConfigurationServiceTests : IDisposable
 
         var config = new ConfigurationBuilder().AddInMemoryCollection(store).Build();
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var value = service.GetValue("Hartonomous:Queue:MaxParallelism", defaultValue);
+        var value = service.GetValue("Hartonomous:Queue:MaxParallelism", defaultValue);
 
         Assert.Equal(expected, value);
     }
@@ -92,9 +92,9 @@ public sealed class ConfigurationServiceTests : IDisposable
             })
             .Build();
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var value = service.GetConnectionString("PrimaryDatabase");
+        var value = service.GetConnectionString("PrimaryDatabase");
 
         Assert.Equal("Server=.;Database=Hartonomous;", value);
     }
@@ -105,9 +105,9 @@ public sealed class ConfigurationServiceTests : IDisposable
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
         SetEnv("ConnectionStrings__OperationalDb", "Server=cloud;Database=Ops;");
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var value = service.GetConnectionString("OperationalDb");
+        var value = service.GetConnectionString("OperationalDb");
 
         Assert.Equal("Server=cloud;Database=Ops;", value);
     }
@@ -117,9 +117,9 @@ public sealed class ConfigurationServiceTests : IDisposable
     {
         var config = new ConfigurationBuilder().AddInMemoryCollection().Build();
 
-    var service = new ConfigurationService(config);
+        var service = new ConfigurationService(config);
 
-    var ex = Assert.Throws<InvalidOperationException>(() => service.GetRequiredConnectionString("MissingDb"));
+        var ex = Assert.Throws<InvalidOperationException>(() => service.GetRequiredConnectionString("MissingDb"));
         Assert.Contains("MissingDb", ex.Message, StringComparison.Ordinal);
     }
 

@@ -15,7 +15,7 @@ public interface IModelCapabilityService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>A ModelCapabilities object derived from Model.Metadata.SupportedTasks/SupportedModalities, or default capabilities if not found</returns>
     Task<ModelCapabilities> GetCapabilitiesAsync(string modelName, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Determines if a model supports a specific capability by querying its metadata.
     /// </summary>
@@ -24,7 +24,7 @@ public interface IModelCapabilityService
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>True if the model supports the capability; otherwise false</returns>
     Task<bool> SupportsCapabilityAsync(string modelName, string capability, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Gets the primary modality of a model from its metadata.
     /// </summary>

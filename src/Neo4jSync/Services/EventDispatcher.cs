@@ -117,7 +117,7 @@ public sealed class EventDispatcher : IMessageDispatcher
                 _logger.LogError(ex, "Handler {Handler} failed processing event {EventId}", handlerName, payload.Id);
                 throw;
             }
-            
+
             return;
         }
 

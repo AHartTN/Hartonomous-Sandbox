@@ -31,12 +31,12 @@ namespace ModelIngestion
 
         public override string ServiceName => "EmbeddingIngestionService";
 
-    public async Task<EmbeddingIngestionResult> IngestEmbeddingAsync(
-            string sourceText,
-            string sourceType,
-            float[] embeddingFull,
-            float[]? spatial3D = null,
-            CancellationToken cancellationToken = default)
+        public async Task<EmbeddingIngestionResult> IngestEmbeddingAsync(
+                string sourceText,
+                string sourceType,
+                float[] embeddingFull,
+                float[]? spatial3D = null,
+                CancellationToken cancellationToken = default)
         {
             if (embeddingFull is null)
             {
@@ -98,9 +98,9 @@ namespace ModelIngestion
         /// <summary>
         /// Ingest multiple embeddings in a batch
         /// </summary>
-    public async Task<IEnumerable<EmbeddingIngestionResult>> IngestBatchAsync(
-            IEnumerable<(string sourceText, string sourceType, float[] embedding)> batch,
-            CancellationToken cancellationToken = default)
+        public async Task<IEnumerable<EmbeddingIngestionResult>> IngestBatchAsync(
+                IEnumerable<(string sourceText, string sourceType, float[] embedding)> batch,
+                CancellationToken cancellationToken = default)
         {
             var results = new List<EmbeddingIngestionResult>();
 

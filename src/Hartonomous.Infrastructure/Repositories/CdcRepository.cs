@@ -85,11 +85,11 @@ ORDER BY __$start_lsn";
 
                     // Pre-allocate dictionary capacity (OPTIMIZED: typical CDC column count)
                     var data = new Dictionary<string, object>(16, StringComparer.OrdinalIgnoreCase);
-                    
+
                     for (var i = 0; i < reader.FieldCount; i++)
                     {
                         var columnName = reader.GetName(i);
-                        
+
                         // Skip CDC metadata columns (OPTIMIZED: AsSpan for zero-allocation check)
                         if (columnName.AsSpan().StartsWith("__$".AsSpan(), StringComparison.Ordinal))
                         {
@@ -121,14 +121,14 @@ ORDER BY __$start_lsn";
         events.Sort(static (left, right) => left.Lsn.CompareTo(right.Lsn));
 
         _logger.LogInformation("Retrieved {Count} CDC change events since LSN {LastLsn}", events.Count, lastLsn ?? "beginning");
-        
+
         // Extract events (OPTIMIZED: pre-allocated result list)
         var result = new List<CdcChangeEvent>(events.Count);
         foreach (var (_, evt) in events)
         {
             result.Add(evt);
         }
-        
+
         return result;
     }
 

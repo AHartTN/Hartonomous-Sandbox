@@ -53,7 +53,7 @@ public sealed class GenerationProcedureTests : IClassFixture<SqlServerContainerF
         try
         {
             await using var reader = await command.ExecuteReaderAsync();
-            
+
             // Collect info messages
             connection.InfoMessage += (sender, e) =>
             {
@@ -113,7 +113,7 @@ public sealed class GenerationProcedureTests : IClassFixture<SqlServerContainerF
         try
         {
             await using var reader = await command.ExecuteReaderAsync();
-            
+
             // Collect info messages
             connection.InfoMessage += (sender, e) =>
             {

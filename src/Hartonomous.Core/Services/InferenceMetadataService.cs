@@ -35,44 +35,44 @@ public class InferenceMetadataService : IInferenceMetadataService
 
         // OPTIMIZED: Use AsSpan() for zero-allocation case-insensitive search
         var taskSpan = taskDescription.AsSpan();
-        
+
         // Complex reasoning indicators
-        if (taskDescription.Contains("analyze", StringComparison.OrdinalIgnoreCase) || 
-            taskDescription.Contains("reason", StringComparison.OrdinalIgnoreCase) || 
-            taskDescription.Contains("explain", StringComparison.OrdinalIgnoreCase) || 
+        if (taskDescription.Contains("analyze", StringComparison.OrdinalIgnoreCase) ||
+            taskDescription.Contains("reason", StringComparison.OrdinalIgnoreCase) ||
+            taskDescription.Contains("explain", StringComparison.OrdinalIgnoreCase) ||
             taskDescription.Contains("compare", StringComparison.OrdinalIgnoreCase))
         {
             return "analytical";
         }
-        
+
         // Creative tasks
-        if (taskDescription.Contains("create", StringComparison.OrdinalIgnoreCase) || 
-            taskDescription.Contains("generate", StringComparison.OrdinalIgnoreCase) || 
-            taskDescription.Contains("design", StringComparison.OrdinalIgnoreCase) || 
+        if (taskDescription.Contains("create", StringComparison.OrdinalIgnoreCase) ||
+            taskDescription.Contains("generate", StringComparison.OrdinalIgnoreCase) ||
+            taskDescription.Contains("design", StringComparison.OrdinalIgnoreCase) ||
             taskDescription.Contains("write", StringComparison.OrdinalIgnoreCase))
         {
             return "creative";
         }
-        
+
         return "direct";
     }
 
     public int CalculateComplexity(int inputTokenCount, bool requiresMultiModal, bool requiresToolUse)
     {
         int complexity = 1;
-        
+
         // Base complexity from token count
         if (inputTokenCount > 8000) complexity += 4;
         else if (inputTokenCount > 4000) complexity += 3;
         else if (inputTokenCount > 2000) complexity += 2;
         else if (inputTokenCount > 1000) complexity += 1;
-        
+
         // Multi-modal adds complexity
         if (requiresMultiModal) complexity += 2;
-        
+
         // Tool use adds complexity
         if (requiresToolUse) complexity += 2;
-        
+
         // Cap at 10
         return Math.Min(complexity, 10);
     }
@@ -81,20 +81,20 @@ public class InferenceMetadataService : IInferenceMetadataService
     {
         // OPTIMIZED: Use AsSpan() for zero-allocation comparison
         var prioritySpan = priority.AsSpan();
-        
+
         // Case-insensitive equality using Span
-        if (prioritySpan.Equals("critical".AsSpan(), StringComparison.OrdinalIgnoreCase) || 
+        if (prioritySpan.Equals("critical".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
             (prioritySpan.Equals("high".AsSpan(), StringComparison.OrdinalIgnoreCase) && complexity <= 3))
         {
             return "realtime";
         }
-        
-        if (prioritySpan.Equals("high".AsSpan(), StringComparison.OrdinalIgnoreCase) || 
+
+        if (prioritySpan.Equals("high".AsSpan(), StringComparison.OrdinalIgnoreCase) ||
             (prioritySpan.Equals("medium".AsSpan(), StringComparison.OrdinalIgnoreCase) && complexity <= 5))
         {
             return "expedited";
         }
-        
+
         return "standard";
     }
 
@@ -109,12 +109,12 @@ public class InferenceMetadataService : IInferenceMetadataService
         {
             // Query model from database
             var model = await _modelRepository.GetByNameAsync(modelName, cancellationToken);
-            
+
             if (model?.Metadata?.PerformanceMetrics != null)
             {
                 // Parse PerformanceMetrics JSON: { "avgLatencyMs": 150, "tokensPerSecond": 50 }
                 var metrics = JsonSerializer.Deserialize<PerformanceMetrics>(model.Metadata.PerformanceMetrics);
-                
+
                 if (metrics?.AvgLatencyMs > 0)
                 {
                     // Use actual latency from database
@@ -122,7 +122,7 @@ public class InferenceMetadataService : IInferenceMetadataService
                     return baseLatency + (complexity * (baseLatency / 10));
                 }
             }
-            
+
             // Fallback: no metadata available
             _logger.LogWarning("Model '{ModelName}' has no PerformanceMetrics. Using default estimate.", modelName);
             return complexity * 5;

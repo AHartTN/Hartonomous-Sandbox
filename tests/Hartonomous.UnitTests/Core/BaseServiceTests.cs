@@ -17,7 +17,7 @@ public sealed class BaseServiceTests
     [Fact]
     public async Task InitializeAsync_LogsLifecycleMessages()
     {
-    var logger = TestLogger.Create<TestService>();
+        var logger = TestLogger.Create<TestService>();
         var service = new TestService(logger);
 
         await service.InitializeAsync();
@@ -30,7 +30,7 @@ public sealed class BaseServiceTests
     [Fact]
     public async Task IsHealthyAsync_ReturnsTrue()
     {
-    var service = new TestService(TestLogger.Create<TestService>());
+        var service = new TestService(TestLogger.Create<TestService>());
 
         var healthy = await service.IsHealthyAsync();
 
@@ -40,7 +40,7 @@ public sealed class BaseServiceTests
     [Fact]
     public void HelperLogging_Methods_EmitExpectedLevels()
     {
-    var logger = TestLogger.Create<TestService>();
+        var logger = TestLogger.Create<TestService>();
         var service = new TestService(logger);
 
         service.EmitDebug("debug message");
@@ -87,13 +87,13 @@ public sealed class BaseConfigurableServiceTests
     [Fact]
     public void Constructor_Throws_WhenConfigMissing()
     {
-    Assert.Throws<ArgumentNullException>(() => new TestConfigurableService(TestLogger.Create<TestConfigurableService>(), null!));
+        Assert.Throws<ArgumentNullException>(() => new TestConfigurableService(TestLogger.Create<TestConfigurableService>(), null!));
     }
 
     [Fact]
     public async Task InitializeAsync_LogsConfigurationType()
     {
-    var logger = TestLogger.Create<TestConfigurableService>();
+        var logger = TestLogger.Create<TestConfigurableService>();
         var config = new SampleConfig { Name = "primary" };
         var service = new TestConfigurableService(logger, config);
 
@@ -113,7 +113,7 @@ public sealed class BaseConfigurableServiceTests
     public void ConfigProperty_IsExposedToDerivedTypes()
     {
         var config = new SampleConfig { Name = "primary" };
-    var service = new TestConfigurableService(TestLogger.Create<TestConfigurableService>(), config);
+        var service = new TestConfigurableService(TestLogger.Create<TestConfigurableService>(), config);
 
         Assert.Equal("primary", service.CurrentConfig.Name);
     }

@@ -368,8 +368,8 @@ public sealed class EnsembleInferenceSaga
                 // Mark inference request as failed/compensated
                 await _inferenceRequestRepository
                     .UpdateStatusAsync(
-                        _createdInferenceRequestId.Value, 
-                        "Failed", 
+                        _createdInferenceRequestId.Value,
+                        "Failed",
                         "Pipeline compensation triggered due to saga failure",
                         cancellationToken)
                     .ConfigureAwait(false);

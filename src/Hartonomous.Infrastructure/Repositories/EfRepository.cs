@@ -132,10 +132,10 @@ public abstract class EfRepository<TEntity, TKey> : IRepository<TEntity, TKey>
         CancellationToken cancellationToken = default)
     {
         var query = DbSet.AsNoTracking().Where(predicate);
-        query = ascending 
-            ? query.OrderBy(orderBy) 
+        query = ascending
+            ? query.OrderBy(orderBy)
             : query.OrderByDescending(orderBy);
-        
+
         return await IncludeRelatedEntities(query).ToListAsync(cancellationToken);
     }
 

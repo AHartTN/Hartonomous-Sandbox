@@ -175,7 +175,7 @@ public static class VectorMath
         {
             var vScalar = new Vector<float>(scalar);
             int simdLength = vector.Length - (vector.Length % Vector<float>.Count);
-            
+
             for (int i = 0; i < simdLength; i += Vector<float>.Count)
             {
                 var v = new Vector<float>(vector.Slice(i, Vector<float>.Count));
@@ -368,12 +368,12 @@ public static class VectorMath
         Vector128<float> low = v.GetLower();
         Vector128<float> high = v.GetUpper();
         Vector128<float> sum = Sse.Add(low, high);
-        
+
         Vector128<float> shuf = Sse.Shuffle(sum, sum, 0b_00_01_10_11);
         sum = Sse.Add(sum, shuf);
         shuf = Sse.MoveHighToLow(shuf, sum);
         sum = Sse.Add(sum, shuf);
-        
+
         return sum.ToScalar();
     }
 

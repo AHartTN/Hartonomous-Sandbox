@@ -41,15 +41,15 @@ public sealed class SqlMessageBroker : IMessageBroker
     {
         _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
         _serializer = serializer ?? throw new ArgumentNullException(nameof(serializer));
-    _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-    _resilienceStrategy = resilienceStrategy ?? throw new ArgumentNullException(nameof(resilienceStrategy));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _resilienceStrategy = resilienceStrategy ?? throw new ArgumentNullException(nameof(resilienceStrategy));
         _options = brokerOptions?.Value ?? throw new ArgumentNullException(nameof(brokerOptions));
         _commandTimeoutSeconds = Math.Max(5, sqlServerOptions?.CurrentValue?.CommandTimeoutSeconds ?? 30);
 
-    ValidateIdentifiers();
-    var commands = ServiceBrokerCommandBuilder.BuildCommands(_options);
-    _sendCommandText = commands.SendCommand;
-    _receiveCommandText = commands.ReceiveCommand;
+        ValidateIdentifiers();
+        var commands = ServiceBrokerCommandBuilder.BuildCommands(_options);
+        _sendCommandText = commands.SendCommand;
+        _receiveCommandText = commands.ReceiveCommand;
     }
 
     [RequiresUnreferencedCode("JSON serialization uses reflection.")]

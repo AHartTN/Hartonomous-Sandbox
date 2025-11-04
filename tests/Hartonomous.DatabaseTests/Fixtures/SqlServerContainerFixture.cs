@@ -121,8 +121,8 @@ public sealed class SqlServerContainerFixture : IAsyncLifetime
 
         var powershellExe = ResolvePowerShellExecutable();
 
-    var publicPort = _container.Port;
-    var serverName = $"{_container.Hostname},{publicPort}";
+        var publicPort = _container.Port;
+        var serverName = $"{_container.Hostname},{publicPort}";
 
         var startInfo = new ProcessStartInfo
         {

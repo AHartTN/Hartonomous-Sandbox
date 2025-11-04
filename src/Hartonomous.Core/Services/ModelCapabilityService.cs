@@ -43,7 +43,7 @@ public class ModelCapabilityService : IModelCapabilityService
         {
             // Query model from database (includes Metadata navigation property)
             var model = await _modelRepository.GetByNameAsync(modelName, cancellationToken);
-            
+
             if (model?.Metadata == null)
             {
                 _logger.LogWarning("Model '{ModelName}' not found or has no metadata. Returning default capabilities.", modelName);
@@ -74,7 +74,7 @@ public class ModelCapabilityService : IModelCapabilityService
     public async Task<bool> SupportsCapabilityAsync(string modelName, string capability, CancellationToken cancellationToken = default)
     {
         var capabilities = await GetCapabilitiesAsync(modelName, cancellationToken);
-        
+
         // Try parsing capability as TaskType first
         var taskType = capability.ToTaskType();
         if (taskType != TaskType.None)

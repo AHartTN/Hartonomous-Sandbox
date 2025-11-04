@@ -63,7 +63,7 @@ VALUES
 
         await using var connection = await _connectionFactory.CreateOpenConnectionAsync(cancellationToken).ConfigureAwait(false);
         await using var command = connection.CreateCommand();
-    command.CommandType = CommandType.Text;
+        command.CommandType = CommandType.Text;
         command.CommandText = InsertCommandText;
         command.Parameters.Add(new SqlParameter("@ConversationHandle", message.ConversationHandle));
         command.Parameters.Add(new SqlParameter("@MessageType", message.MessageType));

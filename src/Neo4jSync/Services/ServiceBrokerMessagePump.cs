@@ -39,7 +39,7 @@ public sealed class ServiceBrokerMessagePump : BackgroundService, IMessagePump
         var timeoutMs = Math.Max(250, brokerOptions.Value.ReceiveWaitTimeoutMilliseconds);
         _waitTimeout = TimeSpan.FromMilliseconds(timeoutMs);
         _poisonMessageMaxAttempts = Math.Max(1, resilienceOptions.Value.PoisonMessageMaxAttempts);
-    _queueName = brokerOptions.Value.QueueName;
+        _queueName = brokerOptions.Value.QueueName;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

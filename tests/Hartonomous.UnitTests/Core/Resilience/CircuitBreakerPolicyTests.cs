@@ -28,13 +28,13 @@ public sealed class CircuitBreakerPolicyTests
             throw new InvalidOperationException("Transient failure");
         }
 
-    await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
-    await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
 
-    var openException = await Assert.ThrowsAsync<CircuitBreakerOpenException>(async () => await policy.ExecuteAsync(FailingOperation));
+        var openException = await Assert.ThrowsAsync<CircuitBreakerOpenException>(async () => await policy.ExecuteAsync(FailingOperation));
         Assert.Contains("Circuit breaker is open", openException.Message, StringComparison.OrdinalIgnoreCase);
 
-    var warning = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Warning);
+        var warning = Assert.Single(logger.Entries, entry => entry.Level == LogLevel.Warning);
         Assert.Contains("opened", warning.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -57,7 +57,7 @@ public sealed class CircuitBreakerPolicyTests
             throw new InvalidOperationException("Transient failure");
         }
 
-    await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
 
         await Task.Delay(options.BreakDuration + TimeSpan.FromMilliseconds(25));
 
@@ -69,9 +69,9 @@ public sealed class CircuitBreakerPolicyTests
 
         Assert.Equal(42, successfulResult);
 
-    Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Information && entry.Message.Contains("closed", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(logger.Entries, entry => entry.Level == LogLevel.Information && entry.Message.Contains("closed", StringComparison.OrdinalIgnoreCase));
 
-    await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
     }
 
     [Fact]
@@ -92,7 +92,7 @@ public sealed class CircuitBreakerPolicyTests
             throw new InvalidOperationException("Transient failure");
         }
 
-    await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () => await policy.ExecuteAsync(FailingOperation));
 
         await Task.Delay(options.BreakDuration + TimeSpan.FromMilliseconds(5));
 

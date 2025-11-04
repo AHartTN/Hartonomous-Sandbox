@@ -81,7 +81,7 @@ public static class DependencyInjection
 
                 // Enable spatial types
                 sqlOptions.UseNetTopologySuite();
-                
+
                 // Use split queries by default to prevent cartesian explosion
                 // Individual queries can override with .AsSingleQuery() if needed
                 sqlOptions.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
@@ -93,7 +93,7 @@ public static class DependencyInjection
                 options.EnableDetailedErrors();
                 options.EnableSensitiveDataLogging();
             }
-            
+
             // Enable query logging in development for performance analysis
             var logLevel = configuration.GetValue<string>("Logging:LogLevel:Microsoft.EntityFrameworkCore");
             if (logLevel == "Debug")
@@ -169,7 +169,7 @@ public static class DependencyInjection
         // ============================================================================
         // PIPELINE ARCHITECTURE - MS-Validated Enterprise Patterns
         // ============================================================================
-        
+
         // OpenTelemetry resources (static instances for pipeline tracing and metrics)
         var activitySource = new ActivitySource("Hartonomous.Pipelines", "1.0.0");
         var meter = new Meter("Hartonomous.Pipelines", "1.0.0");
@@ -177,7 +177,7 @@ public static class DependencyInjection
         services.AddSingleton(meter);
 
         // Atom Ingestion Channel (bounded queue with MS-recommended backpressure)
-        services.AddSingleton(_ => 
+        services.AddSingleton(_ =>
         {
             var capacity = configuration.GetValue("AtomIngestion:QueueCapacity", 1000);
             var options = new BoundedChannelOptions(capacity)
@@ -191,9 +191,9 @@ public static class DependencyInjection
         });
 
         // Register ChannelReader/Writer for DI
-        services.AddSingleton(sp => 
+        services.AddSingleton(sp =>
             sp.GetRequiredService<Channel<AtomIngestionPipelineRequest>>().Reader);
-        services.AddSingleton(sp => 
+        services.AddSingleton(sp =>
             sp.GetRequiredService<Channel<AtomIngestionPipelineRequest>>().Writer);
 
         // Pipeline factories (scoped for per-request DbContext)

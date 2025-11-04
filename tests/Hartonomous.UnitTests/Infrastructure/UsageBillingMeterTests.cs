@@ -57,11 +57,11 @@ public sealed class UsageBillingMeterTests
         Assert.Equal("neo4j_sync.inference_completed", record.Operation);
         Assert.Equal(100m, record.Units);
         Assert.Equal(0.04m, record.BaseRate);
-        
+
         // image = 3.0, standard = 1.0, knowledge_graph = 1.2, none = 1.0, standard_sla = 1.0, basic = 1.0
         // Total multiplier = 3.0 * 1.0 * 1.2 * 1.0 * 1.0 * 1.0 = 3.6
         Assert.Equal(3.6m, record.Multiplier);
-        
+
         // Total DCU = 100 * 0.04 * 3.6 = 14.4
         Assert.Equal(14.4m, record.TotalDcu);
     }

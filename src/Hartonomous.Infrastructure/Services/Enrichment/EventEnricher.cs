@@ -54,7 +54,7 @@ public class EventEnricher : IEventEnricher
             ["confidence_score"] = 0.95
         };
 
-        _logger.LogDebug("Enriched event {EventId} of type {EventType}", 
+        _logger.LogDebug("Enriched event {EventId} of type {EventType}",
             evt.Id, evt.Type);
     }
 
@@ -86,7 +86,7 @@ public class EventEnricher : IEventEnricher
             {
                 ["primary_modality"] = capabilities.PrimaryModality.ToJsonString(),
                 ["supports_text"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.TextGeneration),
-                ["supports_vision"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ObjectDetection) || 
+                ["supports_vision"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ObjectDetection) ||
                                       capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ImageEmbedding),
                 ["supports_function_calling"] = capabilities.SupportedTasks.Any(), // Placeholder - need specific function calling enum
                 ["max_tokens"] = capabilities.MaxTokens,
@@ -102,13 +102,13 @@ public class EventEnricher : IEventEnricher
             taskTypeObj is string taskType)
         {
             var complexity = _metadataService.CalculateComplexity(
-                GetTokenCount(data), 
+                GetTokenCount(data),
                 GetBool(data, "requires_multimodal"),
                 GetBool(data, "requires_tools"));
-            
+
             var reasoning = _metadataService.DetermineReasoningMode(taskType, complexity > 7);
             var sla = _metadataService.DetermineSla(GetString(data, "priority", "medium"), complexity);
-            
+
             evt.Extensions["reasoning"] = new Dictionary<string, object>
             {
                 ["reasoning_mode"] = reasoning,

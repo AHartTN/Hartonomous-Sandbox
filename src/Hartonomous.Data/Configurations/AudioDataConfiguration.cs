@@ -13,7 +13,7 @@ public sealed class AudioDataConfiguration : IEntityTypeConfiguration<AudioData>
         builder.HasKey(e => e.AudioId);
         builder.Property(e => e.AudioId).ValueGeneratedOnAdd();
 
-    builder.Property(e => e.SourcePath).HasMaxLength(500);
+        builder.Property(e => e.SourcePath).HasMaxLength(500);
         builder.Property(e => e.SampleRate).IsRequired();
         builder.Property(e => e.DurationMs).IsRequired();
         builder.Property(e => e.NumChannels).IsRequired();

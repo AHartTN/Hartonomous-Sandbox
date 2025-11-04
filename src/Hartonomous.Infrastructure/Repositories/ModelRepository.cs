@@ -66,10 +66,10 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
     {
         // Convert enum arrays to JSON strings for comparison
         var taskStrings = tasks.Select(t => t.ToJsonString()).ToArray();
-        
+
         // Get all models with metadata
         var modelsWithMetadata = await IncludeRelatedEntities(DbSet.AsNoTracking())
-            .Where(m => m.Metadata != null && 
+            .Where(m => m.Metadata != null &&
                        m.Metadata.SupportedTasks != null &&
                        m.Metadata.SupportedModalities != null)
             .ToListAsync(cancellationToken);
@@ -81,7 +81,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
                 // Parse supported tasks
                 var supportedTasks = EnumExtensions.ParseTaskTypes(model.Metadata!.SupportedTasks);
                 var supportsAnyTask = tasks.Any(t => supportedTasks.Contains(t));
-                
+
                 if (!supportsAnyTask)
                     return false;
 
@@ -90,7 +90,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
                 {
                     var supportedModalities = EnumExtensions.ParseModalities(model.Metadata!.SupportedModalities);
                     var supportsAllModalities = (supportedModalities & requiredModalities) == requiredModalities;
-                    
+
                     if (!supportsAllModalities)
                         return false;
                 }

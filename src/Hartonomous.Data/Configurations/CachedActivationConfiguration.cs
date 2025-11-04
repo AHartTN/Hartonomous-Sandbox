@@ -38,14 +38,14 @@ public class CachedActivationConfiguration : IEntityTypeConfiguration<CachedActi
             .HasDefaultValue(0);
 
         // Unique index for cache lookup
-            builder.HasIndex(ca => new { ca.ModelId, ca.LayerId, ca.InputHash })
-                .IsUnique()
-                .HasDatabaseName("IX_CachedActivations_Model_Layer_InputHash");
+        builder.HasIndex(ca => new { ca.ModelId, ca.LayerId, ca.InputHash })
+            .IsUnique()
+            .HasDatabaseName("IX_CachedActivations_Model_Layer_InputHash");
 
         // Index for cache eviction (LRU)
-            builder.HasIndex(ca => new { ca.LastAccessed, ca.HitCount })
-                .HasDatabaseName("IX_CachedActivations_LastAccessed_HitCount")
-                .IsDescending(true, true);
+        builder.HasIndex(ca => new { ca.LastAccessed, ca.HitCount })
+            .HasDatabaseName("IX_CachedActivations_LastAccessed_HitCount")
+            .IsDescending(true, true);
 
         // Relationships - NoAction on Model to avoid cascade path conflicts
         // CachedActivation -> Layer -> Model creates cascade path

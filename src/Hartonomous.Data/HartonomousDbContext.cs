@@ -69,7 +69,7 @@ public class HartonomousDbContext : DbContext
 
         // Apply all configurations from this assembly
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(HartonomousDbContext).Assembly);
-        
+
         // Note: Schema is set per-configuration, not globally
         // This allows multi-schema design (e.g., dbo, staging, analytics)
     }

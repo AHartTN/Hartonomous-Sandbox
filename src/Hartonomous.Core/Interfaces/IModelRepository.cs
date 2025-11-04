@@ -13,7 +13,7 @@ public interface IModelRepository
     Task<Model?> GetByNameAsync(string modelName, CancellationToken cancellationToken = default);
     Task<IEnumerable<Model>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<IEnumerable<Model>> GetByTypeAsync(string modelType, CancellationToken cancellationToken = default);
-    
+
     /// <summary>
     /// Query models by capability for ensemble orchestration.
     /// Returns models that support ANY of the specified tasks and ALL of the required modalities.
