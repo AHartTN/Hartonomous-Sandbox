@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
 using System.Data;
+using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Linq;
 using System.Text.Json;
@@ -162,6 +163,10 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="weights">Optional weighting factors for each model.</param>
     /// <param name="cancellationToken">Token for cancelling database work.</param>
     /// <returns>Aggregate inference result with placeholder contribution metrics.</returns>
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access", 
+        Justification = "EnsembleAtomScore is a simple DTO with public properties, safe for JSON serialization")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", 
+        Justification = "EnsembleAtomScore is a simple DTO with public properties, safe for JSON serialization")]
     public async Task<EnsembleInferenceResult> EnsembleInferenceAsync(
         string inputData,
         IReadOnlyList<int> modelIds,

@@ -1,4 +1,5 @@
 using System.Buffers;
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -134,6 +135,10 @@ public static class FastJson
     /// Deserialize from UTF-8 bytes (avoids string allocation).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access", 
+        Justification = "Generic type T is caller-provided, caller ensures type is trimming-safe")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", 
+        Justification = "Generic type T is caller-provided, caller ensures type is AOT-safe")]
     public static T? Deserialize<T>(ReadOnlySpan<byte> utf8Json)
     {
         return JsonSerializer.Deserialize<T>(utf8Json, DefaultOptions);
@@ -143,6 +148,10 @@ public static class FastJson
     /// Serialize to UTF-8 bytes (use with Memory<byte> pools).
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access", 
+        Justification = "Generic type T is caller-provided, caller ensures type is trimming-safe")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", 
+        Justification = "Generic type T is caller-provided, caller ensures type is AOT-safe")]
     public static byte[] SerializeToUtf8<T>(T value)
     {
         return JsonSerializer.SerializeToUtf8Bytes(value, DefaultOptions);
@@ -151,6 +160,10 @@ public static class FastJson
     /// <summary>
     /// Serialize directly to stream (zero intermediate allocations).
     /// </summary>
+    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access", 
+        Justification = "Generic type T is caller-provided, caller ensures type is trimming-safe")]
+    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality", 
+        Justification = "Generic type T is caller-provided, caller ensures type is AOT-safe")]
     public static async ValueTask SerializeToStreamAsync<T>(Stream stream, T value, CancellationToken cancellationToken = default)
     {
         await JsonSerializer.SerializeAsync(stream, value, DefaultOptions, cancellationToken);
