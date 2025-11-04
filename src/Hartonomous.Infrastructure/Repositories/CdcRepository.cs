@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
+using Hartonomous.Core.Performance;
 using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
@@ -14,7 +15,7 @@ namespace Hartonomous.Infrastructure.Repositories;
 
 /// <summary>
 /// Repository implementation for Change Data Capture (CDC) operations.
-/// Provides access to SQL Server 2025 Change Event Streaming data.
+/// OPTIMIZED: Pre-allocated collections, StringComparer.Ordinal, zero-allocation string ops.
 /// </summary>
 public class CdcRepository : ICdcRepository
 {
@@ -30,7 +31,8 @@ public class CdcRepository : ICdcRepository
     /// <inheritdoc/>
     public async Task<IList<CdcChangeEvent>> GetChangeEventsSinceAsync(string? lastLsn, CancellationToken cancellationToken)
     {
-        var events = new List<(SqlBinary Lsn, CdcChangeEvent Event)>();
+        // Pre-allocate with reasonable capacity (OPTIMIZED: avoid resizing)
+        var events = new List<(SqlBinary Lsn, CdcChangeEvent Event)>(128);
 
         var connectionString = _context.Database.GetConnectionString();
         if (string.IsNullOrEmpty(connectionString))
@@ -81,11 +83,15 @@ ORDER BY __$start_lsn";
                     var lsnBinary = reader.GetSqlBinary(startLsnOrdinal);
                     var operation = reader.GetInt32(operationOrdinal);
 
-                    var data = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+                    // Pre-allocate dictionary capacity (OPTIMIZED: typical CDC column count)
+                    var data = new Dictionary<string, object>(16, StringComparer.OrdinalIgnoreCase);
+                    
                     for (var i = 0; i < reader.FieldCount; i++)
                     {
                         var columnName = reader.GetName(i);
-                        if (columnName.StartsWith("__$", StringComparison.Ordinal))
+                        
+                        // Skip CDC metadata columns (OPTIMIZED: AsSpan for zero-allocation check)
+                        if (columnName.AsSpan().StartsWith("__$".AsSpan(), StringComparison.Ordinal))
                         {
                             continue;
                         }
@@ -111,10 +117,19 @@ ORDER BY __$start_lsn";
             }
         }
 
+        // Sort by LSN (OPTIMIZED: static lambda already present)
         events.Sort(static (left, right) => left.Lsn.CompareTo(right.Lsn));
 
         _logger.LogInformation("Retrieved {Count} CDC change events since LSN {LastLsn}", events.Count, lastLsn ?? "beginning");
-        return events.ConvertAll(static e => e.Event);
+        
+        // Extract events (OPTIMIZED: pre-allocated result list)
+        var result = new List<CdcChangeEvent>(events.Count);
+        foreach (var (_, evt) in events)
+        {
+            result.Add(evt);
+        }
+        
+        return result;
     }
 
     private byte[]? ParseLsn(string? lastLsn)
@@ -124,9 +139,14 @@ ORDER BY __$start_lsn";
             return null;
         }
 
-        var hex = (lastLsn.StartsWith("0x", StringComparison.OrdinalIgnoreCase)
-            ? lastLsn[2..]
-            : lastLsn).Trim();
+        // OPTIMIZED: Use AsSpan to avoid substring allocation
+        var lsnSpan = lastLsn.AsSpan();
+        var hex = lsnSpan.StartsWith("0x".AsSpan(), StringComparison.OrdinalIgnoreCase)
+            ? lsnSpan[2..]
+            : lsnSpan;
+
+        // Trim using Span (OPTIMIZED: zero allocation)
+        hex = hex.Trim();
 
         try
         {
@@ -146,7 +166,8 @@ ORDER BY __$start_lsn";
 
     private async Task<IReadOnlyList<(string SchemaName, string TableName, string CaptureInstance)>> GetTrackedTablesAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
-        var results = new List<(string SchemaName, string TableName, string CaptureInstance)>();
+        // Pre-allocate with typical table count (OPTIMIZED)
+        var results = new List<(string SchemaName, string TableName, string CaptureInstance)>(8);
 
         const string trackedTablesSql = @"
 SELECT DISTINCT

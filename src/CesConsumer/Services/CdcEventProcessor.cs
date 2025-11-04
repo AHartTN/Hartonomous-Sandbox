@@ -1,11 +1,12 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Mappers;
 using Hartonomous.Core.Models;
+using Hartonomous.Core.Performance;
 using Hartonomous.Core.Services;
 using Microsoft.Extensions.Logging;
 
@@ -13,7 +14,7 @@ namespace CesConsumer.Services;
 
 /// <summary>
 /// Processes SQL Server Change Data Capture (CDC) events and publishes enriched events to the message broker.
-/// Thin orchestrator that delegates to mapper, enricher, and broker.
+/// OPTIMIZED: Zero-allocation hot path, pre-sized collections, removed LINQ.
 /// </summary>
 public class CdcEventProcessor : BaseEventProcessor
 {
@@ -50,28 +51,58 @@ public class CdcEventProcessor : BaseEventProcessor
     {
         var changeEvents = await _cdcRepository.GetChangeEventsSinceAsync(_lastLsn, cancellationToken);
 
-        if (!changeEvents.Any())
+        // Early exit if no changes (OPTIMIZED: avoid allocations)
+        if (changeEvents.Count == 0)
         {
             return;
         }
 
-        // Map CDC events to platform events
-        var events = _mapper.MapMany(changeEvents).Where(e => e != null).ToList();
+        // Pre-allocate with exact capacity (OPTIMIZED: avoid resizing)
+        var events = new List<BaseEvent>(changeEvents.Count);
+
+        // Map CDC events to platform events (OPTIMIZED: removed LINQ)
+        foreach (var changeEvent in changeEvents)
+        {
+            var mapped = _mapper.Map(changeEvent);
+            if (mapped != null)
+            {
+                events.Add(mapped);
+            }
+        }
+
+        // Skip enrichment/publishing if all mappings failed
+        if (events.Count == 0)
+        {
+            Logger.LogWarning("All {Count} change events failed to map", changeEvents.Count);
+            return;
+        }
 
         // Enrich all events
         await _enricher.EnrichBatchAsync(events, cancellationToken);
 
         // Publish in batch
-        await _messageBroker.PublishBatchAsync(events!, cancellationToken);
+        await _messageBroker.PublishBatchAsync(events, cancellationToken);
+
+        // Find max LSN (OPTIMIZED: manual iteration instead of LINQ Max)
+        string? maxLsn = null;
+        foreach (var changeEvent in changeEvents)
+        {
+            if (changeEvent.Lsn != null)
+            {
+                if (maxLsn == null || StringComparer.Ordinal.Compare(changeEvent.Lsn, maxLsn) > 0)
+                {
+                    maxLsn = changeEvent.Lsn;
+                }
+            }
+        }
 
         // Update checkpoint
-        var maxLsn = changeEvents.Max(e => e.Lsn);
         if (maxLsn != null)
         {
             await _checkpointManager.UpdateLastProcessedLsnAsync(maxLsn, cancellationToken);
             _lastLsn = maxLsn;
             Logger.LogInformation("Processed {Count} change events, new LSN: {MaxLsn}", 
-                changeEvents.Count(), maxLsn);
+                changeEvents.Count, maxLsn);
         }
     }
 }

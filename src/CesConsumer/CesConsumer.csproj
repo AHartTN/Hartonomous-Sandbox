@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hartonomous.Core\Hartonomous.Core.csproj" />
+    <ProjectReference Include="..\Hartonomous.Core.Performance\Hartonomous.Core.Performance.csproj" />
     <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
   </ItemGroup>
 
