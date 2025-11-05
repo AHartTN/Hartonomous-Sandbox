@@ -727,6 +727,118 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("CachedActivations", (string)null);
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.CodeAtom", b =>
+                {
+                    b.Property<long>("CodeAtomId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasColumnName("CodeAtomId");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CodeAtomId"));
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .HasColumnName("Code");
+
+                    b.Property<byte[]>("CodeHash")
+                        .HasMaxLength(32)
+                        .HasColumnType("varbinary(32)")
+                        .HasColumnName("CodeHash");
+
+                    b.Property<string>("CodeType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)")
+                        .HasColumnName("CodeType");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasColumnName("CreatedAt")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("CreatedBy");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)")
+                        .HasColumnName("Description");
+
+                    b.Property<Geometry>("Embedding")
+                        .HasColumnType("geometry")
+                        .HasColumnName("Embedding");
+
+                    b.Property<int?>("EmbeddingDimension")
+                        .HasColumnType("int")
+                        .HasColumnName("EmbeddingDimension");
+
+                    b.Property<string>("Framework")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)")
+                        .HasColumnName("Framework");
+
+                    b.Property<string>("Language")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)")
+                        .HasColumnName("Language");
+
+                    b.Property<float?>("QualityScore")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("real(5)")
+                        .HasColumnName("QualityScore");
+
+                    b.Property<string>("SourceUri")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)")
+                        .HasColumnName("SourceUri");
+
+                    b.Property<string>("Tags")
+                        .HasColumnType("JSON")
+                        .HasColumnName("Tags");
+
+                    b.Property<string>("TestResults")
+                        .HasColumnType("JSON")
+                        .HasColumnName("TestResults");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2")
+                        .HasColumnName("UpdatedAt");
+
+                    b.Property<int>("UsageCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0)
+                        .HasColumnName("UsageCount");
+
+                    b.HasKey("CodeAtomId");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_CodeAtoms_CodeHash")
+                        .HasFilter("[CodeHash] IS NOT NULL");
+
+                    b.HasIndex("CodeType")
+                        .HasDatabaseName("IX_CodeAtoms_CodeType");
+
+                    b.HasIndex("CreatedAt")
+                        .HasDatabaseName("IX_CodeAtoms_CreatedAt");
+
+                    b.HasIndex("Embedding")
+                        .HasDatabaseName("IX_CodeAtoms_Embedding_Spatial");
+
+                    b.HasIndex("Language")
+                        .HasDatabaseName("IX_CodeAtoms_Language");
+
+                    b.HasIndex("QualityScore")
+                        .HasDatabaseName("IX_CodeAtoms_QualityScore");
+
+                    b.ToTable("CodeAtoms", "dbo");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.DeduplicationPolicy", b =>
                 {
                     b.Property<int>("DeduplicationPolicyId")
@@ -1012,6 +1124,12 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<double?>("Confidence")
+                        .HasColumnType("float");
+
+                    b.Property<string>("CorrelationId")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("EnsembleStrategy")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
@@ -1039,6 +1157,9 @@ namespace Hartonomous.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("Status")
+                        .HasColumnType("nvarchar(max)");
 
                     b.Property<string>("TaskType")
                         .HasMaxLength(50)
@@ -1196,6 +1317,87 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("IngestionJobAtoms", (string)null);
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.LayerTensorSegment", b =>
+                {
+                    b.Property<long>("LayerTensorSegmentId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("LayerTensorSegmentId"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("DATETIME2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<Geometry>("GeometryFootprint")
+                        .HasColumnType("geometry");
+
+                    b.Property<long>("LayerId")
+                        .HasColumnType("bigint");
+
+                    b.Property<double?>("MMax")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("MMin")
+                        .HasColumnType("float");
+
+                    b.Property<long?>("MortonCode")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("PointCount")
+                        .HasColumnType("int");
+
+                    b.Property<long>("PointOffset")
+                        .HasColumnType("bigint");
+
+                    b.Property<double?>("QuantizationScale")
+                        .HasColumnType("float");
+
+                    b.Property<string>("QuantizationType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<double?>("QuantizationZeroPoint")
+                        .HasColumnType("float");
+
+                    b.Property<Guid>("PayloadRowGuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier ROWGUIDCOL")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<byte[]>("RawPayload")
+                        .IsRequired()
+                        .HasColumnType("VARBINARY(MAX) FILESTREAM");
+
+                    b.Property<int>("SegmentOrdinal")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("ZMax")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("ZMin")
+                        .HasColumnType("float");
+
+                    b.HasKey("LayerTensorSegmentId");
+
+                    b.HasIndex("MortonCode")
+                        .HasDatabaseName("IX_LayerTensorSegments_Morton");
+
+                    b.HasIndex("LayerId", "SegmentOrdinal")
+                        .IsUnique()
+                        .HasDatabaseName("UX_LayerTensorSegments_LayerId_SegmentOrdinal");
+
+                    b.HasIndex("LayerId", "MMin", "MMax")
+                        .HasDatabaseName("IX_LayerTensorSegments_M_Range");
+
+                    b.HasIndex("LayerId", "ZMin", "ZMax")
+                        .HasDatabaseName("IX_LayerTensorSegments_Z_Range");
+
+                    b.ToTable("LayerTensorSegments", (string)null);
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.Model", b =>
                 {
                     b.Property<int>("ModelId")
@@ -1281,14 +1483,26 @@ namespace Hartonomous.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<double?>("MMax")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("MMin")
+                        .HasColumnType("float");
+
                     b.Property<int>("ModelId")
                         .HasColumnType("int");
+
+                    b.Property<long?>("MortonCode")
+                        .HasColumnType("bigint");
 
                     b.Property<long?>("ParameterCount")
                         .HasColumnType("bigint");
 
                     b.Property<string>("Parameters")
                         .HasColumnType("JSON");
+
+                    b.Property<int?>("PreviewPointCount")
+                        .HasColumnType("int");
 
                     b.Property<double?>("QuantizationScale")
                         .HasColumnType("float");
@@ -1312,6 +1526,12 @@ namespace Hartonomous.Data.Migrations
                     b.Property<LineString>("WeightsGeometry")
                         .HasColumnType("geometry");
 
+                    b.Property<double?>("ZMax")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("ZMin")
+                        .HasColumnType("float");
+
                     b.HasKey("LayerId");
 
                     b.HasIndex("LayerAtomId")
@@ -1320,8 +1540,17 @@ namespace Hartonomous.Data.Migrations
                     b.HasIndex("LayerType")
                         .HasDatabaseName("IX_ModelLayers_LayerType");
 
+                    b.HasIndex("MortonCode")
+                        .HasDatabaseName("IX_ModelLayers_Morton");
+
                     b.HasIndex("ModelId", "LayerIdx")
                         .HasDatabaseName("IX_ModelLayers_ModelId_LayerIdx");
+
+                    b.HasIndex("ModelId", "MMin", "MMax")
+                        .HasDatabaseName("IX_ModelLayers_M_Range");
+
+                    b.HasIndex("ModelId", "ZMin", "ZMax")
+                        .HasDatabaseName("IX_ModelLayers_Z_Range");
 
                     b.ToTable("ModelLayers", (string)null);
                 });
@@ -1835,6 +2064,17 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("IngestionJob");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.LayerTensorSegment", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.ModelLayer", "Layer")
+                        .WithMany("TensorSegments")
+                        .HasForeignKey("LayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Layer");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.ModelLayer", b =>
                 {
                     b.HasOne("Hartonomous.Core.Entities.Atom", "LayerAtom")
@@ -1993,6 +2233,8 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("TensorAtomCoefficients");
 
                     b.Navigation("TensorAtoms");
+
+                    b.Navigation("TensorSegments");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtom", b =>

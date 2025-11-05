@@ -156,6 +156,7 @@ public static class DependencyInjection
         services.AddScoped<IDeduplicationPolicyRepository, DeduplicationPolicyRepository>();
         services.AddScoped<IAtomIngestionService, AtomIngestionService>();
         services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
+    services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<ISpatialInferenceService, SpatialInferenceService>();
         services.AddScoped<IStudentModelService, StudentModelService>();

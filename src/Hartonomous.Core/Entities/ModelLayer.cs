@@ -84,6 +84,37 @@ public class ModelLayer
     public long? ParameterCount { get; set; }
 
     /// <summary>
+    /// Gets or sets the minimum observed Z value across all segments.
+    /// </summary>
+    public double? ZMin { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum observed Z value across all segments.
+    /// </summary>
+    public double? ZMax { get; set; }
+
+    /// <summary>
+    /// Gets or sets the minimum observed M value across all segments.
+    /// </summary>
+    public double? MMin { get; set; }
+
+    /// <summary>
+    /// Gets or sets the maximum observed M value across all segments.
+    /// </summary>
+    public double? MMax { get; set; }
+
+    /// <summary>
+    /// Gets or sets the Morton (Z-order) code summarizing this layer.
+    /// Enables ordered scans aligned with 4D bounding boxes.
+    /// </summary>
+    public long? MortonCode { get; set; }
+
+    /// <summary>
+    /// Number of preview points materialized into <see cref="WeightsGeometry"/>.
+    /// </summary>
+    public int? PreviewPointCount { get; set; }
+
+    /// <summary>
     /// Gets or sets the cache hit rate for this layer's activations.
     /// </summary>
     public double? CacheHitRate { get; set; } = 0.0;
@@ -123,4 +154,9 @@ public class ModelLayer
     /// Gets or sets the collection of tensor atom coefficients referencing this layer.
     /// </summary>
     public ICollection<TensorAtomCoefficient> TensorAtomCoefficients { get; set; } = new List<TensorAtomCoefficient>();
+
+    /// <summary>
+    /// Gets or sets the collection of tensor segments backing this layer.
+    /// </summary>
+    public ICollection<LayerTensorSegment> TensorSegments { get; set; } = new List<LayerTensorSegment>();
 }

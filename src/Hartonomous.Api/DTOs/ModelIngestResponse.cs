@@ -1,31 +1,19 @@
 namespace Hartonomous.Api.DTOs;
 
-/// <summary>
-/// Response model for successful model ingestion.
-/// </summary>
-public record ModelIngestResponse(
-    /// <summary>
-    /// Unique identifier assigned to the ingested model.
-    /// </summary>
-    int ModelId,
-
-    /// <summary>
-    /// Name of the ingested model.
-    /// </summary>
-    string ModelName,
-
-    /// <summary>
-    /// Detected or specified architecture type.
-    /// </summary>
-    string Architecture,
-
-    /// <summary>
-    /// Total number of parameters in the model.
-    /// </summary>
-    long ParameterCount,
-
-    /// <summary>
-    /// Number of layers in the model.
-    /// </summary>
-    int LayerCount
-);
+public class ModelIngestResponse
+{
+    public ModelIngestResponse(int modelId, string modelName, string? architecture, long parameterCount, int layerCount)
+    {
+        ModelId = modelId;
+        ModelName = modelName;
+        Architecture = architecture;
+        ParameterCount = parameterCount;
+        LayerCount = layerCount;
+    }
+    
+    public int ModelId { get; set; }
+    public string ModelName { get; set; }
+    public string? Architecture { get; set; }
+    public long ParameterCount { get; set; }
+    public int LayerCount { get; set; }
+}

@@ -29,6 +29,9 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
 
             .HasColumnType("geometry");  // SQL Server GEOMETRY type
 
+        builder.Property(l => l.PreviewPointCount)
+            .HasColumnType("int");
+
         // Tensor shape as JSON array for reconstruction (e.g., "[3584, 3584]")
         builder.Property(l => l.TensorShape)
             .HasColumnType("NVARCHAR(200)");
@@ -48,12 +51,36 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
         builder.Property(l => l.CacheHitRate)
             .HasDefaultValue(0.0);
 
+        builder.Property(l => l.ZMin)
+            .HasColumnType("float");
+
+        builder.Property(l => l.ZMax)
+            .HasColumnType("float");
+
+        builder.Property(l => l.MMin)
+            .HasColumnType("float");
+
+        builder.Property(l => l.MMax)
+            .HasColumnType("float");
+
+        builder.Property(l => l.MortonCode)
+            .HasColumnType("bigint");
+
         // Indexes
         builder.HasIndex(l => new { l.ModelId, l.LayerIdx })
             .HasDatabaseName("IX_ModelLayers_ModelId_LayerIdx");
 
         builder.HasIndex(l => l.LayerType)
             .HasDatabaseName("IX_ModelLayers_LayerType");
+
+        builder.HasIndex(l => new { l.ModelId, l.ZMin, l.ZMax })
+            .HasDatabaseName("IX_ModelLayers_Z_Range");
+
+        builder.HasIndex(l => new { l.ModelId, l.MMin, l.MMax })
+            .HasDatabaseName("IX_ModelLayers_M_Range");
+
+        builder.HasIndex(l => l.MortonCode)
+            .HasDatabaseName("IX_ModelLayers_Morton");
 
         // Relationships
         builder.HasMany(l => l.CachedActivations)
@@ -77,5 +104,10 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
 
         builder.HasIndex(l => l.LayerAtomId)
             .HasDatabaseName("IX_ModelLayers_LayerAtomId");
+
+        builder.HasMany(l => l.TensorSegments)
+            .WithOne(s => s.Layer)
+            .HasForeignKey(s => s.LayerId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -17,19 +17,22 @@ namespace ModelIngestion.ModelFormats
         private readonly ILogger<GGUFModelReader> _ggufLogger;
         private readonly IModelLayerRepository _layerRepository;
         private readonly IModelRepository _modelRepository;
+        private readonly ILayerTensorSegmentRepository _tensorSegmentRepository;
 
         public ModelReaderFactory(
             ILogger<OnnxModelReader> onnxLogger,
             ILogger<SafetensorsModelReader> safetensorsLogger,
             ILogger<GGUFModelReader> ggufLogger,
             IModelLayerRepository layerRepository,
-            IModelRepository modelRepository)
+            IModelRepository modelRepository,
+            ILayerTensorSegmentRepository tensorSegmentRepository)
         {
             _onnxLogger = onnxLogger ?? throw new ArgumentNullException(nameof(onnxLogger));
             _safetensorsLogger = safetensorsLogger ?? throw new ArgumentNullException(nameof(safetensorsLogger));
             _ggufLogger = ggufLogger ?? throw new ArgumentNullException(nameof(ggufLogger));
             _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
             _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
+            _tensorSegmentRepository = tensorSegmentRepository ?? throw new ArgumentNullException(nameof(tensorSegmentRepository));
         }
 
         public IModelFormatReader<OnnxMetadata> GetOnnxReader()
@@ -44,7 +47,7 @@ namespace ModelIngestion.ModelFormats
 
         public IModelFormatReader<GGUFMetadata> GetGgufReader()
         {
-            return new GGUFModelReader(_modelRepository, _layerRepository, _ggufLogger);
+            return new GGUFModelReader(_modelRepository, _layerRepository, _tensorSegmentRepository, _ggufLogger);
         }
 
         /// <summary>

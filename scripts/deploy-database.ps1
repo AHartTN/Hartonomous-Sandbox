@@ -70,6 +70,57 @@ function Invoke-SqlFile {
     return @{ ExitCode = $LASTEXITCODE; Output = $output }
 }
 
+function ConvertTo-IdempotentSqlContent {
+    param(
+        [string]$SqlContent
+    )
+
+    $escapedDb = $DatabaseName.Replace(']', ']]')
+
+    $SqlContent = [System.Text.RegularExpressions.Regex]::Replace(
+        $SqlContent,
+        '(?im)\bUSE\s+\[?Hartonomous\]?\s*;',
+        { param($match) "USE [$escapedDb];" }
+    )
+
+    $SqlContent = [System.Text.RegularExpressions.Regex]::Replace(
+        $SqlContent,
+        '(?im)(\b(?:ALTER|CREATE)\s+DATABASE\s+)(\[?)Hartonomous(\]?)',
+        { param($match) $match.Groups[1].Value + '[' + $escapedDb + ']' }
+    )
+
+    $SqlContent = [System.Text.RegularExpressions.Regex]::Replace(
+        $SqlContent,
+        '(?im)\bCREATE\s+(?!OR\s+ALTER)(PROCEDURE|PROC|FUNCTION|VIEW|TRIGGER)\b',
+        { param($match) 'CREATE OR ALTER ' + $match.Groups[1].Value }
+    )
+
+    return $SqlContent
+}
+
+function Invoke-IdempotentSqlFile {
+    param(
+        [string]$FilePath
+    )
+
+    if (-not (Test-Path $FilePath)) {
+        return @{ ExitCode = 0; Output = @("File not found: $FilePath") }
+    }
+
+    $content = Get-Content -Path $FilePath -Raw
+    $normalized = ConvertTo-IdempotentSqlContent -SqlContent $content
+
+    $tempFile = [System.IO.Path]::GetTempFileName() + '.sql'
+    $normalized | Out-File -FilePath $tempFile -Encoding UTF8
+
+    try {
+        return Invoke-SqlFile -FilePath $tempFile -Database $DatabaseName
+    }
+    finally {
+        Remove-Item $tempFile -ErrorAction SilentlyContinue
+    }
+}
+
 Write-Host ""
 Write-Host "========================================"
 Write-Host "  Hartonomous Database Deployment"
@@ -399,7 +450,7 @@ END;
     $atomicStreamTypeScript = Join-Path $repoRoot "sql\types\provenance.AtomicStream.sql"
     if (Test-Path $atomicStreamTypeScript) {
         Write-Host "  Binding provenance.AtomicStream type..." -NoNewline
-        $typeResult = Invoke-SqlFile -FilePath $atomicStreamTypeScript -Database $DatabaseName
+        $typeResult = Invoke-IdempotentSqlFile -FilePath $atomicStreamTypeScript
         if ($typeResult.ExitCode -ne 0) {
             Write-Host " FAILED" -ForegroundColor Red
             $typeResult.Output | ForEach-Object { Write-Host "    $_" }
@@ -414,7 +465,7 @@ END;
     $componentStreamTypeScript = Join-Path $repoRoot "sql\types\provenance.ComponentStream.sql"
     if (Test-Path $componentStreamTypeScript) {
         Write-Host "  Binding provenance.ComponentStream type..." -NoNewline
-        $componentTypeResult = Invoke-SqlFile -FilePath $componentStreamTypeScript -Database $DatabaseName
+        $componentTypeResult = Invoke-IdempotentSqlFile -FilePath $componentStreamTypeScript
         if ($componentTypeResult.ExitCode -ne 0) {
             Write-Host " FAILED" -ForegroundColor Red
             $componentTypeResult.Output | ForEach-Object { Write-Host "    $_" }
@@ -460,7 +511,7 @@ END;
         $tableFiles = Get-ChildItem -Path $sqlTableDir -Filter "*.sql" | Sort-Object Name
         foreach ($file in $tableFiles) {
             Write-Host "  Ensuring $($file.Name)..." -NoNewline
-            $tableResult = Invoke-SqlFile -FilePath $file.FullName -Database $DatabaseName
+            $tableResult = Invoke-IdempotentSqlFile -FilePath $file.FullName
             if ($tableResult.ExitCode -eq 0) {
                 Write-Host " OK" -ForegroundColor Green
             }
@@ -487,17 +538,7 @@ END;
     foreach ($file in $procFiles) {
         Write-Host "  Deploying $($file.Name)..." -NoNewline
 
-        $sqlContent = Get-Content $file.FullName -Raw
-        $sqlContent = $sqlContent -replace '\bCREATE\s+PROCEDURE\b', 'CREATE OR ALTER PROCEDURE'
-        $sqlContent = $sqlContent -replace '\bCREATE\s+PROC\b', 'CREATE OR ALTER PROC'
-    $sqlContent = $sqlContent -replace '\bCREATE\s+FUNCTION\b', 'CREATE OR ALTER FUNCTION'
-    $sqlContent = $sqlContent -replace '\bCREATE\s+VIEW\b', 'CREATE OR ALTER VIEW'
-    $sqlContent = $sqlContent -replace '\bCREATE\s+TRIGGER\b', 'CREATE OR ALTER TRIGGER'
-
-        $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-        $sqlContent | Out-File -FilePath $tempFile -Encoding UTF8
-
-        $procResult = Invoke-SqlFile -FilePath $tempFile -Database $DatabaseName
+        $procResult = Invoke-IdempotentSqlFile -FilePath $file.FullName
 
         if ($procResult.ExitCode -eq 0) {
             Write-Host " OK" -ForegroundColor Green
@@ -509,7 +550,6 @@ END;
             $failed++
         }
 
-        Remove-Item $tempFile -ErrorAction SilentlyContinue
     }
 
     Write-Host ""
@@ -517,6 +557,82 @@ END;
     if ($failed -gt 0) {
         Write-Host "  ERROR: One or more stored procedures failed." -ForegroundColor Red
         exit 1
+    }
+
+    Write-Host ""
+    Write-Host "Step 7: Applying configuration scripts..." -ForegroundColor Yellow
+    $configurationScripts = @(
+        "EnableQueryStore.sql",
+        "Setup_FILESTREAM.sql",
+        "Optimize_ColumnstoreCompression.sql",
+        "Temporal_Tables_Evaluation.sql",
+        "Predict_Integration.sql"
+    )
+
+    foreach ($scriptName in $configurationScripts) {
+        $scriptPath = Join-Path $repoRoot "sql\$scriptName"
+        if (-not (Test-Path $scriptPath)) {
+            Write-Host "  Skipping $scriptName (not found)" -ForegroundColor Yellow
+            continue
+        }
+
+        Write-Host "  Running $scriptName..." -NoNewline
+        $configResult = Invoke-IdempotentSqlFile -FilePath $scriptPath
+        if ($configResult.ExitCode -eq 0) {
+            Write-Host " OK" -ForegroundColor Green
+        }
+        else {
+            Write-Host " FAILED" -ForegroundColor Red
+            $configResult.Output | ForEach-Object { Write-Host "    $_" }
+            exit 1
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Step 8: Seeding reference data..." -ForegroundColor Yellow
+    $seedScripts = @(
+        "Ingest_Models.sql"
+    )
+
+    foreach ($seed in $seedScripts) {
+        $seedPath = Join-Path $repoRoot "sql\$seed"
+        if (-not (Test-Path $seedPath)) {
+            Write-Host "  Skipping $seed (not found)" -ForegroundColor Yellow
+            continue
+        }
+
+        Write-Host "  Running $seed..." -NoNewline
+        $seedResult = Invoke-IdempotentSqlFile -FilePath $seedPath
+        if ($seedResult.ExitCode -eq 0) {
+            Write-Host " OK" -ForegroundColor Green
+        }
+        else {
+            Write-Host " FAILED" -ForegroundColor Red
+            $seedResult.Output | ForEach-Object { Write-Host "    $_" }
+            exit 1
+        }
+    }
+
+    Write-Host ""
+    Write-Host "Step 9: Running verification scripts..." -ForegroundColor Yellow
+    $verificationDir = Join-Path $repoRoot "sql\verification"
+    if (Test-Path $verificationDir) {
+        $verificationFiles = Get-ChildItem -Path $verificationDir -Filter "*.sql" | Sort-Object Name
+        foreach ($verification in $verificationFiles) {
+            Write-Host "  Executing $($verification.Name)..." -NoNewline
+            $verificationResult = Invoke-IdempotentSqlFile -FilePath $verification.FullName
+            if ($verificationResult.ExitCode -eq 0) {
+                Write-Host " OK" -ForegroundColor Green
+            }
+            else {
+                Write-Host " FAILED" -ForegroundColor Red
+                $verificationResult.Output | ForEach-Object { Write-Host "    $_" }
+                exit 1
+            }
+        }
+    }
+    else {
+        Write-Host "  WARNING: sql/verification directory not found, skipping." -ForegroundColor Yellow
     }
 
 }

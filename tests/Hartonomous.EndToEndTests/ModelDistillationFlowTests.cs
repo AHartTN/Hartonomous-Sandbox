@@ -111,7 +111,22 @@ BEGIN
         LayerIdx INT NOT NULL,
         LayerName NVARCHAR(200) NULL,
         LayerType NVARCHAR(100) NULL,
-        ParameterCount INT NULL,
+        ParameterCount BIGINT NULL,
+        WeightsGeometry geometry NULL,
+        TensorShape NVARCHAR(200) NULL,
+        TensorDtype NVARCHAR(20) NULL DEFAULT 'float32',
+        QuantizationType NVARCHAR(20) NULL,
+        QuantizationScale FLOAT NULL,
+        QuantizationZeroPoint FLOAT NULL,
+        Parameters NVARCHAR(MAX) NULL,
+        CacheHitRate FLOAT NOT NULL DEFAULT 0,
+        LayerAtomId BIGINT NULL,
+        ZMin FLOAT NULL,
+        ZMax FLOAT NULL,
+        MMin FLOAT NULL,
+        MMax FLOAT NULL,
+        MortonCode BIGINT NULL,
+        PreviewPointCount INT NULL,
         CONSTRAINT UX_ModelLayers_ModelIdLayerIdx UNIQUE (ModelId, LayerIdx)
     );
 END;

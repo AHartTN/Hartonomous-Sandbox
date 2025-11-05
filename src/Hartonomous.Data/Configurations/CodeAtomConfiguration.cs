@@ -56,8 +56,8 @@ public class CodeAtomConfiguration : IEntityTypeConfiguration<CodeAtom>
             .HasColumnType("JSON");
 
         builder.Property(c => c.QualityScore)
-            .HasColumnName("QualityScore")
-            .HasPrecision(5, 4); // 0.0000 to 1.0000
+            .HasColumnName("QualityScore");
+            // REAL/FLOAT doesn't support precision - use CHECK constraint instead
 
         builder.Property(c => c.UsageCount)
             .HasColumnName("UsageCount")

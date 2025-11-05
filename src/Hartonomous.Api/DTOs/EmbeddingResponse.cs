@@ -1,31 +1,19 @@
 namespace Hartonomous.Api.DTOs;
 
-/// <summary>
-/// Response model for embedding creation with deduplication information.
-/// </summary>
-public record EmbeddingResponse(
-    /// <summary>
-    /// Unique identifier for the atom.
-    /// </summary>
-    long AtomId,
-
-    /// <summary>
-    /// Unique identifier for the embedding (null if duplicate).
-    /// </summary>
-    long? EmbeddingId,
-
-    /// <summary>
-    /// Indicates whether this was a duplicate atom (content-addressable hash match).
-    /// </summary>
-    bool WasDuplicate,
-
-    /// <summary>
-    /// Reason for deduplication (e.g., "exact_hash_match", "semantic_similarity").
-    /// </summary>
-    string? DuplicateReason,
-
-    /// <summary>
-    /// Semantic similarity score if duplicate was found via similarity check.
-    /// </summary>
-    double? SemanticSimilarity
-);
+public class EmbeddingResponse
+{
+    public EmbeddingResponse(long atomId, long? atomEmbeddingId, bool wasExisting, string? duplicateReason, double? semanticSimilarity)
+    {
+        AtomId = atomId;
+        AtomEmbeddingId = atomEmbeddingId;
+        WasExisting = wasExisting;
+        DuplicateReason = duplicateReason;
+        SemanticSimilarity = semanticSimilarity;
+    }
+    
+    public long AtomId { get; set; }
+    public long? AtomEmbeddingId { get; set; }
+    public bool WasExisting { get; set; }
+    public string? DuplicateReason { get; set; }
+    public double? SemanticSimilarity { get; set; }
+}

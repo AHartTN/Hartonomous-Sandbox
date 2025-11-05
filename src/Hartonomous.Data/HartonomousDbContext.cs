@@ -62,6 +62,7 @@ public class HartonomousDbContext : DbContext
     public DbSet<IngestionJob> IngestionJobs => Set<IngestionJob>();
     public DbSet<IngestionJobAtom> IngestionJobAtoms => Set<IngestionJobAtom>();
     public DbSet<DeduplicationPolicy> DeduplicationPolicies => Set<DeduplicationPolicy>();
+    public DbSet<LayerTensorSegment> LayerTensorSegments => Set<LayerTensorSegment>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
