@@ -1,8 +1,6 @@
-# Production-Ready API Implementation
+# API Reference
 
-## Overview
-
-Enterprise-grade REST API exposing the atomic substrate with real implementations—no placeholders, full error handling, validation, logging, and direct SQL Server integration.
+REST API for the Hartonomous platform.
 
 ## Controllers Implemented
 

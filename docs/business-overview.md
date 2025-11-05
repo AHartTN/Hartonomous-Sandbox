@@ -7,7 +7,7 @@ Hartonomous packages the heavy lifting of multimodal AI infrastructure into a pl
 - **Unified multimodal store.** Text, image, audio, video, and tensor representations live in the same SQL Server tenant with deduplication and vector search.
 - **Explainability through provenance.** Every inference, decision, and derived artifact can be traced back through Neo4j lineage graphs.
 - **Operational transparency.** Usage-based billing and rate plans expose true costs per tenant, feature, and handler.
-- **Enterprise alignment.** Designed for Microsoft-first stacks (SQL Server 2025, .NET 10, Azure Event Hubs) and audited security policies.
+- **Enterprise integration.** Designed for Microsoft-first stacks (SQL Server 2025, .NET 10, Neo4j) with Service Broker messaging and audited security policies.
 
 ## Target Personas
 
@@ -29,10 +29,7 @@ Hartonomous itself is an internal platform.  The new billing tables support seve
 
 Finance teams can extend the ledger by:
 
-- Adding additional dimensions to the `BillingMultipliers` table (lookups via EF Core configuration and configuration defaults).
-- Connecting external invoicing by streaming ledger entries into analytics pipelines.
-- Building dashboards on top of the admin UI's billing workspace.
+- Adding additional dimensions to the `BillingMultipliers` table (lookups via EF Core configuration and configuration defaults)
+- Connecting external invoicing by streaming ledger entries into analytics pipelines
+- Building dashboards on top of the admin UI's billing workspace
 
----
-
-Keep this document honest — revisit after major releases to verify that positioning and monetisation assumptions are still valid.

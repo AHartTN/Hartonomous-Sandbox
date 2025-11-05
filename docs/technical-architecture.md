@@ -1,8 +1,8 @@
 # Technical Architecture
 
-This document captures the current state of the Hartonomous platform as of November 2025.  It focuses on services, data stores, messaging contracts, and cross-cutting concerns.
+Hartonomous platform architecture: services, data stores, messaging contracts, and cross-cutting concerns.
 
-## High-Level View
+## System Overview
 
 ```text
 SQL Server CDC ──► CesConsumer ──► Service Broker Queue ──► Neo4jSync Worker ──► Neo4j
@@ -28,39 +28,54 @@ SQL Server CDC ──► CesConsumer ──► Service Broker Queue ──► Ne
 
 ### SQL Server 2025
 
-- **Multimodal atoms.** Tables such as `Atoms`, `AtomEmbeddings`, `AtomicAudioSamples` store deduplicated content and vector data (`VECTOR`, `GEOMETRY`).
-- **Billing schema.** `BillingRatePlans`, `BillingOperationRates`, `BillingMultipliers`, and `BillingUsageLedger` are managed via migrations (`AddBillingTables`, `EnrichBillingPlans`).  Columns now include plan codes, monthly fees, DCU pricing, storage/seat entitlements, operation metadata, and unique plan indexes.  Seeding and updates must go through the DbContext.
-- **Messaging.** Service Broker queue (`HartonomousQueue` by default) is the backbone for domain events handled by downstream services.
+- **Multimodal atoms**: `Atoms`, `AtomEmbeddings`, `AtomicAudioSamples` store deduplicated content with vector data (`VECTOR`, `GEOMETRY`)
+- **Billing schema**: `BillingRatePlans`, `BillingOperationRates`, `BillingMultipliers`, `BillingUsageLedger` managed via EF Core migrations
+- **Messaging**: Service Broker queue (`HartonomousQueue`) handles internal domain events
+- **Query Store**: Performance monitoring and analysis
+- **CDC (Change Data Capture)**: Table change tracking consumed by `CesConsumer`
 
 ### Neo4j 5.x
 
-- **Provenance graph.** Nodes for models, inferences, knowledge documents, and generic events maintained by `ProvenanceGraphBuilder`.
-- **Explainability.** Relationships encode which atoms, models, or operations contributed to an inference.
+- **Provenance graph**: Model, inference, knowledge, and event nodes maintained by `ProvenanceGraphBuilder`
+- **Explainability**: Relationships encode atom, model, and operation contributions to inference results
 
-## Messaging Flow
+## Messaging Architecture
 
-1. **Change capture.** SQL Server CDC emits row changes; `CesConsumer` packages them into CloudEvents.
-2. **Service Broker publish.** `SqlMessageBroker` encapsulates send/receive logic with automatic conversation management, retry, and dead-letter routing via `SqlMessageDeadLetterSink`.
-3. **Resilience.** `ServiceBrokerResilienceStrategy` wraps publish/receive operations with retry policies and circuit breaker semantics.
-4. **Dispatch.** `EventDispatcher` in `Neo4jSync` routes messages to specific handlers (model, inference, knowledge, generic) after evaluating access policies and throttling.
-5. **Billing.** `UsageBillingMeter` resolves tenant rate plans via `SqlBillingConfigurationProvider`, applies modality/complexity/content type/grounding/guarantee/provenance multipliers, enriches operation metadata, and persists `BillingUsageRecord` objects through `SqlBillingUsageSink`.
+**SQL Service Broker**
+
+1. **Change capture**: SQL Server CDC emits row changes; `CdcRepository` in `CesConsumer` reads CDC tables and `CdcEventProcessor` packages them into CloudEvents-compatible `BaseEvent` objects
+2. **Service Broker publish**: `SqlMessageBroker` publishes events to queue (`HartonomousQueue`) with conversation management, retry, and dead-letter routing via `SqlMessageDeadLetterSink`
+3. **Resilience**: `ServiceBrokerResilienceStrategy` provides retry policies and circuit breaker semantics
+4. **Dispatch**: `ServiceBrokerMessagePump` in `Neo4jSync` consumes messages and routes to handlers (model, inference, knowledge, generic) after policy and throttling evaluation
+5. **Billing**: `UsageBillingMeter` resolves tenant rate plans via `SqlBillingConfigurationProvider`, applies multipliers, and persists `BillingUsageRecord` through `SqlBillingUsageSink`
 
 ## Security & Governance
 
-- **Access Policies.** `AccessPolicyEngine` evaluates ordered `IAccessPolicyRule` implementations (e.g., `TenantAccessPolicyRule`) and can deny processing before any handler runs.
-- **Throttling.** `InMemoryThrottleEvaluator` enforces rate limits defined in configuration (`SecurityOptions.RateLimits`).
-- **Auditing.** All handler executions and billing records emit structured logs.  Extend the logging scopes rather than logging ad-hoc strings.
+- **Access Policies**: `AccessPolicyEngine` evaluates ordered `IAccessPolicyRule` implementations (e.g., `TenantAccessPolicyRule`) before handler execution
+- **Throttling**: `InMemoryThrottleEvaluator` enforces rate limits defined in configuration (`SecurityOptions.RateLimits`)
+- **Auditing**: Handler executions and billing records emit structured logs
 
 ## Graph Projection
 
-- **AtomGraphWriter.** Updates SQL graph node/edge tables keeping relational and graph views consistent.  Retries sync via stored procedure if writes fail.
-- **Neo4j Handlers.** Each handler (`ModelEventHandler`, `InferenceEventHandler`, etc.) transforms CloudEvents into Neo4j nodes/relationships through `ProvenanceGraphBuilder`.
+- **AtomGraphWriter**: Updates SQL graph node/edge tables maintaining relational and graph view consistency with retry logic
+- **Neo4j Handlers**: Each handler (`ModelEventHandler`, `InferenceEventHandler`, etc.) transforms CloudEvents into Neo4j nodes/relationships via `ProvenanceGraphBuilder`
 
-## Extensibility Points
+## Extensibility
 
-- **New content modalities.** Add EF Core entities + configuration, update `HartonomousDbContext`, and create migration.  Ensure `UsageBillingMeter` understands new multiplier dimensions.
-- **Additional policy rules.** Implement `IAccessPolicyRule` and register it in DI ahead of or behind existing rules as needed.
-- **Alternative messaging transports.** `IMessageBroker` abstraction allows substituting Service Broker if necessary, but supporting resiliency policies will require equivalent implementations.
+- **New content modalities**: Add EF Core entities + configuration, update `HartonomousDbContext`, create migration, extend `UsageBillingMeter` for new multiplier dimensions
+- **Additional policy rules**: Implement `IAccessPolicyRule` and register in DI with appropriate ordering
+- **Alternative messaging**: `IMessageBroker` abstraction allows transport substitution (requires equivalent resiliency implementation)
+
+---
+
+**See also**: [Deployment & Operations](deployment-and-operations.md), [API Reference](api-implementation-complete.md), [Billing Model](billing-model.md)
+
+- **Messaging**: Limited to SQL Service Broker (no Azure Event Hubs)
+- **CLR Deployment**: CLR code exists but assembly deployment status unknown
+- **FILESTREAM**: Requires manual SQL Server instance configuration
+- **In-Memory OLTP**: Requires manual filegroup configuration
+- **Test Coverage**: Integration test status needs review (some tests failing)
+- **Documentation**: See `docs/CURRENT_STATE.md` for comprehensive gaps between docs and implementation
 
 ## Known Gaps
 

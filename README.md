@@ -1,8 +1,8 @@
 # Hartonomous
 
-> **Database-native AI inference platform with SQL Server 2025 vector search, multimodal embeddings, and graph provenance**
+**Database-native AI inference platform with SQL Server 2025 vector search, multimodal embeddings, and graph provenance**
 
-Hartonomous treats your SQL Server 2025 database as a first-class AI inference engine. Models decompose into queryable rows, embeddings leverage native VECTOR types with spatial hybrid search, and provenance flows through Service Broker into Neo4j for full lineage tracking. The platform ships with atomic content deduplication, CLR-accelerated vector operations, usage-based billing, and production-ready worker services.
+Hartonomous treats SQL Server 2025 as a first-class AI inference engine. Models decompose into queryable rows, embeddings leverage native VECTOR types with spatial hybrid search, and provenance flows through Service Broker into Neo4j for full lineage tracking. The platform provides atomic content deduplication, CLR-accelerated vector operations, usage-based billing, and distributed worker services.
 
 [![.NET Version](https://img.shields.io/badge/.NET-10.0-blue)](https://dotnet.microsoft.com/)
 [![SQL Server](https://img.shields.io/badge/SQL%20Server-2025%20RC1-red)](https://www.microsoft.com/sql-server)
@@ -10,14 +10,13 @@ Hartonomous treats your SQL Server 2025 database as a first-class AI inference e
 
 ---
 
-## Why Hartonomous?
+## Core Capabilities
 
-- **Database-is-the-model architecture**: AI models decompose into queryable SQL rows; inference runs entirely in T-SQL using native VECTOR operations
-- **Hybrid vector search**: Spatial indexes (GEOMETRY) provide O(log n) filtering, then exact vector distance reranks top candidates for 10-100x performance gains
-- **Atomic content storage**: Content-addressable atoms (SHA-256) with reference counting eliminate duplicate storage across text, image, audio, video
-- **CLR provenance types**: Custom UDTs (AtomicStream, ComponentStream) serialize generation history with full bill-of-materials tracking
-- **SQL-native inference**: Ensemble queries, semantic search, spatial generation all execute as stored procedures with aggregate vector operations
-- **Event-driven graph sync**: Service Broker + Neo4j workers maintain dual representation (SQL for queries, Neo4j for graph algorithms)
+- **Database-native inference**: AI models stored as queryable SQL rows; inference executes in T-SQL using native VECTOR operations
+- **Hybrid vector search**: Spatial indexes (GEOMETRY) filter candidates with O(log n) complexity, exact vector distance reranks results
+- **Atomic content storage**: Content-addressable atoms (SHA-256) with reference counting across text, image, audio, video modalities
+- **CLR acceleration**: Custom UDTs (AtomicStream, ComponentStream) and aggregate functions (VectorAvg, CosineSimilarityAvg) for vector operations
+- **Event-driven architecture**: SQL Service Broker messaging with Neo4j graph projection for provenance tracking
 
 ---
 
@@ -28,8 +27,7 @@ Hartonomous treats your SQL Server 2025 database as a first-class AI inference e
 - SQL Server 2025 with vector and spatial features enabled (`VECTOR`, `GEOMETRY`, SQL Service Broker)
 - .NET 10 SDK
 - Neo4j 5.x
-- PowerShell 7+ (for scripts)
-- Optional: Azure Event Hubs (or another CloudEvents-compatible broker)
+- PowerShell 7+ (for deployment scripts)
 
 ### First Run
 
@@ -53,7 +51,7 @@ cd src/Neo4jSync
 dotnet run
 ```
 
-> **Tip:** The Service Broker queue must be enabled on your SQL Server instance.  See [Deployment & Operations](docs/deployment-and-operations.md) for broker scripts and feature flags.
+See [Deployment & Operations](docs/deployment-and-operations.md) for Service Broker configuration and database setup.
 
 ---
 
@@ -114,49 +112,46 @@ dotnet run
 | `SqlClr` | CLR UDTs (AtomicStream, ComponentStream), vector aggregates (VectorAvg, VectorWeightedAvg), spatial/audio/image functions |
 | `Hartonomous.Admin` | Blazor Server UI for model browsing, student extraction, operations monitoring |
 
-## Platform Capabilities
+## Feature Set
 
-### ✅ **Implemented & Production-Ready**
+### Database-Native AI Inference
+- SQL Server 2025 VECTOR(1998) with EF Core 10 integration
+- Hybrid search: Spatial GEOMETRY indexes filter candidates, VECTOR_DISTANCE reranks results
+- Multi-resolution search: SpatialCoarse → SpatialGeometry → exact vector
+- 30+ stored procedures for ensemble inference, semantic search, spatial generation, deduplication
+- CLR aggregate functions: VectorAvg, VectorSum, VectorMedian, VectorWeightedAvg, VectorStdDev, CosineSimilarityAvg
+- SQL graph tables (dbo.AtomNodes, dbo.AtomEdges) with AtomGraphWriter sync
 
-#### Database-Native AI Inference
-- ✅ SQL Server 2025 VECTOR(1998) native support with EF Core 10 integration
-- ✅ Hybrid search: Spatial GEOMETRY indexes (3-anchor triangulation) filter candidates, then exact VECTOR_DISTANCE reranks
-- ✅ Multi-resolution search funnel: SpatialCoarse (O(log n)) → SpatialGeometry → exact vector (10-100x faster than brute force)
-- ✅ 24 production stored procedures: ensemble inference, semantic search, spatial generation, deduplication, analytics
-- ✅ CLR aggregate functions: VectorAvg, VectorSum, VectorMedian, VectorWeightedAvg, VectorStdDev, CosineSimilarityAvg
-- ✅ SQL graph tables (dbo.AtomNodes, dbo.AtomEdges) with AtomGraphWriter sync service
+### Content-Addressable Storage
+- Atomic deduplication: SHA-256 content hashing with reference counting
+- Multimodal atoms: Text, Image, Audio, Video, SCADA with unified embedding storage
+- CLR UDTs: AtomicStream (generation provenance), ComponentStream (bill-of-materials)
+- Deduplication policies: Semantic similarity thresholds, hash-based exact match
 
-#### Content-Addressable Storage
-- ✅ Atomic deduplication: SHA-256 content hashing with reference counting across all modalities
-- ✅ Multimodal atoms: Text, Image, Audio, Video with unified embedding storage
-- ✅ CLR UDTs: AtomicStream (generation provenance), ComponentStream (bill-of-materials)
-- ✅ Deduplication policies: Semantic similarity thresholds, hash-based exact match, configurable per modality
+### Model Decomposition
+- Models-as-rows: Transformer layers, attention weights, tensor atoms queryable via SQL
+- Model ingestion: Safetensors, ONNX, PyTorch (.pt, .pth, .bin), GGUF formats
+- Student model extraction: Query-based subsets by importance score
+- Weight storage: TensorAtoms with SpatialSignature (GEOMETRY) for cross-model similarity
 
-#### Model Decomposition & Querying
-- ✅ Models-as-rows: Transformer layers, attention weights, tensor atoms all queryable via SQL
-- ✅ Model ingestion: Safetensors, ONNX, PyTorch (.pt, .pth, .bin), GGUF formats supported
-- ✅ Student model extraction: Query-based subsets (top-k weights by importance score)
-- ✅ Model comparison: Cross-model knowledge overlap analysis via shared atom embeddings
-- ✅ Weight storage: TensorAtoms with SpatialSignature (GEOMETRY) for similarity search across models
+### Event-Driven Architecture
+- Service Broker messaging: HartonomousQueue with conversation-scoped messages
+- CDC to CloudEvents: CesConsumer enriches change streams, publishes to Service Broker
+- Neo4j projection: ModelEventHandler, InferenceEventHandler, KnowledgeEventHandler, GenericEventHandler
+- Provenance graph: Complete lineage from source atoms → embeddings → inferences → outputs
+- Resilience patterns: Retry policies, circuit breaker, dead-letter routing
 
-#### Event-Driven Provenance
-- ✅ Service Broker integration: HartonomousQueue with conversation-scoped messaging
-- ✅ CDC to CloudEvents: CesConsumer enriches SQL CDC with metadata, publishes as CloudEvents
-- ✅ Neo4j projection: ModelEventHandler, InferenceEventHandler, KnowledgeEventHandler, GenericEventHandler
-- ✅ Provenance graph: Full lineage tracking from source atoms → embeddings → inferences → outputs
-- ✅ Resilience: ServiceBrokerResilienceStrategy with retry policies, circuit breaker, dead-letter routing
+### Security & Governance
+- Access policies: TenantAccessPolicyRule with ordered evaluation, deny-first semantics
+- Throttling: Configurable rate limits per tenant/operation
+- Usage billing: BillingRatePlans, BillingMultipliers (modality, complexity, content type, grounding, guarantee, provenance)
+- Ledger tracking: BillingUsageLedger with operation metadata, DCU calculations
 
-#### Security & Governance
-- ✅ Access policies: TenantAccessPolicyRule with ordered evaluation, deny-first semantics
-- ✅ Throttling: InMemoryThrottleEvaluator with configurable rate limits per tenant/operation
-- ✅ Usage billing: BillingRatePlans, BillingMultipliers (modality, complexity, content type, grounding, guarantee, provenance)
-- ✅ Ledger tracking: BillingUsageLedger with operation metadata, DCU calculations, tenant chargeback support
-
-#### Operational Tooling
-- ✅ Blazor Admin UI: Model browser, student extraction, ingestion job tracking, telemetry dashboard
-- ✅ ModelIngestion CLI: Batch model import with progress tracking, error recovery
-- ✅ Health monitoring: TelemetryHub with SignalR real-time updates, AdminTelemetryCache
-- ✅ Deployment scripts: deploy-database.ps1 with schema versioning, index creation, seeding
+### Operational Tooling
+- Blazor Admin UI: Model browser, student extraction, telemetry dashboard
+- ModelIngestion CLI: Batch import with progress tracking
+- Health monitoring: TelemetryHub with SignalR real-time updates
+- Deployment automation: PowerShell scripts for schema versioning, index creation, seeding
 
 ---
 
