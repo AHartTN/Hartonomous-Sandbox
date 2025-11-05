@@ -23,6 +23,7 @@ using Hartonomous.Infrastructure.Services.Enrichment;
 using Hartonomous.Infrastructure.Services.Messaging;
 using Hartonomous.Infrastructure.Services.Billing;
 using Hartonomous.Infrastructure.Services.Security;
+using Hartonomous.Infrastructure.Services.Jobs;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
@@ -162,10 +163,13 @@ public static class DependencyInjection
         services.AddScoped<IStudentModelService, StudentModelService>();
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
+        services.AddScoped<IInferenceService, InferenceOrchestrator>();
+        services.AddScoped<IEmbeddingService, EmbeddingService>();
 
         services.AddScoped<ModelIngestionProcessor>();
         services.AddScoped<ModelIngestionOrchestrator>();
         services.AddScoped<ModelDownloader>();
+        services.AddScoped<InferenceJobProcessor>();
 
         // ============================================================================
         // PIPELINE ARCHITECTURE - MS-Validated Enterprise Patterns
@@ -210,6 +214,7 @@ public static class DependencyInjection
 
         // Background worker for async atom ingestion
         services.AddHostedService<AtomIngestionWorker>();
+        services.AddHostedService<InferenceJobWorker>();
 
         return services;
     }

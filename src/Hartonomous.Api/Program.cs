@@ -115,6 +115,8 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddHartonomousInfrastructure(builder.Configuration);
 builder.Services.AddHartonomousHealthChecks(builder.Configuration);
 builder.Services.AddScoped<IModelIngestionService, ApiModelIngestionService>();
+builder.Services.AddHostedService<Hartonomous.Infrastructure.Services.Jobs.InferenceJobWorker>();
+builder.Services.AddScoped<Hartonomous.Infrastructure.Services.Jobs.InferenceJobProcessor>();
 
 var app = builder.Build();
 

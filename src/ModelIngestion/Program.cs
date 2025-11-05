@@ -6,6 +6,7 @@ using Microsoft.Extensions.Logging.ApplicationInsights;
 using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Pipelines.Ingestion;
 using System;
 using System.Threading.Tasks;
 
@@ -67,6 +68,13 @@ namespace ModelIngestion
                     {
                         client.Timeout = TimeSpan.FromMinutes(30); // Large model downloads
                         client.DefaultRequestHeaders.Add("User-Agent", "Hartonomous/1.0");
+                    });
+
+                    // Register atom ingestion worker with bounded channel
+                    services.AddAtomIngestionWorker(options =>
+                    {
+                        options.Capacity = 10000;
+                        options.FullMode = System.Threading.Channels.BoundedChannelFullMode.Wait;
                     });
 
                     // Register ingestion services with DI

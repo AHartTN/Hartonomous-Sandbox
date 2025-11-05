@@ -3,15 +3,18 @@ using System.Data;
 using System.IO;
 using System.Linq;
 using Hartonomous.Api.DTOs;
+using Hartonomous.Api.DTOs.Inference;
 using Hartonomous.Api.DTOs.Models;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Requests.Paging;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Shared.Contracts.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 
 namespace Hartonomous.Api.Controllers;
 
@@ -266,92 +269,70 @@ public sealed class ModelsController : ApiControllerBase
     }
 
     [HttpPost("{modelId:int}/distill")]
-    [ProducesResponseType(typeof(ApiResponse<DTOs.Models.DistillationResult>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<DTOs.Models.DistillationResult>), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ApiResponse<DTOs.Models.DistillationResult>), StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ApiResponse<DTOs.Models.DistillationResult>>> DistillModelAsync(
+    [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status202Accepted)]
+    [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<ApiResponse<JobSubmittedResponse>>> DistillModelAsync(
         int modelId,
         [FromBody] DTOs.Models.DistillationRequest request,
         CancellationToken cancellationToken)
     {
         if (modelId <= 0)
         {
-            return BadRequest(Failure<DTOs.Models.DistillationResult>(new[] { ValidationError("Model identifier must be positive.", nameof(modelId)) }));
+            return BadRequest(Failure<JobSubmittedResponse>(new[] { ValidationError("Model identifier must be positive.", nameof(modelId)) }));
         }
 
         if (request is null || string.IsNullOrWhiteSpace(request.StudentName))
         {
-            return BadRequest(Failure<DTOs.Models.DistillationResult>(new[] { ValidationError("StudentName is required.", nameof(request.StudentName)) }));
+            return BadRequest(Failure<JobSubmittedResponse>(new[] { ValidationError("StudentName is required.", nameof(request.StudentName)) }));
         }
 
         var parentModel = await _modelRepository.GetByIdAsync(modelId, cancellationToken).ConfigureAwait(false);
         if (parentModel is null)
         {
             var error = ErrorDetailFactory.NotFound("parent model", modelId.ToString());
-            return NotFound(Failure<DTOs.Models.DistillationResult>(new[] { error }));
+            return NotFound(Failure<JobSubmittedResponse>(new[] { error }));
         }
 
         try
         {
-            await using var connection = new SqlConnection(_connectionString);
-            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-
-            await using var command = new SqlCommand("dbo.sp_ExtractStudentModel", connection)
+            var inputData = System.Text.Json.JsonSerializer.Serialize(new
             {
-                CommandType = CommandType.StoredProcedure,
-                CommandTimeout = 600
+                parentModelId = modelId,
+                studentName = request.StudentName,
+                layerIndices = request.LayerIndices,
+                importanceThreshold = request.ImportanceThreshold
+            });
+
+            var job = new InferenceRequest
+            {
+                TaskType = "model_distillation",
+                InputData = inputData,
+                Status = "Pending",
+                CorrelationId = Guid.NewGuid().ToString()
             };
 
-            command.Parameters.AddWithValue("@ParentModelId", modelId);
-            command.Parameters.AddWithValue("@layer_subset", 
-                request.LayerIndices is not null && request.LayerIndices.Count > 0 
-                    ? string.Join(",", request.LayerIndices) 
-                    : (object)DBNull.Value);
-            command.Parameters.AddWithValue("@importance_threshold", request.ImportanceThreshold);
-            command.Parameters.AddWithValue("@NewModelName", request.StudentName);
+            using var context = new HartonomousDbContext(new DbContextOptionsBuilder<HartonomousDbContext>()
+                .UseSqlServer(_connectionString)
+                .Options);
 
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+            context.InferenceRequests.Add(job);
+            await context.SaveChangesAsync(cancellationToken);
 
-            if (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            var response = new JobSubmittedResponse
             {
-                var result = new DTOs.Models.DistillationResult
-                {
-                    StudentModelId = reader.GetInt32(0),
-                    StudentName = request.StudentName,
-                    ParentModelId = modelId,
-                    OriginalTensorAtoms = reader.GetInt64(2),
-                    StudentTensorAtoms = reader.GetInt64(3),
-                    CompressionRatio = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4),
-                    RetentionPercent = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4)
-                };
+                JobId = job.InferenceId,
+                Status = "Pending",
+                StatusUrl = $"/api/inference/jobs/{job.InferenceId}"
+            };
 
-                _logger.LogInformation(
-                    "Student model {StudentId} extracted from parent {ParentId}: {StudentAtoms}/{OriginalAtoms} atoms ({Retention}% retention)",
-                    result.StudentModelId, modelId, result.StudentTensorAtoms, result.OriginalTensorAtoms, result.RetentionPercent);
-
-                var metadata = new Dictionary<string, object?>
-                {
-                    ["compressionRatio"] = result.CompressionRatio,
-                    ["retentionPercent"] = result.RetentionPercent
-                };
-
-                return Ok(Success(result, metadata));
-            }
-
-            var failureError = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "No result returned from distillation procedure");
-            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Models.DistillationResult>(new[] { failureError }));
-        }
-        catch (SqlException ex)
-        {
-            _logger.LogError(ex, "SQL error during model distillation for parent {ParentId}", modelId);
-            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "Distillation failed", ex.Message);
-            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Models.DistillationResult>(new[] { error }));
+            return Accepted($"/api/inference/jobs/{job.InferenceId}", Success(response));
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Model distillation failed for parent {ParentId}", modelId);
-            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "An unexpected error occurred during distillation.");
-            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Models.DistillationResult>(new[] { error }));
+            _logger.LogError(ex, "Failed to submit distillation job for model {ModelId}", modelId);
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "Failed to submit distillation job");
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<JobSubmittedResponse>(new[] { error }));
         }
     }
 

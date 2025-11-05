@@ -1,5 +1,7 @@
 using Hartonomous.Api.Common;
 using Hartonomous.Api.DTOs.Bulk;
+using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Data;
@@ -15,14 +17,20 @@ public class BulkController : ControllerBase
 {
     private readonly IConfiguration _configuration;
     private readonly ILogger<BulkController> _logger;
+    private readonly IMessageBroker _messageBroker;
+    private readonly IAtomIngestionService _atomIngestionService;
     private readonly string _connectionString;
 
     public BulkController(
         IConfiguration configuration,
-        ILogger<BulkController> logger)
+        ILogger<BulkController> logger,
+        IMessageBroker messageBroker,
+        IAtomIngestionService atomIngestionService)
     {
         _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _messageBroker = messageBroker ?? throw new ArgumentNullException(nameof(messageBroker));
+        _atomIngestionService = atomIngestionService ?? throw new ArgumentNullException(nameof(atomIngestionService));
         _connectionString = _configuration.GetConnectionString("DefaultConnection")
             ?? throw new InvalidOperationException("Database connection string not found");
     }
@@ -114,8 +122,16 @@ public class BulkController : ControllerBase
             // Queue job for processing if async
             if (request.ProcessAsync)
             {
-                // TODO: Send message to Azure Service Bus / Event Hub for background processing
-                _logger.LogInformation("Job {JobId} queued for async processing", jobId);
+                // Publish message to SQL Service Broker for background processing
+                var message = new BulkJobMessage
+                {
+                    JobId = jobId,
+                    CreatedAt = createdAt,
+                    ItemCount = request.Items.Count
+                };
+                
+                await _messageBroker.PublishAsync(message, cancellationToken);
+                _logger.LogInformation("Job {JobId} queued for async processing via Service Broker", jobId);
             }
             else
             {
@@ -509,8 +525,6 @@ public class BulkController : ControllerBase
 
     private async Task ProcessBulkJobAsync(string jobId, CancellationToken cancellationToken)
     {
-        // This would be implemented as a background worker/service
-        // For now, just update status to PROCESSING
         await using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
@@ -520,8 +534,105 @@ public class BulkController : ControllerBase
         command.Parameters.AddWithValue("@StartedAt", DateTime.UtcNow);
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
 
-        // TODO: Process items in batches
-        // TODO: Update progress in BulkJobs and BulkJobItems tables
-        // TODO: Call callback URL when complete
+        // Fetch items for this job
+        var itemsQuery = "SELECT ItemId, ItemData FROM BulkJobItems WHERE JobId = @JobId AND Status = 'PENDING' ORDER BY ItemId";
+        await using var itemsCommand = new SqlCommand(itemsQuery, connection);
+        itemsCommand.Parameters.AddWithValue("@JobId", jobId);
+        
+        var items = new List<(string ItemId, string ItemData)>();
+        await using (var reader = await itemsCommand.ExecuteReaderAsync(cancellationToken))
+        {
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                items.Add((reader.GetString(0), reader.GetString(1)));
+            }
+        }
+
+        int processedCount = 0;
+        int failedCount = 0;
+        const int batchSize = 100;
+
+        // Process items in batches
+        for (int i = 0; i < items.Count; i += batchSize)
+        {
+            var batch = items.Skip(i).Take(batchSize).ToList();
+            
+            foreach (var (itemId, itemData) in batch)
+            {
+                try
+                {
+                    // Deserialize bulk item from stored JSON
+                    var bulkItem = System.Text.Json.JsonSerializer.Deserialize<BulkContentItem>(itemData);
+                    if (bulkItem == null)
+                    {
+                        throw new InvalidOperationException("Failed to deserialize bulk item");
+                    }
+
+                    // Prepare AtomIngestionRequest from BulkContentItem
+                    var ingestionRequest = new AtomIngestionRequest
+                    {
+                        HashInput = bulkItem.CanonicalText ?? bulkItem.ContentUrl ?? itemId,
+                        Modality = bulkItem.Modality,
+                        CanonicalText = bulkItem.CanonicalText,
+                        SourceUri = bulkItem.ContentUrl,
+                        SourceType = "bulk_ingest",
+                        Metadata = bulkItem.Metadata != null 
+                            ? System.Text.Json.JsonSerializer.Serialize(bulkItem.Metadata) 
+                            : null,
+                        PayloadLocator = !string.IsNullOrEmpty(bulkItem.BinaryDataBase64) 
+                            ? $"base64:{bulkItem.BinaryDataBase64[..Math.Min(100, bulkItem.BinaryDataBase64.Length)]}" 
+                            : bulkItem.ContentUrl
+                    };
+
+                    // Ingest atom via AtomIngestionService
+                    var ingestionResult = await _atomIngestionService.IngestAsync(ingestionRequest, cancellationToken);
+                    
+                    var updateItemQuery = "UPDATE BulkJobItems SET Status = 'COMPLETED', CompletedAt = @CompletedAt WHERE ItemId = @ItemId";
+                    await using var updateItemCmd = new SqlCommand(updateItemQuery, connection);
+                    updateItemCmd.Parameters.AddWithValue("@ItemId", itemId);
+                    updateItemCmd.Parameters.AddWithValue("@CompletedAt", DateTime.UtcNow);
+                    await updateItemCmd.ExecuteNonQueryAsync(cancellationToken);
+                    
+                    processedCount++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to process bulk item {ItemId}", itemId);
+                    
+                    var updateFailedQuery = "UPDATE BulkJobItems SET Status = 'FAILED', ErrorMessage = @ErrorMessage WHERE ItemId = @ItemId";
+                    await using var updateFailedCmd = new SqlCommand(updateFailedQuery, connection);
+                    updateFailedCmd.Parameters.AddWithValue("@ItemId", itemId);
+                    updateFailedCmd.Parameters.AddWithValue("@ErrorMessage", ex.Message);
+                    await updateFailedCmd.ExecuteNonQueryAsync(cancellationToken);
+                    
+                    failedCount++;
+                }
+            }
+            
+            // Update progress in BulkJobs table
+            var progressQuery = @"
+                UPDATE BulkJobs 
+                SET ProcessedItems = @ProcessedItems, FailedItems = @FailedItems 
+                WHERE JobId = @JobId";
+            await using var progressCmd = new SqlCommand(progressQuery, connection);
+            progressCmd.Parameters.AddWithValue("@JobId", jobId);
+            progressCmd.Parameters.AddWithValue("@ProcessedItems", processedCount);
+            progressCmd.Parameters.AddWithValue("@FailedItems", failedCount);
+            await progressCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // Mark job as completed
+        var completeQuery = "UPDATE BulkJobs SET Status = 'COMPLETED', CompletedAt = @CompletedAt WHERE JobId = @JobId";
+        await using var completeCmd = new SqlCommand(completeQuery, connection);
+        completeCmd.Parameters.AddWithValue("@JobId", jobId);
+        completeCmd.Parameters.AddWithValue("@CompletedAt", DateTime.UtcNow);
+        await completeCmd.ExecuteNonQueryAsync(cancellationToken);
     }
+}
+
+internal sealed class BulkJobMessage
+{
+    public required string JobId { get; init; }
+    public required DateTime CreatedAt { get; init; }
+    public required int ItemCount { get; init; }
 }

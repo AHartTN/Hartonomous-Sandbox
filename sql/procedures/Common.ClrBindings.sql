@@ -49,6 +49,13 @@ RETURNS VARBINARY(MAX)
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.VectorOperations].VectorAdd;
 GO
 
+IF OBJECT_ID('dbo.clr_SemanticFeaturesJson', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_SemanticFeaturesJson;
+GO
+CREATE FUNCTION dbo.clr_SemanticFeaturesJson(@text NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SemanticAnalysis].ComputeSemanticFeatures;
+GO
+
 IF OBJECT_ID('dbo.clr_VectorSubtract', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_VectorSubtract;
 GO
 CREATE FUNCTION dbo.clr_VectorSubtract(@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))

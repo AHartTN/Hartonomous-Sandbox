@@ -151,8 +151,9 @@ public sealed class SearchController : ApiControllerBase
             }
             else
             {
-                _logger.LogInformation("Generating embedding for cross-modal search: {Text}", request.QueryText![..Math.Min(50, request.QueryText.Length)]);
-                embedding = await _embeddingService.EmbedTextAsync(request.QueryText!, cancellationToken).ConfigureAwait(false);
+                var queryText = request.QueryText ?? string.Empty;
+                _logger.LogInformation("Generating embedding for cross-modal search: {Text}", queryText[..Math.Min(50, queryText.Length)]);
+                embedding = await _embeddingService.EmbedTextAsync(queryText, cancellationToken).ConfigureAwait(false);
             }
 
             var results = new List<DTOs.Search.SearchResult>();
