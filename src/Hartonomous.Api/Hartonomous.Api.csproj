@@ -1,9 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>Hartonomous.Api</RootNamespace>
+    <UserSecretsId>b369d2c6-6a47-4fe1-8d8d-e0c0d2986f56</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
