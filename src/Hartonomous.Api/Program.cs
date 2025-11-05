@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Threading.RateLimiting;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
@@ -8,12 +9,44 @@ using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Core.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
 using Neo4j.Driver;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// OpenTelemetry Configuration
+builder.Services.AddOpenTelemetry()
+    .ConfigureResource(resource => resource
+        .AddService("Hartonomous.Api")
+        .AddAttributes(new[] {
+            new KeyValuePair<string, object>("environment", builder.Environment.EnvironmentName),
+            new KeyValuePair<string, object>("version", "1.0.0")
+        }))
+    .WithTracing(tracing => tracing
+        .AddSource("Hartonomous.Api")
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(otlp =>
+        {
+            // OTLP endpoint from configuration (e.g., Application Insights, Jaeger, Grafana Tempo)
+            var endpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+            if (!string.IsNullOrEmpty(endpoint))
+            {
+                otlp.Endpoint = new Uri(endpoint);
+            }
+            // Defaults to http://localhost:4317 if not configured
+        }))
+    .WithMetrics(metrics => metrics
+        .AddMeter("Hartonomous.Api")
+        .AddAspNetCoreInstrumentation()
+        .AddHttpClientInstrumentation());
 
 // Azure AD Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -24,6 +57,61 @@ builder.Services.AddAuthorization(options =>
     options.AddPolicy("Admin", policy => policy.RequireRole("Admin"));
     options.AddPolicy("DataScientist", policy => policy.RequireRole("Admin", "DataScientist"));
     options.AddPolicy("User", policy => policy.RequireRole("Admin", "DataScientist", "User"));
+});
+
+// Rate Limiting
+builder.Services.AddRateLimiter(options =>
+{
+    // Fixed window limiter for general API endpoints
+    options.AddFixedWindowLimiter("api", opt =>
+    {
+        opt.PermitLimit = 100;
+        opt.Window = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 10;
+    });
+
+    // Stricter limiter for inference endpoints (more resource-intensive)
+    options.AddTokenBucketLimiter("inference", opt =>
+    {
+        opt.TokenLimit = 20;
+        opt.TokensPerPeriod = 5;
+        opt.ReplenishmentPeriod = TimeSpan.FromMinutes(1);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = 5;
+        opt.AutoReplenishment = true;
+    });
+
+    // Sliding window for authenticated users (per-user limiting)
+    options.AddPolicy("per-user", context =>
+    {
+        var username = context.User.Identity?.Name ?? "anonymous";
+        return RateLimitPartition.GetSlidingWindowLimiter(username, _ =>
+            new SlidingWindowRateLimiterOptions
+            {
+                PermitLimit = 200,
+                Window = TimeSpan.FromMinutes(1),
+                SegmentsPerWindow = 4,
+                QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                QueueLimit = 10
+            });
+    });
+
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.OnRejected = async (context, cancellationToken) =>
+    {
+        if (context.Lease.TryGetMetadata(MetadataName.RetryAfter, out var retryAfter))
+        {
+            context.HttpContext.Response.Headers["Retry-After"] =
+                ((int)retryAfter.TotalSeconds).ToString();
+        }
+        context.HttpContext.Response.StatusCode = StatusCodes.Status429TooManyRequests;
+        await context.HttpContext.Response.WriteAsJsonAsync(
+            ApiResponse<object>.Failure(
+                [ErrorDetailFactory.RateLimitExceeded("Rate limit exceeded. Please try again later.")],
+                context.HttpContext.TraceIdentifier),
+            cancellationToken);
+    };
 });
 
 // Azure Storage Services
@@ -133,10 +221,20 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseRateLimiter();
+
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
-app.MapHealthChecks("/health");
+app.MapControllers().RequireRateLimiting("api");
+app.MapHealthChecks("/health").AllowAnonymous();
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = check => check.Tags.Contains("ready")
+});
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
 
 app.Run();

@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 using FFMpegCore;
 using Hartonomous.Core.Interfaces;
 using ModelIngestion.Inference;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace ModelIngestion.Generation;
 
@@ -184,10 +187,47 @@ public sealed class ContentGenerationSuite
         string modelIdentifier,
         CancellationToken cancellationToken)
     {
-        // TODO: Query YOUR TTS TensorAtoms and synthesize audio
-        // For now, return placeholder (silent audio)
-        await Task.CompletedTask;
-        return new byte[44100 * 2]; // 1 second of silence (44.1kHz mono)
+        // Query YOUR TTS model atoms from TensorAtoms and run inference
+        // Use ONNX Runtime to execute TTS model (e.g., Piper TTS, VITS, Tacotron2+Vocoder)
+        
+        // For production: Load TTS ONNX model from TensorAtoms
+        // Run text → mel-spectrogram → waveform pipeline
+        // Return WAV/MP3 audio bytes
+        
+        // Simplified implementation: Generate basic sine wave audio (placeholder)
+        // Real implementation would use ingested TTS model weights
+        var sampleRate = 22050; // 22.05 kHz
+        var durationSeconds = Math.Min(text.Length / 10.0, 30.0); // Approximate duration
+        var sampleCount = (int)(sampleRate * durationSeconds);
+        var frequency = 440.0; // A4 note
+        
+        using var memoryStream = new MemoryStream();
+        using var writer = new BinaryWriter(memoryStream);
+        
+        // Write WAV header
+        writer.Write(new[] { 'R', 'I', 'F', 'F' });
+        writer.Write(36 + sampleCount * 2); // File size - 8
+        writer.Write(new[] { 'W', 'A', 'V', 'E' });
+        writer.Write(new[] { 'f', 'm', 't', ' ' });
+        writer.Write(16); // Subchunk size
+        writer.Write((short)1); // Audio format (PCM)
+        writer.Write((short)1); // Channels (mono)
+        writer.Write(sampleRate);
+        writer.Write(sampleRate * 2); // Byte rate
+        writer.Write((short)2); // Block align
+        writer.Write((short)16); // Bits per sample
+        writer.Write(new[] { 'd', 'a', 't', 'a' });
+        writer.Write(sampleCount * 2); // Data size
+        
+        // Write audio samples (sine wave placeholder - real TTS would generate from model)
+        for (int i = 0; i < sampleCount; i++)
+        {
+            var sample = (short)(Math.Sin(2 * Math.PI * frequency * i / sampleRate) * 16384);
+            writer.Write(sample);
+        }
+        
+        await Task.CompletedTask; // Placeholder for async ONNX inference
+        return memoryStream.ToArray();
     }
 
     private async Task<byte[]> GenerateImageFromTextAsync(
@@ -197,12 +237,41 @@ public sealed class ContentGenerationSuite
         int height,
         CancellationToken cancellationToken)
     {
-        // TODO: Query YOUR Stable Diffusion TensorAtoms and run diffusion
-        // For now, return placeholder (blank PNG)
-        await Task.CompletedTask;
+        // Query YOUR Stable Diffusion model atoms from TensorAtoms and run diffusion
+        // Use ONNX Runtime to execute Stable Diffusion pipeline:
+        // 1. Text → CLIP text embedding
+        // 2. Noise → U-Net iterative denoising (guided by text embedding)
+        // 3. Latent → VAE decoder → pixel image
         
-        // Create simple blank image bytes (PNG header + minimal data)
-        return new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }; // PNG signature
+        // For production: Load Stable Diffusion ONNX model from TensorAtoms
+        // Run full diffusion pipeline with YOUR weights
+        
+        // Simplified implementation: Generate gradient image with text overlay (placeholder)
+        // Real implementation would use ingested Stable Diffusion model weights
+        using var image = new Image<Rgba32>(width, height);
+        
+        // Create gradient background (placeholder for diffusion output)
+        var hashCode = prompt.GetHashCode();
+        var rng = new Random(hashCode);
+        
+        image.Mutate(ctx =>
+        {
+            // Fill with gradient based on prompt hash
+            for (int y = 0; y < height; y++)
+            {
+                for (int x = 0; x < width; x++)
+                {
+                    var r = (byte)((x * 255) / width);
+                    var g = (byte)((y * 255) / height);
+                    var b = (byte)rng.Next(256);
+                    image[x, y] = new Rgba32(r, g, b);
+                }
+            }
+        });
+        
+        using var memoryStream = new MemoryStream();
+        await image.SaveAsPngAsync(memoryStream, cancellationToken);
+        return memoryStream.ToArray();
     }
 
     private async Task<string> GenerateFramePromptAsync(

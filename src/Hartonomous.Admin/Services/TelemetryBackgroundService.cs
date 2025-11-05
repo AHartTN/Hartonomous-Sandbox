@@ -4,6 +4,7 @@ using Hartonomous.Admin.Models;
 using Hartonomous.Admin.Operations;
 using Hartonomous.Core.Interfaces;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -12,7 +13,7 @@ namespace Hartonomous.Admin.Services;
 
 public sealed class TelemetryBackgroundService : BackgroundService
 {
-    private readonly IIngestionStatisticsService _statisticsService;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly AdminOperationCoordinator _operationCoordinator;
     private readonly AdminTelemetryCache _cache;
     private readonly IHubContext<TelemetryHub> _hubContext;
@@ -20,14 +21,14 @@ public sealed class TelemetryBackgroundService : BackgroundService
     private readonly ILogger<TelemetryBackgroundService> _logger;
 
     public TelemetryBackgroundService(
-        IIngestionStatisticsService statisticsService,
+        IServiceScopeFactory scopeFactory,
         AdminOperationCoordinator operationCoordinator,
         AdminTelemetryCache cache,
         IHubContext<TelemetryHub> hubContext,
         IOptionsMonitor<AdminTelemetryOptions> options,
         ILogger<TelemetryBackgroundService> logger)
     {
-        _statisticsService = statisticsService;
+        _scopeFactory = scopeFactory;
         _operationCoordinator = operationCoordinator;
         _cache = cache;
         _hubContext = hubContext;
@@ -43,7 +44,10 @@ public sealed class TelemetryBackgroundService : BackgroundService
         {
             try
             {
-                var stats = await _statisticsService.GetStatsAsync(stoppingToken).ConfigureAwait(false);
+                using var scope = _scopeFactory.CreateScope();
+                var statisticsService = scope.ServiceProvider.GetRequiredService<IIngestionStatisticsService>();
+                
+                var stats = await statisticsService.GetStatsAsync(stoppingToken).ConfigureAwait(false);
                 var operations = _operationCoordinator.GetRecent();
                 var snapshot = new AdminDashboardSnapshot(
                     stats.TotalModels,

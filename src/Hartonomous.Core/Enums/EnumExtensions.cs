@@ -30,8 +30,8 @@ public static class EnumExtensions
         if (Enum.TryParse<TaskType>(taskString, ignoreCase: true, out var directResult))
             return directResult;
 
-        // Handle kebab-case conversions
-        return taskString.ToLowerInvariant() switch
+        // Handle kebab-case and snake_case conversions
+        return taskString.ToLowerInvariant().Replace('_', '-') switch
         {
             "text-generation" => TaskType.TextGeneration,
             "image-generation" => TaskType.ImageGeneration,

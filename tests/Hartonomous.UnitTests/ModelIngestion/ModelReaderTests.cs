@@ -109,31 +109,80 @@ public class ModelReaderTests
 
     private sealed class TestModelLayerRepository : IModelLayerRepository
     {
+        private readonly Dictionary<long, ModelLayer> _layers = new();
+        private long _nextId = 1;
+
         public LineString? LastGeometry { get; private set; }
 
-        public Task<ModelLayer?> GetByIdAsync(long layerId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<ModelLayer?> GetByIdAsync(long layerId, CancellationToken cancellationToken = default)
+        {
+            _layers.TryGetValue(layerId, out var layer);
+            return Task.FromResult(layer);
+        }
 
-        public Task<IReadOnlyList<ModelLayer>> GetByModelAsync(int modelId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<IReadOnlyList<ModelLayer>> GetByModelAsync(int modelId, CancellationToken cancellationToken = default)
+        {
+            var layers = _layers.Values
+                .Where(l => l.ModelId == modelId)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ModelLayer>>(layers);
+        }
 
-        public Task<ModelLayer> AddAsync(ModelLayer layer, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<ModelLayer> AddAsync(ModelLayer layer, CancellationToken cancellationToken = default)
+        {
+            layer.LayerId = _nextId++;
+            _layers[layer.LayerId] = layer;
+            LastGeometry = layer.LayerGeometry;
+            return Task.FromResult(layer);
+        }
 
-        public Task BulkInsertAsync(IEnumerable<ModelLayer> layers, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task BulkInsertAsync(IEnumerable<ModelLayer> layers, CancellationToken cancellationToken = default)
+        {
+            foreach (var layer in layers)
+            {
+                layer.LayerId = _nextId++;
+                _layers[layer.LayerId] = layer;
+                LastGeometry = layer.LayerGeometry;
+            }
+            return Task.CompletedTask;
+        }
 
-        public Task UpdateAsync(ModelLayer layer, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task UpdateAsync(ModelLayer layer, CancellationToken cancellationToken = default)
+        {
+            if (_layers.ContainsKey(layer.LayerId))
+            {
+                _layers[layer.LayerId] = layer;
+                LastGeometry = layer.LayerGeometry;
+            }
+            return Task.CompletedTask;
+        }
 
-        public Task DeleteAsync(long layerId, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task DeleteAsync(long layerId, CancellationToken cancellationToken = default)
+        {
+            _layers.Remove(layerId);
+            return Task.CompletedTask;
+        }
 
-        public Task<IReadOnlyList<ModelLayer>> GetLayersByWeightRangeAsync(int modelId, double minValue, double maxValue, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<IReadOnlyList<ModelLayer>> GetLayersByWeightRangeAsync(int modelId, double minValue, double maxValue, CancellationToken cancellationToken = default)
+        {
+            var layers = _layers.Values
+                .Where(l => l.ModelId == modelId)
+                .Where(l =>
+                {
+                    var weights = ExtractWeightsFromGeometry(l.LayerGeometry);
+                    return weights.Any(w => w >= minValue && w <= maxValue);
+                })
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ModelLayer>>(layers);
+        }
 
-        public Task<IReadOnlyList<ModelLayer>> GetLayersByImportanceAsync(int modelId, double minImportance, CancellationToken cancellationToken = default) =>
-            throw new NotImplementedException();
+        public Task<IReadOnlyList<ModelLayer>> GetLayersByImportanceAsync(int modelId, double minImportance, CancellationToken cancellationToken = default)
+        {
+            var layers = _layers.Values
+                .Where(l => l.ModelId == modelId && l.ImportanceScore >= minImportance)
+                .ToList();
+            return Task.FromResult<IReadOnlyList<ModelLayer>>(layers);
+        }
 
         public float[] ExtractWeightsFromGeometry(LineString geometry)
         {

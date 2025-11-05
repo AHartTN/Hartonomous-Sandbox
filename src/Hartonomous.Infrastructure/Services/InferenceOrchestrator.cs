@@ -242,6 +242,31 @@ public sealed class InferenceOrchestrator : IInferenceService
             ? (float)consensusCount / resultRows.Count
             : 0.0f;
 
+        // Parse weights from ModelsUsed JSON
+        var modelWeights = new Dictionary<int, float>();
+        if (!string.IsNullOrEmpty(inferenceRequest.ModelsUsed))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(inferenceRequest.ModelsUsed);
+                foreach (var element in doc.RootElement.EnumerateArray())
+                {
+                    if (element.TryGetProperty("ModelId", out var modelIdProp) &&
+                        modelIdProp.TryGetInt32(out var modelId))
+                    {
+                        var weight = element.TryGetProperty("Weight", out var weightProp) && weightProp.TryGetSingle(out var w)
+                            ? w
+                            : 1.0f / totalModels; // Default to equal weight if not specified
+                        modelWeights[modelId] = weight;
+                    }
+                }
+            }
+            catch (JsonException ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse ModelsUsed JSON for InferenceId={InferenceId}, using equal weights", inferenceId);
+            }
+        }
+
         // Build ModelContributions from InferenceSteps
         var contributions = inferenceRequest.Steps
             .Where(s => s.Model != null)
@@ -250,7 +275,7 @@ public sealed class InferenceOrchestrator : IInferenceService
                 ModelId = step.ModelId ?? 0,
                 ModelName = step.Model?.ModelName ?? "Unknown",
                 IndividualOutput = $"Step {step.StepNumber}: {step.OperationType}",
-                Weight = 1.0f / totalModels, // Equal weight for now (TODO: parse from ModelsUsed JSON)
+                Weight = modelWeights.TryGetValue(step.ModelId ?? 0, out var weight) ? weight : 1.0f / totalModels,
                 ConfidenceScore = step.DurationMs.HasValue && inferenceRequest.TotalDurationMs.HasValue
                     ? 1.0f - ((float)step.DurationMs.Value / inferenceRequest.TotalDurationMs.Value)
                     : 0.5f

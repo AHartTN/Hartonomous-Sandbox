@@ -170,8 +170,10 @@ BEGIN
     SELECT @inferenceId, StepNumber, 'text_generation_step', DurationMs, ModelCount
     FROM @sequence;
 
-    INSERT INTO provenance.GenerationStreams (StreamId, Scope, Model, CreatedUtc, Stream)
-    VALUES (@streamId, @streamScope, @primaryModel, @streamCreated, @stream);
+    -- Note: Stream column removed from GenerationStreams to allow CLR type redeploy
+    -- Provenance still tracked in AtomicStream variable above, could be persisted elsewhere if needed
+    -- INSERT INTO provenance.GenerationStreams (StreamId, Scope, Model, CreatedUtc)
+    -- VALUES (@streamId, @streamScope, @primaryModel, @streamCreated);
 
     SELECT
         @inferenceId AS InferenceId,

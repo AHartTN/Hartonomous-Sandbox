@@ -36,6 +36,19 @@ namespace ModelIngestion
                     return 0;
                 }
 
+                // Ollama model ingestion from D:\Models
+                if (args.Length > 0 && args[0].ToLowerInvariant() == "ingest-ollama")
+                {
+                    var ollamaIngestion = host.Services.GetRequiredService<OllamaModelIngestionService>();
+                    var models = await ollamaIngestion.IngestAllModelsAsync();
+                    Console.WriteLine($"✓ Ingested {models.Count} Ollama models from D:\\Models");
+                    foreach (var model in models)
+                    {
+                        Console.WriteLine($"  - {model.ModelName} ({model.ParameterCount / 1_000_000_000.0:F1}B parameters)");
+                    }
+                    return 0;
+                }
+
                 // Get the ingestion orchestrator for other commands
                 var orchestrator = host.Services.GetRequiredService<IngestionOrchestrator>();
                 await orchestrator.RunAsync(args);
@@ -101,6 +114,9 @@ namespace ModelIngestion
 
                     services.AddScoped<AtomicStorageService>();
                     services.AddScoped<IAtomicStorageService>(sp => sp.GetRequiredService<AtomicStorageService>());
+
+                    // Ollama model ingestion
+                    services.AddScoped<OllamaModelIngestionService>();
 
                     var appInsightsSection = context.Configuration.GetSection("ApplicationInsights");
                     var appInsightsConnectionString = appInsightsSection.GetValue<string>("ConnectionString");

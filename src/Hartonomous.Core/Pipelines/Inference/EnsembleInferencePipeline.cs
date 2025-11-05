@@ -272,7 +272,7 @@ public sealed class PersistInferenceResultStep : PipelineStepBase<
             TaskType = "ensemble-inference",
             InputData = System.Text.Json.JsonSerializer.Serialize(new { input.Request.Prompt, input.Request.Context }),
             InputHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input.Request.Prompt)),
-            ModelsUsed = System.Text.Json.JsonSerializer.Serialize(input.Contributions.Select(c => new { c.ModelId, c.ModelName }).ToList()),
+            ModelsUsed = System.Text.Json.JsonSerializer.Serialize(input.Contributions.Select(c => new { c.ModelId, c.ModelName, c.Weight }).ToList()),
             EnsembleStrategy = "MajorityVoting",
             OutputData = System.Text.Json.JsonSerializer.Serialize(new { Output = input.FinalOutput, Confidence = input.Confidence }),
             OutputMetadata = System.Text.Json.JsonSerializer.Serialize(new { CandidateCount = input.Candidates.Count, ModelCount = input.Contributions.Count }),

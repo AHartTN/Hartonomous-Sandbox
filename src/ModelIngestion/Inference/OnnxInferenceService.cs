@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Data;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -8,6 +9,9 @@ using Hartonomous.Core.Interfaces;
 using Microsoft.Data.SqlClient;
 using Microsoft.ML.OnnxRuntime;
 using Microsoft.ML.OnnxRuntime.Tensors;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace ModelIngestion.Inference;
 
@@ -118,16 +122,30 @@ public sealed class OnnxInferenceService
 
     private DenseTensor<float> PrepareImageTensor(byte[] imageBytes)
     {
-        // Simplified: Real implementation would use ImageSharp to decode and resize
-        // For now, assume 640x640x3 input (YOLO standard)
+        // Decode image, resize to 640x640, normalize pixels to [0,1]
         const int width = 640;
         const int height = 640;
         const int channels = 3;
 
+        using var image = Image.Load<Rgb24>(imageBytes);
+        
+        // Resize image to target dimensions
+        image.Mutate(x => x.Resize(width, height));
+
+        // Create tensor in NCHW format (batch, channels, height, width)
         var tensor = new DenseTensor<float>(new[] { 1, channels, height, width });
 
-        // TODO: Decode image bytes, resize to 640x640, normalize pixels to [0,1]
-        // This would use ImageSharp (already in ModelIngestion dependencies)
+        // Normalize pixels to [0, 1] and arrange in NCHW format
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                var pixel = image[x, y];
+                tensor[0, 0, y, x] = pixel.R / 255f; // Red channel
+                tensor[0, 1, y, x] = pixel.G / 255f; // Green channel
+                tensor[0, 2, y, x] = pixel.B / 255f; // Blue channel
+            }
+        }
 
         return tensor;
     }

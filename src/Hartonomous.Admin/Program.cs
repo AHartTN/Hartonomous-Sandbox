@@ -32,7 +32,16 @@ builder.Services.AddOpenTelemetry()
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddEntityFrameworkCoreInstrumentation()
-        .AddConsoleExporter()) // TODO: Replace with OTLP/AppInsights in production
+        .AddOtlpExporter(otlp =>
+        {
+            // OTLP endpoint from configuration (e.g., Application Insights, Jaeger, Grafana Tempo)
+            var endpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+            if (!string.IsNullOrEmpty(endpoint))
+            {
+                otlp.Endpoint = new Uri(endpoint);
+            }
+            // Defaults to http://localhost:4317 if not configured
+        }))
     .WithMetrics(metrics => metrics
         .AddMeter("Hartonomous.Pipelines")
         .AddAspNetCoreInstrumentation()
@@ -68,6 +77,6 @@ app.MapRazorComponents<App>()
 
 app.MapHub<TelemetryHub>("/hubs/telemetry");
 app.MapHealthChecks("/health");
-app.MapPrometheusScrapingEndpoint(); // Exposes /metrics for Grafana/Prometheus
+app.MapPrometheusScrapingEndpoint();
 
 app.Run();

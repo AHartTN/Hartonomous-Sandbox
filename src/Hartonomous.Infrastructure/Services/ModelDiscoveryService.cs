@@ -270,16 +270,46 @@ public class ModelDiscoveryService : IModelDiscoveryService
     /// <returns>Format information tailored for safetensors artifacts.</returns>
     private async Task<ModelFormatInfo> DetectSafetensorsFormatAsync(string filePath, CancellationToken cancellationToken)
     {
-        // TODO: Read safetensors header to extract metadata
-        return await Task.FromResult(new ModelFormatInfo
+        // Read safetensors header to extract metadata
+        // Safetensors format: 8-byte header length (little-endian) + JSON header + tensor data
+        using var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+        
+        // Read header length (first 8 bytes)
+        var headerLengthBytes = new byte[8];
+        var bytesRead = await fileStream.ReadAsync(headerLengthBytes.AsMemory(0, 8), cancellationToken);
+        if (bytesRead != 8) throw new InvalidDataException("Invalid safetensors file: cannot read header length");
+        
+        var headerLength = BitConverter.ToInt64(headerLengthBytes, 0);
+        
+        // Read JSON header
+        var headerBytes = new byte[headerLength];
+        bytesRead = await fileStream.ReadAsync(headerBytes.AsMemory(0, (int)headerLength), cancellationToken);
+        if (bytesRead != headerLength) throw new InvalidDataException("Invalid safetensors file: cannot read header JSON");
+        
+        var headerJson = System.Text.Encoding.UTF8.GetString(headerBytes);
+        
+        // Parse header to count tensors
+        int tensorCount = 0;
+        if (!string.IsNullOrEmpty(headerJson))
+        {
+            var headerDoc = System.Text.Json.JsonDocument.Parse(headerJson);
+            tensorCount = headerDoc.RootElement.EnumerateObject().Count(prop => prop.Name != "__metadata__");
+        }
+        
+        return new ModelFormatInfo
         {
             Format = "Safetensors",
             IsMultiFile = false,
             IsSharded = false,
             Extensions = new[] { ".safetensors" },
             RequiredFiles = new[] { Path.GetFileName(filePath) },
-            Confidence = 1.0
-        });
+            Confidence = 1.0,
+            Metadata = new Dictionary<string, object>
+            {
+                ["ModelName"] = System.IO.Path.GetFileNameWithoutExtension(filePath),
+                ["TotalLayerCount"] = tensorCount
+            }
+        };
     }
 
     /// <summary>

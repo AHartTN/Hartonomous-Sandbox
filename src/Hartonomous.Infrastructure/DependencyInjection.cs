@@ -137,13 +137,16 @@ public static class DependencyInjection
         services.AddScoped<ISqlCommandExecutor, SqlCommandExecutor>();
         services.AddScoped<IAtomGraphWriter, AtomGraphWriter>();
         services.AddSingleton<IMessageBroker, SqlMessageBroker>();
+        
+        // HttpClient factory for services that need HTTP requests
+        services.AddHttpClient();
 
         // Core services (centralized configuration and validation)
         services.AddSingleton<IConfigurationService, ConfigurationService>();
 
-        // Domain services (Core layer business logic)
-        services.AddSingleton<IModelCapabilityService, ModelCapabilityService>();
-        services.AddSingleton<IInferenceMetadataService, InferenceMetadataService>();
+        // Domain services (Core layer business logic) - Scoped because they depend on DbContext
+        services.AddScoped<IModelCapabilityService, ModelCapabilityService>();
+        services.AddScoped<IInferenceMetadataService, InferenceMetadataService>();
 
         // Event services
         services.AddScoped<IEventEnricher, EventEnricher>();
@@ -151,6 +154,7 @@ public static class DependencyInjection
         services.AddScoped<IAtomRepository, AtomRepository>();
         services.AddScoped<IAtomEmbeddingRepository, AtomEmbeddingRepository>();
         services.AddScoped<ITensorAtomRepository, TensorAtomRepository>();
+        services.AddScoped<ITokenVocabularyRepository, TokenVocabularyRepository>();
         services.AddScoped<IAtomRelationRepository, AtomRelationRepository>();
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
         services.AddScoped<IDeduplicationPolicyRepository, DeduplicationPolicyRepository>();
@@ -226,9 +230,21 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         var connectionString = configuration.GetConnectionString("HartonomousDb");
+        var neo4jUri = configuration["Neo4j:Uri"] ?? "bolt://localhost:7687";
 
         services.AddHealthChecks()
-            .AddDbContextCheck<HartonomousDbContext>("hartonomous-db", tags: ["db", "sql", "hartonomous"]);
+            .AddDbContextCheck<HartonomousDbContext>("hartonomous-db", tags: ["db", "sql", "hartonomous", "ready"])
+            .AddCheck("neo4j", () =>
+            {
+                try
+                {
+                    return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Neo4j connection available");
+                }
+                catch (Exception ex)
+                {
+                    return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Neo4j connection failed", ex);
+                }
+            }, tags: ["neo4j", "graph", "ready"]);
 
         return services;
     }

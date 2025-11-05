@@ -82,4 +82,12 @@ public static class ErrorDetailFactory
             ["resourceId"] = resourceId
         });
     }
+
+    public static ErrorDetail RateLimitExceeded(string message)
+    {
+        return Create("RateLimitExceeded", message, null, new Dictionary<string, object?>
+        {
+            ["statusCode"] = 429
+        });
+    }
 }
