@@ -247,19 +247,23 @@ BEGIN
 
         IF @RootAtomId IS NOT NULL
         BEGIN
+            -- Use layer index as sequence when graph traversal from root
+            -- Project FOR PATH results then join with ModelLayers
             INSERT INTO @GraphLayerOrder (LayerId, Sequence)
             SELECT DISTINCT
-                destLayer.LayerId,
-                path.$length
-            FROM graph.AtomGraphNodes AS startNode,
-                 graph.AtomGraphEdges FOR PATH AS path,
-                 graph.AtomGraphNodes AS destNode,
-                 dbo.ModelLayers AS destLayer
-            WHERE MATCH(SHORTEST_PATH(startNode(-(path)-> destNode)))
-              AND startNode.AtomId = @RootAtomId
-              AND path.RelationType = @ArchitectureRelationType
-              AND destNode.AtomId = destLayer.LayerAtomId
-              AND destLayer.ModelId = @ParentModelId;
+                ml.LayerId,
+                ml.LayerIdx
+            FROM (
+                SELECT
+                    LAST_VALUE(destNode.AtomId) WITHIN GROUP (GRAPH PATH) AS LastAtomId
+                FROM graph.AtomGraphNodes AS startNode,
+                     graph.AtomGraphEdges FOR PATH AS path,
+                     graph.AtomGraphNodes FOR PATH AS destNode
+                WHERE MATCH(SHORTEST_PATH(startNode(-(path)->destNode)+))
+                  AND startNode.AtomId = @RootAtomId
+            ) AS GraphPaths
+            INNER JOIN dbo.ModelLayers AS ml ON ml.LayerAtomId = GraphPaths.LastAtomId
+            WHERE ml.ModelId = @ParentModelId;
         END;
 
         IF @RootLayerId IS NOT NULL

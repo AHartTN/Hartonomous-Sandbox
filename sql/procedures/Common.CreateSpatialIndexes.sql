@@ -60,50 +60,6 @@ END;
 GO
 
 -- ==========================================
--- Embeddings_Production.SpatialGeometry (Hybrid search)
--- ==========================================
-IF EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'idx_spatial_fine'
-      AND object_id = OBJECT_ID('dbo.Embeddings_Production')
-)
-BEGIN
-    PRINT 'Dropping legacy idx_spatial_fine on Embeddings_Production.SpatialGeometry...';
-    DROP INDEX idx_spatial_fine ON dbo.Embeddings_Production;
-END;
-
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_Embeddings_Production_SpatialGeometry' 
-    AND object_id = OBJECT_ID('dbo.Embeddings_Production')
-)
-BEGIN
-    PRINT 'Creating IX_Embeddings_Production_SpatialGeometry on Embeddings_Production.SpatialGeometry...';
-    
-    CREATE SPATIAL INDEX IX_Embeddings_Production_SpatialGeometry
-    ON dbo.Embeddings_Production (SpatialGeometry)
-    WITH (
-        BOUNDING_BOX = (-1000, -1000, 1000, 1000),
-        GRIDS = (
-            LEVEL_1 = MEDIUM,
-            LEVEL_2 = MEDIUM,
-            LEVEL_3 = MEDIUM,
-            LEVEL_4 = MEDIUM
-        ),
-        CELLS_PER_OBJECT = 16,
-        PAD_INDEX = ON,
-        SORT_IN_TEMPDB = ON
-    );
-    
-    PRINT '  ✓ IX_Embeddings_Production_SpatialGeometry created';
-END
-ELSE
-BEGIN
-    PRINT '  ✓ IX_Embeddings_Production_SpatialGeometry already exists';
-END;
-GO
-
--- ==========================================
 -- AtomEmbeddings.SpatialCoarse (Fast filter)
 -- ==========================================
 IF EXISTS (
@@ -345,7 +301,7 @@ SELECT
     st.cells_per_object
 FROM sys.indexes i
 INNER JOIN sys.spatial_index_tessellations st ON i.object_id = st.object_id AND i.index_id = st.index_id
-WHERE OBJECT_NAME(i.object_id) IN ('Embeddings_Production', 'AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo')
+WHERE OBJECT_NAME(i.object_id) IN ('AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo')
 ORDER BY OBJECT_NAME(i.object_id), i.name;
 GO
 

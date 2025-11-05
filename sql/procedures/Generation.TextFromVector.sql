@@ -69,7 +69,9 @@ BEGIN
 
     DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
-    DECLARE @promptEmbeddingBinary VARBINARY(MAX) = CAST(@promptEmbedding AS VARBINARY(MAX));
+    -- Convert VECTOR to NVARCHAR(MAX) (JSON format) for CLR function
+    -- SQL Server 2025 VECTOR type can only convert to VARCHAR/NVARCHAR/JSON, not VARBINARY
+    DECLARE @promptEmbeddingJson NVARCHAR(MAX) = CAST(@promptEmbedding AS NVARCHAR(MAX));
 
     INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
     SELECT
@@ -81,7 +83,7 @@ BEGIN
         t.ModelCount,
         t.DurationMs
     FROM dbo.clr_GenerateTextSequence(
-        @promptEmbeddingBinary,
+        CAST(@promptEmbeddingJson AS VARBINARY(MAX)),
         @modelsJson,
         @max_tokens,
         @temperature,
@@ -132,16 +134,25 @@ BEGIN
     DECLARE @streamMetadata NVARCHAR(MAX) = JSON_OBJECT('inference_id': @inferenceId, 'model_count': @modelCount);
 
     SET @stream = provenance.clr_CreateAtomicStream(@streamId, @streamCreated, @streamScope, @primaryModel, @streamMetadata);
-    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Input', @streamCreated, 'text/plain; charset=utf-16', JSON_OBJECT('prompt_length': LEN(@prompt)), CONVERT(VARBINARY(MAX), @prompt));
-    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Control', @streamCreated, 'application/json', JSON_OBJECT('max_tokens': @max_tokens, 'temperature': @temperature, 'top_k': @top_k), CONVERT(VARBINARY(MAX), JSON_QUERY(@modelsJson)));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Input', @streamCreated, 'text/plain; charset=utf-16', JSON_OBJECT('prompt_length': LEN(@prompt)), CAST(@prompt AS VARBINARY(MAX)));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Control', @streamCreated, 'application/json', JSON_OBJECT('max_tokens': @max_tokens, 'temperature': @temperature, 'top_k': @top_k), CAST(JSON_QUERY(@modelsJson) AS VARBINARY(MAX)));
 
     IF @promptEmbedding IS NOT NULL
     BEGIN
-    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Embedding', @streamCreated, 'application/octet-stream', JSON_OBJECT('dimension': @embeddingDim), CAST(@promptEmbedding AS VARBINARY(MAX)));
+        -- Store embedding as JSON (VECTOR type can only convert to NVARCHAR/JSON)
+        DECLARE @promptEmbeddingBinary VARBINARY(MAX) = CAST(@promptEmbeddingJson AS VARBINARY(MAX));
+        SET @stream = provenance.clr_AppendAtomicStreamSegment(
+            @stream, 
+            'Embedding', 
+            @streamCreated, 
+            'application/json; charset=utf-16', 
+            JSON_OBJECT('dimension': @embeddingDim, 'format': 'vector_json'), 
+            @promptEmbeddingBinary
+        );
     END;
 
-    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Telemetry', SYSUTCDATETIME(), 'application/json', JSON_OBJECT('token_count': @tokenCount, 'duration_ms': @totalDuration), CONVERT(VARBINARY(MAX), JSON_QUERY(@tokensJson)));
-    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CONVERT(VARBINARY(MAX), @generatedText));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Telemetry', SYSUTCDATETIME(), 'application/json', JSON_OBJECT('token_count': @tokenCount, 'duration_ms': @totalDuration), CAST(JSON_QUERY(@tokensJson) AS VARBINARY(MAX)));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CAST(@generatedText AS VARBINARY(MAX)));
 
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @totalDuration,

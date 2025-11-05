@@ -50,7 +50,7 @@ BEGIN
         WHERE SpatialBucketX = @bucketX
           AND SpatialBucketY = @bucketY
           AND CASE WHEN SpatialProjZ IS NOT NULL THEN ISNULL(SpatialBucketZ, 0) ELSE @NoZBucket END = @bucketKeyZ
-        GROUP BY SpatialBucketX, SpatialBucketY, CASE WHEN SpatialProjZ IS NOT NULL THEN ISNULL(SpatialBucketZ, 0) ELSE @NoZBucket END, CASE WHEN SpatialProjZ IS NOT NULL THEN 1 ELSE 0 END
+        GROUP BY SpatialBucketX, SpatialBucketY, CASE WHEN SpatialProjZ IS NOT NULL THEN ISNULL(SpatialBucketZ, 0) ELSE @NoZBucket END, CASE WHEN SpatialProjZ IS NOT NULL THEN 1 ELSE 0 END, SpatialProjZ
     )
     MERGE dbo.AtomEmbeddingSpatialMetadata AS target
     USING BucketAgg AS source

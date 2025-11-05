@@ -12,7 +12,7 @@ IF OBJECT_ID('dbo.SemanticFeatures', 'U') IS NOT NULL
 BEGIN
     IF COL_LENGTH('dbo.SemanticFeatures', 'AtomEmbeddingId') IS NULL
     BEGIN
-        PRINT 'Dropping legacy SemanticFeatures table (Embeddings_Production dependency).';
+        PRINT 'Dropping legacy SemanticFeatures table (schema change).';
         DROP TABLE dbo.SemanticFeatures;
     END
 END

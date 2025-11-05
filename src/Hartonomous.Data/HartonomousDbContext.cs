@@ -23,9 +23,6 @@ public class HartonomousDbContext : DbContext
     // Vocabulary (token-level embeddings stored via atom substrate views)
     public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
 
-    // Embeddings storage (production-ready vector table)
-    public DbSet<Embedding> Embeddings => Set<Embedding>();
-
     // Billing and metering
     public DbSet<BillingRatePlan> BillingRatePlans => Set<BillingRatePlan>();
     public DbSet<BillingOperationRate> BillingOperationRates => Set<BillingOperationRate>();

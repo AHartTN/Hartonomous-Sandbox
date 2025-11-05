@@ -1,0 +1,227 @@
+Changed database context to 'Hartonomous'.
+================================================================
+HARTONOMOUS SYSTEM VERIFICATION
+================================================================
+Date: 2025-11-05 01:57:47
+ 
+ DATA INVENTORY
+-----------------------------------
+Atoms by Modality:
+Modality                                                         AtomCount   UniqueSourceTypes
+---------------------------------------------------------------- ----------- -----------------
+model                                                                      2                 1
+
+(1 rows affected)
+ 
+Embeddings (with dual representation):
+EmbeddingType                                                                                                                    EmbeddingCount MinDim      MaxDim      AvgDim                   HasVector   HasSpatial 
+-------------------------------------------------------------------------------------------------------------------------------- -------------- ----------- ----------- ------------------------ ----------- -----------
+
+(0 rows affected)
+ 
+Models ingested:
+ModelId     ModelName                                                                                                                                                                                                ModelType                                                                                            Architecture                                                                                         ParameterCount       UsageCount          
+----------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ---------------------------------------------------------------------------------------------------- ---------------------------------------------------------------------------------------------------- -------------------- --------------------
+
+(0 rows affected)
+ 
+Model Layers:
+ModelId     ModelName                                                                                                                                                                                                LayerCount  MinLayerIdx MaxLayerIdx
+----------- -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ----------- ----------- -----------
+
+(0 rows affected)
+ 
+ 
+ VECTOR SEARCH (EXACT)
+-----------------------------------
+No embeddings with vectors found - skipping test
+ 
+ 
+ SPATIAL SEARCH (APPROXIMATE)
+-----------------------------------
+No embeddings with spatial geometry found - skipping test
+ 
+ 
+ GRAPH STRUCTURE
+-----------------------------------
+Graph Nodes:
+Modality                                                         NodeCount  
+---------------------------------------------------------------- -----------
+
+(0 rows affected)
+ 
+Graph Edges by Type:
+RelationType                                                                                                                     EdgeCount  
+-------------------------------------------------------------------------------------------------------------------------------- -----------
+
+(0 rows affected)
+ 
+ 
+ CLR FUNCTIONS
+-----------------------------------
+Available CLR Vector Operations:
+FunctionName                                                                                                                                                                                                                                                      FunctionType                                                
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------------------------------------------
+dbo.clr_VectorAdd                                                                                                                                                                                                                                                 CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorArgMax                                                                                                                                                                                                                                              CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorCosineSimilarity                                                                                                                                                                                                                                    CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorDotProduct                                                                                                                                                                                                                                          CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorEuclideanDistance                                                                                                                                                                                                                                   CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorLerp                                                                                                                                                                                                                                                CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorNorm                                                                                                                                                                                                                                                CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorNormalize                                                                                                                                                                                                                                           CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorScale                                                                                                                                                                                                                                               CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorSoftmax                                                                                                                                                                                                                                             CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorSubtract                                                                                                                                                                                                                                            CLR_SCALAR_FUNCTION                                         
+
+(11 rows affected)
+ 
+(CLR vector functions require VARBINARY input - test skipped for simplicity)
+ 
+ 
+ SYSTEM HEALTH CHECK
+-----------------------------------
+SQL Server Version:
+SqlVersion                                                                                                                                                                                                                                                                                                  
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Microsoft SQL Server 2025 (RC1) - 17.0.925.4 (X64) 
+	Sep  9 2025 17:31:28 
+	Copyright (C) 2025 Microsoft Corporation
+	Enterprise Developer Edition (64-bit) on Windows 10 Pro 10.0 <X64> (Build 26200: ) (Hypervisor)
+                                                                                      
+
+(1 rows affected)
+ 
+Database Size:
+name                                                                                                                             SizeMB      SizeGB      
+-------------------------------------------------------------------------------------------------------------------------------- ----------- ------------
+Hartonomous_log                                                                                                                           72          .07
+Hartonomous                                                                                                                                8          .01
+HartonomousFileStream_File                                                                                                                 0          .00
+HartonomousMemoryOptimized_File                                                                                                            0          .00
+
+(4 rows affected)
+ 
+Table Row Counts:
+TableName                                                                                                                        TotalRows           
+-------------------------------------------------------------------------------------------------------------------------------- --------------------
+TopicKeywords                                                                                                                                      50
+Atoms                                                                                                                                               2
+__EFMigrationsHistory                                                                                                                               1
+AtomRelations                                                                                                                                       0
+AtomicTextTokens                                                                                                                                    0
+AtomicPixels                                                                                                                                        0
+AtomicAudioSamples                                                                                                                                  0
+AtomGraphNodes                                                                                                                                      0
+AtomGraphEdges                                                                                                                                      0
+AtomEmbeddingSpatialMetadata                                                                                                                        0
+
+(10 rows affected)
+ 
+CLR Functions Available:
+FunctionName                                                                                                                                                                                                                                                      ObjectType                                                  
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------------------------------------------
+dbo.clr_AudioComputePeak                                                                                                                                                                                                                                          CLR_SCALAR_FUNCTION                                         
+dbo.clr_AudioComputeRms                                                                                                                                                                                                                                           CLR_SCALAR_FUNCTION                                         
+dbo.clr_AudioDownsample                                                                                                                                                                                                                                           CLR_SCALAR_FUNCTION                                         
+dbo.clr_AudioToWaveform                                                                                                                                                                                                                                           CLR_SCALAR_FUNCTION                                         
+dbo.clr_DeleteFile                                                                                                                                                                                                                                                CLR_SCALAR_FUNCTION                                         
+dbo.clr_DirectoryExists                                                                                                                                                                                                                                           CLR_SCALAR_FUNCTION                                         
+dbo.clr_ExecuteShellCommand                                                                                                                                                                                                                                       CLR_TABLE_VALUED_FUNCTION                                   
+dbo.clr_FileExists                                                                                                                                                                                                                                                CLR_SCALAR_FUNCTION                                         
+dbo.clr_GenerateHarmonicTone                                                                                                                                                                                                                                      CLR_SCALAR_FUNCTION                                         
+dbo.clr_GenerateImageGeometry                                                                                                                                                                                                                                     CLR_SCALAR_FUNCTION                                         
+dbo.clr_GenerateImagePatches                                                                                                                                                                                                                                      CLR_TABLE_VALUED_FUNCTION                                   
+dbo.clr_GenerateSequence                                                                                                                                                                                                                                          CLR_TABLE_VALUED_FUNCTION                                   
+dbo.clr_GenerateTextSequence                                                                                                                                                                                                                                      CLR_TABLE_VALUED_FUNCTION                                   
+dbo.clr_ImageAverageColor                                                                                                                                                                                                                                         CLR_SCALAR_FUNCTION                                         
+dbo.clr_ImageLuminanceHistogram                                                                                                                                                                                                                                   CLR_SCALAR_FUNCTION                                         
+dbo.clr_ImageToPointCloud                                                                                                                                                                                                                                         CLR_SCALAR_FUNCTION                                         
+dbo.clr_ReadFileBytes                                                                                                                                                                                                                                             CLR_SCALAR_FUNCTION                                         
+dbo.clr_ReadFileText                                                                                                                                                                                                                                              CLR_SCALAR_FUNCTION                                         
+dbo.clr_SemanticFeaturesJson                                                                                                                                                                                                                                      CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorAdd                                                                                                                                                                                                                                                 CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorArgMax                                                                                                                                                                                                                                              CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorCosineSimilarity                                                                                                                                                                                                                                    CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorDotProduct                                                                                                                                                                                                                                          CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorEuclideanDistance                                                                                                                                                                                                                                   CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorLerp                                                                                                                                                                                                                                                CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorNorm                                                                                                                                                                                                                                                CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorNormalize                                                                                                                                                                                                                                           CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorScale                                                                                                                                                                                                                                               CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorSoftmax                                                                                                                                                                                                                                             CLR_SCALAR_FUNCTION                                         
+dbo.clr_VectorSubtract                                                                                                                                                                                                                                            CLR_SCALAR_FUNCTION                                         
+dbo.clr_WriteFileBytes                                                                                                                                                                                                                                            CLR_SCALAR_FUNCTION                                         
+dbo.clr_WriteFileText                                                                                                                                                                                                                                             CLR_SCALAR_FUNCTION                                         
+dbo.CreateLineStringFromWeights                                                                                                                                                                                                                                   CLR_SCALAR_FUNCTION                                         
+dbo.CreateMultiLineStringFromWeights                                                                                                                                                                                                                              CLR_SCALAR_FUNCTION                                         
+provenance.clr_AppendAtomicStreamSegment                                                                                                                                                                                                                          CLR_SCALAR_FUNCTION                                         
+provenance.clr_AtomicStreamSegments                                                                                                                                                                                                                               CLR_TABLE_VALUED_FUNCTION                                   
+provenance.clr_CreateAtomicStream                                                                                                                                                                                                                                 CLR_SCALAR_FUNCTION                                         
+
+(37 rows affected)
+ 
+ 
+ DUAL REPRESENTATION (VECTOR + GEOMETRY)
+-----------------------------------
+No dual representation data found. Embeddings need both VECTOR and GEOMETRY.
+ 
+ 
+ MODEL ARCHITECTURE DETAILS
+-----------------------------------
+No models found in the database.
+ 
+ 
+ INFERENCE CAPABILITIES
+-----------------------------------
+Available Inference Procedures:
+ProcedureName                                                                                                                                                                                                                                                     CreatedDate             LastModifiedDate       
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ----------------------- -----------------------
+dbo.sp_ApproxSpatialSearch                                                                                                                                                                                                                                        2025-11-05 01:23:28.493 2025-11-05 01:50:42.830
+dbo.sp_EnsembleInference                                                                                                                                                                                                                                          2025-11-05 01:23:28.383 2025-11-05 01:50:42.717
+dbo.sp_ExactVectorSearch                                                                                                                                                                                                                                          2025-11-05 01:23:28.490 2025-11-05 01:50:42.823
+dbo.sp_HybridSearch                                                                                                                                                                                                                                               2025-11-05 01:23:28.497 2025-11-05 01:50:42.833
+dbo.sp_InferenceHistory                                                                                                                                                                                                                                           2025-11-05 01:23:28.337 2025-11-05 01:50:42.667
+dbo.sp_MultiResolutionSearch                                                                                                                                                                                                                                      2025-11-05 01:23:28.327 2025-11-05 01:50:42.650
+dbo.sp_SemanticFilteredSearch                                                                                                                                                                                                                                     2025-11-05 01:23:28.897 2025-11-05 01:50:43.140
+dbo.sp_SemanticSearch                                                                                                                                                                                                                                             2025-11-05 01:23:28.770 2025-11-05 01:50:43.080
+
+(8 rows affected)
+ 
+Inference Request Log (if exists):
+InferenceId          RequestTimestamp                       TaskType                                           InputData                                                                                                                                                                                                                                                        InputHash                                                          CorrelationId                                                                                                                                                                                                                                                    Status                                                                                                                                                                                                                                                           Confidence               ModelsUsed                                                                                                                                                                                                                                                       EnsembleStrategy                                   OutputData                                                                                                                                                                                                                                                       OutputMetadata                                                                                                                                                                                                                                                   TotalDurationMs CacheHit UserRating UserFeedback                                                                                                                                                                                                                                                     ModelId    
+-------------------- -------------------------------------- -------------------------------------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------------------------------------------------ ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ------------------------ ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- -------------------------------------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- --------------- -------- ---------- ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- -----------
+
+(0 rows affected)
+ 
+ 
+ SYSTEM CAPABILITIES SUMMARY
+-----------------------------------
+Data Storage:
+Entity       Count      
+------------ -----------
+Atoms                  2
+Embeddings             0
+Models                 0
+Model Layers           0
+Tensor Atoms           0
+
+(5 rows affected)
+ 
+Graph Capabilities:
+GraphComponent Count      
+-------------- -----------
+Graph Nodes              0
+Graph Edges              0
+
+(2 rows affected)
+ 
+Vector Search Capabilities: ENABLED (VECTOR type with CLR functions)
+Spatial Search Capabilities: ENABLED (GEOMETRY type with spatial indexing)
+Graph Traversal Capabilities: ENABLED (SQL Server graph tables)
+CLR Integration: ENABLED (37 custom functions deployed)
+Dual Representation: ENABLED (Vector + Spatial geometry per embedding)
+ 
+===========================================
+VERIFICATION COMPLETE
+===========================================

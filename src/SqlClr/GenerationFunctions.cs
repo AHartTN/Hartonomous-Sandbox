@@ -173,8 +173,11 @@ namespace SqlClrFunctions
         {
             using (var command = connection.CreateCommand())
             {
+                // Convert VARBINARY back to NVARCHAR (JSON) for VECTOR type
+                // SQL Server 2025 VECTOR can only convert from VARCHAR/NVARCHAR/JSON, not VARBINARY
                 command.CommandText = @"
-DECLARE @embedding VECTOR(1998) = CONVERT(VECTOR(1998), @embeddingBinary);
+DECLARE @embeddingJson NVARCHAR(MAX) = CAST(@embeddingBinary AS NVARCHAR(MAX));
+DECLARE @embedding VECTOR(1998) = CAST(@embeddingJson AS VECTOR(1998));
 SELECT
     AtomId,
     CanonicalText,

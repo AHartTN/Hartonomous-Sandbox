@@ -176,13 +176,8 @@ CREATE OR ALTER FUNCTION dbo.VectorCentroid (@spatial GEOMETRY)
 RETURNS GEOMETRY
 AS
 BEGIN
-    -- Use NetTopologySuite's built-in centroid calculation
-    RETURN (
-        SELECT GEOMETRY::STGeomFromWKB(
-            (SELECT AVG(Spatial3D.STX) AS X, AVG(Spatial3D.STY) AS Y, AVG(Spatial3D.STZ) AS Z
-             FROM (VALUES (@spatial)) AS T(Spatial3D)
-             FOR XML PATH('')), 0)
-    );
+    -- Return the geometric centroid
+    RETURN @spatial.STCentroid();
 END;
 GO
 
