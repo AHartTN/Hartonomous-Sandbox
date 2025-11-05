@@ -266,6 +266,9 @@ public class AtomIngestionServiceTests
 
         public Task<IReadOnlyList<AtomEmbeddingSearchResult>> HybridSearchAsync(float[] vector, Point spatial3D, int spatialCandidates, int finalTopK, CancellationToken cancellationToken = default)
             => Task.FromResult<IReadOnlyList<AtomEmbeddingSearchResult>>(Array.Empty<AtomEmbeddingSearchResult>());
+
+        public Task UpdateSpatialMetadataAsync(long atomEmbeddingId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 
     private sealed class StubPolicyRepository : IDeduplicationPolicyRepository

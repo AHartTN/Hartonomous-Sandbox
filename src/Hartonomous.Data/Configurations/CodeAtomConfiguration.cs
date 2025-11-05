@@ -105,8 +105,7 @@ public class CodeAtomConfiguration : IEntityTypeConfiguration<CodeAtom>
         builder.HasIndex(c => c.CreatedAt)
             .HasDatabaseName("IX_CodeAtoms_CreatedAt");
 
-        // Spatial index for embeddings (created in SQL migration separately)
-        builder.HasIndex(c => c.Embedding)
-            .HasDatabaseName("IX_CodeAtoms_Embedding_Spatial");
+        // Spatial index is created via raw SQL in the migration to ensure GEOMETRY_AUTO_GRID usage; EF Core
+        // cannot scaffold spatial indexes correctly at this time.
     }
 }

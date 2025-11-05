@@ -61,6 +61,9 @@ public class LayerTensorSegmentConfiguration : IEntityTypeConfiguration<LayerTen
             .HasColumnType("DATETIME2")
             .HasDefaultValueSql("SYSUTCDATETIME()");
 
+        builder.HasAlternateKey(s => s.PayloadRowGuid)
+            .HasName("UX_LayerTensorSegments_PayloadRowGuid");
+
         builder.HasIndex(s => new { s.LayerId, s.SegmentOrdinal })
             .IsUnique()
             .HasDatabaseName("UX_LayerTensorSegments_LayerId_SegmentOrdinal");

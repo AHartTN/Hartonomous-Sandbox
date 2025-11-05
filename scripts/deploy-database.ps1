@@ -2,7 +2,8 @@
     [string]$ServerName = "localhost",
     [string]$DatabaseName = "Hartonomous",
     [string]$SqlUser,
-    [string]$SqlPassword
+    [string]$SqlPassword,
+    [string]$FilestreamPath = "D:\\Hartonomous\\HartonomousFileStream"
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,6 +69,30 @@ function Invoke-SqlFile {
     $args = Get-SqlcmdArgs -Database $Database -InputFile $FilePath
     $output = & sqlcmd @args 2>&1
     return @{ ExitCode = $LASTEXITCODE; Output = $output }
+}
+
+function Get-SqlScalar {
+    param(
+        [string]$Query,
+        [string]$Database = "master"
+    )
+
+    $result = Invoke-SqlQuery -Query $Query -Database $Database
+    if ($result.ExitCode -ne 0) {
+        throw "SQL query failed: $Query`n$($result.Output -join [Environment]::NewLine)"
+    }
+
+    foreach ($line in $result.Output) {
+        $trimmed = $line.Trim()
+        if ([string]::IsNullOrWhiteSpace($trimmed)) { continue }
+        if ($trimmed -match '^\(.*rows affected\)$') { continue }
+        if ($trimmed -match '^[-]+$') { continue }
+        if ($trimmed -match '^Msg ') { continue }
+        if ($trimmed -match '^[A-Za-z0-9_]+$') { continue }
+        return $trimmed
+    }
+
+    return $null
 }
 
 function ConvertTo-IdempotentSqlContent {
@@ -157,6 +182,103 @@ if ($createResult.ExitCode -ne 0) {
     exit 1
 }
 Write-Host "  SUCCESS: Database ready" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "Step 2.5: Ensuring FILESTREAM filegroup..." -ForegroundColor Yellow
+try {
+    if (![string]::IsNullOrWhiteSpace($FilestreamPath)) {
+        $targetPath = $FilestreamPath
+    }
+    else {
+        $targetPath = "D:\\Hartonomous\\HartonomousFileStream"
+    }
+    $targetPath = [System.IO.Path]::GetFullPath($targetPath)
+
+    $existingFilePath = Get-SqlScalar -Query "SELECT TOP (1) physical_name FROM [$escapedDbName].sys.database_files WHERE type = 2 AND name = N'HartonomousFileStream_File';"
+    if (-not [string]::IsNullOrWhiteSpace($existingFilePath)) {
+        $existingFilePath = $existingFilePath.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($FilestreamPath) -and ([string]::Compare($existingFilePath, $targetPath, $true) -ne 0)) {
+            throw "HartonomousFileStream_File already configured at '$existingFilePath'. Drop or relocate the FILESTREAM file manually before changing to '$targetPath'."
+        }
+        $targetPath = $existingFilePath
+    }
+    else {
+        $parentDir = Split-Path -Parent $targetPath
+        if ([string]::IsNullOrWhiteSpace($parentDir)) {
+            $parentDir = $targetPath
+        }
+
+        if (-not (Test-Path -LiteralPath $parentDir)) {
+            try {
+                New-Item -ItemType Directory -Path $parentDir -Force | Out-Null
+            }
+            catch {
+                if (-not (Test-Path -LiteralPath $parentDir)) {
+                    throw "Unable to create directory '$parentDir' for FILESTREAM container. Run in an elevated session or create the folder manually and grant the SQL Server service account access."
+                }
+            }
+        }
+
+        if (Test-Path -LiteralPath $targetPath) {
+            try {
+                Remove-Item -LiteralPath $targetPath -Recurse -Force
+            }
+            catch {
+                if (Test-Path -LiteralPath $targetPath) {
+                    throw "Remove or rename existing directory '$targetPath' before configuring FILESTREAM, or specify a different -FilestreamPath."
+                }
+            }
+        }
+    }
+
+    $escapedFilePath = $targetPath.TrimEnd('\\').Replace("'", "''")
+
+    $filestreamSql = @"
+DECLARE @fgExists bit;
+SELECT @fgExists = CASE WHEN EXISTS (SELECT 1 FROM [$escapedDbName].sys.filegroups WHERE type = 'FD' AND name = N'HartonomousFileStream') THEN 1 ELSE 0 END;
+IF @fgExists = 0
+BEGIN
+    ALTER DATABASE [$escapedDbName] ADD FILEGROUP HartonomousFileStream CONTAINS FILESTREAM;
+END;
+
+IF NOT EXISTS (
+    SELECT 1 FROM [$escapedDbName].sys.database_files
+    WHERE type = 2 AND name = N'HartonomousFileStream_File'
+)
+BEGIN
+    ALTER DATABASE [$escapedDbName] ADD FILE (NAME = N'HartonomousFileStream_File', FILENAME = N'$escapedFilePath') TO FILEGROUP HartonomousFileStream;
+END
+ELSE
+BEGIN
+    DECLARE @existingPath nvarchar(4000) = (SELECT physical_name FROM [$escapedDbName].sys.database_files WHERE type = 2 AND name = N'HartonomousFileStream_File');
+    IF LOWER(@existingPath) <> LOWER(N'$escapedFilePath')
+    BEGIN
+        THROW 51001, 'HartonomousFileStream_File already configured with different path. Update manually if relocation is required.', 1;
+    END;
+END;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.database_filestream_options
+    WHERE database_id = DB_ID(N'$escapedDbName')
+      AND directory_name = N'HartonomousFS'
+)
+BEGIN
+    ALTER DATABASE [$escapedDbName]
+        SET FILESTREAM ( NON_TRANSACTED_ACCESS = FULL, DIRECTORY_NAME = N'HartonomousFS');
+END;
+"@
+
+    $filestreamResult = Invoke-SqlQuery -Query $filestreamSql -Database "master"
+    if ($filestreamResult.ExitCode -ne 0) {
+        throw ($filestreamResult.Output -join [Environment]::NewLine)
+    }
+
+    Write-Host "  SUCCESS: FILESTREAM filegroup ready (Path: $targetPath)" -ForegroundColor Green
+}
+catch {
+    Write-Host "  ERROR: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
+}
 
 $connectionString = if ($useSqlAuth) {
     "Server=$ServerName;Database=$DatabaseName;User ID=$SqlUser;Password=$SqlPassword;TrustServerCertificate=True;MultipleActiveResultSets=True"

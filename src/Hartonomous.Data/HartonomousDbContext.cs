@@ -75,6 +75,13 @@ public class HartonomousDbContext : DbContext
         // This allows multi-schema design (e.g., dbo, staging, analytics)
     }
 
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        base.OnConfiguring(optionsBuilder);
+        
+        optionsBuilder.ConfigureWarnings(warnings => warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+    }
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
         base.ConfigureConventions(configurationBuilder);

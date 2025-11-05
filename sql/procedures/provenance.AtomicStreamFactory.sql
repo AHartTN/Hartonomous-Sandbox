@@ -1,3 +1,5 @@
+IF OBJECT_ID('provenance.clr_CreateAtomicStream', 'FN') IS NOT NULL DROP FUNCTION provenance.clr_CreateAtomicStream;
+GO
 CREATE FUNCTION provenance.clr_CreateAtomicStream
 (
     @streamId UNIQUEIDENTIFIER,
@@ -10,6 +12,8 @@ RETURNS provenance.AtomicStream
 AS EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.AtomicStream].[Create];
 GO
 
+IF OBJECT_ID('provenance.clr_AppendAtomicStreamSegment', 'FN') IS NOT NULL DROP FUNCTION provenance.clr_AppendAtomicStreamSegment;
+GO
 CREATE FUNCTION provenance.clr_AppendAtomicStreamSegment
 (
     @stream provenance.AtomicStream,

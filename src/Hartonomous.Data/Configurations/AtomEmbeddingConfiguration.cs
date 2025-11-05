@@ -25,6 +25,18 @@ public class AtomEmbeddingConfiguration : IEntityTypeConfiguration<AtomEmbedding
         builder.Property(e => e.UsesMaxDimensionPadding)
             .HasDefaultValue(false);
 
+        builder.Property(e => e.SpatialProjX)
+            .HasColumnType("float")
+            .HasColumnName("SpatialProjX");
+
+        builder.Property(e => e.SpatialProjY)
+            .HasColumnType("float")
+            .HasColumnName("SpatialProjY");
+
+        builder.Property(e => e.SpatialProjZ)
+            .HasColumnType("float")
+            .HasColumnName("SpatialProjZ");
+
         builder.Property(e => e.Metadata)
             .HasColumnType("JSON");
 
@@ -37,8 +49,25 @@ public class AtomEmbeddingConfiguration : IEntityTypeConfiguration<AtomEmbedding
         builder.Property(e => e.SpatialCoarse)
             .HasColumnType("geometry");
 
+        builder.Property(e => e.SpatialBucketX)
+            .HasColumnType("int")
+            .HasColumnName("SpatialBucketX");
+
+        builder.Property(e => e.SpatialBucketY)
+            .HasColumnType("int")
+            .HasColumnName("SpatialBucketY");
+
+        builder.Property(e => e.SpatialBucketZ)
+            .HasColumnType("int")
+            .HasColumnName("SpatialBucketZ")
+            .IsRequired()
+            .HasDefaultValue(int.MinValue);
+
         builder.HasIndex(e => new { e.AtomId, e.EmbeddingType, e.ModelId })
             .HasDatabaseName("IX_AtomEmbeddings_Atom_Model_Type");
+
+        builder.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ })
+            .HasDatabaseName("IX_AtomEmbeddings_SpatialBucket");
 
         builder.HasOne(e => e.Atom)
             .WithMany(a => a.Embeddings)

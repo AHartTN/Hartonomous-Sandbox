@@ -186,6 +186,12 @@ public class AtomIngestionService : IAtomIngestionService
                 .ConfigureAwait(false);
             var coarsePoint = CreateCoarsePoint(spatialPoint);
 
+            var hasZ = spatialPoint.CoordinateSequence.HasZ;
+            var rawX = spatialPoint.X;
+            var rawY = spatialPoint.Y;
+            var rawZ = hasZ ? spatialPoint.Z : 0d;
+            const int NoZBucket = int.MinValue;
+
             newEmbedding = new AtomEmbedding
             {
                 EmbeddingType = request.EmbeddingType,
@@ -193,6 +199,12 @@ public class AtomIngestionService : IAtomIngestionService
                 ModelId = request.ModelId,
                 SpatialGeometry = spatialPoint,
                 SpatialCoarse = coarsePoint,
+                SpatialProjX = rawX,
+                SpatialProjY = rawY,
+                SpatialProjZ = hasZ ? rawZ : null,
+                SpatialBucketX = (int)Math.Round(rawX, 0, MidpointRounding.ToZero),
+                SpatialBucketY = (int)Math.Round(rawY, 0, MidpointRounding.ToZero),
+                SpatialBucketZ = hasZ ? (int)Math.Round(rawZ, 0, MidpointRounding.ToZero) : NoZBucket,
                 EmbeddingVector = sqlVector,
                 UsesMaxDimensionPadding = usedPadding,
                 Metadata = policy is null
@@ -223,6 +235,13 @@ public class AtomIngestionService : IAtomIngestionService
         }
 
         _logger.LogInformation("Created new atom {AtomId} ({Modality}) with reference count 1", savedAtom.AtomId, savedAtom.Modality);
+
+        if (newEmbedding is not null)
+        {
+            await _atomEmbeddingRepository
+                .UpdateSpatialMetadataAsync(newEmbedding.AtomEmbeddingId, cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         return new AtomIngestionResult
         {

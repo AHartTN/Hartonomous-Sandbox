@@ -9,28 +9,11 @@
 USE Hartonomous;
 GO
 
--- Drop existing functions if they exist
-IF OBJECT_ID('dbo.CreateLineStringFromWeights', 'FS') IS NOT NULL
-    DROP FUNCTION dbo.CreateLineStringFromWeights;
-GO
 
-IF OBJECT_ID('dbo.CreateMultiLineStringFromWeights', 'FS') IS NOT NULL
-    DROP FUNCTION dbo.CreateMultiLineStringFromWeights;
-GO
-
--- Update the assembly (rebuild it in place)
-DECLARE @assemblyPath NVARCHAR(500) = N'D:\Repositories\Hartonomous\src\SqlClr\bin\Release\SqlClrFunctions.dll';
-
--- Drop existing functions first (before ALTER ASSEMBLY)
--- Already done above
-
--- Alter assembly to load new version
-ALTER ASSEMBLY SqlClrFunctions
-FROM @assemblyPath
-WITH PERMISSION_SET = UNSAFE, UNCHECKED DATA;
-GO
 
 -- Create function: Single LINESTRING from float array
+IF OBJECT_ID('dbo.CreateLineStringFromWeights', 'FS') IS NOT NULL DROP FUNCTION dbo.CreateLineStringFromWeights;
+GO
 CREATE FUNCTION dbo.CreateLineStringFromWeights(
     @weightsData VARBINARY(MAX),  -- Binary representation of float[] array
     @srid INT = 0
@@ -40,6 +23,8 @@ AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].CreateLineS
 GO
 
 -- Create function: MULTILINESTRING from float array with chunking
+IF OBJECT_ID('dbo.CreateMultiLineStringFromWeights', 'FS') IS NOT NULL DROP FUNCTION dbo.CreateMultiLineStringFromWeights;
+GO
 CREATE FUNCTION dbo.CreateMultiLineStringFromWeights(
     @weightsData VARBINARY(MAX),  -- Binary representation of float[] array
     @srid INT = 0,

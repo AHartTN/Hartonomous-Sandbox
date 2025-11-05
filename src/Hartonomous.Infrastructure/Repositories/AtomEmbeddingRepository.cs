@@ -320,4 +320,22 @@ ORDER BY ae.SpatialGeometry.STDistance(geometry::STGeomFromText(@wkt, @srid));
             .Take(finalTopK)
             .ToList();
     }
+
+    public Task UpdateSpatialMetadataAsync(long atomEmbeddingId, CancellationToken cancellationToken = default)
+    {
+        if (atomEmbeddingId <= 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(atomEmbeddingId), atomEmbeddingId, "Embedding identifier must be positive.");
+        }
+
+        return _sqlCommandExecutor.ExecuteAsync(async (command, token) =>
+        {
+            command.CommandText = "dbo.sp_UpdateAtomEmbeddingSpatialMetadata";
+            command.CommandType = CommandType.StoredProcedure;
+
+            command.Parameters.Add(new SqlParameter("@embedding_id", SqlDbType.BigInt) { Value = atomEmbeddingId });
+
+            await command.ExecuteNonQueryAsync(token).ConfigureAwait(false);
+        }, cancellationToken);
+    }
 }

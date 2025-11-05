@@ -95,5 +95,8 @@ public sealed class QueryServiceTests
 
             return Task.FromResult(results);
         }
+
+        public Task UpdateSpatialMetadataAsync(long atomEmbeddingId, CancellationToken cancellationToken = default)
+            => Task.CompletedTask;
     }
 }

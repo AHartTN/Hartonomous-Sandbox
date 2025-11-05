@@ -134,11 +134,30 @@ namespace Hartonomous.Data.Migrations
                     b.Property<int?>("ModelId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("SpatialBucketX")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SpatialBucketY")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SpatialBucketZ")
+                        .HasColumnType("int")
+                        .HasDefaultValue(int.MinValue);
+
                     b.Property<Point>("SpatialCoarse")
                         .HasColumnType("geometry");
 
                     b.Property<Point>("SpatialGeometry")
                         .HasColumnType("geometry");
+
+                    b.Property<double?>("SpatialProjX")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("SpatialProjY")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("SpatialProjZ")
+                        .HasColumnType("float");
 
                     b.Property<bool>("UsesMaxDimensionPadding")
                         .ValueGeneratedOnAdd()
@@ -151,6 +170,9 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("AtomId", "EmbeddingType", "ModelId")
                         .HasDatabaseName("IX_AtomEmbeddings_Atom_Model_Type");
+
+                    b.HasIndex("SpatialBucketX", "SpatialBucketY", "SpatialBucketZ")
+                        .HasDatabaseName("IX_AtomEmbeddings_SpatialBucket");
 
                     b.ToTable("AtomEmbeddings", (string)null);
                 });
@@ -790,8 +812,7 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnName("Language");
 
                     b.Property<float?>("QualityScore")
-                        .HasPrecision(5, 4)
-                        .HasColumnType("real(5)")
+                        .HasColumnType("real")
                         .HasColumnName("QualityScore");
 
                     b.Property<string>("SourceUri")
@@ -829,9 +850,6 @@ namespace Hartonomous.Data.Migrations
 
                     b.HasIndex("CreatedAt")
                         .HasDatabaseName("IX_CodeAtoms_CreatedAt");
-
-                    b.HasIndex("Embedding")
-                        .HasDatabaseName("IX_CodeAtoms_Embedding_Spatial");
 
                     b.HasIndex("Language")
                         .HasDatabaseName("IX_CodeAtoms_Language");
@@ -1365,7 +1383,12 @@ namespace Hartonomous.Data.Migrations
 
                     b.Property<byte[]>("RawPayload")
                         .IsRequired()
-                        .HasColumnType("VARBINARY(MAX)");
+                        .HasColumnType("VARBINARY(MAX) FILESTREAM");
+
+                    b.Property<Guid>("PayloadRowGuid")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier ROWGUIDCOL")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<int>("SegmentOrdinal")
                         .HasColumnType("int");
@@ -1384,6 +1407,9 @@ namespace Hartonomous.Data.Migrations
                     b.HasIndex("LayerId", "SegmentOrdinal")
                         .IsUnique()
                         .HasDatabaseName("UX_LayerTensorSegments_LayerId_SegmentOrdinal");
+
+                    b.HasAlternateKey("PayloadRowGuid")
+                        .HasName("UX_LayerTensorSegments_PayloadRowGuid");
 
                     b.HasIndex("LayerId", "MMin", "MMax")
                         .HasDatabaseName("IX_LayerTensorSegments_M_Range");

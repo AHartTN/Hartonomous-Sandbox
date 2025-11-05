@@ -168,7 +168,7 @@ namespace Hartonomous.Data.Migrations
                     Embedding = table.Column<Geometry>(type: "geometry", nullable: true),
                     EmbeddingDimension = table.Column<int>(type: "int", nullable: true),
                     TestResults = table.Column<string>(type: "JSON", nullable: true),
-                    QualityScore = table.Column<float>(type: "real(5)", precision: 5, scale: 4, nullable: true),
+                    QualityScore = table.Column<float>(type: "real", nullable: true),
                     UsageCount = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
                     CodeHash = table.Column<byte[]>(type: "varbinary(32)", maxLength: 32, nullable: true),
                     SourceUri = table.Column<string>(type: "nvarchar(2048)", maxLength: 2048, nullable: true),
@@ -540,8 +540,14 @@ namespace Hartonomous.Data.Migrations
                     Dimension = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
                     EmbeddingVector = table.Column<SqlVector<float>>(type: "VECTOR(1998)", nullable: true),
                     UsesMaxDimensionPadding = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    SpatialProjX = table.Column<double>(type: "float", nullable: true),
+                    SpatialProjY = table.Column<double>(type: "float", nullable: true),
+                    SpatialProjZ = table.Column<double>(type: "float", nullable: true),
                     SpatialGeometry = table.Column<Point>(type: "geometry", nullable: true),
                     SpatialCoarse = table.Column<Point>(type: "geometry", nullable: true),
+                    SpatialBucketX = table.Column<int>(type: "int", nullable: true),
+                    SpatialBucketY = table.Column<int>(type: "int", nullable: true),
+                    SpatialBucketZ = table.Column<int>(type: "int", nullable: false, defaultValue: int.MinValue),
                     Metadata = table.Column<string>(type: "JSON", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
                 },
@@ -559,6 +565,28 @@ namespace Hartonomous.Data.Migrations
                         column: x => x.ModelId,
                         principalTable: "Models",
                         principalColumn: "ModelId");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AtomEmbeddingSpatialMetadata",
+                columns: table => new
+                {
+                    SpatialBucketX = table.Column<int>(type: "int", nullable: false),
+                    SpatialBucketY = table.Column<int>(type: "int", nullable: false),
+                    SpatialBucketZ = table.Column<int>(type: "int", nullable: false),
+                    HasZ = table.Column<bool>(type: "bit", nullable: false),
+                    EmbeddingCount = table.Column<long>(type: "bigint", nullable: false),
+                    MinProjX = table.Column<double>(type: "float", nullable: true),
+                    MaxProjX = table.Column<double>(type: "float", nullable: true),
+                    MinProjY = table.Column<double>(type: "float", nullable: true),
+                    MaxProjY = table.Column<double>(type: "float", nullable: true),
+                    MinProjZ = table.Column<double>(type: "float", nullable: true),
+                    MaxProjZ = table.Column<double>(type: "float", nullable: true),
+                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AtomEmbeddingSpatialMetadata", x => new { x.SpatialBucketX, x.SpatialBucketY, x.SpatialBucketZ, x.HasZ });
                 });
 
             migrationBuilder.CreateTable(
@@ -837,6 +865,7 @@ namespace Hartonomous.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_LayerTensorSegments", x => x.LayerTensorSegmentId);
+                    table.UniqueConstraint("UX_LayerTensorSegments_PayloadRowGuid", x => x.PayloadRowGuid);
                     table.ForeignKey(
                         name: "FK_LayerTensorSegments_ModelLayers_LayerId",
                         column: x => x.LayerId,
@@ -925,6 +954,16 @@ namespace Hartonomous.Data.Migrations
                 name: "IX_AtomEmbeddings_ModelId",
                 table: "AtomEmbeddings",
                 column: "ModelId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomEmbeddings_SpatialBucket",
+                table: "AtomEmbeddings",
+                columns: new[] { "SpatialBucketX", "SpatialBucketY", "SpatialBucketZ" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomEmbeddingSpatialMetadata_Count",
+                table: "AtomEmbeddingSpatialMetadata",
+                column: "EmbeddingCount");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AtomicAudioSamples_AmplitudeNormalized",
@@ -1035,12 +1074,6 @@ namespace Hartonomous.Data.Migrations
                 schema: "dbo",
                 table: "CodeAtoms",
                 column: "CreatedAt");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_CodeAtoms_Embedding_Spatial",
-                schema: "dbo",
-                table: "CodeAtoms",
-                column: "Embedding");
 
             migrationBuilder.CreateIndex(
                 name: "IX_CodeAtoms_Language",
@@ -1277,6 +1310,9 @@ namespace Hartonomous.Data.Migrations
         {
             migrationBuilder.DropTable(
                 name: "AtomEmbeddingComponents");
+
+            migrationBuilder.DropTable(
+                name: "AtomEmbeddingSpatialMetadata");
 
             migrationBuilder.DropTable(
                 name: "AtomicAudioSamples");

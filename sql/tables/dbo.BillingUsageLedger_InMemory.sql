@@ -11,23 +11,28 @@
 USE Hartonomous;
 GO
 
-IF NOT EXISTS (
-    SELECT 1 
-    FROM sys.filegroups 
-    WHERE name = N'HartonomousMemoryOptimized' AND type = 'FX'
-)
+IF NOT EXISTS (SELECT 1 FROM sys.filegroups WHERE name = N'HartonomousMemoryOptimized' AND type = 'FX')
 BEGIN
     ALTER DATABASE Hartonomous
     ADD FILEGROUP HartonomousMemoryOptimized CONTAINS MEMORY_OPTIMIZED_DATA;
+    PRINT 'Memory-optimized filegroup created.';
+END
+GO
+
+IF NOT EXISTS (
+    SELECT 1 
+    FROM sys.database_files df
+    INNER JOIN sys.filegroups fg ON df.data_space_id = fg.data_space_id
+    WHERE fg.name = N'HartonomousMemoryOptimized' AND fg.type = 'FX'
+)
+BEGIN
+    ALTER DATABASE Hartonomous
+    ADD FILE (
+        NAME = N'HartonomousMemoryOptimized_File',
+        FILENAME = N'D:\Hartonomous\HartonomousMemoryOptimized'
+    ) TO FILEGROUP HartonomousMemoryOptimized;
     
-    -- Note: You must add a file to this filegroup with a physical path
-    -- ALTER DATABASE Hartonomous
-    -- ADD FILE (
-    --     NAME = N'HartonomousMemoryOptimized_File',
-    --     FILENAME = N'C:\Data\Hartonomous_MemoryOptimized'
-    -- ) TO FILEGROUP HartonomousMemoryOptimized;
-    
-    PRINT 'Memory-optimized filegroup created. You must add a file with ALTER DATABASE ADD FILE before creating memory-optimized tables.';
+    PRINT 'Memory-optimized file added.';
 END
 GO
 
