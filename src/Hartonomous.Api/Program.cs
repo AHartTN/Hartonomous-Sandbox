@@ -21,6 +21,27 @@ using OpenTelemetry.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Azure App Configuration integration
+var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"] 
+    ?? "https://appconfig-hartonomous.azconfig.io";
+builder.Configuration.AddAzureAppConfiguration(options =>
+{
+    options.Connect(new Uri(appConfigEndpoint), new DefaultAzureCredential())
+        // Configure Key Vault integration for secret references
+        .ConfigureKeyVault(kv =>
+        {
+            kv.SetCredential(new DefaultAzureCredential());
+        })
+        // Enable configuration refresh (optional)
+        .ConfigureRefresh(refresh =>
+        {
+            refresh.RegisterAll().SetRefreshInterval(TimeSpan.FromMinutes(5));
+        });
+});
+
+// Add Azure App Configuration middleware for refresh support
+builder.Services.AddAzureAppConfiguration();
+
 // OpenTelemetry Configuration
 builder.Services.AddOpenTelemetry()
     .ConfigureResource(resource => resource
@@ -220,6 +241,9 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Enable Azure App Configuration refresh middleware
+app.UseAzureAppConfiguration();
 
 app.UseRateLimiter();
 
