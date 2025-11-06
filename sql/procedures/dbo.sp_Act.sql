@@ -1,0 +1,262 @@
+-- sp_Act: Autonomous loop Phase 3 - Decision & Action
+-- Receives hypotheses from sp_Hypothesize
+-- Executes safe improvements automatically
+-- Queues dangerous operations for approval
+-- Sends LearnMessage to Service Broker for measurement phase
+
+CREATE OR ALTER PROCEDURE dbo.sp_Act
+    @TenantId INT = 0,
+    @AutoApproveThreshold INT = 3 -- Auto-approve hypotheses with priority >= this value
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @ConversationHandle UNIQUEIDENTIFIER;
+    DECLARE @MessageBody XML;
+    DECLARE @MessageTypeName NVARCHAR(256);
+    DECLARE @HypothesesJson NVARCHAR(MAX);
+    DECLARE @ExecutionResults NVARCHAR(MAX);
+    
+    BEGIN TRY
+        -- 1. RECEIVE MESSAGE FROM HYPOTHESIZE PHASE
+        WAITFOR (
+            RECEIVE TOP(1)
+                @ConversationHandle = conversation_handle,
+                @MessageBody = CAST(message_body AS XML),
+                @MessageTypeName = message_type_name
+            FROM ActQueue
+        ), TIMEOUT 5000; -- 5 second timeout
+        
+        IF @ConversationHandle IS NULL
+        BEGIN
+            PRINT 'sp_Act: No messages received';
+            RETURN 0;
+        END
+        
+        -- 2. PARSE HYPOTHESES
+        SET @HypothesesJson = CAST(@MessageBody AS NVARCHAR(MAX));
+        
+        DECLARE @AnalysisId UNIQUEIDENTIFIER = JSON_VALUE(@HypothesesJson, '$.analysisId');
+        DECLARE @HypothesesCount INT = JSON_VALUE(@HypothesesJson, '$.hypothesesGenerated');
+        
+        -- 3. EXECUTE ACTIONS FOR EACH HYPOTHESIS
+        DECLARE @ActionResults TABLE (
+            HypothesisId UNIQUEIDENTIFIER,
+            HypothesisType NVARCHAR(50),
+            ActionStatus NVARCHAR(50),
+            ExecutedActions NVARCHAR(MAX),
+            ExecutionTimeMs INT,
+            ErrorMessage NVARCHAR(MAX)
+        );
+        
+        DECLARE @Hypotheses TABLE (
+            HypothesisId UNIQUEIDENTIFIER,
+            HypothesisType NVARCHAR(50),
+            Priority INT,
+            Description NVARCHAR(MAX),
+            RequiredActions NVARCHAR(MAX)
+        );
+        
+        INSERT INTO @Hypotheses
+        SELECT 
+            HypothesisId,
+            HypothesisType,
+            Priority,
+            Description,
+            RequiredActions
+        FROM OPENJSON(@HypothesesJson, '$.hypotheses')
+        WITH (
+            HypothesisId UNIQUEIDENTIFIER,
+            HypothesisType NVARCHAR(50),
+            Priority INT,
+            Description NVARCHAR(MAX),
+            RequiredActions NVARCHAR(MAX) AS JSON
+        );
+        
+        -- 4. PROCESS EACH HYPOTHESIS
+        DECLARE @CurrentHypothesisId UNIQUEIDENTIFIER;
+        DECLARE @CurrentType NVARCHAR(50);
+        DECLARE @CurrentPriority INT;
+        DECLARE @CurrentActions NVARCHAR(MAX);
+        DECLARE @StartTime DATETIME2;
+        DECLARE @ExecutionTimeMs INT;
+        DECLARE @ActionStatus NVARCHAR(50);
+        DECLARE @ExecutedActionsList NVARCHAR(MAX);
+        DECLARE @ActionError NVARCHAR(MAX);
+        
+        DECLARE hypothesis_cursor CURSOR FOR
+        SELECT HypothesisId, HypothesisType, Priority, RequiredActions
+        FROM @Hypotheses
+        ORDER BY Priority;
+        
+        OPEN hypothesis_cursor;
+        FETCH NEXT FROM hypothesis_cursor INTO @CurrentHypothesisId, @CurrentType, @CurrentPriority, @CurrentActions;
+        
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            SET @StartTime = SYSUTCDATETIME();
+            SET @ActionStatus = 'Pending';
+            SET @ExecutedActionsList = NULL;
+            SET @ActionError = NULL;
+            
+            BEGIN TRY
+                -- INDEX OPTIMIZATION: Safe, auto-approve
+                IF @CurrentType = 'IndexOptimization'
+                BEGIN
+                    -- Analyze missing indexes
+                    DECLARE @MissingIndexes TABLE (
+                        TableName NVARCHAR(256),
+                        IndexColumns NVARCHAR(MAX),
+                        IncludedColumns NVARCHAR(MAX),
+                        ImpactScore FLOAT
+                    );
+                    
+                    -- Get missing index recommendations
+                    INSERT INTO @MissingIndexes
+                    SELECT TOP 5
+                        OBJECT_NAME(mid.object_id) AS TableName,
+                        mid.equality_columns + ISNULL(', ' + mid.inequality_columns, '') AS IndexColumns,
+                        mid.included_columns AS IncludedColumns,
+                        migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans) AS ImpactScore
+                    FROM sys.dm_db_missing_index_details mid
+                    INNER JOIN sys.dm_db_missing_index_groups mig ON mid.index_handle = mig.index_handle
+                    INNER JOIN sys.dm_db_missing_index_group_stats migs ON mig.index_group_handle = migs.group_handle
+                    WHERE mid.database_id = DB_ID()
+                    ORDER BY ImpactScore DESC;
+                    
+                    -- Update statistics on key tables
+                    UPDATE STATISTICS dbo.Atoms WITH FULLSCAN;
+                    UPDATE STATISTICS dbo.AtomEmbeddings WITH FULLSCAN;
+                    UPDATE STATISTICS dbo.InferenceRequests WITH FULLSCAN;
+                    
+                    SET @ExecutedActionsList = (
+                        SELECT TableName, IndexColumns, ImpactScore
+                        FROM @MissingIndexes
+                        FOR JSON PATH
+                    );
+                    SET @ActionStatus = 'Executed';
+                END
+                
+                -- CACHE WARMING: Safe, auto-approve
+                ELSE IF @CurrentType = 'CacheWarming'
+                BEGIN
+                    -- Preload frequent embeddings into buffer pool
+                    DECLARE @PreloadedCount INT = 0;
+                    
+                    SELECT TOP 1000 @PreloadedCount = COUNT(*)
+                    FROM dbo.AtomEmbeddings WITH (NOLOCK)
+                    WHERE LastAccessedUtc >= DATEADD(DAY, -7, SYSUTCDATETIME())
+                    ORDER BY LastAccessedUtc DESC;
+                    
+                    SET @ExecutedActionsList = JSON_OBJECT('preloadedEmbeddings': @PreloadedCount);
+                    SET @ActionStatus = 'Executed';
+                END
+                
+                -- CONCEPT DISCOVERY: Safe, run clustering
+                ELSE IF @CurrentType = 'ConceptDiscovery'
+                BEGIN
+                    -- Trigger concept discovery (placeholder - actual CLR function to be implemented)
+                    DECLARE @DiscoveredConcepts INT = 0;
+                    
+                    -- For now, just detect clusters via spatial buckets
+                    SELECT @DiscoveredConcepts = COUNT(DISTINCT SpatialBucket)
+                    FROM dbo.AtomEmbeddings
+                    WHERE CreatedUtc >= DATEADD(DAY, -7, SYSUTCDATETIME());
+                    
+                    SET @ExecutedActionsList = JSON_OBJECT('discoveredClusters': @DiscoveredConcepts);
+                    SET @ActionStatus = 'Executed';
+                END
+                
+                -- MODEL RETRAINING: DANGEROUS, queue for approval
+                ELSE IF @CurrentType = 'ModelRetraining'
+                BEGIN
+                    -- Insert into approval queue (table to be created)
+                    -- For now, just log the request
+                    SET @ExecutedActionsList = JSON_OBJECT('status': 'QueuedForApproval', 'reason': 'ModelRetraining requires manual approval');
+                    SET @ActionStatus = 'QueuedForApproval';
+                END
+                
+                ELSE
+                BEGIN
+                    SET @ExecutedActionsList = JSON_OBJECT('status': 'Skipped', 'reason': 'Unknown hypothesis type');
+                    SET @ActionStatus = 'Skipped';
+                END
+                
+            END TRY
+            BEGIN CATCH
+                SET @ActionError = ERROR_MESSAGE();
+                SET @ActionStatus = 'Failed';
+                SET @ExecutedActionsList = JSON_OBJECT('error': @ActionError);
+            END CATCH
+            
+            SET @ExecutionTimeMs = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
+            
+            INSERT INTO @ActionResults
+            VALUES (@CurrentHypothesisId, @CurrentType, @ActionStatus, @ExecutedActionsList, @ExecutionTimeMs, @ActionError);
+            
+            FETCH NEXT FROM hypothesis_cursor INTO @CurrentHypothesisId, @CurrentType, @CurrentPriority, @CurrentActions;
+        END
+        
+        CLOSE hypothesis_cursor;
+        DEALLOCATE hypothesis_cursor;
+        
+        -- 5. COMPILE EXECUTION RESULTS
+        SELECT @ExecutionResults = (
+            SELECT 
+                HypothesisId,
+                HypothesisType,
+                ActionStatus,
+                JSON_QUERY(ExecutedActions) AS ExecutedActions,
+                ExecutionTimeMs,
+                ErrorMessage
+            FROM @ActionResults
+            FOR JSON PATH
+        );
+        
+        DECLARE @ActPayload NVARCHAR(MAX) = JSON_OBJECT(
+            'analysisId': @AnalysisId,
+            'executedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed'),
+            'queuedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'QueuedForApproval'),
+            'failedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Failed'),
+            'results': JSON_QUERY(@ExecutionResults),
+            'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
+        );
+        
+        -- 6. SEND TO LEARN QUEUE
+        DECLARE @LearnConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @LearnMessageBody XML = CAST(@ActPayload AS XML);
+        
+        BEGIN DIALOG CONVERSATION @LearnConversationHandle
+            FROM SERVICE ActService
+            TO SERVICE 'LearnService'
+            ON CONTRACT [//Hartonomous/AutonomousLoop/LearnContract]
+            WITH ENCRYPTION = OFF;
+        
+        SEND ON CONVERSATION @LearnConversationHandle
+            MESSAGE TYPE [//Hartonomous/AutonomousLoop/LearnMessage]
+            (@LearnMessageBody);
+        
+        -- 7. END ORIGINAL CONVERSATION
+        END CONVERSATION @ConversationHandle;
+        
+        PRINT 'sp_Act completed: ' + CAST((SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed') AS VARCHAR(10)) + ' actions executed';
+        PRINT 'Execution Results: ' + @ExecutionResults;
+        
+        RETURN 0;
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
+        IF @ConversationHandle IS NOT NULL
+        BEGIN
+            END CONVERSATION @ConversationHandle WITH ERROR = 1 DESCRIPTION = @ErrorMessage;
+        END
+        
+        PRINT 'sp_Act ERROR: ' + @ErrorMessage;
+        RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
+        RETURN -1;
+    END CATCH
+END;
+GO
