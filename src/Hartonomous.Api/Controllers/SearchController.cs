@@ -30,7 +30,7 @@ public sealed class SearchController : ApiControllerBase
     {
         _inferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
         _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
-        _connectionString = configuration.GetConnectionString("DefaultConnection") 
+        _connectionString = configuration.GetConnectionString("HartonomousDb") 
             ?? throw new InvalidOperationException("Connection string not configured");
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
@@ -233,6 +233,435 @@ public sealed class SearchController : ApiControllerBase
             _logger.LogError(ex, "Cross-modal search failed");
             var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "An unexpected error occurred during cross-modal search.");
             return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.CrossModalSearchResponse>(new[] { error }));
+        }
+    }
+
+    /// <summary>
+    /// Geographic spatial search using lat/long and radius.
+    /// </summary>
+    /// <param name="request">Spatial search parameters (lat, long, radius, filters).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Search results ordered by spatial distance.</returns>
+    [HttpPost("spatial")]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.SpatialSearchResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.SpatialSearchResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.SpatialSearchResponse>), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<DTOs.Search.SpatialSearchResponse>>> SpatialSearchAsync(
+        [FromBody] DTOs.Search.SpatialSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(Failure<DTOs.Search.SpatialSearchResponse>(new[] { ValidationError("Request body is required.") }));
+        }
+
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var results = new List<DTOs.Search.SpatialSearchResult>();
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // Create geography point from lat/long (WGS84 SRID 4326)
+            await using var command = new SqlCommand(@"
+                DECLARE @queryPoint GEOGRAPHY = geography::Point(@lat, @long, 4326);
+                DECLARE @radiusMeters FLOAT = @radius;
+
+                SELECT TOP (@topK)
+                    ae.AtomEmbeddingId,
+                    ae.AtomId,
+                    a.Modality,
+                    a.Subtype,
+                    a.SourceUri,
+                    a.SourceType,
+                    ae.SpatialGeometry.STDistance(@queryPoint) AS DistanceMeters,
+                    ae.SpatialGeometry.Lat AS Lat,
+                    ae.SpatialGeometry.Long AS Long,
+                    CASE 
+                        WHEN ae.EmbeddingVector IS NOT NULL THEN 1.0
+                        ELSE NULL 
+                    END AS Similarity
+                FROM dbo.AtomEmbeddings ae
+                INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
+                WHERE ae.SpatialGeometry IS NOT NULL
+                  AND ae.SpatialGeometry.STDistance(@queryPoint) <= @radiusMeters
+                  AND (@modality IS NULL OR a.Modality = @modality)
+                  AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
+                  AND (@modelId IS NULL OR ae.ModelId = @modelId)
+                ORDER BY ae.SpatialGeometry.STDistance(@queryPoint) ASC;
+            ", connection)
+            {
+                CommandType = CommandType.Text,
+                CommandTimeout = 60
+            };
+
+            command.Parameters.AddWithValue("@lat", request.Latitude);
+            command.Parameters.AddWithValue("@long", request.Longitude);
+            command.Parameters.AddWithValue("@radius", request.RadiusMeters);
+            command.Parameters.AddWithValue("@topK", request.TopK);
+            command.Parameters.AddWithValue("@modality", request.Modality ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@embeddingType", request.EmbeddingType ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@modelId", request.ModelId ?? (object)DBNull.Value);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                results.Add(new DTOs.Search.SpatialSearchResult
+                {
+                    AtomEmbeddingId = reader.GetInt64(0),
+                    AtomId = reader.GetInt64(1),
+                    Modality = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Subtype = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    SourceUri = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    SourceType = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    DistanceMeters = reader.GetDouble(6),
+                    Coordinates = reader.IsDBNull(7) || reader.IsDBNull(8) 
+                        ? null 
+                        : $"{reader.GetDouble(7)}, {reader.GetDouble(8)}",
+                    Similarity = reader.IsDBNull(9) ? null : reader.GetDouble(9)
+                });
+            }
+
+            stopwatch.Stop();
+
+            var response = new DTOs.Search.SpatialSearchResponse
+            {
+                Results = results,
+                TotalWithinRadius = results.Count,
+                QueryPoint = $"{request.Latitude}, {request.Longitude}",
+                RadiusMeters = request.RadiusMeters
+            };
+
+            var metadata = new Dictionary<string, object?>
+            {
+                ["durationMs"] = stopwatch.Elapsed.TotalMilliseconds,
+                ["resultCount"] = results.Count
+            };
+
+            _logger.LogInformation("Spatial search completed: {Count} results within {Radius}m of ({Lat}, {Long})", 
+                results.Count, request.RadiusMeters, request.Latitude, request.Longitude);
+
+            return Ok(Success(response, metadata));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error during spatial search");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "Spatial search failed", ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.SpatialSearchResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Spatial search failed");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "An unexpected error occurred during spatial search.");
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.SpatialSearchResponse>(new[] { error }));
+        }
+    }
+
+    /// <summary>
+    /// Temporal search filtering by time range with semantic similarity.
+    /// </summary>
+    /// <param name="request">Temporal search parameters (vector, time range, mode, filters).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>Search results ordered by temporal relevance and similarity.</returns>
+    [HttpPost("temporal")]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.TemporalSearchResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.TemporalSearchResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.TemporalSearchResponse>), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<DTOs.Search.TemporalSearchResponse>>> TemporalSearchAsync(
+        [FromBody] DTOs.Search.TemporalSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(Failure<DTOs.Search.TemporalSearchResponse>(new[] { ValidationError("Request body is required.") }));
+        }
+
+        if (request.QueryVector is null || request.QueryVector.Length == 0)
+        {
+            return BadRequest(Failure<DTOs.Search.TemporalSearchResponse>(new[] { MissingField(nameof(request.QueryVector)) }));
+        }
+
+        if (request.StartTimeUtc >= request.EndTimeUtc)
+        {
+            return BadRequest(Failure<DTOs.Search.TemporalSearchResponse>(new[] { 
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, "StartTimeUtc must be before EndTimeUtc.")
+            }));
+        }
+
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var results = new List<DTOs.Search.TemporalSearchResult>();
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // Temporal search modes: range, point_in_time, changes
+            var queryText = request.Mode?.ToLowerInvariant() switch
+            {
+                "point_in_time" => @"
+                    SELECT TOP (@topK)
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceUri,
+                        a.SourceType,
+                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @queryVector) AS Similarity,
+                        a.CreatedAtUtc,
+                        DATEDIFF(HOUR, a.CreatedAtUtc, @startTime) AS TemporalDistanceHours
+                    FROM dbo.AtomEmbeddings ae FOR SYSTEM_TIME AS OF @startTime
+                    INNER JOIN dbo.Atoms a FOR SYSTEM_TIME AS OF @startTime ON a.AtomId = ae.AtomId
+                    WHERE ae.EmbeddingVector IS NOT NULL
+                      AND ae.Dimension = @dimension
+                      AND (@modality IS NULL OR a.Modality = @modality)
+                      AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
+                      AND (@modelId IS NULL OR ae.ModelId = @modelId)
+                    ORDER BY Similarity DESC;",
+                
+                "changes" => @"
+                    SELECT TOP (@topK)
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceUri,
+                        a.SourceType,
+                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @queryVector) AS Similarity,
+                        a.CreatedAtUtc,
+                        DATEDIFF(HOUR, a.CreatedAtUtc, @endTime) AS TemporalDistanceHours
+                    FROM dbo.AtomEmbeddings ae FOR SYSTEM_TIME FROM @startTime TO @endTime
+                    INNER JOIN dbo.Atoms a FOR SYSTEM_TIME FROM @startTime TO @endTime ON a.AtomId = ae.AtomId
+                    WHERE ae.EmbeddingVector IS NOT NULL
+                      AND ae.Dimension = @dimension
+                      AND (@modality IS NULL OR a.Modality = @modality)
+                      AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
+                      AND (@modelId IS NULL OR ae.ModelId = @modelId)
+                    ORDER BY Similarity DESC;",
+                
+                _ => @"
+                    SELECT TOP (@topK)
+                        ae.AtomEmbeddingId,
+                        ae.AtomId,
+                        a.Modality,
+                        a.Subtype,
+                        a.SourceUri,
+                        a.SourceType,
+                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @queryVector) AS Similarity,
+                        a.CreatedAtUtc,
+                        DATEDIFF(HOUR, a.CreatedAtUtc, @midpoint) AS TemporalDistanceHours
+                    FROM dbo.AtomEmbeddings ae
+                    INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
+                    WHERE ae.EmbeddingVector IS NOT NULL
+                      AND ae.Dimension = @dimension
+                      AND a.CreatedAtUtc >= @startTime
+                      AND a.CreatedAtUtc <= @endTime
+                      AND (@modality IS NULL OR a.Modality = @modality)
+                      AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
+                      AND (@modelId IS NULL OR ae.ModelId = @modelId)
+                    ORDER BY Similarity DESC;"
+            };
+
+            await using var command = new SqlCommand(queryText, connection)
+            {
+                CommandType = CommandType.Text,
+                CommandTimeout = 60
+            };
+
+            var padded = Core.Utilities.VectorUtility.PadToSqlLength(request.QueryVector, out var actualDim);
+            var vectorParam = command.Parameters.AddWithValue("@queryVector", padded);
+            vectorParam.SqlDbType = SqlDbType.Udt;
+            vectorParam.UdtTypeName = "VECTOR(1998)";
+
+            command.Parameters.AddWithValue("@dimension", actualDim);
+            command.Parameters.AddWithValue("@topK", request.TopK);
+            command.Parameters.AddWithValue("@startTime", request.StartTimeUtc);
+            command.Parameters.AddWithValue("@endTime", request.EndTimeUtc);
+            command.Parameters.AddWithValue("@midpoint", request.StartTimeUtc.AddTicks((request.EndTimeUtc - request.StartTimeUtc).Ticks / 2));
+            command.Parameters.AddWithValue("@modality", request.Modality ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@embeddingType", request.EmbeddingType ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@modelId", request.ModelId ?? (object)DBNull.Value);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                results.Add(new DTOs.Search.TemporalSearchResult
+                {
+                    AtomEmbeddingId = reader.GetInt64(0),
+                    AtomId = reader.GetInt64(1),
+                    Modality = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    Subtype = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    SourceUri = reader.IsDBNull(4) ? null : reader.GetString(4),
+                    SourceType = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    Similarity = reader.GetDouble(6),
+                    CreatedAtUtc = reader.GetDateTime(7),
+                    TemporalDistanceHours = reader.GetDouble(8)
+                });
+            }
+
+            stopwatch.Stop();
+
+            var response = new DTOs.Search.TemporalSearchResponse
+            {
+                Results = results,
+                TotalInRange = results.Count,
+                TimeRange = $"{request.StartTimeUtc:yyyy-MM-dd HH:mm:ss} to {request.EndTimeUtc:yyyy-MM-dd HH:mm:ss}",
+                Mode = request.Mode
+            };
+
+            var metadata = new Dictionary<string, object?>
+            {
+                ["durationMs"] = stopwatch.Elapsed.TotalMilliseconds,
+                ["resultCount"] = results.Count,
+                ["mode"] = request.Mode
+            };
+
+            _logger.LogInformation("Temporal search completed: {Count} results in range {Start} to {End}, mode {Mode}", 
+                results.Count, request.StartTimeUtc, request.EndTimeUtc, request.Mode);
+
+            return Ok(Success(response, metadata));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error during temporal search");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "Temporal search failed", ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.TemporalSearchResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Temporal search failed");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "An unexpected error occurred during temporal search.");
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.TemporalSearchResponse>(new[] { error }));
+        }
+    }
+
+    /// <summary>
+    /// Get search query suggestions/autocomplete based on prefix.
+    /// </summary>
+    /// <param name="request">Suggestion parameters (query prefix, filters).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>List of suggested queries ordered by relevance.</returns>
+    [HttpGet("suggestions")]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.SuggestionsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.SuggestionsResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<DTOs.Search.SuggestionsResponse>), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<DTOs.Search.SuggestionsResponse>>> GetSuggestionsAsync(
+        [FromQuery] string queryPrefix,
+        [FromQuery] int maxSuggestions = 10,
+        [FromQuery] string? modality = null,
+        [FromQuery] string? sourceType = null,
+        [FromQuery] bool includeTrending = true,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(queryPrefix))
+        {
+            return BadRequest(Failure<DTOs.Search.SuggestionsResponse>(new[] { 
+                MissingField("queryPrefix")
+            }));
+        }
+
+        if (queryPrefix.Length > 500)
+        {
+            return BadRequest(Failure<DTOs.Search.SuggestionsResponse>(new[] { 
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, "queryPrefix must be 500 characters or less.")
+            }));
+        }
+
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+            var suggestions = new List<DTOs.Search.Suggestion>();
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+
+            // Generate suggestions from CanonicalText (simple prefix match)
+            // In production: use FTS index, query logs, or dedicated suggestions table
+            await using var command = new SqlCommand(@"
+                SELECT TOP (@maxSuggestions)
+                    a.CanonicalText AS SuggestionText,
+                    COUNT(*) AS UsageCount,
+                    MAX(a.CreatedAtUtc) AS LastUsed,
+                    a.Modality AS Category,
+                    CASE 
+                        WHEN MAX(a.CreatedAtUtc) >= DATEADD(DAY, -7, SYSUTCDATETIME()) THEN 1 
+                        ELSE 0 
+                    END AS IsTrending
+                FROM dbo.Atoms a
+                WHERE a.CanonicalText LIKE @prefix + '%'
+                  AND LEN(a.CanonicalText) <= 200
+                  AND (@modality IS NULL OR a.Modality = @modality)
+                  AND (@sourceType IS NULL OR a.SourceType = @sourceType)
+                GROUP BY a.CanonicalText, a.Modality
+                ORDER BY COUNT(*) DESC, MAX(a.CreatedAtUtc) DESC;
+            ", connection)
+            {
+                CommandType = CommandType.Text,
+                CommandTimeout = 30
+            };
+
+            command.Parameters.AddWithValue("@prefix", queryPrefix);
+            command.Parameters.AddWithValue("@maxSuggestions", Math.Max(1, Math.Min(maxSuggestions, 50)));
+            command.Parameters.AddWithValue("@modality", modality ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@sourceType", sourceType ?? (object)DBNull.Value);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+
+            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                var text = reader.GetString(0);
+                var usageCount = reader.GetInt32(1);
+                var isTrending = reader.GetInt32(4) == 1;
+
+                if (!includeTrending && isTrending)
+                {
+                    continue;
+                }
+
+                suggestions.Add(new DTOs.Search.Suggestion
+                {
+                    Text = text,
+                    Score = usageCount, // Simple scoring: usage count
+                    Category = reader.IsDBNull(3) ? null : reader.GetString(3),
+                    UsageCount = usageCount,
+                    IsTrending = isTrending
+                });
+            }
+
+            stopwatch.Stop();
+
+            var response = new DTOs.Search.SuggestionsResponse
+            {
+                Suggestions = suggestions,
+                QueryPrefix = queryPrefix,
+                Count = suggestions.Count
+            };
+
+            var metadata = new Dictionary<string, object?>
+            {
+                ["durationMs"] = stopwatch.Elapsed.TotalMilliseconds,
+                ["count"] = suggestions.Count
+            };
+
+            _logger.LogInformation("Suggestions query completed: {Count} suggestions for prefix '{Prefix}'", 
+                suggestions.Count, queryPrefix.Length > 50 ? queryPrefix.Substring(0, 50) + "..." : queryPrefix);
+
+            return Ok(Success(response, metadata));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error during suggestions query");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "Suggestions query failed", ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.SuggestionsResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Suggestions query failed");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "An unexpected error occurred during suggestions query.");
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<DTOs.Search.SuggestionsResponse>(new[] { error }));
         }
     }
 
