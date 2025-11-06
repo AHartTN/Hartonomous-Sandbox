@@ -277,10 +277,46 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddHartonomousInfrastructure(builder.Configuration);
 builder.Services.AddHartonomousHealthChecks(builder.Configuration);
 builder.Services.AddScoped<IModelIngestionService, ApiModelIngestionService>();
+
+// Legacy inference job processor (still supported)
 builder.Services.AddHostedService<Hartonomous.Infrastructure.Services.Jobs.InferenceJobWorker>();
 builder.Services.AddScoped<Hartonomous.Infrastructure.Services.Jobs.InferenceJobProcessor>();
 
+// Background job infrastructure
+builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.IJobService, Hartonomous.Infrastructure.Jobs.JobService>();
+builder.Services.AddSingleton<Hartonomous.Infrastructure.Jobs.JobExecutor>();
+
+// Register job processors
+builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.Processors.CleanupJobProcessor>();
+builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.Processors.IndexMaintenanceJobProcessor>();
+builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.Processors.AnalyticsJobProcessor>();
+
+// Background job worker
+builder.Services.AddHostedService<Hartonomous.Infrastructure.Jobs.BackgroundJobWorker>(sp =>
+{
+    var logger = sp.GetRequiredService<ILogger<Hartonomous.Infrastructure.Jobs.BackgroundJobWorker>>();
+    return new Hartonomous.Infrastructure.Jobs.BackgroundJobWorker(sp, logger, maxConcurrency: 5);
+});
+
 var app = builder.Build();
+
+// Register job processors with executor
+using (var scope = app.Services.CreateScope())
+{
+    var executor = scope.ServiceProvider.GetRequiredService<Hartonomous.Infrastructure.Jobs.JobExecutor>();
+    
+    executor.RegisterProcessor<
+        Hartonomous.Infrastructure.Jobs.Processors.CleanupJobPayload,
+        Hartonomous.Infrastructure.Jobs.Processors.CleanupJobProcessor>("Cleanup");
+    
+    executor.RegisterProcessor<
+        Hartonomous.Infrastructure.Jobs.Processors.IndexMaintenancePayload,
+        Hartonomous.Infrastructure.Jobs.Processors.IndexMaintenanceJobProcessor>("IndexMaintenance");
+    
+    executor.RegisterProcessor<
+        Hartonomous.Infrastructure.Jobs.Processors.AnalyticsJobPayload,
+        Hartonomous.Infrastructure.Jobs.Processors.AnalyticsJobProcessor>("Analytics");
+}
 
 if (app.Environment.IsDevelopment())
 {
