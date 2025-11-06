@@ -7,6 +7,7 @@ using Hartonomous.Api.Authorization;
 using Hartonomous.Api.RateLimiting;
 using Hartonomous.Api.Services;
 using Hartonomous.Infrastructure;
+using Hartonomous.Infrastructure.RateLimiting;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Core.Interfaces;
@@ -126,10 +127,97 @@ builder.Services.AddSingleton<IAuthorizationHandler, TenantResourceAuthorization
 // Register tenant rate limiting policy
 builder.Services.AddSingleton<TenantRateLimitPolicy>();
 
-// Rate Limiting
+// Rate Limiting with configuration-based options
+var rateLimitOptions = new RateLimitOptions();
+builder.Configuration.GetSection(RateLimitOptions.SectionName).Bind(rateLimitOptions);
+
 builder.Services.AddRateLimiter(options =>
 {
-    // Fixed window limiter for general API endpoints
+    // Authenticated users - sliding window
+    options.AddSlidingWindowLimiter(RateLimitPolicies.Authenticated, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.AuthenticatedPermitLimit;
+        opt.Window = TimeSpan.FromSeconds(rateLimitOptions.AuthenticatedWindowSeconds);
+        opt.SegmentsPerWindow = rateLimitOptions.SegmentsPerWindow;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Anonymous users - fixed window (stricter)
+    options.AddFixedWindowLimiter(RateLimitPolicies.Anonymous, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.AnonymousPermitLimit;
+        opt.Window = TimeSpan.FromSeconds(rateLimitOptions.AnonymousWindowSeconds);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Premium tier - sliding window with higher limits
+    options.AddSlidingWindowLimiter(RateLimitPolicies.Premium, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.PremiumPermitLimit;
+        opt.Window = TimeSpan.FromSeconds(rateLimitOptions.PremiumWindowSeconds);
+        opt.SegmentsPerWindow = rateLimitOptions.SegmentsPerWindow;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Inference operations - concurrency limiter + token bucket
+    options.AddConcurrencyLimiter(RateLimitPolicies.Inference, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.InferenceConcurrentLimit;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Generation operations - concurrency limiter (most resource-intensive)
+    options.AddConcurrencyLimiter(RateLimitPolicies.Generation, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.GenerationConcurrentLimit;
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Embedding operations - fixed window
+    options.AddFixedWindowLimiter(RateLimitPolicies.Embedding, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.EmbeddingPermitLimit;
+        opt.Window = TimeSpan.FromSeconds(rateLimitOptions.EmbeddingWindowSeconds);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Graph operations - fixed window
+    options.AddFixedWindowLimiter(RateLimitPolicies.Graph, opt =>
+    {
+        opt.PermitLimit = rateLimitOptions.GraphPermitLimit;
+        opt.Window = TimeSpan.FromSeconds(rateLimitOptions.GraphWindowSeconds);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
+    // Global rate limiter per IP address
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, System.Net.IPAddress>(httpContext =>
+    {
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+
+        if (remoteIp != null && !System.Net.IPAddress.IsLoopback(remoteIp))
+        {
+            return RateLimitPartition.GetSlidingWindowLimiter(remoteIp, _ =>
+                new SlidingWindowRateLimiterOptions
+                {
+                    PermitLimit = rateLimitOptions.GlobalPermitLimit,
+                    Window = TimeSpan.FromSeconds(rateLimitOptions.GlobalWindowSeconds),
+                    SegmentsPerWindow = rateLimitOptions.SegmentsPerWindow,
+                    QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
+                    QueueLimit = rateLimitOptions.QueueLimit
+                });
+        }
+
+        return RateLimitPartition.GetNoLimiter(System.Net.IPAddress.Loopback);
+    });
+
+    // Legacy policies for backward compatibility
     options.AddFixedWindowLimiter("api", opt =>
     {
         opt.PermitLimit = 100;
@@ -138,7 +226,6 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueLimit = 10;
     });
 
-    // Stricter limiter for inference endpoints (more resource-intensive)
     options.AddTokenBucketLimiter("inference", opt =>
     {
         opt.TokenLimit = 20;
@@ -149,7 +236,6 @@ builder.Services.AddRateLimiter(options =>
         opt.AutoReplenishment = true;
     });
 
-    // Sliding window for authenticated users (per-user limiting) - LEGACY
     options.AddPolicy("per-user", context =>
     {
         var username = context.User.Identity?.Name ?? "anonymous";

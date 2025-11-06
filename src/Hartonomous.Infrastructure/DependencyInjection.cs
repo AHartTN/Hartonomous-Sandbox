@@ -26,6 +26,7 @@ using Hartonomous.Infrastructure.Services.Security;
 using Hartonomous.Infrastructure.Services.Jobs;
 using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Resilience;
+using Hartonomous.Infrastructure.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
@@ -333,6 +334,9 @@ public static class DependencyInjection
         // Custom metrics for Hartonomous-specific telemetry
         services.AddSingleton<Observability.CustomMetrics>(sp => 
             new Observability.CustomMetrics(sp.GetRequiredService<Meter>()));
+
+        // Rate limiting configuration
+        services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
 
         return services;
     }
