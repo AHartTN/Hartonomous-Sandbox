@@ -446,6 +446,10 @@ app.UseHttpsRedirection();
 // Enable Azure App Configuration refresh middleware
 app.UseAzureAppConfiguration();
 
+// Correlation tracking middleware (W3C Trace Context)
+// Must be before UseRateLimiter and UseAuthentication
+app.UseMiddleware<Hartonomous.Infrastructure.Middleware.CorrelationMiddleware>();
+
 app.UseRateLimiter();
 
 app.UseAuthentication();
