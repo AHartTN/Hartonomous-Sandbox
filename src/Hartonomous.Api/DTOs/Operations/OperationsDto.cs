@@ -149,3 +149,61 @@ public class TopQueryEntry
     public double AvgLogicalReads { get; set; }
     public DateTime? LastExecutionTime { get; set; }
 }
+
+// ============================================================================
+// Autonomous Operations & Metrics DTOs
+// ============================================================================
+
+/// <summary>
+/// Request to trigger autonomous OODA loop cycle
+/// </summary>
+public class AutonomousTriggerRequest
+{
+    public required int TenantId { get; set; }
+    
+    public string AnalysisScope { get; set; } = "full"; // full, models, embeddings, performance
+    
+    public string Priority { get; set; } = "normal"; // high, normal, low
+}
+
+/// <summary>
+/// Response from autonomous trigger
+/// </summary>
+public class AutonomousTriggerResponse
+{
+    public required Guid CycleId { get; set; }
+    public required Dictionary<string, int> QueueDepths { get; set; }
+    public int EstimatedDurationMs { get; set; }
+    public required string Status { get; set; }
+    public DateTime TriggeredAt { get; set; }
+}
+
+/// <summary>
+/// System-level metrics for Prometheus/Grafana
+/// </summary>
+public class SystemMetricsResponse
+{
+    public double CpuPercent { get; set; }
+    public double MemoryPercent { get; set; }
+    public double StoragePercent { get; set; }
+    public required Dictionary<string, int> QueueDepths { get; set; }
+    public int ActiveInferences { get; set; }
+    public long TotalAtoms { get; set; }
+    public long TotalEmbeddings { get; set; }
+    public DateTime MeasuredAt { get; set; }
+}
+
+/// <summary>
+/// Tenant-specific metrics
+/// </summary>
+public class TenantMetricsResponse
+{
+    public int TenantId { get; set; }
+    public long QuotaUsed { get; set; }
+    public long QuotaLimit { get; set; }
+    public decimal CostAccrued { get; set; }
+    public int InferenceCount { get; set; }
+    public DateTime? LastInferenceUtc { get; set; }
+    public double AvgInferenceMs { get; set; }
+    public DateTime MeasuredAt { get; set; }
+}

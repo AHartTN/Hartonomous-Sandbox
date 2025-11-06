@@ -1,15 +1,19 @@
-using Hartonomous.Api.Common;
 using Hartonomous.Api.DTOs.Operations;
+using Hartonomous.Shared.Contracts.Errors;
+using Hartonomous.Shared.Contracts.Responses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using System.Diagnostics;
+using System.Text;
 
 namespace Hartonomous.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class OperationsController : ControllerBase
+public class OperationsController : ApiControllerBase
 {
     private readonly string _connectionString;
     private readonly ILogger<OperationsController> _logger;
@@ -18,8 +22,8 @@ public class OperationsController : ControllerBase
         IConfiguration configuration,
         ILogger<OperationsController> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection") 
-            ?? throw new InvalidOperationException("Connection string not configured");
+        _connectionString = configuration.GetConnectionString("HartonomousDb") 
+            ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not configured");
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -61,7 +65,7 @@ public class OperationsController : ControllerBase
         _logger.LogInformation("Health check completed: {Status} in {Duration}ms",
             overallStatus, overallStopwatch.ElapsedMilliseconds);
 
-        return StatusCode(statusCode, ApiResponse<HealthCheckResponse>.Ok(response));
+        return StatusCode(statusCode, Success(response));
     }
 
     [HttpPost("indexes/maintenance")]
@@ -73,12 +77,16 @@ public class OperationsController : ControllerBase
     {
         if (request == null)
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "Request body is required"));
+            return BadRequest(Failure<object>(new[] { ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "Request body is required") }));
         }
 
         if (!new[] { "rebuild", "reorganize", "update_statistics" }.Contains(request.Operation.ToLower()))
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "Operation must be rebuild, reorganize, or update_statistics"));
+            return BadRequest(Failure<IndexMaintenanceResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, 
+                    "Operation must be rebuild, reorganize, or update_statistics", nameof(request.Operation))
+            }));
         }
 
         try
@@ -189,29 +197,31 @@ public class OperationsController : ControllerBase
 
             totalStopwatch.Stop();
 
-            return Ok(ApiResponse<IndexMaintenanceResponse>.Ok(new IndexMaintenanceResponse
+            var metadata = new Dictionary<string, object>
+            {
+                ["successCount"] = results.Count(r => r.Success),
+                ["failureCount"] = results.Count(r => !r.Success)
+            };
+
+            return Ok(Success(new IndexMaintenanceResponse
             {
                 Results = results,
                 TotalDuration = totalStopwatch.Elapsed
-            }, new ApiMetadata
-            {
-                TotalCount = results.Count,
-                Extra = new Dictionary<string, object>
-                {
-                    ["successCount"] = results.Count(r => r.Success),
-                    ["failureCount"] = results.Count(r => !r.Success)
-                }
-            }));
+            }, metadata));
         }
         catch (SqlException ex)
         {
             _logger.LogError(ex, "SQL error during index maintenance");
-            return StatusCode(500, ApiResponse<object>.Fail("DATABASE_ERROR", "Index maintenance failed", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Index maintenance failed", ex.Message);
+            return StatusCode(500, Failure<IndexMaintenanceResponse>(new[] { error }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Index maintenance failed");
-            return StatusCode(500, ApiResponse<object>.Fail("MAINTENANCE_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Index maintenance failed", ex.Message);
+            return StatusCode(500, Failure<IndexMaintenanceResponse>(new[] { error }));
         }
     }
 
@@ -223,7 +233,7 @@ public class OperationsController : ControllerBase
     {
         if (request == null)
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "Request body is required"));
+            return BadRequest(Failure<object>(new[] { ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "Request body is required") }));
         }
 
         try
@@ -260,17 +270,21 @@ public class OperationsController : ControllerBase
                     break;
             }
 
-            return Ok(ApiResponse<CacheManagementResponse>.Ok(response));
+            return Ok(Success(response));
         }
         catch (SqlException ex)
         {
             _logger.LogError(ex, "SQL error during cache management");
-            return StatusCode(500, ApiResponse<object>.Fail("DATABASE_ERROR", "Cache management failed", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Cache management failed", ex.Message);
+            return StatusCode(500, Failure<CacheManagementResponse>(new[] { error }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Cache management failed");
-            return StatusCode(500, ApiResponse<object>.Fail("CACHE_MANAGEMENT_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Cache management failed", ex.Message);
+            return StatusCode(500, Failure<CacheManagementResponse>(new[] { error }));
         }
     }
 
@@ -282,7 +296,7 @@ public class OperationsController : ControllerBase
     {
         if (request == null)
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "Request body is required"));
+            return BadRequest(Failure<object>(new[] { ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "Request body is required") }));
         }
 
         try
@@ -307,30 +321,41 @@ public class OperationsController : ControllerBase
                     break;
 
                 default:
-                    return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", $"Unknown diagnostic type: {request.DiagnosticType}"));
+                    return BadRequest(Failure<DiagnosticResponse>(new[]
+                    {
+                        ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, 
+                            $"Unknown diagnostic type: {request.DiagnosticType}", nameof(request.DiagnosticType))
+                    }));
             }
 
             _logger.LogInformation("Diagnostics completed: {Type} returned {Count} entries",
                 request.DiagnosticType, entries.Count);
 
-            return Ok(ApiResponse<DiagnosticResponse>.Ok(new DiagnosticResponse
+            var metadata = new Dictionary<string, object>
+            {
+                ["diagnosticType"] = request.DiagnosticType,
+                ["entryCount"] = entries.Count
+            };
+
+            return Ok(Success(new DiagnosticResponse
             {
                 DiagnosticType = request.DiagnosticType,
                 Entries = entries
-            }, new ApiMetadata
-            {
-                TotalCount = entries.Count
-            }));
+            }, metadata));
         }
         catch (SqlException ex)
         {
             _logger.LogError(ex, "SQL error during diagnostics");
-            return StatusCode(500, ApiResponse<object>.Fail("DATABASE_ERROR", "Diagnostics failed", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Diagnostics failed", ex.Message);
+            return StatusCode(500, Failure<DiagnosticResponse>(new[] { error }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Diagnostics failed");
-            return StatusCode(500, ApiResponse<object>.Fail("DIAGNOSTICS_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Diagnostics failed", ex.Message);
+            return StatusCode(500, Failure<DiagnosticResponse>(new[] { error }));
         }
     }
 
@@ -419,17 +444,21 @@ public class OperationsController : ControllerBase
             _logger.LogInformation("Query Store stats retrieved: {Queries} queries, {Plans} plans",
                 response.TotalQueries, response.TotalPlans);
 
-            return Ok(ApiResponse<QueryStoreStatsResponse>.Ok(response));
+            return Ok(Success(response));
         }
         catch (SqlException ex)
         {
             _logger.LogError(ex, "SQL error retrieving Query Store stats");
-            return StatusCode(500, ApiResponse<object>.Fail("DATABASE_ERROR", "Failed to retrieve Query Store stats", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Failed to retrieve Query Store stats", ex.Message);
+            return StatusCode(500, Failure<QueryStoreStatsResponse>(new[] { error }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve Query Store stats");
-            return StatusCode(500, ApiResponse<object>.Fail("QUERYSTORE_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Failed to retrieve Query Store stats", ex.Message);
+            return StatusCode(500, Failure<QueryStoreStatsResponse>(new[] { error }));
         }
     }
 
@@ -670,5 +699,329 @@ public class OperationsController : ControllerBase
         }
 
         return entries;
+    }
+
+    // ============================================================================
+    // Autonomous Operations & Metrics Endpoints
+    // ============================================================================
+
+    /// <summary>
+    /// Trigger autonomous OODA loop cycle
+    /// Starts observation and pattern detection via sp_Analyze
+    /// </summary>
+    [HttpPost("autonomous/trigger")]
+    [Authorize(Policy = "Admin")]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<AutonomousTriggerResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AutonomousTriggerResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> TriggerAutonomousAsync([FromBody] AutonomousTriggerRequest request)
+    {
+        if (request == null)
+        {
+            return BadRequest(Failure<AutonomousTriggerResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "Request body is required")
+            }));
+        }
+
+        try
+        {
+            _logger.LogInformation("Triggering autonomous OODA cycle for tenant {TenantId}, scope: {Scope}", 
+                request.TenantId, request.AnalysisScope);
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Trigger sp_Analyze (already used by AutonomyController)
+            await using var command = new SqlCommand("dbo.sp_Analyze", connection)
+            {
+                CommandType = CommandType.StoredProcedure,
+                CommandTimeout = 300
+            };
+
+            command.Parameters.AddWithValue("@TenantId", request.TenantId);
+            command.Parameters.AddWithValue("@AnalysisScope", request.AnalysisScope);
+            command.Parameters.AddWithValue("@LookbackHours", 24);
+
+            var returnValue = command.Parameters.Add("@ReturnValue", SqlDbType.Int);
+            returnValue.Direction = ParameterDirection.ReturnValue;
+
+            // Capture PRINT messages
+            var messages = new StringBuilder();
+            connection.InfoMessage += (sender, e) => messages.AppendLine(e.Message);
+
+            await command.ExecuteNonQueryAsync();
+
+            var result = (int)returnValue.Value;
+
+            if (result != 0)
+            {
+                return BadRequest(Failure<AutonomousTriggerResponse>(new[]
+                {
+                    ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                        "Autonomous trigger failed", $"sp_Analyze returned code {result}")
+                }));
+            }
+
+            // Get queue depths after trigger
+            var queueQuery = @"
+                SELECT 
+                    q.name AS QueueName,
+                    ISNULL((SELECT COUNT(*) FROM sys.transmission_queue tq WHERE tq.service_name = s.name), 0) AS MessageCount
+                FROM sys.service_queues q
+                INNER JOIN sys.services s ON q.object_id = s.service_queue_id
+                WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')";
+
+            await using var queueCommand = new SqlCommand(queueQuery, connection);
+            await using var reader = await queueCommand.ExecuteReaderAsync();
+
+            var queueDepths = new Dictionary<string, int>();
+            while (await reader.ReadAsync())
+            {
+                queueDepths[reader.GetString(0)] = reader.GetInt32(1);
+            }
+
+            var cycleId = Guid.NewGuid(); // In production, extract from sp_Analyze output
+            var totalMessages = queueDepths.Values.Sum();
+            var estimatedDuration = totalMessages * 500; // 500ms per message estimate
+
+            var response = new AutonomousTriggerResponse
+            {
+                CycleId = cycleId,
+                QueueDepths = queueDepths,
+                EstimatedDurationMs = estimatedDuration,
+                Status = "triggered",
+                TriggeredAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Autonomous cycle {CycleId} triggered: {MessageCount} messages queued, estimated duration {Duration}ms",
+                cycleId, totalMessages, estimatedDuration);
+
+            return Ok(Success(response));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "Database error during autonomous trigger");
+            return BadRequest(Failure<AutonomousTriggerResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "Failed to trigger autonomous cycle", ex.Message)
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during autonomous trigger");
+            return BadRequest(Failure<AutonomousTriggerResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "An unexpected error occurred during autonomous trigger")
+            }));
+        }
+    }
+
+    /// <summary>
+    /// Get system-level metrics for monitoring (Prometheus/Grafana compatible)
+    /// </summary>
+    [HttpGet("metrics")]
+    [Authorize(Policy = "Admin")]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<SystemMetricsResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetSystemMetricsAsync()
+    {
+        try
+        {
+            _logger.LogInformation("Retrieving system metrics");
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var query = @"
+                -- CPU and Memory
+                SELECT 
+                    (SELECT 100 - cntr_value 
+                     FROM sys.dm_os_performance_counters 
+                     WHERE counter_name = '% Processor Time' 
+                       AND instance_name = '_Total') AS CpuPercent,
+                    (SELECT cntr_value 
+                     FROM sys.dm_os_performance_counters 
+                     WHERE counter_name = 'Memory Grants Pending') AS MemoryGrantsPending,
+                    (SELECT SUM(size_in_bytes) / 1024 / 1024 
+                     FROM sys.dm_os_buffer_descriptors) AS BufferPoolMB,
+                    (SELECT COUNT(*) FROM dbo.Atoms) AS TotalAtoms,
+                    (SELECT COUNT(*) FROM dbo.AtomEmbeddings) AS TotalEmbeddings,
+                    (SELECT COUNT(*) 
+                     FROM dbo.InferenceJobs 
+                     WHERE Status = 'InProgress') AS ActiveInferences;
+                
+                -- Queue depths
+                SELECT 
+                    q.name AS QueueName,
+                    ISNULL((SELECT COUNT(*) FROM sys.transmission_queue tq WHERE tq.service_name = s.name), 0) AS MessageCount
+                FROM sys.service_queues q
+                INNER JOIN sys.services s ON q.object_id = s.service_queue_id
+                WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue');";
+
+            await using var command = new SqlCommand(query, connection);
+            await using var reader = await command.ExecuteReaderAsync();
+
+            var cpuPercent = 0.0;
+            var memoryPercent = 0.0;
+            var totalAtoms = 0L;
+            var totalEmbeddings = 0L;
+            var activeInferences = 0;
+
+            if (await reader.ReadAsync())
+            {
+                cpuPercent = reader.IsDBNull(0) ? 0 : reader.GetInt64(0);
+                var bufferPoolMB = reader.IsDBNull(2) ? 0 : reader.GetInt64(2);
+                memoryPercent = bufferPoolMB / 10.24; // Assume 1GB max, adjust as needed
+                totalAtoms = reader.IsDBNull(3) ? 0 : reader.GetInt32(3);
+                totalEmbeddings = reader.IsDBNull(4) ? 0 : reader.GetInt32(4);
+                activeInferences = reader.IsDBNull(5) ? 0 : reader.GetInt32(5);
+            }
+
+            var queueDepths = new Dictionary<string, int>();
+            if (await reader.NextResultAsync())
+            {
+                while (await reader.ReadAsync())
+                {
+                    queueDepths[reader.GetString(0)] = reader.GetInt32(1);
+                }
+            }
+
+            var response = new SystemMetricsResponse
+            {
+                CpuPercent = cpuPercent,
+                MemoryPercent = memoryPercent,
+                StoragePercent = 0.0, // TODO: Query file/filestream usage
+                QueueDepths = queueDepths,
+                ActiveInferences = activeInferences,
+                TotalAtoms = totalAtoms,
+                TotalEmbeddings = totalEmbeddings,
+                MeasuredAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("System metrics: CPU={CpuPercent}%, Atoms={Atoms}, Embeddings={Embeddings}, ActiveInferences={ActiveInferences}",
+                cpuPercent, totalAtoms, totalEmbeddings, activeInferences);
+
+            return Ok(Success(response));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "Database error retrieving system metrics");
+            return BadRequest(Failure<SystemMetricsResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "Failed to retrieve system metrics", ex.Message)
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error retrieving system metrics");
+            return BadRequest(Failure<SystemMetricsResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "An unexpected error occurred while retrieving metrics")
+            }));
+        }
+    }
+
+    /// <summary>
+    /// Get tenant-specific metrics (quota usage, cost, inference stats)
+    /// </summary>
+    [HttpGet("metrics/{tenantId}")]
+    [Authorize]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<TenantMetricsResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetTenantMetricsAsync([FromRoute] int tenantId)
+    {
+        try
+        {
+            _logger.LogInformation("Retrieving metrics for tenant {TenantId}", tenantId);
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var query = @"
+                -- Quota and billing
+                SELECT 
+                    ISNULL(SUM(ul.Quantity), 0) AS QuotaUsed,
+                    (SELECT TOP 1 QuotaLimit FROM billing.TenantQuotas WHERE TenantId = @TenantId AND IsActive = 1) AS QuotaLimit,
+                    ISNULL(SUM(ul.Quantity * ISNULL(ul.CostPerUnit, 0)), 0) AS CostAccrued
+                FROM billing.UsageLedger ul
+                WHERE ul.TenantId = @TenantId
+                  AND ul.RecordedUtc >= DATEADD(MONTH, -1, SYSUTCDATETIME());
+                
+                -- Inference stats
+                SELECT 
+                    COUNT(*) AS InferenceCount,
+                    MAX(StartedAtUtc) AS LastInferenceUtc,
+                    AVG(DATEDIFF(MILLISECOND, StartedAtUtc, CompletedAtUtc)) AS AvgInferenceMs
+                FROM dbo.InferenceJobs
+                WHERE TenantId = @TenantId
+                  AND StartedAtUtc >= DATEADD(MONTH, -1, SYSUTCDATETIME())
+                  AND Status = 'Completed';";
+
+            await using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@TenantId", tenantId);
+            await using var reader = await command.ExecuteReaderAsync();
+
+            var quotaUsed = 0L;
+            var quotaLimit = 0L;
+            var costAccrued = 0m;
+
+            if (await reader.ReadAsync())
+            {
+                quotaUsed = reader.GetInt64(0);
+                quotaLimit = reader.IsDBNull(1) ? 0 : reader.GetInt64(1);
+                costAccrued = reader.GetDecimal(2);
+            }
+
+            var inferenceCount = 0;
+            DateTime? lastInferenceUtc = null;
+            var avgInferenceMs = 0.0;
+
+            if (await reader.NextResultAsync() && await reader.ReadAsync())
+            {
+                inferenceCount = reader.GetInt32(0);
+                lastInferenceUtc = reader.IsDBNull(1) ? null : reader.GetDateTime(1);
+                avgInferenceMs = reader.IsDBNull(2) ? 0 : reader.GetDouble(2);
+            }
+
+            var response = new TenantMetricsResponse
+            {
+                TenantId = tenantId,
+                QuotaUsed = quotaUsed,
+                QuotaLimit = quotaLimit,
+                CostAccrued = costAccrued,
+                InferenceCount = inferenceCount,
+                LastInferenceUtc = lastInferenceUtc,
+                AvgInferenceMs = avgInferenceMs,
+                MeasuredAt = DateTime.UtcNow
+            };
+
+            _logger.LogInformation("Tenant {TenantId} metrics: Quota={QuotaUsed}/{QuotaLimit}, Cost=${Cost:F2}, Inferences={Inferences}",
+                tenantId, quotaUsed, quotaLimit, costAccrued, inferenceCount);
+
+            return Ok(Success(response));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "Database error retrieving tenant metrics for {TenantId}", tenantId);
+            return BadRequest(Failure<TenantMetricsResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "Failed to retrieve tenant metrics", ex.Message)
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error retrieving tenant metrics for {TenantId}", tenantId);
+            return BadRequest(Failure<TenantMetricsResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "An unexpected error occurred while retrieving tenant metrics")
+            }));
+        }
     }
 }
