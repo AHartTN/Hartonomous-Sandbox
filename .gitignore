@@ -28,6 +28,18 @@ project.lock.json
 project.fragment.lock.json
 artifacts/
 
+# Published output
+publish/
+**/publish/
+
+# Azure DevOps agent directories
+azagent/
+**/azagent/
+.agent/
+**/.agent/
+_work/
+**/_work/
+
 # NuGet
 *.nupkg
 *.snupkg

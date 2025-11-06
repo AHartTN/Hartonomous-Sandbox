@@ -1,0 +1,19 @@
+[Unit]
+Description=Hartonomous Model Ingestion
+After=network.target
+
+[Service]
+Type=notify
+User=ahart
+WorkingDirectory=/srv/www/hartonomous/model-ingestion
+ExecStart=/usr/bin/dotnet /srv/www/hartonomous/model-ingestion/ModelIngestion.dll
+Restart=always
+RestartSec=10
+KillSignal=SIGINT
+SyslogIdentifier=hartonomous-model-ingestion
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
+Environment=AZURE_CLIENT_ID=c25ed11d-c712-4574-8897-6a3a0c8dbb7f
+
+[Install]
+WantedBy=multi-user.target

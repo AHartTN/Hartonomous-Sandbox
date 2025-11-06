@@ -49,8 +49,45 @@ stages:
         projects: 'src/Hartonomous.Api/Hartonomous.Api.csproj'
         publishWebProjects: false
         arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/api'
-        zipAfterPublish: true
+        zipAfterPublish: false
         modifyOutputPath: false
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish CesConsumer'
+      inputs:
+        command: 'publish'
+        projects: 'src/CesConsumer/CesConsumer.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/ces-consumer'
+        zipAfterPublish: false
+        modifyOutputPath: false
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Neo4jSync'
+      inputs:
+        command: 'publish'
+        projects: 'src/Neo4jSync/Neo4jSync.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/neo4j-sync'
+        zipAfterPublish: false
+        modifyOutputPath: false
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish ModelIngestion'
+      inputs:
+        command: 'publish'
+        projects: 'src/ModelIngestion/ModelIngestion.csproj'
+        publishWebProjects: false
+        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/model-ingestion'
+        zipAfterPublish: false
+        modifyOutputPath: false
+
+    - task: CopyFiles@2
+      displayName: 'Copy deployment scripts'
+      inputs:
+        SourceFolder: 'deploy'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/deploy'
 
     - task: PublishBuildArtifacts@1
       displayName: 'Publish build artifacts'
@@ -58,3 +95,72 @@ stages:
         PathtoPublish: '$(Build.ArtifactStagingDirectory)'
         ArtifactName: 'drop'
         publishLocation: 'Container'
+
+- stage: 'DeployToProduction'
+  displayName: 'Deploy to HART-SERVER Production'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployServices
+    displayName: 'Deploy Hartonomous Services'
+    environment: 'hart-server-production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+
+          - bash: |
+              echo "Installing systemd service files..."
+              mkdir -p ~/.config/systemd/user
+              cp $(Pipeline.Workspace)/drop/deploy/*.service ~/.config/systemd/user/
+              systemctl --user daemon-reload
+            displayName: 'Install systemd service files'
+
+          - bash: |
+              echo "Stopping services..."
+              systemctl --user stop hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion || true
+            displayName: 'Stop existing services'
+
+          - bash: |
+              echo "Deploying API..."
+              mkdir -p /srv/www/hartonomous/api
+              cp -r $(Pipeline.Workspace)/drop/api/* /srv/www/hartonomous/api/
+              chmod +x /srv/www/hartonomous/api/Hartonomous.Api || true
+            displayName: 'Deploy API'
+
+          - bash: |
+              echo "Deploying CesConsumer..."
+              mkdir -p /srv/www/hartonomous/ces-consumer
+              cp -r $(Pipeline.Workspace)/drop/ces-consumer/* /srv/www/hartonomous/ces-consumer/
+              chmod +x /srv/www/hartonomous/ces-consumer/CesConsumer || true
+            displayName: 'Deploy CesConsumer'
+
+          - bash: |
+              echo "Deploying Neo4jSync..."
+              mkdir -p /srv/www/hartonomous/neo4j-sync
+              cp -r $(Pipeline.Workspace)/drop/neo4j-sync/* /srv/www/hartonomous/neo4j-sync/
+              chmod +x /srv/www/hartonomous/neo4j-sync/Neo4jSync || true
+            displayName: 'Deploy Neo4jSync'
+
+          - bash: |
+              echo "Deploying ModelIngestion..."
+              mkdir -p /srv/www/hartonomous/model-ingestion
+              cp -r $(Pipeline.Workspace)/drop/model-ingestion/* /srv/www/hartonomous/model-ingestion/
+              chmod +x /srv/www/hartonomous/model-ingestion/ModelIngestion || true
+            displayName: 'Deploy ModelIngestion'
+
+          - bash: |
+              echo "Starting services..."
+              systemctl --user enable hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion
+              systemctl --user start hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion
+            displayName: 'Start services'
+
+          - bash: |
+              echo "Checking service status..."
+              systemctl --user status hartonomous-api --no-pager || true
+              systemctl --user status hartonomous-ces-consumer --no-pager || true
+              systemctl --user status hartonomous-neo4j-sync --no-pager || true
+              systemctl --user status hartonomous-model-ingestion --no-pager || true
+            displayName: 'Verify service status'
