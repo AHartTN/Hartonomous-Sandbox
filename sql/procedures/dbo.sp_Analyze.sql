@@ -29,15 +29,17 @@ BEGIN
         
         INSERT INTO @RecentInferences
         SELECT TOP 1000
-            InferenceRequestId,
-            ModelId,
-            RequestedAt,
-            CompletedAt,
-            DATEDIFF(MILLISECOND, RequestedAt, CompletedAt) AS DurationMs,
-            0 AS TokenCount -- TODO: Calculate from atom count
+            InferenceId AS InferenceRequestId,
+            CAST(JSON_VALUE(ModelsUsed, '$[0].ModelId') AS INT) AS ModelId,
+            RequestTimestamp AS RequestedAt,
+            DATEADD(MILLISECOND, ISNULL(TotalDurationMs, 0), RequestTimestamp) AS CompletedAt,
+            ISNULL(TotalDurationMs, 0) AS DurationMs,
+            -- Estimate token count: ~4 chars per token for English text
+            (LEN(ISNULL(InputData, '')) + LEN(ISNULL(OutputData, ''))) / 4 AS TokenCount
         FROM dbo.InferenceRequests
-        WHERE RequestedAt >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
-        ORDER BY RequestedAt DESC;
+        WHERE RequestTimestamp >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
+            AND Status IN ('Completed', 'Failed')
+        ORDER BY RequestTimestamp DESC;
         
         -- 2. DETECT PERFORMANCE ANOMALIES
         -- Find inferences that took >2x the average duration

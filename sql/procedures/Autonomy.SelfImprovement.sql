@@ -312,7 +312,28 @@ OUTPUT FORMAT (JSON):
             END
             
             -- Log the dry-run attempt
-            -- TODO: Insert into ImprovementHistory table
+            INSERT INTO dbo.AutonomousImprovementHistory (
+                AnalysisResults,
+                GeneratedCode,
+                TargetFile,
+                ChangeType,
+                RiskLevel,
+                EstimatedImpact,
+                SuccessScore,
+                WasDeployed,
+                CompletedAt
+            )
+            VALUES (
+                @AnalysisResults,
+                @GeneratedCode,
+                @TargetFile,
+                @ChangeType,
+                @RiskLevel,
+                @EstimatedImpact,
+                NULL,  -- No success score in dry-run mode
+                0,     -- Not deployed
+                SYSUTCDATETIME()
+            );
             
             RETURN;
         END
@@ -458,8 +479,19 @@ OUTPUT FORMAT (JSON):
                     FROM dbo.AutonomousImprovementHistory
                     WHERE ChangeType = @ChangeType
                 ), 0.5) AS historical_success_rate,
-                0.6 AS code_complexity_score,  -- TODO: Parse from generated code
-                0.7 AS test_coverage_score;    -- TODO: Query from test database
+                -- Calculate code complexity score from generated code metrics
+                CASE 
+                    WHEN LEN(JSON_VALUE(@GeneratedCode, '$.code')) < 500 THEN 0.3  -- Simple change
+                    WHEN LEN(JSON_VALUE(@GeneratedCode, '$.code')) < 2000 THEN 0.6 -- Medium complexity
+                    ELSE 0.9                                                        -- High complexity
+                END AS code_complexity_score,
+                -- Calculate test coverage score from TestResults table
+                ISNULL((
+                    SELECT CAST(SUM(CASE WHEN TestStatus = 'Passed' THEN 1 ELSE 0 END) AS FLOAT) / NULLIF(COUNT(*), 0)
+                    FROM dbo.TestResults
+                    WHERE TestCategory LIKE '%' + @ChangeType + '%'
+                        AND ExecutedAt >= DATEADD(DAY, -7, SYSUTCDATETIME())
+                ), 0.5) AS test_coverage_score
             
             -- Execute PREDICT
             SELECT @SuccessScore = predicted_score

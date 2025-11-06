@@ -187,15 +187,36 @@ public sealed class ContentGenerationSuite
         string modelIdentifier,
         CancellationToken cancellationToken)
     {
-        // Query YOUR TTS model atoms from TensorAtoms and run inference
-        // Use ONNX Runtime to execute TTS model (e.g., Piper TTS, VITS, Tacotron2+Vocoder)
+        // TODO: Full ONNX TTS pipeline implementation
+        // 
+        // PRODUCTION IMPLEMENTATION REQUIRED:
+        // 1. Query model from database by modelIdentifier:
+        //    SELECT * FROM dbo.Models WHERE ModelName = @modelIdentifier AND ModelType = 'ONNX'
+        //
+        // 2. Load model layers/weights from LayerTensorSegments:
+        //    SELECT lts.RawPayload, lts.SegmentOrdinal, lts.QuantizationType
+        //    FROM dbo.LayerTensorSegments lts
+        //    INNER JOIN dbo.ModelLayers ml ON lts.LayerId = ml.LayerId
+        //    WHERE ml.ModelId = @modelId
+        //    ORDER BY ml.LayerIndex, lts.SegmentOrdinal
+        //
+        // 3. Reconstruct ONNX model from segments:
+        //    - Dequantize segments (Q4_K, Q8_0, F32, etc.)
+        //    - Assemble into complete tensor arrays
+        //    - Build ONNX InferenceSession from reconstructed weights
+        //
+        // 4. TTS Pipeline execution:
+        //    - Text → Phonemes (using grapheme-to-phoneme model or dictionary)
+        //    - Phonemes → Mel-spectrogram (using TTS encoder: Piper, VITS, Tacotron2)
+        //    - Mel → Waveform (using vocoder: HiFi-GAN, WaveGlow, MelGAN)
+        //    - Waveform → WAV/MP3 bytes
+        //
+        // 5. Use Microsoft.ML.OnnxRuntime.InferenceSession for inference
+        //
+        // ESTIMATED EFFORT: 8-12 hours for full implementation
+        // DEPENDENCIES: Tested TTS ONNX model ingested into LayerTensorSegments
         
-        // For production: Load TTS ONNX model from TensorAtoms
-        // Run text → mel-spectrogram → waveform pipeline
-        // Return WAV/MP3 audio bytes
-        
-        // Simplified implementation: Generate basic sine wave audio (placeholder)
-        // Real implementation would use ingested TTS model weights
+        // TEMPORARY PLACEHOLDER (remove when real implementation complete):
         var sampleRate = 22050; // 22.05 kHz
         var durationSeconds = Math.Min(text.Length / 10.0, 30.0); // Approximate duration
         var sampleCount = (int)(sampleRate * durationSeconds);
@@ -219,14 +240,14 @@ public sealed class ContentGenerationSuite
         writer.Write(new[] { 'd', 'a', 't', 'a' });
         writer.Write(sampleCount * 2); // Data size
         
-        // Write audio samples (sine wave placeholder - real TTS would generate from model)
+        // Write audio samples (sine wave placeholder)
         for (int i = 0; i < sampleCount; i++)
         {
             var sample = (short)(Math.Sin(2 * Math.PI * frequency * i / sampleRate) * 16384);
             writer.Write(sample);
         }
         
-        await Task.CompletedTask; // Placeholder for async ONNX inference
+        await Task.CompletedTask;
         return memoryStream.ToArray();
     }
 
@@ -237,20 +258,41 @@ public sealed class ContentGenerationSuite
         int height,
         CancellationToken cancellationToken)
     {
-        // Query YOUR Stable Diffusion model atoms from TensorAtoms and run diffusion
-        // Use ONNX Runtime to execute Stable Diffusion pipeline:
-        // 1. Text → CLIP text embedding
-        // 2. Noise → U-Net iterative denoising (guided by text embedding)
-        // 3. Latent → VAE decoder → pixel image
+        // TODO: Full ONNX Stable Diffusion pipeline implementation
+        //
+        // PRODUCTION IMPLEMENTATION REQUIRED:
+        // 1. Query Stable Diffusion model from database:
+        //    SELECT ModelId FROM dbo.Models 
+        //    WHERE ModelName = @modelIdentifier AND Architecture LIKE '%diffusion%'
+        //
+        // 2. Load 3 ONNX models from LayerTensorSegments:
+        //    a) CLIP Text Encoder: Text → 77x768 embedding
+        //    b) U-Net: Iterative denoising of latent noise (50 steps)
+        //    c) VAE Decoder: 4-channel latent → RGB image
+        //
+        // 3. Diffusion Pipeline execution:
+        //    Step 1: Tokenize prompt using CLIP tokenizer (max 77 tokens)
+        //    Step 2: Run CLIP Text Encoder ONNX inference → text_embeddings [1,77,768]
+        //    Step 3: Initialize random latent noise [1,4,64,64] (for 512x512 output)
+        //    Step 4: Diffusion loop (50 iterations):
+        //      - Predict noise using U-Net: UNet(latent, timestep, text_embeddings) → noise_pred
+        //      - Remove predicted noise from latent: latent = latent - step_size * noise_pred
+        //    Step 5: Decode latent to image using VAE: VAE(latent) → image [1,3,512,512]
+        //    Step 6: Post-process: Denormalize, clip, convert to uint8 RGB
+        //    Step 7: Save as PNG bytes
+        //
+        // 4. Use Microsoft.ML.OnnxRuntime for all 3 model inferences
+        //
+        // ESTIMATED EFFORT: 12-16 hours for full Stable Diffusion pipeline
+        // DEPENDENCIES: 
+        //   - Stable Diffusion 1.5 or 2.1 ingested as 3 separate ONNX models
+        //   - CLIP tokenizer vocabulary
+        //   - Proper scheduler (PNDM, DDIM, or Euler)
         
-        // For production: Load Stable Diffusion ONNX model from TensorAtoms
-        // Run full diffusion pipeline with YOUR weights
-        
-        // Simplified implementation: Generate gradient image with text overlay (placeholder)
-        // Real implementation would use ingested Stable Diffusion model weights
+        // TEMPORARY PLACEHOLDER (remove when real implementation complete):
         using var image = new Image<Rgba32>(width, height);
         
-        // Create gradient background (placeholder for diffusion output)
+        // Create gradient background based on prompt hash
         var hashCode = prompt.GetHashCode();
         var rng = new Random(hashCode);
         
