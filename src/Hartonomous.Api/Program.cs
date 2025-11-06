@@ -4,6 +4,7 @@ using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
 using Hartonomous.Api.Authorization;
+using Hartonomous.Api.RateLimiting;
 using Hartonomous.Api.Services;
 using Hartonomous.Infrastructure;
 using Hartonomous.Shared.Contracts.Errors;
@@ -108,6 +109,9 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddSingleton<IAuthorizationHandler, RoleHierarchyHandler>();
 builder.Services.AddSingleton<IAuthorizationHandler, TenantResourceAuthorizationHandler>();
 
+// Register tenant rate limiting policy
+builder.Services.AddSingleton<TenantRateLimitPolicy>();
+
 // Rate Limiting
 builder.Services.AddRateLimiter(options =>
 {
@@ -131,7 +135,7 @@ builder.Services.AddRateLimiter(options =>
         opt.AutoReplenishment = true;
     });
 
-    // Sliding window for authenticated users (per-user limiting)
+    // Sliding window for authenticated users (per-user limiting) - LEGACY
     options.AddPolicy("per-user", context =>
     {
         var username = context.User.Identity?.Name ?? "anonymous";
@@ -144,6 +148,27 @@ builder.Services.AddRateLimiter(options =>
                 QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
                 QueueLimit = 10
             });
+    });
+
+    // Tenant-aware rate limiting (tier-based)
+    options.AddPolicy("tenant-tier", context =>
+    {
+        var policy = context.RequestServices.GetRequiredService<TenantRateLimitPolicy>();
+        return policy.GetPartition(context);
+    });
+
+    // Tenant-aware sliding window (for API endpoints)
+    options.AddPolicy("tenant-api", context =>
+    {
+        var policy = context.RequestServices.GetRequiredService<TenantRateLimitPolicy>();
+        return policy.GetSlidingWindowPartition(context);
+    });
+
+    // Tenant-aware token bucket (for inference/generation)
+    options.AddPolicy("tenant-inference", context =>
+    {
+        var policy = context.RequestServices.GetRequiredService<TenantRateLimitPolicy>();
+        return policy.GetTokenBucketPartition(context);
     });
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
