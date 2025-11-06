@@ -136,6 +136,23 @@ public static class DependencyInjection
         services.AddSingleton<ICacheService, DistributedCacheService>();
         services.AddScoped<CacheInvalidationService>();
 
+        // Event Bus - Uses in-memory by default for development
+        // For production: Replace with ServiceBusEventBus (Azure Service Bus)
+        services.Configure<Messaging.ServiceBusOptions>(configuration.GetSection(Messaging.ServiceBusOptions.SectionName));
+        services.AddSingleton<Messaging.IEventBus, Messaging.InMemoryEventBus>();
+
+        // Event handlers (OODA loop + domain events)
+        services.AddScoped<Messaging.Handlers.ObservationEventHandler>();
+        services.AddScoped<Messaging.Handlers.OrientationEventHandler>();
+        services.AddScoped<Messaging.Handlers.DecisionEventHandler>();
+        services.AddScoped<Messaging.Handlers.ActionEventHandler>();
+        services.AddScoped<Messaging.Handlers.AtomIngestedEventHandler>();
+        services.AddScoped<Messaging.Handlers.CacheInvalidatedEventHandler>();
+        services.AddScoped<Messaging.Handlers.QuotaExceededEventHandler>();
+
+        // Event bus hosted service - initializes subscriptions on startup
+        services.AddHostedService<Messaging.EventBusHostedService>();
+
         services.AddSingleton<IAccessPolicyRule, TenantAccessPolicyRule>();
         services.AddSingleton<IAccessPolicyEngine, AccessPolicyEngine>();
         services.AddSingleton<IThrottleEvaluator, InMemoryThrottleEvaluator>();
