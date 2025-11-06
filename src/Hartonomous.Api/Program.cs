@@ -15,6 +15,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.FeatureManagement;
 using Microsoft.Identity.Web;
 using Microsoft.OpenApi.Models;
 using Neo4j.Driver;
@@ -44,6 +45,9 @@ builder.Configuration.AddAzureAppConfiguration(options =>
 
 // Add Azure App Configuration middleware for refresh support
 builder.Services.AddAzureAppConfiguration();
+
+// Feature Management - integrated with Azure App Configuration
+builder.Services.AddFeatureManagement();
 
 // OpenTelemetry Configuration
 builder.Services.AddOpenTelemetry()
