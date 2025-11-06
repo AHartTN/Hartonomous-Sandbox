@@ -132,7 +132,7 @@ public class ModelReaderTests
         {
             layer.LayerId = _nextId++;
             _layers[layer.LayerId] = layer;
-            LastGeometry = layer.LayerGeometry;
+            LastGeometry = layer.WeightsGeometry;
             return Task.FromResult(layer);
         }
 
@@ -142,7 +142,7 @@ public class ModelReaderTests
             {
                 layer.LayerId = _nextId++;
                 _layers[layer.LayerId] = layer;
-                LastGeometry = layer.LayerGeometry;
+                LastGeometry = layer.WeightsGeometry;
             }
             return Task.CompletedTask;
         }
@@ -152,7 +152,7 @@ public class ModelReaderTests
             if (_layers.ContainsKey(layer.LayerId))
             {
                 _layers[layer.LayerId] = layer;
-                LastGeometry = layer.LayerGeometry;
+                LastGeometry = layer.WeightsGeometry;
             }
             return Task.CompletedTask;
         }
@@ -169,7 +169,8 @@ public class ModelReaderTests
                 .Where(l => l.ModelId == modelId)
                 .Where(l =>
                 {
-                    var weights = ExtractWeightsFromGeometry(l.LayerGeometry);
+                    if (l.WeightsGeometry == null) return false;
+                    var weights = ExtractWeightsFromGeometry(l.WeightsGeometry);
                     return weights.Any(w => w >= minValue && w <= maxValue);
                 })
                 .ToList();
@@ -179,7 +180,7 @@ public class ModelReaderTests
         public Task<IReadOnlyList<ModelLayer>> GetLayersByImportanceAsync(int modelId, double minImportance, CancellationToken cancellationToken = default)
         {
             var layers = _layers.Values
-                .Where(l => l.ModelId == modelId && l.ImportanceScore >= minImportance)
+                .Where(l => l.ModelId == modelId)
                 .ToList();
             return Task.FromResult<IReadOnlyList<ModelLayer>>(layers);
         }
