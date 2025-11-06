@@ -176,3 +176,141 @@ public class CreateRelationshipResponse
     public bool Success { get; set; }
     public string? Message { get; set; }
 }
+
+// ============================================================================
+// SQL Server Graph DTOs (AS NODE / AS EDGE syntax)
+// ============================================================================
+
+/// <summary>
+/// Request to create a node in SQL Server graph (graph.AtomGraphNodes)
+/// </summary>
+public class SqlGraphCreateNodeRequest
+{
+    [Required]
+    public long AtomId { get; set; }
+    
+    [Required]
+    public required string NodeType { get; set; } // 'Atom', 'Model', 'Concept', etc.
+    
+    public Dictionary<string, object>? Metadata { get; set; }
+    
+    public float? EmbeddingX { get; set; }
+    public float? EmbeddingY { get; set; }
+    public float? EmbeddingZ { get; set; }
+}
+
+/// <summary>
+/// Response from creating a SQL Server graph node
+/// </summary>
+public class SqlGraphCreateNodeResponse
+{
+    public long NodeId { get; set; }
+    public long AtomId { get; set; }
+    public required string NodeType { get; set; }
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+}
+
+/// <summary>
+/// Request to create an edge in SQL Server graph (graph.AtomGraphEdges)
+/// </summary>
+public class SqlGraphCreateEdgeRequest
+{
+    [Required]
+    public long FromNodeId { get; set; }
+    
+    [Required]
+    public long ToNodeId { get; set; }
+    
+    [Required]
+    public required string EdgeType { get; set; } // 'DerivedFrom', 'ComponentOf', 'SimilarTo', etc.
+    
+    [Range(0.0, 1.0)]
+    public double Weight { get; set; } = 1.0;
+    
+    public Dictionary<string, object>? Metadata { get; set; }
+    
+    public DateTime? ValidFrom { get; set; }
+    public DateTime? ValidTo { get; set; }
+}
+
+/// <summary>
+/// Response from creating a SQL Server graph edge
+/// </summary>
+public class SqlGraphCreateEdgeResponse
+{
+    public long EdgeId { get; set; }
+    public long FromNodeId { get; set; }
+    public long ToNodeId { get; set; }
+    public required string EdgeType { get; set; }
+    public bool Success { get; set; }
+    public string? Message { get; set; }
+}
+
+/// <summary>
+/// Request to traverse SQL Server graph using MATCH syntax
+/// </summary>
+public class SqlGraphTraverseRequest
+{
+    [Required]
+    public long StartAtomId { get; set; }
+    
+    public long? EndAtomId { get; set; }
+    
+    [Range(1, 5)]
+    public int MaxDepth { get; set; } = 3;
+    
+    public string? EdgeTypeFilter { get; set; } // Optional: 'DerivedFrom', 'SimilarTo', etc.
+    
+    public string Direction { get; set; } = "outbound"; // outbound, inbound, both
+}
+
+/// <summary>
+/// Response from SQL Server graph traversal
+/// </summary>
+public class SqlGraphTraverseResponse
+{
+    public long StartAtomId { get; set; }
+    public long? EndAtomId { get; set; }
+    public required List<SqlGraphPathEntry> Paths { get; set; }
+    public int TotalPathsFound { get; set; }
+    public int ExecutionTimeMs { get; set; }
+}
+
+/// <summary>
+/// Single path in SQL Server graph traversal result
+/// </summary>
+public class SqlGraphPathEntry
+{
+    public required List<long> NodeIds { get; set; }
+    public required List<long> AtomIds { get; set; }
+    public required List<string> EdgeTypes { get; set; }
+    public int PathLength { get; set; }
+    public double TotalWeight { get; set; }
+}
+
+/// <summary>
+/// Request to find shortest path in SQL Server graph using SHORTEST_PATH
+/// </summary>
+public class SqlGraphShortestPathRequest
+{
+    [Required]
+    public long StartAtomId { get; set; }
+    
+    [Required]
+    public long EndAtomId { get; set; }
+    
+    public string? EdgeTypeFilter { get; set; }
+}
+
+/// <summary>
+/// Response from shortest path query
+/// </summary>
+public class SqlGraphShortestPathResponse
+{
+    public long StartAtomId { get; set; }
+    public long EndAtomId { get; set; }
+    public SqlGraphPathEntry? ShortestPath { get; set; }
+    public bool PathFound { get; set; }
+    public int ExecutionTimeMs { get; set; }
+}

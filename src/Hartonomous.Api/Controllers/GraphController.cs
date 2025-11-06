@@ -1,40 +1,52 @@
-using Hartonomous.Api.Common;
 using Hartonomous.Api.DTOs.Graph;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Shared.Contracts.Errors;
+using Hartonomous.Shared.Contracts.Responses;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Data.SqlClient;
 using Neo4j.Driver;
 using System.Diagnostics;
+using System.Text.Json;
 
 namespace Hartonomous.Api.Controllers;
 
 [ApiController]
 [Route("api/v1/[controller]")]
-public class GraphController : ControllerBase
+public class GraphController : ApiControllerBase
 {
     private readonly ILogger<GraphController> _logger;
     private readonly IDriver _neo4jDriver;
     private readonly IInferenceService _inferenceService;
+    private readonly string _connectionString;
 
     public GraphController(
         ILogger<GraphController> logger, 
         IDriver neo4jDriver,
-        IInferenceService inferenceService)
+        IInferenceService inferenceService,
+        IConfiguration configuration)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _neo4jDriver = neo4jDriver ?? throw new ArgumentNullException(nameof(neo4jDriver));
         _inferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
+        _connectionString = configuration.GetConnectionString("HartonomousDb") 
+            ?? throw new ArgumentNullException(nameof(configuration), "Connection string 'HartonomousDb' not found");
     }
 
     [HttpPost("query")]
     [ProducesResponseType(typeof(ApiResponse<GraphQueryResponse>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<GraphQueryResponse>), 400)]
     public async Task<IActionResult> ExecuteQuery(
         [FromBody] GraphQueryRequest request,
         CancellationToken cancellationToken)
     {
         if (request == null || string.IsNullOrWhiteSpace(request.CypherQuery))
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "CypherQuery is required"));
+            return BadRequest(Failure<GraphQueryResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "CypherQuery is required", "CypherQuery cannot be empty")
+            }));
         }
 
         try
@@ -60,38 +72,35 @@ public class GraphController : ControllerBase
 
             stopwatch.Stop();
 
-            return Ok(ApiResponse<GraphQueryResponse>.Ok(new GraphQueryResponse
+            return Ok(Success(new GraphQueryResponse
             {
                 Results = results,
                 ResultCount = results.Count,
                 ExecutionTime = stopwatch.Elapsed,
                 Query = request.CypherQuery
-            }, new ApiMetadata
-            {
-                TotalCount = results.Count,
-                Extra = new Dictionary<string, object>
-                {
-                    ["executionTimeMs"] = stopwatch.ElapsedMilliseconds
-                }
             }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Graph query failed");
-            return StatusCode(500, ApiResponse<object>.Fail("QUERY_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.ExternalDependencyFailure, "Graph query failed", ex.Message);
+            return StatusCode(500, Failure<GraphQueryResponse>(new[] { error }));
         }
     }
 
     [HttpPost("related")]
     [ProducesResponseType(typeof(ApiResponse<FindRelatedAtomsResponse>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<FindRelatedAtomsResponse>), 400)]
     public async Task<IActionResult> FindRelatedAtoms(
         [FromBody] FindRelatedAtomsRequest request,
         CancellationToken cancellationToken)
     {
         if (request == null)
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "Request body is required"));
+            return BadRequest(Failure<FindRelatedAtomsResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "Request body is required", "FindRelatedAtomsRequest cannot be null")
+            }));
         }
 
         try
@@ -137,38 +146,35 @@ public class GraphController : ControllerBase
                 PathDescription = record["pathDescription"].As<List<string>>()
             }).ToList();
 
-            return Ok(ApiResponse<FindRelatedAtomsResponse>.Ok(new FindRelatedAtomsResponse
+            return Ok(Success(new FindRelatedAtomsResponse
             {
                 SourceAtomId = request.AtomId,
                 RelatedAtoms = relatedAtoms,
                 TotalPaths = relatedAtoms.Count
-            }, new ApiMetadata
-            {
-                TotalCount = relatedAtoms.Count,
-                Extra = new Dictionary<string, object>
-                {
-                    ["maxDepth"] = request.MaxDepth,
-                    ["relationshipType"] = request.RelationshipType ?? "any"
-                }
             }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to find related atoms");
-            return StatusCode(500, ApiResponse<object>.Fail("TRAVERSAL_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.ExternalDependencyFailure, "Failed to find related atoms", ex.Message);
+            return StatusCode(500, Failure<FindRelatedAtomsResponse>(new[] { error }));
         }
     }
 
     [HttpPost("traverse")]
     [ProducesResponseType(typeof(ApiResponse<TraverseGraphResponse>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<TraverseGraphResponse>), 400)]
     public async Task<IActionResult> TraverseGraph(
         [FromBody] TraverseGraphRequest request,
         CancellationToken cancellationToken)
     {
         if (request?.AllowedRelationships == null || request.AllowedRelationships.Count == 0)
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "At least one allowed relationship type is required"));
+            return BadRequest(Failure<TraverseGraphResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, 
+                    "At least one allowed relationship type is required", "AllowedRelationships cannot be empty")
+            }));
         }
 
         try
@@ -248,44 +254,41 @@ public class GraphController : ControllerBase
                 };
             }).ToList();
 
-            return Ok(ApiResponse<TraverseGraphResponse>.Ok(new TraverseGraphResponse
+            return Ok(Success(new TraverseGraphResponse
             {
                 StartAtomId = request.StartAtomId,
                 EndAtomId = request.EndAtomId,
                 Paths = paths,
                 TotalPathsFound = paths.Count
-            }, new ApiMetadata
-            {
-                TotalCount = paths.Count,
-                Extra = new Dictionary<string, object>
-                {
-                    ["strategy"] = request.TraversalStrategy,
-                    ["maxDepth"] = request.MaxDepth
-                }
             }));
         }
         catch (ArgumentException ex)
         {
             _logger.LogWarning(ex, "Invalid traversal request");
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, "Invalid traversal strategy", ex.Message);
+            return BadRequest(Failure<TraverseGraphResponse>(new[] { error }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Graph traversal failed");
-            return StatusCode(500, ApiResponse<object>.Fail("TRAVERSAL_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.ExternalDependencyFailure, "Graph traversal failed", ex.Message);
+            return StatusCode(500, Failure<TraverseGraphResponse>(new[] { error }));
         }
     }
 
     [HttpPost("explore")]
     [ProducesResponseType(typeof(ApiResponse<ExploreConceptResponse>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<ExploreConceptResponse>), 400)]
     public async Task<IActionResult> ExploreConcept(
         [FromBody] ExploreConceptRequest request,
         CancellationToken cancellationToken)
     {
         if (request == null || string.IsNullOrWhiteSpace(request.ConceptText))
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "ConceptText is required"));
+            return BadRequest(Failure<ExploreConceptResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "ConceptText is required", "ConceptText cannot be empty")
+            }));
         }
 
         try
@@ -370,26 +373,19 @@ public class GraphController : ControllerBase
                 }
             }
 
-            return Ok(ApiResponse<ExploreConceptResponse>.Ok(new ExploreConceptResponse
+            return Ok(Success(new ExploreConceptResponse
             {
                 ConceptText = request.ConceptText,
                 Nodes = nodes,
                 Relationships = relationships,
                 ModalityBreakdown = modalityBreakdown
-            }, new ApiMetadata
-            {
-                TotalCount = nodes.Count,
-                Extra = new Dictionary<string, object>
-                {
-                    ["conceptSimilarityThreshold"] = request.MinSimilarity ?? 0.7,
-                    ["relationshipCount"] = relationships.Count
-                }
             }));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Concept exploration failed");
-            return StatusCode(500, ApiResponse<object>.Fail("EXPLORATION_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.ExternalDependencyFailure, "Concept exploration failed", ex.Message);
+            return StatusCode(500, Failure<ExploreConceptResponse>(new[] { error }));
         }
     }
 
@@ -488,30 +484,37 @@ public class GraphController : ControllerBase
                 IsolatedNodes = isolatedCount
             };
 
-            return Ok(ApiResponse<GetGraphStatsResponse>.Ok(response));
+            return Ok(Success(response));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to retrieve graph stats");
-            return StatusCode(500, ApiResponse<object>.Fail("STATS_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.ExternalDependencyFailure, "Failed to retrieve graph stats", ex.Message);
+            return StatusCode(500, Failure<GetGraphStatsResponse>(new[] { error }));
         }
     }
 
     [HttpPost("relationship")]
     [ProducesResponseType(typeof(ApiResponse<CreateRelationshipResponse>), 200)]
-    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<CreateRelationshipResponse>), 400)]
     public async Task<IActionResult> CreateRelationship(
         [FromBody] CreateRelationshipRequest request,
         CancellationToken cancellationToken)
     {
         if (request == null || string.IsNullOrWhiteSpace(request.RelationshipType))
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "RelationshipType is required"));
+            return BadRequest(Failure<CreateRelationshipResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "RelationshipType is required", "RelationshipType cannot be empty")
+            }));
         }
 
         if (request.FromAtomId == request.ToAtomId)
         {
-            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "Cannot create self-relationship"));
+            return BadRequest(Failure<CreateRelationshipResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, "Cannot create self-relationship", "FromAtomId and ToAtomId must be different")
+            }));
         }
 
         try
@@ -547,7 +550,7 @@ public class GraphController : ControllerBase
             var summary = await cursor.ConsumeAsync();
             var success = summary.Counters.RelationshipsCreated > 0 || summary.Counters.PropertiesSet > 0;
 
-            return Ok(ApiResponse<CreateRelationshipResponse>.Ok(new CreateRelationshipResponse
+            return Ok(Success(new CreateRelationshipResponse
             {
                 FromAtomId = request.FromAtomId,
                 ToAtomId = request.ToAtomId,
@@ -559,7 +562,8 @@ public class GraphController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to create relationship");
-            return StatusCode(500, ApiResponse<object>.Fail("CREATION_FAILED", ex.Message));
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.ExternalDependencyFailure, "Failed to create relationship", ex.Message);
+            return StatusCode(500, Failure<CreateRelationshipResponse>(new[] { error }));
         }
     }
 
@@ -590,5 +594,432 @@ public class GraphController : ControllerBase
             IDictionary<string, object> dict => dict.ToDictionary(kvp => kvp.Key, kvp => ConvertNeo4jValue(kvp.Value)),
             _ => value
         };
+    }
+
+    // ============================================================================
+    // SQL Server Graph Endpoints (AS NODE / AS EDGE MATCH syntax)
+    // ============================================================================
+
+    /// <summary>
+    /// Create a node in SQL Server graph database (graph.AtomGraphNodes)
+    /// </summary>
+    [HttpPost("sql/nodes")]
+    [Authorize(Policy = "DataScientist")]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphCreateNodeResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphCreateNodeResponse>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphCreateNodeResponse>), 503)]
+    public async Task<IActionResult> CreateSqlGraphNode([FromBody] SqlGraphCreateNodeRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.NodeType))
+        {
+            return BadRequest(Failure<SqlGraphCreateNodeResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "NodeType is required", "NodeType cannot be empty")
+            }));
+        }
+
+        try
+        {
+            _logger.LogInformation("Creating SQL graph node for AtomId {AtomId} with type {NodeType}", 
+                request.AtomId, request.NodeType);
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var metadataJson = request.Metadata != null 
+                ? JsonSerializer.Serialize(request.Metadata) 
+                : null;
+
+            var sql = @"
+                INSERT INTO graph.AtomGraphNodes (AtomId, NodeType, Metadata, EmbeddingX, EmbeddingY, EmbeddingZ, CreatedUtc)
+                OUTPUT INSERTED.NodeId, INSERTED.AtomId, INSERTED.NodeType
+                VALUES (@AtomId, @NodeType, @Metadata, @EmbeddingX, @EmbeddingY, @EmbeddingZ, SYSUTCDATETIME())";
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@AtomId", request.AtomId);
+            command.Parameters.AddWithValue("@NodeType", request.NodeType);
+            command.Parameters.AddWithValue("@Metadata", (object?)metadataJson ?? DBNull.Value);
+            command.Parameters.AddWithValue("@EmbeddingX", (object?)request.EmbeddingX ?? DBNull.Value);
+            command.Parameters.AddWithValue("@EmbeddingY", (object?)request.EmbeddingY ?? DBNull.Value);
+            command.Parameters.AddWithValue("@EmbeddingZ", (object?)request.EmbeddingZ ?? DBNull.Value);
+
+            await using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var response = new SqlGraphCreateNodeResponse
+                {
+                    NodeId = reader.GetInt64(0),
+                    AtomId = reader.GetInt64(1),
+                    NodeType = reader.GetString(2),
+                    Success = true,
+                    Message = "Node created successfully"
+                };
+
+                return Ok(Success(response));
+            }
+
+            return StatusCode(500, Failure<SqlGraphCreateNodeResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "Failed to create graph node", "No rows returned from INSERT")
+            }));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error creating graph node");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Failed to create SQL graph node", ex.Message);
+            return StatusCode(503, Failure<SqlGraphCreateNodeResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating graph node");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Unexpected error creating graph node", ex.Message);
+            return StatusCode(503, Failure<SqlGraphCreateNodeResponse>(new[] { error }));
+        }
+    }
+
+    /// <summary>
+    /// Create an edge in SQL Server graph database (graph.AtomGraphEdges)
+    /// </summary>
+    [HttpPost("sql/edges")]
+    [Authorize(Policy = "DataScientist")]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphCreateEdgeResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphCreateEdgeResponse>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphCreateEdgeResponse>), 503)]
+    public async Task<IActionResult> CreateSqlGraphEdge([FromBody] SqlGraphCreateEdgeRequest request)
+    {
+        if (request == null || string.IsNullOrWhiteSpace(request.EdgeType))
+        {
+            return BadRequest(Failure<SqlGraphCreateEdgeResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidRequest, "EdgeType is required", "EdgeType cannot be empty")
+            }));
+        }
+
+        try
+        {
+            _logger.LogInformation("Creating SQL graph edge: {FromNodeId} -{EdgeType}-> {ToNodeId}", 
+                request.FromNodeId, request.EdgeType, request.ToNodeId);
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var metadataJson = request.Metadata != null 
+                ? JsonSerializer.Serialize(request.Metadata) 
+                : null;
+
+            // SQL Server graph edges use special $from_id and $to_id pseudo-columns
+            var sql = @"
+                INSERT INTO graph.AtomGraphEdges ($from_id, $to_id, EdgeType, Weight, Metadata, ValidFrom, ValidTo, CreatedUtc)
+                SELECT 
+                    (SELECT $node_id FROM graph.AtomGraphNodes WHERE NodeId = @FromNodeId),
+                    (SELECT $node_id FROM graph.AtomGraphNodes WHERE NodeId = @ToNodeId),
+                    @EdgeType, @Weight, @Metadata, @ValidFrom, @ValidTo, SYSUTCDATETIME();
+                
+                SELECT CAST(SCOPE_IDENTITY() AS BIGINT) AS EdgeId, @FromNodeId AS FromNodeId, @ToNodeId AS ToNodeId, @EdgeType AS EdgeType";
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@FromNodeId", request.FromNodeId);
+            command.Parameters.AddWithValue("@ToNodeId", request.ToNodeId);
+            command.Parameters.AddWithValue("@EdgeType", request.EdgeType);
+            command.Parameters.AddWithValue("@Weight", request.Weight);
+            command.Parameters.AddWithValue("@Metadata", (object?)metadataJson ?? DBNull.Value);
+            command.Parameters.AddWithValue("@ValidFrom", (object?)request.ValidFrom ?? DBNull.Value);
+            command.Parameters.AddWithValue("@ValidTo", (object?)request.ValidTo ?? DBNull.Value);
+
+            await using var reader = await command.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var response = new SqlGraphCreateEdgeResponse
+                {
+                    EdgeId = reader.GetInt64(0),
+                    FromNodeId = reader.GetInt64(1),
+                    ToNodeId = reader.GetInt64(2),
+                    EdgeType = reader.GetString(3),
+                    Success = true,
+                    Message = "Edge created successfully"
+                };
+
+                return Ok(Success(response));
+            }
+
+            return StatusCode(500, Failure<SqlGraphCreateEdgeResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                    "Failed to create graph edge", "No rows returned from INSERT")
+            }));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error creating graph edge");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Failed to create SQL graph edge", ex.Message);
+            return StatusCode(503, Failure<SqlGraphCreateEdgeResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error creating graph edge");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Unexpected error creating graph edge", ex.Message);
+            return StatusCode(503, Failure<SqlGraphCreateEdgeResponse>(new[] { error }));
+        }
+    }
+
+    /// <summary>
+    /// Traverse SQL Server graph using MATCH syntax
+    /// </summary>
+    [HttpGet("sql/traverse")]
+    [Authorize]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphTraverseResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphTraverseResponse>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphTraverseResponse>), 503)]
+    public async Task<IActionResult> TraverseSqlGraph(
+        [FromQuery] long startAtomId,
+        [FromQuery] long? endAtomId = null,
+        [FromQuery] int maxDepth = 3,
+        [FromQuery] string? edgeTypeFilter = null,
+        [FromQuery] string direction = "outbound")
+    {
+        if (maxDepth < 1 || maxDepth > 5)
+        {
+            return BadRequest(Failure<SqlGraphTraverseResponse>(new[]
+            {
+                ErrorDetailFactory.Create(ErrorCodes.Validation.InvalidFieldValue, 
+                    "MaxDepth must be between 1 and 5", $"Received: {maxDepth}")
+            }));
+        }
+
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+            _logger.LogInformation("Traversing SQL graph from AtomId {StartAtomId} with depth {MaxDepth}", 
+                startAtomId, maxDepth);
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // Build MATCH pattern based on direction
+            var matchPattern = direction.ToLower() switch
+            {
+                "outbound" => "(start)-(edge)->(next)",
+                "inbound" => "(start)<-(edge)-(next)",
+                "both" => "(start)-(edge)-(next)",
+                _ => "(start)-(edge)->(next)"
+            };
+
+            // Build edge type filter
+            var edgeFilter = !string.IsNullOrWhiteSpace(edgeTypeFilter)
+                ? $"AND edge.EdgeType = @EdgeTypeFilter"
+                : "";
+
+            // Recursive CTE to traverse graph up to maxDepth
+            var sql = $@"
+                WITH RECURSIVE GraphTraversal AS (
+                    -- Base case: start node
+                    SELECT 
+                        start.NodeId AS NodeId,
+                        start.AtomId AS AtomId,
+                        CAST(start.NodeId AS NVARCHAR(MAX)) AS NodePath,
+                        CAST(start.AtomId AS NVARCHAR(MAX)) AS AtomPath,
+                        CAST('' AS NVARCHAR(MAX)) AS EdgePath,
+                        0 AS Depth,
+                        0.0 AS TotalWeight
+                    FROM graph.AtomGraphNodes AS start
+                    WHERE start.AtomId = @StartAtomId
+                    
+                    UNION ALL
+                    
+                    -- Recursive case: traverse edges
+                    SELECT 
+                        next.NodeId,
+                        next.AtomId,
+                        gt.NodePath + ',' + CAST(next.NodeId AS NVARCHAR(MAX)),
+                        gt.AtomPath + ',' + CAST(next.AtomId AS NVARCHAR(MAX)),
+                        CASE 
+                            WHEN gt.EdgePath = '' THEN edge.EdgeType
+                            ELSE gt.EdgePath + ',' + edge.EdgeType
+                        END,
+                        gt.Depth + 1,
+                        gt.TotalWeight + edge.Weight
+                    FROM GraphTraversal gt
+                    INNER JOIN graph.AtomGraphNodes AS start ON start.NodeId = gt.NodeId
+                    INNER JOIN graph.AtomGraphEdges AS edge ON MATCH {matchPattern}
+                    WHERE gt.Depth < @MaxDepth
+                      {edgeFilter}
+                      AND next.NodeId NOT IN (SELECT value FROM STRING_SPLIT(gt.NodePath, ','))
+                )
+                SELECT DISTINCT
+                    NodePath,
+                    AtomPath,
+                    EdgePath,
+                    Depth AS PathLength,
+                    TotalWeight
+                FROM GraphTraversal
+                WHERE Depth > 0";
+
+            if (endAtomId.HasValue)
+            {
+                sql += " AND AtomId = @EndAtomId";
+            }
+
+            sql += " ORDER BY Depth, TotalWeight DESC";
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@StartAtomId", startAtomId);
+            command.Parameters.AddWithValue("@MaxDepth", maxDepth);
+            if (!string.IsNullOrWhiteSpace(edgeTypeFilter))
+                command.Parameters.AddWithValue("@EdgeTypeFilter", edgeTypeFilter);
+            if (endAtomId.HasValue)
+                command.Parameters.AddWithValue("@EndAtomId", endAtomId.Value);
+
+            var paths = new List<SqlGraphPathEntry>();
+            await using var reader = await command.ExecuteReaderAsync();
+            
+            while (await reader.ReadAsync())
+            {
+                var nodeIds = reader.GetString(0).Split(',').Select(long.Parse).ToList();
+                var atomIds = reader.GetString(1).Split(',').Select(long.Parse).ToList();
+                var edgeTypes = reader.GetString(2).Split(',').ToList();
+                
+                paths.Add(new SqlGraphPathEntry
+                {
+                    NodeIds = nodeIds,
+                    AtomIds = atomIds,
+                    EdgeTypes = edgeTypes,
+                    PathLength = reader.GetInt32(3),
+                    TotalWeight = reader.GetDouble(4)
+                });
+            }
+
+            stopwatch.Stop();
+
+            var response = new SqlGraphTraverseResponse
+            {
+                StartAtomId = startAtomId,
+                EndAtomId = endAtomId,
+                Paths = paths,
+                TotalPathsFound = paths.Count,
+                ExecutionTimeMs = (int)stopwatch.ElapsedMilliseconds
+            };
+
+            return Ok(Success(response));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error traversing graph");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Failed to traverse SQL graph", ex.Message);
+            return StatusCode(503, Failure<SqlGraphTraverseResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error traversing graph");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Unexpected error traversing graph", ex.Message);
+            return StatusCode(503, Failure<SqlGraphTraverseResponse>(new[] { error }));
+        }
+    }
+
+    /// <summary>
+    /// Find shortest path between two atoms using SQL Server SHORTEST_PATH
+    /// </summary>
+    [HttpGet("sql/shortest-path")]
+    [Authorize]
+    [EnableRateLimiting("api")]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphShortestPathResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphShortestPathResponse>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<SqlGraphShortestPathResponse>), 503)]
+    public async Task<IActionResult> FindShortestPath(
+        [FromQuery] long startAtomId,
+        [FromQuery] long endAtomId,
+        [FromQuery] string? edgeTypeFilter = null)
+    {
+        try
+        {
+            var stopwatch = Stopwatch.StartNew();
+            _logger.LogInformation("Finding shortest path from {StartAtomId} to {EndAtomId}", 
+                startAtomId, endAtomId);
+
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            // SQL Server 2019+ SHORTEST_PATH syntax
+            var edgeFilter = !string.IsNullOrWhiteSpace(edgeTypeFilter)
+                ? $"AND edge.EdgeType = @EdgeTypeFilter"
+                : "";
+
+            var sql = $@"
+                SELECT 
+                    STRING_AGG(CAST(n.NodeId AS NVARCHAR(MAX)), ',') WITHIN GROUP (GRAPH PATH) AS NodePath,
+                    STRING_AGG(CAST(n.AtomId AS NVARCHAR(MAX)), ',') WITHIN GROUP (GRAPH PATH) AS AtomPath,
+                    STRING_AGG(edge.EdgeType, ',') WITHIN GROUP (GRAPH PATH) AS EdgePath,
+                    COUNT(n.NodeId) WITHIN GROUP (GRAPH PATH) - 1 AS PathLength,
+                    SUM(edge.Weight) WITHIN GROUP (GRAPH PATH) AS TotalWeight
+                FROM graph.AtomGraphNodes AS start
+                    , graph.AtomGraphEdges FOR PATH AS edge
+                    , graph.AtomGraphNodes FOR PATH AS n
+                    , graph.AtomGraphNodes AS finish
+                WHERE MATCH(SHORTEST_PATH(start(-(edge)->n)+finish))
+                  AND start.AtomId = @StartAtomId
+                  AND finish.AtomId = @EndAtomId
+                  {edgeFilter}";
+
+            await using var command = new SqlCommand(sql, connection);
+            command.Parameters.AddWithValue("@StartAtomId", startAtomId);
+            command.Parameters.AddWithValue("@EndAtomId", endAtomId);
+            if (!string.IsNullOrWhiteSpace(edgeTypeFilter))
+                command.Parameters.AddWithValue("@EdgeTypeFilter", edgeTypeFilter);
+
+            SqlGraphPathEntry? shortestPath = null;
+            await using var reader = await command.ExecuteReaderAsync();
+            
+            if (await reader.ReadAsync())
+            {
+                var nodeIds = reader.GetString(0).Split(',').Select(long.Parse).ToList();
+                var atomIds = reader.GetString(1).Split(',').Select(long.Parse).ToList();
+                var edgeTypes = reader.IsDBNull(2) ? new List<string>() : reader.GetString(2).Split(',').ToList();
+                
+                shortestPath = new SqlGraphPathEntry
+                {
+                    NodeIds = nodeIds,
+                    AtomIds = atomIds,
+                    EdgeTypes = edgeTypes,
+                    PathLength = reader.GetInt32(3),
+                    TotalWeight = reader.IsDBNull(4) ? 0.0 : reader.GetDouble(4)
+                };
+            }
+
+            stopwatch.Stop();
+
+            var response = new SqlGraphShortestPathResponse
+            {
+                StartAtomId = startAtomId,
+                EndAtomId = endAtomId,
+                ShortestPath = shortestPath,
+                PathFound = shortestPath != null,
+                ExecutionTimeMs = (int)stopwatch.ElapsedMilliseconds
+            };
+
+            return Ok(Success(response));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "SQL error finding shortest path");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Failed to find shortest path", ex.Message);
+            return StatusCode(503, Failure<SqlGraphShortestPathResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error finding shortest path");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
+                "Unexpected error finding shortest path", ex.Message);
+            return StatusCode(503, Failure<SqlGraphShortestPathResponse>(new[] { error }));
+        }
     }
 }

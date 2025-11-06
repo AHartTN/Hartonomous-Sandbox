@@ -56,6 +56,8 @@ _work/
 *.coveragexml
 
 # IDE
+.claude/
+.gemini/
 .vscode/
 .idea/
 *.swp
