@@ -445,14 +445,72 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers().RequireRateLimiting("api");
-app.MapHealthChecks("/health").AllowAnonymous();
+
+// Health check endpoints for Kubernetes probes
+// Startup probe: Checks if application has completed initialization
+app.MapHealthChecks("/health/startup", new HealthCheckOptions
+{
+    Predicate = _ => false, // No specific checks - just validates the app started
+    AllowCachingResponses = false
+}).AllowAnonymous();
+
+// Readiness probe: Checks if application can handle traffic
+// All checks tagged with "ready" must pass
 app.MapHealthChecks("/health/ready", new HealthCheckOptions
 {
-    Predicate = check => check.Tags.Contains("ready")
-});
+    Predicate = check => check.Tags.Contains("ready"),
+    AllowCachingResponses = false,
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                data = e.Value.Data,
+                duration = e.Value.Duration.TotalMilliseconds
+            }),
+            totalDuration = report.TotalDuration.TotalMilliseconds
+        });
+        await context.Response.WriteAsync(result);
+    }
+}).AllowAnonymous();
+
+// Liveness probe: Checks if application is still running (not deadlocked)
+// Returns healthy if the app can process requests (no specific checks)
 app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    Predicate = _ => false
-});
+    Predicate = _ => false, // No checks - just validates request pipeline works
+    AllowCachingResponses = false
+}).AllowAnonymous();
+
+// General health check endpoint with all checks
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    AllowCachingResponses = false,
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = System.Text.Json.JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            checks = report.Entries.Select(e => new
+            {
+                name = e.Key,
+                status = e.Value.Status.ToString(),
+                description = e.Value.Description,
+                tags = e.Value.Tags,
+                data = e.Value.Data,
+                duration = e.Value.Duration.TotalMilliseconds
+            }),
+            totalDuration = report.TotalDuration.TotalMilliseconds
+        });
+        await context.Response.WriteAsync(result);
+    }
+}).AllowAnonymous();
 
 app.Run();

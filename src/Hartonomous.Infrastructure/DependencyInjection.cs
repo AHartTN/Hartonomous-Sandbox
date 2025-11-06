@@ -314,22 +314,27 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("HartonomousDb");
-        var neo4jUri = configuration["Neo4j:Uri"] ?? "bolt://localhost:7687";
-
         services.AddHealthChecks()
-            .AddDbContextCheck<HartonomousDbContext>("hartonomous-db", tags: ["db", "sql", "hartonomous", "ready"])
-            .AddCheck("neo4j", () =>
-            {
-                try
-                {
-                    return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Healthy("Neo4j connection available");
-                }
-                catch (Exception ex)
-                {
-                    return Microsoft.Extensions.Diagnostics.HealthChecks.HealthCheckResult.Unhealthy("Neo4j connection failed", ex);
-                }
-            }, tags: ["neo4j", "graph", "ready"]);
+            // Database health checks with ready tag (required for readiness probe)
+            .AddDbContextCheck<HartonomousDbContext>("db", tags: ["db", "sql", "ready"])
+            
+            // Neo4j health check
+            .AddCheck<HealthChecks.Neo4jHealthCheck>("neo4j", tags: ["neo4j", "graph", "ready"])
+            
+            // Azure Blob Storage health check
+            .AddCheck<HealthChecks.AzureBlobStorageHealthCheck>("azure-blob-storage", tags: ["azure", "storage", "ready"])
+            
+            // Event Bus health check
+            .AddCheck<HealthChecks.EventBusHealthCheck>("event-bus", tags: ["messaging", "ready"])
+            
+            // Distributed Cache health check
+            .AddCheck<HealthChecks.DistributedCacheHealthCheck>("distributed-cache", tags: ["cache", "ready"]);
+
+        // Register health check implementations
+        services.AddSingleton<HealthChecks.Neo4jHealthCheck>();
+        services.AddSingleton<HealthChecks.AzureBlobStorageHealthCheck>();
+        services.AddSingleton<HealthChecks.EventBusHealthCheck>();
+        services.AddSingleton<HealthChecks.DistributedCacheHealthCheck>();
 
         // Custom metrics for Hartonomous-specific telemetry
         services.AddSingleton<Observability.CustomMetrics>(sp => 
