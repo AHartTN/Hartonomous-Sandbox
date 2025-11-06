@@ -290,6 +290,7 @@ builder.Services.AddSingleton<Hartonomous.Infrastructure.Jobs.JobExecutor>();
 builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.Processors.CleanupJobProcessor>();
 builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.Processors.IndexMaintenanceJobProcessor>();
 builder.Services.AddScoped<Hartonomous.Infrastructure.Jobs.Processors.AnalyticsJobProcessor>();
+builder.Services.AddScoped<Hartonomous.Infrastructure.Caching.CacheWarmingJobProcessor>();
 
 // Background job worker
 builder.Services.AddHostedService<Hartonomous.Infrastructure.Jobs.BackgroundJobWorker>(sp =>
@@ -316,6 +317,10 @@ using (var scope = app.Services.CreateScope())
     executor.RegisterProcessor<
         Hartonomous.Infrastructure.Jobs.Processors.AnalyticsJobPayload,
         Hartonomous.Infrastructure.Jobs.Processors.AnalyticsJobProcessor>("Analytics");
+    
+    executor.RegisterProcessor<
+        Hartonomous.Infrastructure.Caching.CacheWarmingPayload,
+        Hartonomous.Infrastructure.Caching.CacheWarmingJobProcessor>("CacheWarming");
 }
 
 if (app.Environment.IsDevelopment())

@@ -24,9 +24,11 @@ using Hartonomous.Infrastructure.Services.Messaging;
 using Hartonomous.Infrastructure.Services.Billing;
 using Hartonomous.Infrastructure.Services.Security;
 using Hartonomous.Infrastructure.Services.Jobs;
+using Hartonomous.Infrastructure.Caching;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -127,6 +129,12 @@ public static class DependencyInjection
         services.AddSingleton<IServiceBrokerResilienceStrategy, ServiceBrokerResilienceStrategy>();
         services.AddSingleton<IMessageDeadLetterSink, SqlMessageDeadLetterSink>();
         services.AddMemoryCache();
+
+        // Distributed Cache - Uses in-memory by default for development
+        // For production: Replace with AddStackExchangeRedisCache, AddDistributedSqlServerCache, etc.
+        services.AddDistributedMemoryCache();
+        services.AddSingleton<ICacheService, DistributedCacheService>();
+        services.AddScoped<CacheInvalidationService>();
 
         services.AddSingleton<IAccessPolicyRule, TenantAccessPolicyRule>();
         services.AddSingleton<IAccessPolicyEngine, AccessPolicyEngine>();
