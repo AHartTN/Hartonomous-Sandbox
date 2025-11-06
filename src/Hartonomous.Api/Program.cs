@@ -55,22 +55,32 @@ builder.Services.AddOpenTelemetry()
         }))
     .WithTracing(tracing => tracing
         .AddSource("Hartonomous.Api")
+        .AddSource("Hartonomous.Pipelines") // From DependencyInjection.cs
         .AddAspNetCoreInstrumentation()
         .AddHttpClientInstrumentation()
         .AddOtlpExporter(otlp =>
         {
-            // OTLP endpoint from configuration (e.g., Application Insights, Jaeger, Grafana Tempo)
+            // OTLP endpoint from configuration (e.g., Aspire Dashboard, Application Insights, Jaeger, Grafana Tempo)
             var endpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
             if (!string.IsNullOrEmpty(endpoint))
             {
                 otlp.Endpoint = new Uri(endpoint);
             }
-            // Defaults to http://localhost:4317 if not configured
+            // Defaults to http://localhost:4317 (Aspire Dashboard) if not configured
         }))
     .WithMetrics(metrics => metrics
         .AddMeter("Hartonomous.Api")
+        .AddMeter("Hartonomous.Pipelines") // From DependencyInjection.cs
         .AddAspNetCoreInstrumentation()
-        .AddHttpClientInstrumentation());
+        .AddHttpClientInstrumentation()
+        .AddOtlpExporter(otlp =>
+        {
+            var endpoint = builder.Configuration["OpenTelemetry:OtlpEndpoint"];
+            if (!string.IsNullOrEmpty(endpoint))
+            {
+                otlp.Endpoint = new Uri(endpoint);
+            }
+        }));
 
 // Azure AD Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)

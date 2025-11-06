@@ -330,6 +330,10 @@ public static class DependencyInjection
                 }
             }, tags: ["neo4j", "graph", "ready"]);
 
+        // Custom metrics for Hartonomous-specific telemetry
+        services.AddSingleton<Observability.CustomMetrics>(sp => 
+            new Observability.CustomMetrics(sp.GetRequiredService<Meter>()));
+
         return services;
     }
 }
