@@ -9,6 +9,7 @@ using Hartonomous.Api.Services;
 using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.RateLimiting;
 using Hartonomous.Infrastructure.ProblemDetails;
+using Microsoft.Extensions.Telemetry;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Core.Interfaces;
@@ -33,6 +34,9 @@ builder.Host.ConfigureHostOptions(options =>
 {
     options.ShutdownTimeout = TimeSpan.FromSeconds(shutdownTimeoutSeconds);
 });
+
+// Enable redaction in logging
+builder.Logging.EnableRedaction();
 
 // Azure App Configuration integration
 var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"] 
@@ -387,6 +391,7 @@ builder.Services.AddSwaggerGen(options =>
 
 builder.Services.AddHartonomousInfrastructure(builder.Configuration);
 builder.Services.AddHartonomousHealthChecks(builder.Configuration);
+builder.Services.AddHartonomousPiiRedaction(builder.Configuration);
 builder.Services.AddScoped<IModelIngestionService, ApiModelIngestionService>();
 
 // Legacy inference job processor (still supported)

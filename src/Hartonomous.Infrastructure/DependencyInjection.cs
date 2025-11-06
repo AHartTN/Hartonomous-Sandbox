@@ -29,6 +29,8 @@ using Hartonomous.Infrastructure.Resilience;
 using Hartonomous.Infrastructure.RateLimiting;
 using Hartonomous.Infrastructure.Lifecycle;
 using Hartonomous.Infrastructure.ProblemDetails;
+using Hartonomous.Infrastructure.Compliance;
+using Microsoft.Extensions.Compliance.Redaction;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
@@ -349,6 +351,51 @@ public static class DependencyInjection
         services.Configure<Lifecycle.GracefulShutdownOptions>(
             configuration.GetSection(Lifecycle.GracefulShutdownOptions.SectionName));
         services.AddHostedService<Lifecycle.GracefulShutdownService>();
+
+        return services;
+    }
+
+    /// <summary>
+    /// Configures PII sanitization and redaction for logging, HTTP logging, and telemetry.
+    /// Uses Microsoft.Extensions.Compliance.Redaction with custom data classifications.
+    /// </summary>
+    public static IServiceCollection AddHartonomousPiiRedaction(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Bind configuration
+        services.Configure<Compliance.PiiSanitizationOptions>(
+            configuration.GetSection("PiiSanitization"));
+
+        var options = configuration.GetSection("PiiSanitization").Get<Compliance.PiiSanitizationOptions>() 
+            ?? new Compliance.PiiSanitizationOptions();
+
+        // Core redaction services
+        services.AddRedaction(redactionBuilder =>
+        {
+            // Public data - no redaction (we don't register a redactor, so it won't be redacted)
+            
+            // Private, Personal, and Financial data - mask with asterisks
+            // Using custom StarRedactor for visible but anonymized data
+            redactionBuilder.SetRedactor<Compliance.StarRedactor>(
+                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                    HartonomousDataClassifications.Private),
+                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                    HartonomousDataClassifications.Personal),
+                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                    HartonomousDataClassifications.Financial));
+
+            // Sensitive and Health data - completely erase using ErasingRedactor
+            // This is the fallback redactor, so any data without a specific redactor will be erased
+            redactionBuilder.SetRedactor<ErasingRedactor>(
+                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                    HartonomousDataClassifications.Sensitive),
+                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                    HartonomousDataClassifications.Health));
+            
+            // Set fallback redactor for any unclassified sensitive data
+            redactionBuilder.SetFallbackRedactor<ErasingRedactor>();
+        });
 
         return services;
     }
