@@ -25,11 +25,13 @@ using Hartonomous.Infrastructure.Services.Billing;
 using Hartonomous.Infrastructure.Services.Security;
 using Hartonomous.Infrastructure.Services.Jobs;
 using Hartonomous.Infrastructure.Caching;
+using Hartonomous.Infrastructure.Resilience;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -152,6 +154,63 @@ public static class DependencyInjection
 
         // Event bus hosted service - initializes subscriptions on startup
         services.AddHostedService<Messaging.EventBusHostedService>();
+
+        // Resilience Patterns - Circuit breaker, retry, timeout
+        services.Configure<ResilienceOptions>(configuration.GetSection(ResilienceOptions.SectionName));
+        
+        // Default resilience pipeline (circuit breaker + retry + timeout)
+        services.AddHttpClient(ResiliencePipelineNames.Default)
+            .AddStandardResilienceHandler(options =>
+            {
+                var resilienceConfig = configuration.GetSection(ResilienceOptions.SectionName).Get<ResilienceOptions>() ?? new ResilienceOptions();
+                
+                // Circuit breaker: Open after 5 failures in 30s, break for 60s
+                options.CircuitBreaker.FailureRatio = 0.5;
+                options.CircuitBreaker.SamplingDuration = resilienceConfig.CircuitBreakerSamplingDuration;
+                options.CircuitBreaker.MinimumThroughput = resilienceConfig.CircuitBreakerMinimumThroughput;
+                options.CircuitBreaker.BreakDuration = resilienceConfig.CircuitBreakerBreakDuration;
+                
+                // Retry: 5 attempts with exponential backoff (2s, 4s, 8s, 16s, 32s) + jitter
+                options.Retry.MaxRetryAttempts = resilienceConfig.RetryMaxAttempts;
+                options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+                options.Retry.UseJitter = resilienceConfig.RetryUseJitter;
+                options.Retry.Delay = resilienceConfig.RetryBaseDelay;
+                
+                // Timeout: 30s default
+                options.TotalRequestTimeout.Timeout = resilienceConfig.DefaultTimeout;
+            });
+
+        // Inference resilience pipeline (longer timeout for model inference)
+        services.AddHttpClient(ResiliencePipelineNames.Inference)
+            .AddStandardResilienceHandler(options =>
+            {
+                var resilienceConfig = configuration.GetSection(ResilienceOptions.SectionName).Get<ResilienceOptions>() ?? new ResilienceOptions();
+                options.CircuitBreaker.FailureRatio = 0.5;
+                options.CircuitBreaker.SamplingDuration = resilienceConfig.CircuitBreakerSamplingDuration;
+                options.CircuitBreaker.MinimumThroughput = resilienceConfig.CircuitBreakerMinimumThroughput;
+                options.CircuitBreaker.BreakDuration = resilienceConfig.CircuitBreakerBreakDuration;
+                options.Retry.MaxRetryAttempts = 3; // Fewer retries for long-running operations
+                options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+                options.Retry.UseJitter = true;
+                options.Retry.Delay = TimeSpan.FromSeconds(5);
+                options.TotalRequestTimeout.Timeout = resilienceConfig.InferenceTimeout; // 5 minutes
+            });
+
+        // Generation resilience pipeline (longest timeout for video/audio generation)
+        services.AddHttpClient(ResiliencePipelineNames.Generation)
+            .AddStandardResilienceHandler(options =>
+            {
+                var resilienceConfig = configuration.GetSection(ResilienceOptions.SectionName).Get<ResilienceOptions>() ?? new ResilienceOptions();
+                options.CircuitBreaker.FailureRatio = 0.5;
+                options.CircuitBreaker.SamplingDuration = resilienceConfig.CircuitBreakerSamplingDuration;
+                options.CircuitBreaker.MinimumThroughput = 5; // Lower threshold for generation
+                options.CircuitBreaker.BreakDuration = resilienceConfig.CircuitBreakerBreakDuration;
+                options.Retry.MaxRetryAttempts = 2; // Minimal retries for very long operations
+                options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+                options.Retry.UseJitter = true;
+                options.Retry.Delay = TimeSpan.FromSeconds(10);
+                options.TotalRequestTimeout.Timeout = resilienceConfig.GenerationTimeout; // 10 minutes
+            });
 
         services.AddSingleton<IAccessPolicyRule, TenantAccessPolicyRule>();
         services.AddSingleton<IAccessPolicyEngine, AccessPolicyEngine>();
