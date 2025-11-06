@@ -10,17 +10,35 @@ using Hartonomous.Core.Security;
 
 namespace Hartonomous.Infrastructure.Services.Billing;
 
+/// <summary>
+/// Billing meter implementation that calculates usage costs based on operation rates, multipliers, and consumption units.
+/// Applies multi-dimensional pricing including complexity, content type, grounding, guarantees, and provenance factors.
+/// </summary>
 public sealed class UsageBillingMeter : IBillingMeter
 {
     private const decimal DefaultUnitPrice = 0.00008m;
 
     private readonly IBillingConfigurationProvider _configurationProvider;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="UsageBillingMeter"/> class.
+    /// </summary>
+    /// <param name="configurationProvider">Provider for tenant-specific billing configuration including rate plans and multipliers.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="configurationProvider"/> is null.</exception>
     public UsageBillingMeter(IBillingConfigurationProvider configurationProvider)
     {
         _configurationProvider = configurationProvider ?? throw new ArgumentNullException(nameof(configurationProvider));
     }
 
+    /// <summary>
+    /// Measures usage for a given event and calculates billing estimates based on tenant configuration.
+    /// </summary>
+    /// <param name="evt">The base event containing usage information in extensions.</param>
+    /// <param name="messageType">Type of message triggering the billing calculation.</param>
+    /// <param name="handlerName">Name of the handler processing the event.</param>
+    /// <param name="policyContext">Access policy context containing tenant ID, principal ID, and operation details.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <returns>A billing usage record with calculated costs and metadata, or null if insufficient context is available.</returns>
     public async Task<BillingUsageRecord?> MeasureAsync(
         BaseEvent evt,
         string messageType,
@@ -99,11 +117,19 @@ public sealed class UsageBillingMeter : IBillingMeter
         };
     }
 
+    /// <summary>
+    /// Resolves the base rate (DCU per unit) for a given operation from configuration.
+    /// Falls back to default rate if operation-specific rate is not found.
+    /// </summary>
     private static decimal ResolveBaseRate(BillingConfiguration configuration, string operation)
         => configuration.OperationRates.TryGetValue(operation, out var rate)
             ? rate
             : configuration.DefaultRate;
 
+    /// <summary>
+    /// Computes the cumulative billing multiplier from multiple dimensions (generation type, complexity, content type, grounding, guarantee, provenance).
+    /// Each dimension contributes a factor that's multiplied together for the final multiplier.
+    /// </summary>
     private static decimal ResolveMultiplier(BillingConfiguration configuration, BaseEvent evt)
     {
         var multiplier = 1m;
@@ -118,6 +144,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return multiplier;
     }
 
+    /// <summary>
+    /// Resolves a billing multiplier from event extensions based on provided keys.
+    /// Returns 1.0 if no matching key is found or multiplier configuration is empty.
+    /// </summary>
     private static decimal ResolveDimension(
         IReadOnlyDictionary<string, decimal> multipliers,
         BaseEvent evt,
@@ -136,6 +166,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return 1m;
     }
 
+    /// <summary>
+    /// Resolves complexity multiplier by checking both direct complexity values and nested reasoning structures.
+    /// Numeric complexity scores are categorized into distilled/small/medium/large tiers.
+    /// </summary>
     private static decimal ResolveComplexity(BillingConfiguration configuration, BaseEvent evt)
     {
         var complexityMultiplier = ResolveDimension(configuration.ComplexityMultipliers, evt, "complexity", "complexity_level");
@@ -152,6 +186,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return 1m;
     }
 
+    /// <summary>
+    /// Attempts to extract complexity category from event extensions or reasoning metadata.
+    /// Supports both numeric scores (which are categorized) and string complexity levels.
+    /// </summary>
     private static bool TryResolveComplexityCategory(BaseEvent evt, out string category)
     {
         if (evt.Extensions.TryGetValue("complexity", out var complexityObj) && TryResolveNumber(complexityObj, out var numericComplexity))
@@ -196,6 +234,9 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Categorizes a numeric complexity score into billing tiers: distilled (≤1), small (≤3), medium (≤6), or large (&gt;6).
+    /// </summary>
     private static string CategorizeComplexity(decimal score)
     {
         if (score <= 1m)
@@ -216,6 +257,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return "large";
     }
 
+    /// <summary>
+    /// Extracts usage units from event extensions. Checks usage_units, usage.units, token_count (converted to K tokens), and duration_seconds.
+    /// Defaults to 1 if no usage information is found.
+    /// </summary>
     private static decimal ResolveUnits(BaseEvent evt)
     {
         if (evt.Extensions.TryGetValue("usage_units", out var unitsObj))
@@ -253,6 +298,9 @@ public sealed class UsageBillingMeter : IBillingMeter
         return 1m;
     }
 
+    /// <summary>
+    /// Attempts to extract a nested numeric value from a dictionary or JsonElement.
+    /// </summary>
     private static bool TryResolveNestedNumber(object? source, string key, out decimal value)
     {
         switch (source)
@@ -267,6 +315,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Attempts to resolve a string value from various object types (string, dictionary with nested properties, JsonElement).
+    /// Checks common property names like "value", "name", "code", "id", and "type" for nested resolution.
+    /// </summary>
     private static bool TryResolveString(object? value, out string result)
     {
         switch (value)
@@ -315,6 +367,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Attempts to resolve a value from event extensions by searching for any of the provided keys.
+    /// Supports recursive search up to depth limit of 4 to prevent infinite recursion.
+    /// </summary>
     private static bool TryResolveFromExtensions(
         IDictionary<string, object> extensions,
         IReadOnlyList<string> keys,
@@ -350,6 +406,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Recursively searches JsonElement for any of the provided keys.
+    /// Limited to depth of 4 to prevent stack overflow.
+    /// </summary>
     private static bool TryResolveFromJson(
         JsonElement json,
         IReadOnlyList<string> keys,
@@ -382,6 +442,9 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Attempts to extract a string property from a JsonElement.
+    /// </summary>
     private static bool TryResolveJsonString(JsonElement json, string propertyName, out string value)
     {
         if (json.TryGetProperty(propertyName, out var property) && TryResolveString(property, out var resolved))
@@ -394,6 +457,9 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Attempts to extract a numeric property from a JsonElement and convert to decimal.
+    /// </summary>
     private static bool TryResolveJsonNumber(JsonElement json, string propertyName, out decimal value)
     {
         if (json.TryGetProperty(propertyName, out var property))
@@ -405,6 +471,10 @@ public sealed class UsageBillingMeter : IBillingMeter
         return false;
     }
 
+    /// <summary>
+    /// Attempts to convert various numeric types and string representations to decimal.
+    /// Supports decimal, double, float, long, int, numeric strings, and JsonElement numbers.
+    /// </summary>
     private static bool TryResolveNumber(object? value, out decimal result)
     {
         switch (value)

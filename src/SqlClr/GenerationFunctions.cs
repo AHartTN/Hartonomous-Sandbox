@@ -9,11 +9,26 @@ using Microsoft.SqlServer.Server;
 
 namespace SqlClrFunctions
 {
+    /// <summary>
+    /// SQL CLR functions for generating text sequences using model ensembles and vector search.
+    /// Supports autoregressive generation with temperature sampling and top-K filtering.
+    /// </summary>
     public static class GenerationFunctions
     {
         private const double MinWeight = 0.0001d;
         private const double MinTemperature = 0.0001d;
 
+        /// <summary>
+        /// Generates a sequence of tokens using ensemble model predictions and vector similarity search.
+        /// Returns table with step number, atom ID, token text, score, distance, model count, and duration.
+        /// </summary>
+        /// <param name="seedEmbedding">Initial embedding vector to start generation.</param>
+        /// <param name="modelsJson">JSON array of model IDs to use in ensemble.</param>
+        /// <param name="maxTokens">Maximum number of tokens to generate.</param>
+        /// <param name="temperature">Sampling temperature for score softmax (higher = more random).</param>
+        /// <param name="topK">Number of top candidates to consider at each step.</param>
+        /// <param name="requiredModality">Optional modality filter (e.g., "text", "image").</param>
+        /// <returns>Table of generated sequence steps with metadata.</returns>
         [SqlFunction(
             DataAccess = DataAccessKind.Read,
             SystemDataAccess = SystemDataAccessKind.Read,
@@ -33,6 +48,16 @@ namespace SqlClrFunctions
             }
         }
 
+        /// <summary>
+        /// Generates a text-only sequence (modality fixed to "text").
+        /// Convenience wrapper around GenerateSequence for text generation scenarios.
+        /// </summary>
+        /// <param name="seedEmbedding">Initial embedding vector to start generation.</param>
+        /// <param name="modelsJson">JSON array of model IDs to use in ensemble.</param>
+        /// <param name="maxTokens">Maximum number of tokens to generate.</param>
+        /// <param name="temperature">Sampling temperature for score softmax.</param>
+        /// <param name="topK">Number of top candidates to consider at each step.</param>
+        /// <returns>Table of generated text tokens with metadata (no step number column).</returns>
         [SqlFunction(
             DataAccess = DataAccessKind.Read,
             SystemDataAccess = SystemDataAccessKind.Read,

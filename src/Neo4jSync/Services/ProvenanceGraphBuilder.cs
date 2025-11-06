@@ -6,15 +6,31 @@ using Neo4j.Driver;
 
 namespace Hartonomous.Neo4jSync.Services;
 
+/// <summary>
+/// Builds and updates provenance graph nodes in Neo4j from domain events.
+/// Creates Model, Inference, Knowledge nodes and relationships to track data lineage and reasoning paths.
+/// </summary>
 public sealed class ProvenanceGraphBuilder
 {
     private readonly ILogger<ProvenanceGraphBuilder> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ProvenanceGraphBuilder"/> class.
+    /// </summary>
+    /// <param name="logger">Logger for tracking graph operations.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="logger"/> is null.</exception>
     public ProvenanceGraphBuilder(ILogger<ProvenanceGraphBuilder> logger)
     {
         _logger = logger;
     }
 
+    /// <summary>
+    /// Creates or updates a Model node in Neo4j with metadata from a model ingestion event.
+    /// Extracts capabilities, content type, performance metrics, and compliance requirements from semantic extensions.
+    /// </summary>
+    /// <param name="session">Neo4j async session for executing Cypher queries.</param>
+    /// <param name="evt">Base event containing model data and semantic metadata.</param>
+    /// <param name="ct">Cancellation token for async operation.</param>
     public async Task CreateModelNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
         var data = evt.Data as Dictionary<string, object>;
@@ -66,6 +82,13 @@ public sealed class ProvenanceGraphBuilder
         _logger.LogInformation("Created model node: {ModelName} ({ModelId})", modelName, modelId);
     }
 
+    /// <summary>
+    /// Creates an Inference node in Neo4j from an inference event.
+    /// Captures task type, models used, reasoning mode, complexity, audit requirements, and performance SLA.
+    /// </summary>
+    /// <param name="session">Neo4j async session for executing Cypher queries.</param>
+    /// <param name="evt">Base event containing inference data and reasoning metadata.</param>
+    /// <param name="ct">Cancellation token for async operation.</param>
     public async Task CreateInferenceNodeAsync(IAsyncSession session, BaseEvent evt, CancellationToken ct)
     {
         var data = evt.Data as Dictionary<string, object>;

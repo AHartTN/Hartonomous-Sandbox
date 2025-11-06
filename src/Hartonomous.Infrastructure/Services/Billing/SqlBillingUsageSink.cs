@@ -10,6 +10,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Services.Billing;
 
+/// <summary>
+/// SQL-based sink for writing billing usage records to the database.
+/// Uses natively compiled In-Memory OLTP stored procedure (sp_InsertBillingUsageRecord_Native) for 2-10x performance improvement.
+/// </summary>
 public sealed class SqlBillingUsageSink : IBillingUsageSink
 {
     // Using In-Memory OLTP natively compiled procedure for 2-10x performance improvement
@@ -19,6 +23,13 @@ public sealed class SqlBillingUsageSink : IBillingUsageSink
     private readonly IJsonSerializer _serializer;
     private readonly ILogger<SqlBillingUsageSink> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="SqlBillingUsageSink"/> class.
+    /// </summary>
+    /// <param name="connectionFactory">Factory for creating SQL Server connections.</param>
+    /// <param name="serializer">JSON serializer for metadata serialization.</param>
+    /// <param name="logger">Logger for tracking write operations and errors.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public SqlBillingUsageSink(
         ISqlServerConnectionFactory connectionFactory,
         IJsonSerializer serializer,
@@ -29,6 +40,13 @@ public sealed class SqlBillingUsageSink : IBillingUsageSink
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Writes a billing usage record to the database using a natively compiled In-Memory OLTP stored procedure.
+    /// Serializes metadata as JSON before inserting.
+    /// </summary>
+    /// <param name="record">The billing usage record to persist.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="record"/> is null.</exception>
     public async Task WriteAsync(BillingUsageRecord record, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(record);

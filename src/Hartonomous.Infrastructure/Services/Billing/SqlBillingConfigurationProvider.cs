@@ -13,6 +13,11 @@ using Microsoft.Extensions.Options;
 
 namespace Hartonomous.Infrastructure.Services.Billing;
 
+/// <summary>
+/// SQL-based provider for billing configuration including rate plans, operation rates, and multipliers.
+/// Uses in-memory caching with 5-minute expiration to reduce database load.
+/// Supports tenant-specific rate plans with fallback to default global plans.
+/// </summary>
 public sealed class SqlBillingConfigurationProvider : IBillingConfigurationProvider
 {
     private const string ConfigurationQuery = @"

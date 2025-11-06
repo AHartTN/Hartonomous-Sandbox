@@ -13,6 +13,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Neo4jSync.Services;
 
+/// <summary>
+/// Centralized event dispatcher for Neo4jSync that routes events to appropriate handlers.
+/// Enforces access policies, throttling, and billing measurement before dispatching to graph sync handlers.
+/// </summary>
 public sealed class EventDispatcher : IMessageDispatcher
 {
     private readonly IReadOnlyList<IBaseEventHandler> _handlers;
@@ -22,6 +26,16 @@ public sealed class EventDispatcher : IMessageDispatcher
     private readonly IBillingUsageSink _billingUsageSink;
     private readonly ILogger<EventDispatcher> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EventDispatcher"/> class.
+    /// </summary>
+    /// <param name="handlers">Collection of event handlers for different event types.</param>
+    /// <param name="accessPolicyEngine">Engine for evaluating access policies.</param>
+    /// <param name="throttleEvaluator">Evaluator for rate limiting and throttling.</param>
+    /// <param name="billingMeter">Meter for calculating usage billing.</param>
+    /// <param name="billingUsageSink">Sink for persisting billing records.</param>
+    /// <param name="logger">Logger for tracking dispatch operations and errors.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public EventDispatcher(
         IEnumerable<IBaseEventHandler> handlers,
         IAccessPolicyEngine accessPolicyEngine,
@@ -38,6 +52,15 @@ public sealed class EventDispatcher : IMessageDispatcher
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Dispatches a brokered message to appropriate event handler after validating access policies and throttling.
+    /// Records telemetry and billing usage for successfully handled events.
+    /// </summary>
+    /// <param name="message">The brokered message containing event payload.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <exception cref="ArgumentNullException">Thrown when <paramref name="message"/> is null.</exception>
+    /// <exception cref="PolicyDeniedException">Thrown when access policy evaluation fails.</exception>
+    /// <exception cref="ThrottleRejectedException">Thrown when throttle limits are exceeded.</exception>
     public async Task DispatchAsync(BrokeredMessage message, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(message);

@@ -10,12 +10,22 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Hartonomous.Api.Controllers;
 
+/// <summary>
+/// API controller for submitting and monitoring inference jobs (text generation, ensemble inference).
+/// Jobs are processed asynchronously by background workers.
+/// </summary>
 [Route("api/inference")]
 public sealed class InferenceController : ApiControllerBase
 {
     private readonly HartonomousDbContext _context;
     private readonly ILogger<InferenceController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="InferenceController"/> class.
+    /// </summary>
+    /// <param name="context">Database context for persisting inference requests.</param>
+    /// <param name="logger">Logger for tracking submission and retrieval operations.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public InferenceController(
         HartonomousDbContext context,
         ILogger<InferenceController> logger)
@@ -24,6 +34,12 @@ public sealed class InferenceController : ApiControllerBase
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
+    /// <summary>
+    /// Submits an asynchronous text generation job with specified prompt, max tokens, and temperature.
+    /// </summary>
+    /// <param name="request">Request containing prompt and generation parameters.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <returns>Accepted (202) with job ID and status URL if successful; BadRequest (400) for validation errors; InternalServerError (500) for infrastructure failures.</returns>
     [HttpPost("generate/text")]
     [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status400BadRequest)]
@@ -79,6 +95,12 @@ public sealed class InferenceController : ApiControllerBase
         }
     }
 
+    /// <summary>
+    /// Submits an ensemble inference job that runs multiple models and aggregates results.
+    /// </summary>
+    /// <param name="request">Request containing input embedding, model IDs to use in ensemble, and task type.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <returns>Accepted (202) with job ID and status URL if successful; BadRequest (400) for validation errors; InternalServerError (500) for infrastructure failures.</returns>
     [HttpPost("ensemble")]
     [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status202Accepted)]
     [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status400BadRequest)]
@@ -140,6 +162,12 @@ public sealed class InferenceController : ApiControllerBase
         }
     }
 
+    /// <summary>
+    /// Retrieves the current status and results of an inference job by ID.
+    /// </summary>
+    /// <param name="jobId">The inference job ID to query.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <returns>OK (200) with job status and output data if found; NotFound (404) if job ID doesn't exist.</returns>
     [HttpGet("jobs/{jobId}")]
     [ProducesResponseType(typeof(ApiResponse<JobStatusResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<JobStatusResponse>), StatusCodes.Status404NotFound)]

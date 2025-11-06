@@ -10,6 +10,10 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Hartonomous.Api.Controllers;
 
+/// <summary>
+/// API controller for generating embeddings from text, images, and other media.
+/// Automatically ingests content as atoms and returns embedding vectors and IDs.
+/// </summary>
 [Route("api/embeddings")]
 public sealed class EmbeddingsController : ApiControllerBase
 {
@@ -17,6 +21,13 @@ public sealed class EmbeddingsController : ApiControllerBase
     private readonly IAtomIngestionService _atomIngestionService;
     private readonly ILogger<EmbeddingsController> _logger;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="EmbeddingsController"/> class.
+    /// </summary>
+    /// <param name="embeddingService">Service for generating embeddings across modalities.</param>
+    /// <param name="atomIngestionService">Service for ingesting content atoms with deduplication.</param>
+    /// <param name="logger">Logger for tracking embedding generation and ingestion.</param>
+    /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public EmbeddingsController(
         IEmbeddingService embeddingService,
         IAtomIngestionService atomIngestionService,
