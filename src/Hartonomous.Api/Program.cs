@@ -3,12 +3,14 @@ using System.Threading.RateLimiting;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
+using Hartonomous.Api.Authorization;
 using Hartonomous.Api.Services;
 using Hartonomous.Infrastructure;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Core.Interfaces;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -73,12 +75,38 @@ builder.Services.AddOpenTelemetry()
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
 
+// Authorization with custom handlers
+builder.Services.AddHttpContextAccessor(); // Required for TenantResourceAuthorizationHandler
+
 builder.Services.AddAuthorization(options =>
 {
+    // Legacy role-based policies (for backward compatibility)
     options.AddPolicy("Admin", policy => policy.RequireRole("Admin"));
     options.AddPolicy("DataScientist", policy => policy.RequireRole("Admin", "DataScientist"));
     options.AddPolicy("User", policy => policy.RequireRole("Admin", "DataScientist", "User"));
+
+    // New role hierarchy policies
+    options.AddPolicy("RequireAdmin", policy =>
+        policy.Requirements.Add(new RoleHierarchyRequirement("Admin")));
+    options.AddPolicy("RequireDataScientist", policy =>
+        policy.Requirements.Add(new RoleHierarchyRequirement("DataScientist")));
+    options.AddPolicy("RequireUser", policy =>
+        policy.Requirements.Add(new RoleHierarchyRequirement("User")));
+
+    // Tenant isolation policies
+    options.AddPolicy("TenantIsolation", policy =>
+        policy.Requirements.Add(new TenantResourceRequirement()));
+    options.AddPolicy("TenantAtomAccess", policy =>
+        policy.Requirements.Add(new TenantResourceRequirement("Atom")));
+    options.AddPolicy("TenantEmbeddingAccess", policy =>
+        policy.Requirements.Add(new TenantResourceRequirement("Embedding")));
+    options.AddPolicy("TenantInferenceAccess", policy =>
+        policy.Requirements.Add(new TenantResourceRequirement("InferenceJob")));
 });
+
+// Register authorization handlers
+builder.Services.AddSingleton<IAuthorizationHandler, RoleHierarchyHandler>();
+builder.Services.AddSingleton<IAuthorizationHandler, TenantResourceAuthorizationHandler>();
 
 // Rate Limiting
 builder.Services.AddRateLimiter(options =>
