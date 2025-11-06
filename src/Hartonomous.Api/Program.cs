@@ -8,6 +8,7 @@ using Hartonomous.Api.RateLimiting;
 using Hartonomous.Api.Services;
 using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.RateLimiting;
+using Hartonomous.Infrastructure.ProblemDetails;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Core.Interfaces;
@@ -97,6 +98,9 @@ builder.Services.AddOpenTelemetry()
 // Azure AD Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddMicrosoftIdentityWebApi(builder.Configuration.GetSection("AzureAd"));
+
+// Problem Details (RFC 7807) - must be before AddControllers
+builder.Services.AddHartonomousProblemDetails();
 
 // Authorization with custom handlers
 builder.Services.AddHttpContextAccessor(); // Required for TenantResourceAuthorizationHandler
@@ -442,6 +446,11 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+// Exception handling and status code middleware (Problem Details support)
+// Must be before other middleware for proper error handling
+app.UseExceptionHandler();
+app.UseStatusCodePages();
 
 // Enable Azure App Configuration refresh middleware
 app.UseAzureAppConfiguration();

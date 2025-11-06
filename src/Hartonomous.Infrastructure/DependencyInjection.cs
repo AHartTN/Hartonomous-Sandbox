@@ -28,6 +28,7 @@ using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Resilience;
 using Hartonomous.Infrastructure.RateLimiting;
 using Hartonomous.Infrastructure.Lifecycle;
+using Hartonomous.Infrastructure.ProblemDetails;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
