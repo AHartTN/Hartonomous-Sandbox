@@ -26,6 +26,13 @@ using OpenTelemetry.Metrics;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Graceful shutdown configuration
+var shutdownTimeoutSeconds = builder.Configuration.GetValue<int?>("GracefulShutdown:ShutdownTimeoutSeconds") ?? 30;
+builder.Host.ConfigureHostOptions(options =>
+{
+    options.ShutdownTimeout = TimeSpan.FromSeconds(shutdownTimeoutSeconds);
+});
+
 // Azure App Configuration integration
 var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"] 
     ?? "https://appconfig-hartonomous.azconfig.io";

@@ -27,6 +27,7 @@ using Hartonomous.Infrastructure.Services.Jobs;
 using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Resilience;
 using Hartonomous.Infrastructure.RateLimiting;
+using Hartonomous.Infrastructure.Lifecycle;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Caching.Memory;
@@ -342,6 +343,11 @@ public static class DependencyInjection
 
         // Rate limiting configuration
         services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));
+
+        // Graceful shutdown configuration
+        services.Configure<Lifecycle.GracefulShutdownOptions>(
+            configuration.GetSection(Lifecycle.GracefulShutdownOptions.SectionName));
+        services.AddHostedService<Lifecycle.GracefulShutdownService>();
 
         return services;
     }
