@@ -255,6 +255,18 @@ public static class DependencyInjection
         services.AddScoped<IStudentModelService, StudentModelService>();
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
+
+        // Search services (extracted from InferenceOrchestrator for SOLID compliance)
+        services.AddScoped<ISemanticSearchService, Services.Search.SemanticSearchService>();
+        services.AddScoped<ISpatialSearchService, Services.Search.SpatialSearchService>();
+
+        // Feature extraction services
+        services.AddScoped<ISemanticFeatureService, Services.Features.SemanticFeatureService>();
+
+        // Inference services
+        services.AddScoped<IEnsembleInferenceService, Services.Inference.EnsembleInferenceService>();
+        services.AddScoped<ITextGenerationService, Services.Inference.TextGenerationService>();
+
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
         services.AddScoped<IEmbeddingService, EmbeddingService>();
 
