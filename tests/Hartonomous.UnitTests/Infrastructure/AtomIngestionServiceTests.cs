@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
 using Hartonomous.Infrastructure.Services;
@@ -34,7 +35,7 @@ public class AtomIngestionServiceTests
         var result = await service.IngestAsync(new AtomIngestionRequest
         {
             HashInput = "alpha",
-            Modality = "text",
+            Modality = Modality.Text.ToJsonString(),
             Subtype = "document",
             SourceType = "test",
             CanonicalText = "alpha",
@@ -66,7 +67,7 @@ public class AtomIngestionServiceTests
         var request = new AtomIngestionRequest
         {
             HashInput = "duplicate",
-            Modality = "text",
+            Modality = Modality.Text.ToJsonString(),
             Subtype = "document",
             SourceType = "test",
             CanonicalText = "duplicate",
@@ -99,7 +100,7 @@ public class AtomIngestionServiceTests
         var seed = await service.IngestAsync(new AtomIngestionRequest
         {
             HashInput = "seed",
-            Modality = "text",
+            Modality = Modality.Text.ToJsonString(),
             Subtype = "document",
             SourceType = "test",
             CanonicalText = "seed",
@@ -129,7 +130,7 @@ public class AtomIngestionServiceTests
         var result = await service.IngestAsync(new AtomIngestionRequest
         {
             HashInput = "different",
-            Modality = "text",
+            Modality = Modality.Text.ToJsonString(),
             Subtype = "document",
             SourceType = "test",
             CanonicalText = "different",

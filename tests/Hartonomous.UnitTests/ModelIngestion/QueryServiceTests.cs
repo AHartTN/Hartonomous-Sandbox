@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
 using Hartonomous.Testing.Common;
@@ -84,7 +85,7 @@ public sealed class QueryServiceTests
                 return Task.FromResult<IReadOnlyList<AtomEmbeddingSearchResult>>(Array.Empty<AtomEmbeddingSearchResult>());
             }
 
-            var atom = new Atom { AtomId = 1, ContentHash = Array.Empty<byte>(), Modality = "text", CanonicalText = "Sample" };
+            var atom = new Atom { AtomId = 1, ContentHash = Array.Empty<byte>(), Modality = Modality.Text.ToJsonString(), CanonicalText = "Sample" };
             var embedding = new AtomEmbedding { AtomEmbeddingId = 1, AtomId = 1, Atom = atom, EmbeddingType = "test" };
             atom.Embeddings.Add(embedding);
 

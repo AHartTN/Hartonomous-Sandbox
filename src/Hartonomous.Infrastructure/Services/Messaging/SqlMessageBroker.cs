@@ -10,6 +10,7 @@ using Hartonomous.Core.Messaging;
 using Hartonomous.Core.Serialization;
 using Hartonomous.Core.Resilience;
 using Hartonomous.Core.Telemetry;
+using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -180,7 +181,7 @@ public sealed class SqlMessageBroker : IMessageBroker
 
                 var conversationHandle = reader.GetGuid(0);
                 var messageTypeName = reader.GetString(1);
-                var body = reader.IsDBNull(2) ? null : reader.GetString(2);
+                var body = reader.GetStringOrNull(2);
                 var enqueueTime = reader.GetDateTime(3);
                 await reader.CloseAsync().ConfigureAwait(false);
 

@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -58,7 +59,7 @@ namespace SqlClrFunctions
             if (stepNumber.IsNull || vectorJson.IsNull || confidence.IsNull)
                 return;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -113,12 +114,12 @@ namespace SqlClrFunctions
                 double coherence = 1.0;
                 if (parentVector != null)
                 {
-                    coherence = CosineSimilarity(node.Vector, parentVector);
+                    coherence = VectorUtilities.CosineSimilarity(node.Vector, parentVector);
                 }
 
                 node.CumulativeScore = parentScore + (node.Confidence * coherence);
                 node.PathDiversity = parentVector != null 
-                    ? Math.Sqrt(EuclideanDistance(node.Vector, parentVector))
+                    ? Math.Sqrt(VectorUtilities.EuclideanDistance(node.Vector, parentVector))
                     : 0;
 
                 foreach (int childStep in node.Children)
@@ -220,44 +221,6 @@ namespace SqlClrFunctions
                     w.Write(child);
             }
         }
-
-        private static double CosineSimilarity(float[] a, float[] b)
-        {
-            double dotProduct = 0, normA = 0, normB = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                dotProduct += a[i] * b[i];
-                normA += a[i] * a[i];
-                normB += b[i] * b[i];
-            }
-            if (normA == 0 || normB == 0) return 0;
-            return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
-        }
-
-        private static double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return sum; // Return squared distance for efficiency
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -303,7 +266,7 @@ namespace SqlClrFunctions
             if (attemptNumber.IsNull || reasoningJson.IsNull || outcomeScore.IsNull)
                 return;
 
-            var reasoningVec = ParseVectorJson(reasoningJson.Value);
+            var reasoningVec = VectorUtilities.ParseVectorJson(reasoningJson.Value);
             if (reasoningVec == null) return;
 
             if (dimension == 0)
@@ -314,7 +277,7 @@ namespace SqlClrFunctions
             float[] reflectionVec = null;
             if (!reflectionJson.IsNull)
             {
-                reflectionVec = ParseVectorJson(reflectionJson.Value);
+                reflectionVec = VectorUtilities.ParseVectorJson(reflectionJson.Value);
                 if (reflectionVec != null && reflectionVec.Length != dimension)
                     reflectionVec = null;
             }
@@ -353,7 +316,7 @@ namespace SqlClrFunctions
                 double divergence = 0;
                 if (i > 0)
                 {
-                    divergence = Math.Sqrt(EuclideanDistance(
+                    divergence = Math.Sqrt(VectorUtilities.EuclideanDistance(
                         attempt.ReasoningVector,
                         attempts[i - 1].ReasoningVector
                     ));
@@ -363,7 +326,7 @@ namespace SqlClrFunctions
                 double reflectionAlignment = 0;
                 if (i > 0 && attempts[i - 1].ReflectionVector != null)
                 {
-                    reflectionAlignment = CosineSimilarity(
+                    reflectionAlignment = VectorUtilities.CosineSimilarity(
                         attempt.ReasoningVector,
                         attempts[i - 1].ReflectionVector
                     );
@@ -476,44 +439,6 @@ namespace SqlClrFunctions
                 }
             }
         }
-
-        private static double CosineSimilarity(float[] a, float[] b)
-        {
-            double dotProduct = 0, normA = 0, normB = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                dotProduct += a[i] * b[i];
-                normA += a[i] * a[i];
-                normB += b[i] * b[i];
-            }
-            if (normA == 0 || normB == 0) return 0;
-            return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
-        }
-
-        private static double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return sum;
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -558,8 +483,8 @@ namespace SqlClrFunctions
             if (pathVectorJson.IsNull || answerVectorJson.IsNull || confidence.IsNull)
                 return;
 
-            var pathVec = ParseVectorJson(pathVectorJson.Value);
-            var answerVec = ParseVectorJson(answerVectorJson.Value);
+            var pathVec = VectorUtilities.ParseVectorJson(pathVectorJson.Value);
+            var answerVec = VectorUtilities.ParseVectorJson(answerVectorJson.Value);
             
             if (pathVec == null || answerVec == null) return;
 
@@ -598,7 +523,7 @@ namespace SqlClrFunctions
 
                 for (int i = 0; i < clusters.Count; i++)
                 {
-                    double sim = CosineSimilarity(sample.AnswerVector, clusters[i].Centroid);
+                    double sim = VectorUtilities.CosineSimilarity(sample.AnswerVector, clusters[i].Centroid);
                     if (sim > bestSim)
                     {
                         bestSim = sim;
@@ -710,33 +635,6 @@ namespace SqlClrFunctions
                     w.Write(val);
             }
         }
-
-        private static double CosineSimilarity(float[] a, float[] b)
-        {
-            double dotProduct = 0, normA = 0, normB = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                dotProduct += a[i] * b[i];
-                normA += a[i] * a[i];
-                normB += b[i] * b[i];
-            }
-            if (normA == 0 || normB == 0) return 0;
-            return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -780,7 +678,7 @@ namespace SqlClrFunctions
             if (stepOrder.IsNull || vectorJson.IsNull)
                 return;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -815,7 +713,7 @@ namespace SqlClrFunctions
 
             for (int i = 0; i < steps.Count - 1; i++)
             {
-                double sim = CosineSimilarity(steps[i].Vector, steps[i + 1].Vector);
+                double sim = VectorUtilities.CosineSimilarity(steps[i].Vector, steps[i + 1].Vector);
                 coherenceScores.Add((steps[i].Order, steps[i + 1].Order, sim));
                 totalCoherence += sim;
             }
@@ -829,7 +727,7 @@ namespace SqlClrFunctions
             double totalDrift = 0;
             if (steps.Count > 1)
             {
-                totalDrift = Math.Sqrt(EuclideanDistance(steps.First().Vector, steps.Last().Vector));
+                totalDrift = Math.Sqrt(VectorUtilities.EuclideanDistance(steps.First().Vector, steps.Last().Vector));
             }
 
             var json = "{" +
@@ -883,44 +781,6 @@ namespace SqlClrFunctions
                 foreach (var val in step.Vector)
                     w.Write(val);
             }
-        }
-
-        private static double CosineSimilarity(float[] a, float[] b)
-        {
-            double dotProduct = 0, normA = 0, normB = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                dotProduct += a[i] * b[i];
-                normA += a[i] * a[i];
-                normB += b[i] * b[i];
-            }
-            if (normA == 0 || normB == 0) return 0;
-            return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
-        }
-
-        private static double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return sum;
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
         }
     }
 }

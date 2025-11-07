@@ -61,6 +61,21 @@ public class HartonomousDbContext : DbContext
     public DbSet<DeduplicationPolicy> DeduplicationPolicies => Set<DeduplicationPolicy>();
     public DbSet<LayerTensorSegment> LayerTensorSegments => Set<LayerTensorSegment>();
 
+    // Autonomous improvement tracking
+    public DbSet<AutonomousImprovementHistory> AutonomousImprovementHistory => Set<AutonomousImprovementHistory>();
+    public DbSet<BillingUsageLedger> BillingUsageLedger => Set<BillingUsageLedger>();
+    public DbSet<AtomPayloadStore> AtomPayloadStore => Set<AtomPayloadStore>();
+    public DbSet<InferenceCache> InferenceCache => Set<InferenceCache>();
+    public DbSet<TenantSecurityPolicy> TenantSecurityPolicy => Set<TenantSecurityPolicy>();
+    public DbSet<TestResults> TestResults => Set<TestResults>();
+
+    // SQL Graph entities
+    public DbSet<AtomGraphNode> AtomGraphNodes => Set<AtomGraphNode>();
+    public DbSet<AtomGraphEdge> AtomGraphEdges => Set<AtomGraphEdge>();
+
+    // Provenance concepts
+    public DbSet<Concept> Concepts => Set<Concept>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);

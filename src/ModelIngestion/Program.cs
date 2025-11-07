@@ -106,7 +106,14 @@ namespace ModelIngestion
                     // Register model format readers
                     services.AddScoped<IModelFormatReader<OnnxMetadata>, ModelFormats.OnnxModelReader>();
                     services.AddScoped<IModelFormatReader<SafetensorsMetadata>, ModelFormats.SafetensorsModelReader>();
-                    services.AddScoped<IModelFormatReader<GGUFMetadata>, ModelFormats.GGUFModelReader>();
+                    
+                    // Register GGUF decomposed classes
+                    services.AddScoped<ModelFormats.GGUFParser>();
+                    services.AddScoped<ModelFormats.GGUFDequantizer>();
+                    services.AddScoped<GGUFModelBuilder>();
+                    services.AddScoped<GGUFGeometryBuilder>();
+                    
+                    services.AddScoped<IModelFormatReader<ModelFormats.GGUFMetadata>, ModelFormats.GGUFModelReader>();
                     services.AddScoped<ModelFormats.ModelReaderFactory>();
 
                     services.AddScoped<EmbeddingIngestionService>();

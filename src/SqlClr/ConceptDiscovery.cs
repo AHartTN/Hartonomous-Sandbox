@@ -4,7 +4,7 @@ using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 
-namespace Hartonomous.SqlClr
+namespace SqlClrFunctions
 {
     /// <summary>
     /// Unsupervised concept discovery via clustering
@@ -263,7 +263,7 @@ namespace Hartonomous.SqlClr
             int maxConcepts = maxConceptsPerAtom.IsNull ? 5 : maxConceptsPerAtom.Value;
             int tenant = tenantId.IsNull ? 0 : tenantId.Value;
 
-            var bindings = new List<ConceptBinding>();
+            var bindings = new List<BindingResult>();
 
             using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
             {
@@ -312,7 +312,7 @@ namespace Hartonomous.SqlClr
 
                             if (similarity >= threshold)
                             {
-                                bindings.Add(new ConceptBinding
+                                bindings.Add(new BindingResult
                                 {
                                     AtomId = atom,
                                     ConceptId = conceptId,
@@ -336,14 +336,14 @@ namespace Hartonomous.SqlClr
             out SqlDouble similarity,
             out SqlBoolean isPrimary)
         {
-            var binding = (ConceptBinding)obj;
+            var binding = (BindingResult)obj;
             atomId = new SqlInt64(binding.AtomId);
             conceptId = new SqlGuid(binding.ConceptId);
             similarity = new SqlDouble(binding.Similarity);
             isPrimary = new SqlBoolean(binding.IsPrimary);
         }
 
-        private class ConceptBinding
+        private class BindingResult
         {
             public long AtomId { get; set; }
             public Guid ConceptId { get; set; }

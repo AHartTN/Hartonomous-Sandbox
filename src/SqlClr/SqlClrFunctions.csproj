@@ -59,6 +59,8 @@
     <Compile Include="SemanticAnalysis.cs" />
     <Compile Include="SqlBytesInterop.cs" />
     <Compile Include="FileSystemFunctions.cs" />
+    <Compile Include="ConceptDiscovery.cs" />
+    <Compile Include="AutonomousFunctions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

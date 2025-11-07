@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -47,7 +48,7 @@ namespace SqlClrFunctions
         {
             if (vectorJson.IsNull) return;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -124,20 +125,6 @@ namespace SqlClrFunctions
                 foreach (var val in vec)
                     w.Write(val);
         }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -177,7 +164,7 @@ namespace SqlClrFunctions
 
             if (k == 0) k = numNeighbors.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -210,7 +197,7 @@ namespace SqlClrFunctions
                 {
                     if (i != j)
                     {
-                        double dist = EuclideanDistance(vectors[i], vectors[j]);
+                        double dist = VectorUtilities.EuclideanDistance(vectors[i], vectors[j]);
                         distances.Add((j, dist));
                     }
                 }
@@ -267,31 +254,6 @@ namespace SqlClrFunctions
                 foreach (var val in vec)
                     w.Write(val);
         }
-
-        private static double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return Math.Sqrt(sum);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -336,7 +298,7 @@ namespace SqlClrFunctions
                 minPoints = minPts.Value;
             }
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -394,7 +356,7 @@ namespace SqlClrFunctions
             var neighbors = new List<int>();
             for (int i = 0; i < vectors.Count; i++)
             {
-                if (EuclideanDistance(vectors[pointIdx], vectors[i]) <= eps)
+                if (VectorUtilities.EuclideanDistance(vectors[pointIdx], vectors[i]) <= eps)
                     neighbors.Add(i);
             }
             return neighbors;
@@ -454,31 +416,6 @@ namespace SqlClrFunctions
                 foreach (var val in vec)
                     w.Write(val);
         }
-
-        private static double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return Math.Sqrt(sum);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -524,7 +461,7 @@ namespace SqlClrFunctions
                 dimension = vec.Length;
                 if (!referenceJson.IsNull)
                 {
-                    referenceVector = ParseVectorJson(referenceJson.Value);
+                    referenceVector = VectorUtilities.ParseVectorJson(referenceJson.Value);
                     if (referenceVector != null && referenceVector.Length != dimension)
                         referenceVector = null;
                 }
@@ -625,20 +562,6 @@ namespace SqlClrFunctions
             foreach (var vec in vectors)
                 foreach (var val in vec)
                     w.Write(val);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
         }
     }
 }

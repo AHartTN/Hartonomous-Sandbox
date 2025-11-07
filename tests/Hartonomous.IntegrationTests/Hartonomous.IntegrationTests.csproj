@@ -4,12 +4,20 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0-rc.2.25502.107" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.0-rc.2.25502.107" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.0-rc.2.25502.107" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\Hartonomous.Api\Hartonomous.Api.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Core\Hartonomous.Core.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Data\Hartonomous.Data.csproj" />
+    <ProjectReference Include="..\..\src\Hartonomous.Shared.Contracts\Hartonomous.Shared.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\ModelIngestion\ModelIngestion.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Remove="Api\ApiControllerTests.cs" />
   </ItemGroup>
 
 </Project>

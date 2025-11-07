@@ -1,12 +1,8 @@
-using System.Collections.Generic;
 using Hartonomous.Api.DTOs.Inference;
-using Hartonomous.Core.Entities;
-using Hartonomous.Core.Interfaces;
-using Hartonomous.Data;
+using Hartonomous.Api.Services;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace Hartonomous.Api.Controllers;
 
@@ -17,20 +13,20 @@ namespace Hartonomous.Api.Controllers;
 [Route("api/inference")]
 public sealed class InferenceController : ApiControllerBase
 {
-    private readonly HartonomousDbContext _context;
+    private readonly InferenceJobService _jobService;
     private readonly ILogger<InferenceController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InferenceController"/> class.
     /// </summary>
-    /// <param name="context">Database context for persisting inference requests.</param>
+    /// <param name="jobService">Service for managing inference jobs via T-SQL procedures.</param>
     /// <param name="logger">Logger for tracking submission and retrieval operations.</param>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public InferenceController(
-        HartonomousDbContext context,
+        InferenceJobService jobService,
         ILogger<InferenceController> logger)
     {
-        _context = context ?? throw new ArgumentNullException(nameof(context));
+        _jobService = jobService ?? throw new ArgumentNullException(nameof(jobService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -60,32 +56,16 @@ public sealed class InferenceController : ApiControllerBase
 
         try
         {
-            var inputData = System.Text.Json.JsonSerializer.Serialize(new
+            var inputData = new
             {
                 prompt = request.Prompt,
                 maxTokens = Math.Clamp(request.MaxTokens, 1, 512),
                 temperature = Math.Clamp(request.Temperature, 0.0, 2.0)
-            });
-
-            var job = new InferenceRequest
-            {
-                TaskType = "text_generation",
-                InputData = inputData,
-                Status = "Pending",
-                CorrelationId = Guid.NewGuid().ToString()
             };
 
-            _context.InferenceRequests.Add(job);
-            await _context.SaveChangesAsync(cancellationToken);
+            var response = await _jobService.SubmitJobAsync("text_generation", inputData, cancellationToken);
 
-            var response = new JobSubmittedResponse
-            {
-                JobId = job.InferenceId,
-                Status = "Pending",
-                StatusUrl = $"/api/inference/jobs/{job.InferenceId}"
-            };
-
-            return Accepted($"/api/inference/jobs/{job.InferenceId}", Success(response));
+            return Accepted($"/api/inference/jobs/{response.JobId}", Success(response));
         }
         catch (Exception ex)
         {
@@ -126,33 +106,17 @@ public sealed class InferenceController : ApiControllerBase
 
         try
         {
-            var inputData = System.Text.Json.JsonSerializer.Serialize(new
+            var inputData = new
             {
                 inputData = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(
                     System.Text.Json.JsonSerializer.Serialize(request.Embedding))),
                 modelIds = System.Text.Json.JsonSerializer.Serialize(request.ModelIds),
                 taskType = request.TaskType ?? "classification"
-            });
-
-            var job = new InferenceRequest
-            {
-                TaskType = "ensemble",
-                InputData = inputData,
-                Status = "Pending",
-                CorrelationId = Guid.NewGuid().ToString()
             };
 
-            _context.InferenceRequests.Add(job);
-            await _context.SaveChangesAsync(cancellationToken);
+            var response = await _jobService.SubmitJobAsync("ensemble", inputData, cancellationToken);
 
-            var response = new JobSubmittedResponse
-            {
-                JobId = job.InferenceId,
-                Status = "Pending",
-                StatusUrl = $"/api/inference/jobs/{job.InferenceId}"
-            };
-
-            return Accepted($"/api/inference/jobs/{job.InferenceId}", Success(response));
+            return Accepted($"/api/inference/jobs/{response.JobId}", Success(response));
         }
         catch (Exception ex)
         {
@@ -162,19 +126,9 @@ public sealed class InferenceController : ApiControllerBase
         }
     }
 
-    /// <summary>
-    /// Retrieves the current status and results of an inference job by ID.
-    /// </summary>
-    /// <param name="jobId">The inference job ID to query.</param>
-    /// <param name="cancellationToken">Cancellation token for async operation.</param>
-    /// <returns>OK (200) with job status and output data if found; NotFound (404) if job ID doesn't exist.</returns>
-    [HttpGet("jobs/{jobId}")]
-    [ProducesResponseType(typeof(ApiResponse<JobStatusResponse>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse<JobStatusResponse>), StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ApiResponse<JobStatusResponse>>> GetJobStatusAsync(long jobId, CancellationToken cancellationToken)
     {
-        var job = await _context.InferenceRequests
-            .FirstOrDefaultAsync(r => r.InferenceId == jobId, cancellationToken);
+        var job = await _jobService.GetJobStatusAsync(jobId, cancellationToken);
 
         if (job == null)
         {
@@ -182,17 +136,6 @@ public sealed class InferenceController : ApiControllerBase
             return NotFound(Failure<JobStatusResponse>(new[] { error }));
         }
 
-        var response = new JobStatusResponse
-        {
-            JobId = job.InferenceId,
-            Status = job.Status ?? "Unknown",
-            TaskType = job.TaskType,
-            OutputData = job.OutputData,
-            Confidence = job.Confidence,
-            DurationMs = job.TotalDurationMs,
-            CreatedAt = job.RequestTimestamp
-        };
-
-        return Ok(Success(response));
+        return Ok(Success(job));
     }
 }

@@ -1,10 +1,474 @@
-﻿param(
-    [string]$ServerName = "localhost",
-    [string]$DatabaseName = "Hartonomous",
-    [string]$SqlUser,
-    [string]$SqlPassword,
-    [string]$FilestreamPath = "D:\\Hartonomous\\HartonomousFileStream"
-)
+﻿param(param(
+
+    [Parameter(Mandatory = $true)]    [Parameter(Mandatory = $true)]
+
+    [string]$ServerName,    [string]$ServerName,
+
+
+
+    [Parameter(Mandatory = $true)]    [Parameter(Mandatory = $true)]
+
+    [string]$DatabaseName,    [string]$DatabaseName,
+
+
+
+    [string]$SqlUser,    [string]$SqlUser,
+
+    [string]$SqlPassword,    [string]$SqlPassword,
+
+    [string]$FilestreamPath = "$PSScriptRoot\..\data\filestream",    [string]$FilestreamPath = "$PSScriptRoot\..\data\filestream",
+
+    [switch]$SkipClrDeployment,    [switch]$SkipClrDeployment,
+
+    [switch]$SkipEfMigrations,    [switch]$SkipEfMigrations,
+
+    [switch]$SkipSqlScripts,    [switch]$SkipSqlScripts,
+
+    [switch]$SkipVerification,    [switch]$SkipVerification,
+
+    [switch]$ForceRebuildClr,    [switch]$ForceRebuildClr,
+
+    [ValidateSet('SAFE', 'EXTERNAL_ACCESS', 'UNSAFE')]    [ValidateSet('SAFE', 'EXTERNAL_ACCESS', 'UNSAFE')]
+
+    [string]$ClrPermissionSet = 'SAFE'    [string]$ClrPermissionSet = 'SAFE'
+
+))
+
+
+
+$ErrorActionPreference = "Stop"$ErrorActionPreference = "Stop"
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+$repoRoot = Split-Path -Parent $scriptDir$repoRoot = Split-Path -Parent $scriptDir
+
+
+
+# Import deployment functions# Import deployment functions
+
+. "$scriptDir\deployment-functions.ps1". "$scriptDir\deployment-functions.ps1"
+
+
+
+# Validate prerequisites# Validate prerequisites
+
+Test-PrerequisitesTest-Prerequisites
+
+
+
+# Build connection string# Build connection string
+
+$connectionString = New-ConnectionString -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword$connectionString = New-ConnectionString -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword
+
+
+
+Write-Host ""Write-Host ""
+
+Write-Host "========================================" -ForegroundColor CyanWrite-Host "========================================" -ForegroundColor Cyan
+
+Write-Host "  Hartonomous Database Deployment"Write-Host "  Hartonomous Database Deployment"
+
+Write-Host "========================================" -ForegroundColor CyanWrite-Host "========================================" -ForegroundColor Cyan
+
+Write-Host ""Write-Host ""
+
+Write-Host "Configuration:" -ForegroundColor YellowWrite-Host "Configuration:" -ForegroundColor Yellow
+
+Write-Host "  Server: $ServerName" -ForegroundColor GrayWrite-Host "  Server: $ServerName" -ForegroundColor Gray
+
+Write-Host "  Database: $DatabaseName" -ForegroundColor GrayWrite-Host "  Database: $DatabaseName" -ForegroundColor Gray
+
+Write-Host "  FILESTREAM Path: $FilestreamPath" -ForegroundColor GrayWrite-Host "  FILESTREAM Path: $FilestreamPath" -ForegroundColor Gray
+
+Write-Host "  CLR Permission Set: $ClrPermissionSet" -ForegroundColor GrayWrite-Host "  CLR Permission Set: $ClrPermissionSet" -ForegroundColor Gray
+
+Write-Host "  Skip CLR: $($SkipClrDeployment.IsPresent)" -ForegroundColor GrayWrite-Host "  Skip CLR: $($SkipClrDeployment.IsPresent)" -ForegroundColor Gray
+
+Write-Host "  Skip EF Migrations: $($SkipEfMigrations.IsPresent)" -ForegroundColor GrayWrite-Host "  Skip EF Migrations: $($SkipEfMigrations.IsPresent)" -ForegroundColor Gray
+
+Write-Host "  Skip SQL Scripts: $($SkipSqlScripts.IsPresent)" -ForegroundColor GrayWrite-Host "  Skip SQL Scripts: $($SkipSqlScripts.IsPresent)" -ForegroundColor Gray
+
+Write-Host ""Write-Host ""
+
+
+
+try {try {
+
+    # Step 1: Test SQL Server connection    # Step 1: Test SQL Server connection
+
+    Write-Host "Step 1: Testing SQL Server connection..." -ForegroundColor Yellow    Write-Host "Step 1: Testing SQL Server connection..." -ForegroundColor Yellow
+
+    Test-SqlConnection -ConnectionString $connectionString    Test-SqlConnection -ConnectionString $connectionString
+
+    Write-Host "  SUCCESS: Connected to SQL Server" -ForegroundColor Green    Write-Host "  SUCCESS: Connected to SQL Server" -ForegroundColor Green
+
+
+
+    # Step 2: Ensure database exists    # Step 2: Ensure database exists
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Step 2: Ensuring database exists..." -ForegroundColor Yellow    Write-Host "Step 2: Ensuring database exists..." -ForegroundColor Yellow
+
+    New-DatabaseIfNotExists -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword    New-DatabaseIfNotExists -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword
+
+    Write-Host "  SUCCESS: Database ready" -ForegroundColor Green    Write-Host "  SUCCESS: Database ready" -ForegroundColor Green
+
+
+
+    # Step 3: Configure FILESTREAM    # Step 3: Configure FILESTREAM
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Step 3: Configuring FILESTREAM..." -ForegroundColor Yellow    Write-Host "Step 3: Configuring FILESTREAM..." -ForegroundColor Yellow
+
+    Initialize-Filestream -ServerName $ServerName -DatabaseName $DatabaseName -FilestreamPath $FilestreamPath -SqlUser $SqlUser -SqlPassword $SqlPassword    Initialize-Filestream -ServerName $ServerName -DatabaseName $DatabaseName -FilestreamPath $FilestreamPath -SqlUser $SqlUser -SqlPassword $SqlPassword
+
+    Write-Host "  SUCCESS: FILESTREAM configured" -ForegroundColor Green    Write-Host "  SUCCESS: FILESTREAM configured" -ForegroundColor Green
+
+
+
+    # Step 4: Deploy CLR assemblies    # Step 4: Deploy CLR assemblies
+
+    if (-not $SkipClrDeployment) {    if (-not $SkipClrDeployment) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 4: Deploying CLR assemblies..." -ForegroundColor Yellow        Write-Host "Step 4: Deploying CLR assemblies..." -ForegroundColor Yellow
+
+        Deploy-ClrAssemblies -ConnectionString $connectionString -RepoRoot $repoRoot -PermissionSet $ClrPermissionSet -ForceRebuild:$ForceRebuildClr        Deploy-ClrAssemblies -ConnectionString $connectionString -RepoRoot $repoRoot -PermissionSet $ClrPermissionSet -ForceRebuild:$ForceRebuildClr
+
+        Write-Host "  SUCCESS: CLR assemblies deployed" -ForegroundColor Green        Write-Host "  SUCCESS: CLR assemblies deployed" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 4: Skipping CLR deployment" -ForegroundColor Yellow        Write-Host "Step 4: Skipping CLR deployment" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    # Step 5: Apply EF Core migrations    # Step 5: Apply EF Core migrations
+
+    if (-not $SkipEfMigrations) {    if (-not $SkipEfMigrations) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 5: Applying EF Core migrations..." -ForegroundColor Yellow        Write-Host "Step 5: Applying EF Core migrations..." -ForegroundColor Yellow
+
+        Update-EfMigrations -RepoRoot $repoRoot -ConnectionString $connectionString        Update-EfMigrations -RepoRoot $repoRoot -ConnectionString $connectionString
+
+        Write-Host "  SUCCESS: EF migrations applied" -ForegroundColor Green        Write-Host "  SUCCESS: EF migrations applied" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 5: Skipping EF migrations" -ForegroundColor Yellow        Write-Host "Step 5: Skipping EF migrations" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    # Step 6: Deploy SQL scripts    # Step 6: Deploy SQL scripts
+
+    if (-not $SkipSqlScripts) {    if (-not $SkipSqlScripts) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 6: Deploying SQL scripts..." -ForegroundColor Yellow        Write-Host "Step 6: Deploying SQL scripts..." -ForegroundColor Yellow
+
+        Deploy-SqlScripts -ConnectionString $connectionString -RepoRoot $repoRoot        Deploy-SqlScripts -ConnectionString $connectionString -RepoRoot $repoRoot
+
+        Write-Host "  SUCCESS: SQL scripts deployed" -ForegroundColor Green        Write-Host "  SUCCESS: SQL scripts deployed" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 6: Skipping SQL scripts" -ForegroundColor Yellow        Write-Host "Step 6: Skipping SQL scripts" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    # Step 7: Run verification    # Step 7: Run verification
+
+    if (-not $SkipVerification) {    if (-not $SkipVerification) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 7: Running verification..." -ForegroundColor Yellow        Write-Host "Step 7: Running verification..." -ForegroundColor Yellow
+
+        Invoke-VerificationScripts -ConnectionString $connectionString -RepoRoot $repoRoot        Invoke-VerificationScripts -ConnectionString $connectionString -RepoRoot $repoRoot
+
+        Write-Host "  SUCCESS: Verification completed" -ForegroundColor Green        Write-Host "  SUCCESS: Verification completed" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 7: Skipping verification" -ForegroundColor Yellow        Write-Host "Step 7: Skipping verification" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "========================================" -ForegroundColor Green    Write-Host "========================================" -ForegroundColor Green
+
+    Write-Host "  Deployment Complete!"    Write-Host "  Deployment Complete!"
+
+    Write-Host "========================================" -ForegroundColor Green    Write-Host "========================================" -ForegroundColor Green
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Database is ready for use." -ForegroundColor Green    Write-Host "Database is ready for use." -ForegroundColor Green
+
+    Write-Host "Connection String: $connectionString" -ForegroundColor Gray    Write-Host "Connection String: $connectionString" -ForegroundColor Gray
+
+
+
+} catch {} catch {
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "========================================" -ForegroundColor Red    Write-Host "========================================" -ForegroundColor Red
+
+    Write-Host "  Deployment Failed!"    Write-Host "  Deployment Failed!"
+
+    Write-Host "========================================" -ForegroundColor Red    Write-Host "========================================" -ForegroundColor Red
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+
+    Write-Host ""    Write-Host ""
+
+    throw    throw
+
+}}
+
+
+
+$ErrorActionPreference = "Stop"$ErrorActionPreference = "Stop"
+
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+
+$repoRoot = Split-Path -Parent $scriptDir$repoRoot = Split-Path -Parent $scriptDir
+
+
+
+# Import deployment functions# Import deployment functions
+
+. "$scriptDir\deployment-functions.ps1". "$scriptDir\deployment-functions.ps1"
+
+
+
+# Validate prerequisites# Validate prerequisites
+
+Test-PrerequisitesTest-Prerequisites
+
+
+
+# Build connection string# Build connection string
+
+$connectionString = New-ConnectionString -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword$connectionString = New-ConnectionString -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword
+
+
+
+Write-Host ""Write-Host ""
+
+Write-Host "========================================" -ForegroundColor CyanWrite-Host "========================================" -ForegroundColor Cyan
+
+Write-Host "  Hartonomous Database Deployment"Write-Host "  Hartonomous Database Deployment"
+
+Write-Host "========================================" -ForegroundColor CyanWrite-Host "========================================" -ForegroundColor Cyan
+
+Write-Host ""Write-Host ""
+
+Write-Host "Configuration:" -ForegroundColor YellowWrite-Host "Configuration:" -ForegroundColor Yellow
+
+Write-Host "  Server: $ServerName" -ForegroundColor GrayWrite-Host "  Server: $ServerName" -ForegroundColor Gray
+
+Write-Host "  Database: $DatabaseName" -ForegroundColor GrayWrite-Host "  Database: $DatabaseName" -ForegroundColor Gray
+
+Write-Host "  FILESTREAM Path: $FilestreamPath" -ForegroundColor GrayWrite-Host "  FILESTREAM Path: $FilestreamPath" -ForegroundColor Gray
+
+Write-Host "  CLR Permission Set: $ClrPermissionSet" -ForegroundColor GrayWrite-Host "  CLR Permission Set: $ClrPermissionSet" -ForegroundColor Gray
+
+Write-Host "  Skip CLR: $($SkipClrDeployment.IsPresent)" -ForegroundColor GrayWrite-Host "  Skip CLR: $($SkipClrDeployment.IsPresent)" -ForegroundColor Gray
+
+Write-Host "  Skip EF Migrations: $($SkipEfMigrations.IsPresent)" -ForegroundColor GrayWrite-Host "  Skip EF Migrations: $($SkipEfMigrations.IsPresent)" -ForegroundColor Gray
+
+Write-Host "  Skip SQL Scripts: $($SkipSqlScripts.IsPresent)" -ForegroundColor GrayWrite-Host "  Skip SQL Scripts: $($SkipSqlScripts.IsPresent)" -ForegroundColor Gray
+
+Write-Host ""Write-Host ""
+
+
+
+try {try {
+
+    # Step 1: Test SQL Server connection    # Step 1: Test SQL Server connection
+
+    Write-Host "Step 1: Testing SQL Server connection..." -ForegroundColor Yellow    Write-Host "Step 1: Testing SQL Server connection..." -ForegroundColor Yellow
+
+    Test-SqlConnection -ConnectionString $connectionString    Test-SqlConnection -ConnectionString $connectionString
+
+    Write-Host "  SUCCESS: Connected to SQL Server" -ForegroundColor Green    Write-Host "  SUCCESS: Connected to SQL Server" -ForegroundColor Green
+
+
+
+    # Step 2: Ensure database exists    # Step 2: Ensure database exists
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Step 2: Ensuring database exists..." -ForegroundColor Yellow    Write-Host "Step 2: Ensuring database exists..." -ForegroundColor Yellow
+
+    New-DatabaseIfNotExists -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword    New-DatabaseIfNotExists -ServerName $ServerName -DatabaseName $DatabaseName -SqlUser $SqlUser -SqlPassword $SqlPassword
+
+    Write-Host "  SUCCESS: Database ready" -ForegroundColor Green    Write-Host "  SUCCESS: Database ready" -ForegroundColor Green
+
+
+
+    # Step 3: Configure FILESTREAM    # Step 3: Configure FILESTREAM
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Step 3: Configuring FILESTREAM..." -ForegroundColor Yellow    Write-Host "Step 3: Configuring FILESTREAM..." -ForegroundColor Yellow
+
+    Initialize-Filestream -ServerName $ServerName -DatabaseName $DatabaseName -FilestreamPath $FilestreamPath -SqlUser $SqlUser -SqlPassword $SqlPassword    Initialize-Filestream -ServerName $ServerName -DatabaseName $DatabaseName -FilestreamPath $FilestreamPath -SqlUser $SqlUser -SqlPassword $SqlPassword
+
+    Write-Host "  SUCCESS: FILESTREAM configured" -ForegroundColor Green    Write-Host "  SUCCESS: FILESTREAM configured" -ForegroundColor Green
+
+
+
+    # Step 4: Deploy CLR assemblies    # Step 4: Deploy CLR assemblies
+
+    if (-not $SkipClrDeployment) {    if (-not $SkipClrDeployment) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 4: Deploying CLR assemblies..." -ForegroundColor Yellow        Write-Host "Step 4: Deploying CLR assemblies..." -ForegroundColor Yellow
+
+        Deploy-ClrAssemblies -ConnectionString $connectionString -RepoRoot $repoRoot -PermissionSet $ClrPermissionSet -ForceRebuild:$ForceRebuildClr        Deploy-ClrAssemblies -ConnectionString $connectionString -RepoRoot $repoRoot -PermissionSet $ClrPermissionSet -ForceRebuild:$ForceRebuildClr
+
+        Write-Host "  SUCCESS: CLR assemblies deployed" -ForegroundColor Green        Write-Host "  SUCCESS: CLR assemblies deployed" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 4: Skipping CLR deployment" -ForegroundColor Yellow        Write-Host "Step 4: Skipping CLR deployment" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    # Step 5: Apply EF Core migrations    # Step 5: Apply EF Core migrations
+
+    if (-not $SkipEfMigrations) {    if (-not $SkipEfMigrations) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 5: Applying EF Core migrations..." -ForegroundColor Yellow        Write-Host "Step 5: Applying EF Core migrations..." -ForegroundColor Yellow
+
+        Update-EfMigrations -RepoRoot $repoRoot -ConnectionString $connectionString        Update-EfMigrations -RepoRoot $repoRoot -ConnectionString $connectionString
+
+        Write-Host "  SUCCESS: EF migrations applied" -ForegroundColor Green        Write-Host "  SUCCESS: EF migrations applied" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 5: Skipping EF migrations" -ForegroundColor Yellow        Write-Host "Step 5: Skipping EF migrations" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    # Step 6: Deploy SQL scripts    # Step 6: Deploy SQL scripts
+
+    if (-not $SkipSqlScripts) {    if (-not $SkipSqlScripts) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 6: Deploying SQL scripts..." -ForegroundColor Yellow        Write-Host "Step 6: Deploying SQL scripts..." -ForegroundColor Yellow
+
+        Deploy-SqlScripts -ConnectionString $connectionString -RepoRoot $repoRoot        Deploy-SqlScripts -ConnectionString $connectionString -RepoRoot $repoRoot
+
+        Write-Host "  SUCCESS: SQL scripts deployed" -ForegroundColor Green        Write-Host "  SUCCESS: SQL scripts deployed" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 6: Skipping SQL scripts" -ForegroundColor Yellow        Write-Host "Step 6: Skipping SQL scripts" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    # Step 7: Run verification    # Step 7: Run verification
+
+    if (-not $SkipVerification) {    if (-not $SkipVerification) {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 7: Running verification..." -ForegroundColor Yellow        Write-Host "Step 7: Running verification..." -ForegroundColor Yellow
+
+        Invoke-VerificationScripts -ConnectionString $connectionString -RepoRoot $repoRoot        Invoke-VerificationScripts -ConnectionString $connectionString -RepoRoot $repoRoot
+
+        Write-Host "  SUCCESS: Verification completed" -ForegroundColor Green        Write-Host "  SUCCESS: Verification completed" -ForegroundColor Green
+
+    } else {    } else {
+
+        Write-Host ""        Write-Host ""
+
+        Write-Host "Step 7: Skipping verification" -ForegroundColor Yellow        Write-Host "Step 7: Skipping verification" -ForegroundColor Yellow
+
+    }    }
+
+
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "========================================" -ForegroundColor Green    Write-Host "========================================" -ForegroundColor Green
+
+    Write-Host "  Deployment Complete!"    Write-Host "  Deployment Complete!"
+
+    Write-Host "========================================" -ForegroundColor Green    Write-Host "========================================" -ForegroundColor Green
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Database is ready for use." -ForegroundColor Green    Write-Host "Database is ready for use." -ForegroundColor Green
+
+    Write-Host "Connection String: $connectionString" -ForegroundColor Gray    Write-Host "Connection String: $connectionString" -ForegroundColor Gray
+
+
+
+} catch {} catch {
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "========================================" -ForegroundColor Red    Write-Host "========================================" -ForegroundColor Red
+
+    Write-Host "  Deployment Failed!"    Write-Host "  Deployment Failed!"
+
+    Write-Host "========================================" -ForegroundColor Red    Write-Host "========================================" -ForegroundColor Red
+
+    Write-Host ""    Write-Host ""
+
+    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red    Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Red
+
+    Write-Host ""    Write-Host ""
+
+    throw    throw
+
+}}                                                                                                                                                                                                                                                                                                
 
 $ErrorActionPreference = "Stop"
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path

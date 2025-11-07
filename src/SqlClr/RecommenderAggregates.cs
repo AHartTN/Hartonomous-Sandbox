@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -53,7 +54,7 @@ namespace SqlClrFunctions
             if (topN == 0 && !topNItems.IsNull)
                 topN = topNItems.Value;
 
-            var vec = ParseVectorJson(itemVectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(itemVectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -179,20 +180,6 @@ namespace SqlClrFunctions
                         w.Write(val);
             }
         }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -236,7 +223,7 @@ namespace SqlClrFunctions
             if (topN == 0 && !topNItems.IsNull)
                 topN = topNItems.Value;
 
-            var vec = ParseVectorJson(itemVectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(itemVectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -321,20 +308,6 @@ namespace SqlClrFunctions
                     w.Write(val);
                 w.Write(weight);
             }
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
         }
     }
 
@@ -581,7 +554,7 @@ namespace SqlClrFunctions
             if (lambda == 0 && !diversityWeight.IsNull)
                 lambda = diversityWeight.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -620,7 +593,7 @@ namespace SqlClrFunctions
                     double maxSim = 0;
                     if (selected.Count > 0)
                     {
-                        maxSim = selected.Max(s => CosineSimilarity(vec, s.Vector));
+                        maxSim = selected.Max(s => VectorUtilities.CosineSimilarity(vec, s.Vector));
                     }
 
                     // MMR score: lambda * relevance - (1-lambda) * similarity
@@ -688,33 +661,6 @@ namespace SqlClrFunctions
                     w.Write(val);
                 w.Write(relevance);
             }
-        }
-
-        private static double CosineSimilarity(float[] a, float[] b)
-        {
-            double dotProduct = 0, normA = 0, normB = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                dotProduct += a[i] * b[i];
-                normA += a[i] * a[i];
-                normB += b[i] * b[i];
-            }
-            if (normA == 0 || normB == 0) return 0;
-            return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
         }
     }
 }

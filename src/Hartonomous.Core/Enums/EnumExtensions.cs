@@ -18,6 +18,7 @@ public static class EnumExtensions
     /// <summary>
     /// Converts a kebab-case JSON string to TaskType enum.
     /// Case-insensitive. Returns TaskType.None for unrecognized values.
+    /// PERFORMANCE: Uses ReadOnlySpan<char> for zero-allocation string processing.
     /// </summary>
     /// <param name="taskString">JSON task string (e.g., "code-generation", "text-generation")</param>
     /// <returns>Corresponding TaskType enum value</returns>
@@ -26,29 +27,62 @@ public static class EnumExtensions
         if (string.IsNullOrWhiteSpace(taskString))
             return TaskType.None;
 
-        // Try exact match first (fast path)
-        if (Enum.TryParse<TaskType>(taskString, ignoreCase: true, out var directResult))
-            return directResult;
+        // PERFORMANCE: Use ReadOnlySpan<char> for zero-allocation processing
+        return ToTaskType(taskString.AsSpan());
+    }
 
-        // Handle kebab-case and snake_case conversions
-        return taskString.ToLowerInvariant().Replace('_', '-') switch
+    /// <summary>
+    /// Converts a ReadOnlySpan<char> to TaskType enum (zero-allocation).
+    /// </summary>
+    public static TaskType ToTaskType(this ReadOnlySpan<char> taskSpan)
+    {
+        if (taskSpan.IsEmpty || taskSpan.IsWhiteSpace())
+            return TaskType.None;
+
+        // Create normalized span (lowercase, replace underscores)
+        Span<char> normalized = stackalloc char[taskSpan.Length];
+        taskSpan.ToLowerInvariant(normalized);
+
+        // Replace underscores with hyphens in-place
+        for (int i = 0; i < normalized.Length; i++)
         {
-            "text-generation" => TaskType.TextGeneration,
-            "image-generation" => TaskType.ImageGeneration,
-            "audio-generation" => TaskType.AudioGeneration,
-            "video-generation" => TaskType.VideoGeneration,
-            "code-generation" => TaskType.CodeGeneration,
-            "sql-optimization" => TaskType.SqlOptimization,
-            "code-analysis" => TaskType.CodeAnalysis,
-            "code-testing" => TaskType.CodeTesting,
-            "text-embedding" => TaskType.TextEmbedding,
-            "image-embedding" => TaskType.ImageEmbedding,
-            "classification" => TaskType.Classification,
-            "object-detection" => TaskType.ObjectDetection,
-            "semantic-search" => TaskType.SemanticSearch,
-            "multimodal" => TaskType.Multimodal,
-            _ => TaskType.None
-        };
+            if (normalized[i] == '_')
+                normalized[i] = '-';
+        }
+
+        var normalizedSpan = normalized.Trim();
+
+        // PERFORMANCE: Use span-based comparisons for better performance
+        if (normalizedSpan.SequenceEqual("text-generation".AsSpan()))
+            return TaskType.TextGeneration;
+        if (normalizedSpan.SequenceEqual("image-generation".AsSpan()))
+            return TaskType.ImageGeneration;
+        if (normalizedSpan.SequenceEqual("audio-generation".AsSpan()))
+            return TaskType.AudioGeneration;
+        if (normalizedSpan.SequenceEqual("video-generation".AsSpan()))
+            return TaskType.VideoGeneration;
+        if (normalizedSpan.SequenceEqual("code-generation".AsSpan()))
+            return TaskType.CodeGeneration;
+        if (normalizedSpan.SequenceEqual("sql-optimization".AsSpan()))
+            return TaskType.SqlOptimization;
+        if (normalizedSpan.SequenceEqual("code-analysis".AsSpan()))
+            return TaskType.CodeAnalysis;
+        if (normalizedSpan.SequenceEqual("code-testing".AsSpan()))
+            return TaskType.CodeTesting;
+        if (normalizedSpan.SequenceEqual("text-embedding".AsSpan()))
+            return TaskType.TextEmbedding;
+        if (normalizedSpan.SequenceEqual("image-embedding".AsSpan()))
+            return TaskType.ImageEmbedding;
+        if (normalizedSpan.SequenceEqual("classification".AsSpan()))
+            return TaskType.Classification;
+        if (normalizedSpan.SequenceEqual("object-detection".AsSpan()))
+            return TaskType.ObjectDetection;
+        if (normalizedSpan.SequenceEqual("semantic-search".AsSpan()))
+            return TaskType.SemanticSearch;
+        if (normalizedSpan.SequenceEqual("multimodal".AsSpan()))
+            return TaskType.Multimodal;
+
+        return TaskType.None;
     }
 
     /// <summary>
@@ -80,24 +114,34 @@ public static class EnumExtensions
     }
 
     /// <summary>
-    /// Parses a JSON array of task strings into TaskType array.
+    /// Parses a JSON array of task strings into combined TaskType flags.
+    /// PERFORMANCE: Returns combined flags for O(1) capability checks.
     /// </summary>
     /// <param name="jsonArray">JSON string like ["text-generation", "code-generation"]</param>
-    /// <returns>Array of TaskType enums</returns>
-    public static TaskType[] ParseTaskTypes(string? jsonArray)
+    /// <returns>Combined TaskType flags</returns>
+    public static TaskType ParseTaskTypes(string? jsonArray)
     {
         if (string.IsNullOrWhiteSpace(jsonArray))
-            return Array.Empty<TaskType>();
+            return TaskType.None;
 
         try
         {
             var taskStrings = JsonSerializer.Deserialize<string[]>(jsonArray);
-            return taskStrings?.Select(s => s.ToTaskType()).Where(t => t != TaskType.None).ToArray()
-                ?? Array.Empty<TaskType>();
+            if (taskStrings == null || taskStrings.Length == 0)
+                return TaskType.None;
+
+            var result = TaskType.None;
+            foreach (var taskString in taskStrings)
+            {
+                var taskType = taskString.ToTaskType();
+                if (taskType != TaskType.None)
+                    result |= taskType;  // Bitwise OR to combine flags
+            }
+            return result;
         }
         catch
         {
-            return Array.Empty<TaskType>();
+            return TaskType.None;
         }
     }
 
@@ -108,6 +152,7 @@ public static class EnumExtensions
     /// <summary>
     /// Converts a kebab-case JSON string to Modality enum flag.
     /// Case-insensitive. Returns Modality.None for unrecognized values.
+    /// PERFORMANCE: Uses ReadOnlySpan<char> for zero-allocation string processing.
     /// </summary>
     /// <param name="modalityString">JSON modality string (e.g., "code", "text", "image")</param>
     /// <returns>Corresponding Modality enum value</returns>
@@ -116,25 +161,46 @@ public static class EnumExtensions
         if (string.IsNullOrWhiteSpace(modalityString))
             return Modality.None;
 
-        // Try exact match first (fast path)
-        if (Enum.TryParse<Modality>(modalityString, ignoreCase: true, out var directResult))
-            return directResult;
+        // PERFORMANCE: Use ReadOnlySpan<char> for zero-allocation processing
+        return ToModality(modalityString.AsSpan());
+    }
 
-        // Handle kebab-case and variations
-        return modalityString.ToLowerInvariant() switch
-        {
-            "text" => Modality.Text,
-            "image" => Modality.Image,
-            "audio" => Modality.Audio,
-            "video" => Modality.Video,
-            "code" => Modality.Code,
-            "tabular" => Modality.Tabular,
-            "time-series" or "timeseries" => Modality.TimeSeries,
-            "graph" => Modality.Graph,
-            "spatial" => Modality.Spatial,
-            "vector" => Modality.Vector,
-            _ => Modality.None
-        };
+    /// <summary>
+    /// Converts a ReadOnlySpan<char> to Modality enum flag (zero-allocation).
+    /// </summary>
+    public static Modality ToModality(this ReadOnlySpan<char> modalitySpan)
+    {
+        if (modalitySpan.IsEmpty || modalitySpan.IsWhiteSpace())
+            return Modality.None;
+
+        // PERFORMANCE: Normalize to lowercase on stack
+        Span<char> normalized = stackalloc char[modalitySpan.Length];
+        modalitySpan.ToLowerInvariant(normalized);
+        var normalizedSpan = normalized.Trim();
+
+        // PERFORMANCE: Use span-based comparisons
+        if (normalizedSpan.SequenceEqual("text".AsSpan()))
+            return Modality.Text;
+        if (normalizedSpan.SequenceEqual("image".AsSpan()))
+            return Modality.Image;
+        if (normalizedSpan.SequenceEqual("audio".AsSpan()))
+            return Modality.Audio;
+        if (normalizedSpan.SequenceEqual("video".AsSpan()))
+            return Modality.Video;
+        if (normalizedSpan.SequenceEqual("code".AsSpan()))
+            return Modality.Code;
+        if (normalizedSpan.SequenceEqual("tabular".AsSpan()))
+            return Modality.Tabular;
+        if (normalizedSpan.SequenceEqual("time-series".AsSpan()) || normalizedSpan.SequenceEqual("timeseries".AsSpan()))
+            return Modality.TimeSeries;
+        if (normalizedSpan.SequenceEqual("graph".AsSpan()))
+            return Modality.Graph;
+        if (normalizedSpan.SequenceEqual("spatial".AsSpan()))
+            return Modality.Spatial;
+        if (normalizedSpan.SequenceEqual("vector".AsSpan()))
+            return Modality.Vector;
+
+        return Modality.None;
     }
 
     /// <summary>

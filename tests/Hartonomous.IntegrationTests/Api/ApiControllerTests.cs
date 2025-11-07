@@ -1,10 +1,12 @@
 using System.Net;
 using System.Net.Http.Json;
-using Hartonomous.Api.DTOs.Embedding;
+using Hartonomous.Api.DTOs;
 using Hartonomous.Api.DTOs.Generation;
 using Hartonomous.Api.DTOs.Inference;
 using Hartonomous.Api.DTOs.Search;
+using Hartonomous.Core.Enums;
 using Hartonomous.Shared.Contracts.Responses;
+using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Hartonomous.IntegrationTests.Api;
@@ -267,33 +269,64 @@ public class ApiControllerTests : IClassFixture<SqlServerTestFixture>
 
     #endregion
 
-    #region GraphController Tests
+    #region GraphQueryController Tests
 
     [Fact]
-    public async Task GraphController_QueryGraph_ValidatesQuery()
+    public async Task GraphQueryController_ExecuteQuery_ValidatesQuery()
     {
         // Arrange
         var client = _factory.CreateTenantClient(tenantId: 1, role: "User");
         var request = new { cypherQuery = "MATCH (n) RETURN n LIMIT 10" };
 
         // Act
-        var response = await client.PostAsJsonAsync("/api/graph/query", request);
+        var response = await client.PostAsJsonAsync("/api/v1/graph/query", request);
 
         // Assert
         Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.BadRequest);
     }
 
+    #endregion
+
+    #region GraphAnalyticsController Tests
+
     [Fact]
-    public async Task GraphController_GetProvenance_ReturnsChain()
+    public async Task GraphAnalyticsController_GetStats_ReturnsGraphStatistics()
     {
         // Arrange
         var client = _factory.CreateTenantClient(tenantId: 1, role: "User");
 
         // Act
-        var response = await client.GetAsync("/api/graph/provenance/atom/12345");
+        var response = await client.GetAsync("/api/v1/graph/stats");
 
         // Assert
-        Assert.True(response.StatusCode == HttpStatusCode.NotFound || response.IsSuccessStatusCode);
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.NoContent);
+    }
+
+    #endregion
+
+    #region SqlGraphController Tests
+
+    [Fact]
+    public async Task SqlGraphController_CreateNode_ValidatesInput()
+    {
+        // Arrange
+        var client = _factory.CreateTenantClient(tenantId: 1, role: "DataScientist");
+        var request = new
+        {
+            NodeType = "Atom",
+            AtomId = 12345L,
+            Properties = new Dictionary<string, object>
+            {
+                ["modality"] = "text",
+                ["canonicalText"] = "Test content"
+            }
+        };
+
+        // Act
+        var response = await client.PostAsJsonAsync("/api/v1/graph/sql/nodes", request);
+
+        // Assert
+        Assert.True(response.IsSuccessStatusCode || response.StatusCode == HttpStatusCode.BadRequest);
     }
 
     #endregion
@@ -514,8 +547,8 @@ public class ApiControllerTests : IClassFixture<SqlServerTestFixture>
         {
             Items = new[] 
             { 
-                new { Content = "Item 1", Modality = "text" },
-                new { Content = "Item 2", Modality = "text" }
+                new { Content = "Item 1", Modality = Modality.Text.ToJsonString() },
+                new { Content = "Item 2", Modality = Modality.Text.ToJsonString() }
             }
         };
 
@@ -538,7 +571,7 @@ public class ApiControllerTests : IClassFixture<SqlServerTestFixture>
         var request = new
         {
             Content = "Test atom content",
-            Modality = "text",
+            Modality = Modality.Text.ToJsonString(),
             SourceType = "api"
         };
 

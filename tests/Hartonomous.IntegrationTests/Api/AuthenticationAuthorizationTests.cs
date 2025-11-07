@@ -18,10 +18,11 @@ public class AuthenticationAuthorizationTests : IClassFixture<SqlServerTestFixtu
     public AuthenticationAuthorizationTests(SqlServerTestFixture fixture)
     {
         _fixture = fixture;
-        if (!fixture.IsAvailable)
-        {
-            Skip.If(!fixture.IsAvailable, fixture.SkipReason);
-        }
+        // Skip test if database is not available
+        // if (!fixture.IsAvailable)
+        // {
+        //     throw new SkipException(fixture.SkipReason);
+        // }
 
         _factory = new ApiTestWebApplicationFactory(fixture.ConnectionString);
     }

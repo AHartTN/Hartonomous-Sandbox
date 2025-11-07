@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using System.Data;
 
 namespace Hartonomous.Infrastructure.Services.CDC;
 
@@ -38,7 +39,7 @@ public class SqlCdcCheckpointManager : ICdcCheckpointManager
                   WHERE ConsumerName = @ConsumerName",
                 connection);
 
-            command.Parameters.AddWithValue("@ConsumerName", _consumerName);
+            command.Parameters.Add("@ConsumerName", SqlDbType.NVarChar, 100).Value = _consumerName;
 
             var result = await command.ExecuteScalarAsync(cancellationToken);
             var lsn = result as string;
@@ -74,8 +75,8 @@ public class SqlCdcCheckpointManager : ICdcCheckpointManager
                       VALUES (source.ConsumerName, source.LastProcessedLsn, SYSUTCDATETIME());",
                 connection);
 
-            command.Parameters.AddWithValue("@ConsumerName", _consumerName);
-            command.Parameters.AddWithValue("@Lsn", lsn);
+            command.Parameters.Add("@ConsumerName", SqlDbType.NVarChar, 100).Value = _consumerName;
+            command.Parameters.Add("@Lsn", SqlDbType.NVarChar, 50).Value = lsn;
 
             await command.ExecuteNonQueryAsync(cancellationToken);
             _logger.LogDebug("Updated checkpoint LSN for {ConsumerName}: {Lsn}", _consumerName, lsn);

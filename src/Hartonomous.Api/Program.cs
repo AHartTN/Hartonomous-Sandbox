@@ -38,26 +38,28 @@ builder.Host.ConfigureHostOptions(options =>
 // Enable redaction in logging
 builder.Logging.EnableRedaction();
 
-// Azure App Configuration integration
-var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"] 
-    ?? "https://appconfig-hartonomous.azconfig.io";
-builder.Configuration.AddAzureAppConfiguration(options =>
+// Azure App Configuration integration (only in Azure environments)
+var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"];
+if (!string.IsNullOrEmpty(appConfigEndpoint) && !builder.Environment.IsDevelopment())
 {
-    options.Connect(new Uri(appConfigEndpoint), new DefaultAzureCredential())
-        // Configure Key Vault integration for secret references
-        .ConfigureKeyVault(kv =>
-        {
-            kv.SetCredential(new DefaultAzureCredential());
-        })
-        // Enable configuration refresh (optional)
-        .ConfigureRefresh(refresh =>
-        {
-            refresh.RegisterAll().SetRefreshInterval(TimeSpan.FromMinutes(5));
-        });
-});
+    builder.Configuration.AddAzureAppConfiguration(options =>
+    {
+        options.Connect(new Uri(appConfigEndpoint), new DefaultAzureCredential())
+            // Configure Key Vault integration for secret references
+            .ConfigureKeyVault(kv =>
+            {
+                kv.SetCredential(new DefaultAzureCredential());
+            })
+            // Enable configuration refresh (optional)
+            .ConfigureRefresh(refresh =>
+            {
+                refresh.RegisterAll().SetRefreshInterval(TimeSpan.FromMinutes(5));
+            });
+    });
 
-// Add Azure App Configuration middleware for refresh support
-builder.Services.AddAzureAppConfiguration();
+    // Add Azure App Configuration middleware for refresh support
+    builder.Services.AddAzureAppConfiguration();
+}
 
 // Feature Management - integrated with Azure App Configuration
 builder.Services.AddFeatureManagement();
@@ -393,6 +395,7 @@ builder.Services.AddHartonomousInfrastructure(builder.Configuration);
 builder.Services.AddHartonomousHealthChecks(builder.Configuration);
 builder.Services.AddHartonomousPiiRedaction(builder.Configuration);
 builder.Services.AddScoped<IModelIngestionService, ApiModelIngestionService>();
+builder.Services.AddScoped<InferenceJobService>();
 
 // Legacy inference job processor (still supported)
 builder.Services.AddHostedService<Hartonomous.Infrastructure.Services.Jobs.InferenceJobWorker>();

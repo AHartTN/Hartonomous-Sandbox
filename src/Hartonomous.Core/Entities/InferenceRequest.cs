@@ -86,6 +86,21 @@ public class InferenceRequest
     public string? UserFeedback { get; set; }
 
     /// <summary>
+    /// Gets or sets the autonomous complexity score calculated for this inference request.
+    /// </summary>
+    public int? Complexity { get; set; }
+
+    /// <summary>
+    /// Gets or sets the SLA tier determined for this inference request (e.g., 'Standard', 'Premium', 'Enterprise').
+    /// </summary>
+    public string? SlaTier { get; set; }
+
+    /// <summary>
+    /// Gets or sets the estimated response time in milliseconds calculated autonomously.
+    /// </summary>
+    public int? EstimatedResponseTimeMs { get; set; }
+
+    /// <summary>
     /// Gets or sets the collection of detailed steps executed during this inference.
     /// </summary>
     public ICollection<InferenceStep> Steps { get; set; } = new List<InferenceStep>();

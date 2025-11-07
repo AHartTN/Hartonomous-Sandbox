@@ -48,8 +48,8 @@ public sealed class ModelCapabilityServiceTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(TaskType.TextGeneration, result.SupportedTasks);
-        Assert.Contains(TaskType.TextEmbedding, result.SupportedTasks);
+        Assert.True(result.SupportsTask(TaskType.TextGeneration));
+        Assert.True(result.SupportsTask(TaskType.TextEmbedding));
         Assert.True(result.SupportsModality(Modality.Text));
         Assert.Equal(4096, result.MaxTokens);
         Assert.Equal(8192, result.MaxContextWindow);
@@ -64,7 +64,7 @@ public sealed class ModelCapabilityServiceTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(TaskType.TextGeneration, result.SupportedTasks);
+        Assert.True(result.SupportsTask(TaskType.TextGeneration));
         Assert.Equal(2048, result.MaxTokens);
         Assert.Equal(4096, result.MaxContextWindow);
     }
@@ -81,7 +81,7 @@ public sealed class ModelCapabilityServiceTests
 
         // Assert
         Assert.NotNull(result);
-        Assert.Contains(TaskType.TextGeneration, result.SupportedTasks);
+        Assert.True(result.SupportsTask(TaskType.TextGeneration));
     }
 
     [Fact]

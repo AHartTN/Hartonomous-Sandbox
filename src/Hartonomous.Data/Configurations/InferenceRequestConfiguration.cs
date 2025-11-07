@@ -41,6 +41,17 @@ public class InferenceRequestConfiguration : IEntityTypeConfiguration<InferenceR
         builder.Property(ir => ir.CacheHit)
             .HasDefaultValue(false);
 
+        // Autonomous metadata properties
+        builder.Property(ir => ir.Complexity)
+            .IsRequired(false);
+
+        builder.Property(ir => ir.SlaTier)
+            .HasMaxLength(50)
+            .IsRequired(false);
+
+        builder.Property(ir => ir.EstimatedResponseTimeMs)
+            .IsRequired(false);
+
         // Indexes
         builder.HasIndex(ir => ir.RequestTimestamp)
             .HasDatabaseName("IX_InferenceRequests_RequestTimestamp")

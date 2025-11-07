@@ -10,9 +10,9 @@ public class ModelCapabilities
 {
     /// <summary>
     /// All tasks supported by the model (parsed from Model.Metadata.SupportedTasks JSON).
-    /// Array of TaskType enums mapped from kebab-case JSON strings.
+    /// Uses combined TaskType flags for O(1) capability checks instead of O(n) array searches.
     /// </summary>
-    public TaskType[] SupportedTasks { get; init; } = Array.Empty<TaskType>();
+    public TaskType SupportedTasks { get; init; } = TaskType.None;
 
     /// <summary>
     /// Combined modality flags supported by the model (parsed from Model.Metadata.SupportedModalities JSON).
@@ -43,9 +43,9 @@ public class ModelCapabilities
     public int? EmbeddingDimension { get; init; }
 
     /// <summary>
-    /// Checks if model supports a specific task type.
+    /// Checks if model supports a specific task type (O(1) bitwise flag check).
     /// </summary>
-    public bool SupportsTask(TaskType taskType) => SupportedTasks.Contains(taskType);
+    public bool SupportsTask(TaskType taskType) => (SupportedTasks & taskType) != TaskType.None;
 
     /// <summary>
     /// Checks if model supports a specific modality (bitwise flag check).
@@ -58,9 +58,15 @@ public class ModelCapabilities
     public bool SupportsAllModalities(Modality modalities) => (SupportedModalities & modalities) == modalities;
 
     /// <summary>
-    /// Checks if model supports ANY of the specified tasks.
+    /// Checks if model supports ANY of the specified tasks (bitwise OR check).
     /// </summary>
-    public bool SupportsAnyTask(params TaskType[] tasks) => tasks.Any(t => SupportedTasks.Contains(t));
+    public bool SupportsAnyTask(params TaskType[] tasks)
+    {
+        var combinedTasks = TaskType.None;
+        foreach (var task in tasks)
+            combinedTasks |= task;
+        return (SupportedTasks & combinedTasks) != TaskType.None;
+    }
 
     // Helper: Extract primary modality from combined flags
     private static Modality GetPrimaryModality(Modality modalities)

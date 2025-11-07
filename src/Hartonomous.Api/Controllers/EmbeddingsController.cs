@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Security.Cryptography;
 using Hartonomous.Api.DTOs;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Responses;
@@ -69,7 +70,7 @@ public sealed class EmbeddingsController : ApiControllerBase
             var ingestionRequest = new AtomIngestionRequest
             {
                 HashInput = $"text:{request.Text}",
-                Modality = "text",
+                Modality = Modality.Text.ToJsonString(),
                 Subtype = embeddingLabel,
                 SourceType = embeddingLabel,
                 CanonicalText = request.Text,

@@ -1,6 +1,7 @@
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Core.Performance;
+using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using Microsoft.Extensions.Configuration;
@@ -10,6 +11,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;
 using MathNet.Numerics;
 using MathNet.Numerics.IntegralTransforms;
+using System.Data;
 
 namespace Hartonomous.Infrastructure.Services;
 
@@ -402,8 +404,8 @@ public sealed class EmbeddingService : IEmbeddingService
         // Call sp_CrossModalQuery stored procedure
         await using var cmd = new SqlCommand("dbo.sp_CrossModalQuery", connection);
         cmd.CommandType = System.Data.CommandType.StoredProcedure;
-        cmd.Parameters.AddWithValue("@queryVector", sqlVector);
-        cmd.Parameters.AddWithValue("@topK", topK);
+        cmd.Parameters.Add("@queryVector", SqlDbType.NVarChar).Value = sqlVector;
+        cmd.Parameters.Add("@topK", SqlDbType.Int).Value = topK;
 
         var results = new List<CrossModalResult>();
         await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
@@ -415,9 +417,7 @@ public sealed class EmbeddingService : IEmbeddingService
                 Id = reader.GetInt64(reader.GetOrdinal("EmbeddingId")),
                 SourceType = reader.GetString(reader.GetOrdinal("SourceType")),
                 Similarity = 1.0f - reader.GetFloat(reader.GetOrdinal("SimilarityScore")),
-                Metadata = reader.IsDBNull(reader.GetOrdinal("Metadata"))
-                    ? null
-                    : reader.GetString(reader.GetOrdinal("Metadata"))
+                Metadata = reader.GetStringOrNull(reader.GetOrdinal("Metadata"))
             };
 
             if (filterByType == null || result.SourceType == filterByType)

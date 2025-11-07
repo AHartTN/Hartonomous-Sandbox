@@ -8,12 +8,16 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Testing.Common;
 using Hartonomous.Data;
 using Hartonomous.Infrastructure.Data;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
+using Hartonomous.Infrastructure.Services.Search;
+using Hartonomous.Infrastructure.Services.Inference;
+using Hartonomous.Infrastructure.Services.Features;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
@@ -167,7 +171,34 @@ public sealed class SqlServerTestFixture : IAsyncLifetime
             var modelLayerLogger = _loggerFactory.CreateLogger<ModelLayerRepository>();
             var modelLayerRepository = new ModelLayerRepository(DbContext, modelLayerLogger);
             StudentModelService = new StudentModelService(DbContext, modelLayerRepository);
-            InferenceService = new InferenceOrchestrator(DbContext, AtomEmbeddings, sqlExecutor, _loggerFactory.CreateLogger<InferenceOrchestrator>());
+            
+            // Create required services for InferenceOrchestrator
+            var semanticSearchLogger = _loggerFactory.CreateLogger<SemanticSearchService>();
+            var semanticSearchService = new SemanticSearchService(sqlExecutor, semanticSearchLogger);
+            
+            var spatialSearchLogger = _loggerFactory.CreateLogger<SpatialSearchService>();
+            var spatialSearchService = new SpatialSearchService(AtomEmbeddings, sqlExecutor, spatialSearchLogger);
+            
+            var semanticFeatureLogger = _loggerFactory.CreateLogger<SemanticFeatureService>();
+            var semanticFeatureService = new SemanticFeatureService(sqlExecutor, semanticFeatureLogger);
+            
+            var ensembleInferenceLogger = _loggerFactory.CreateLogger<EnsembleInferenceService>();
+            var ensembleInferenceService = new EnsembleInferenceService(DbContext, ensembleInferenceLogger);
+            
+            var textGenerationLogger = _loggerFactory.CreateLogger<TextGenerationService>();
+            var textGenerationService = new TextGenerationService(AtomEmbeddings, sqlExecutor, textGenerationLogger);
+            
+            InferenceService = new InferenceOrchestrator(
+                DbContext, 
+                AtomEmbeddings, 
+                sqlExecutor, 
+                semanticSearchService,
+                spatialSearchService,
+                semanticFeatureService,
+                ensembleInferenceService,
+                textGenerationService,
+                _loggerFactory.CreateLogger<InferenceOrchestrator>());
+            
             SpatialService = new SpatialInferenceService(sqlExecutor);
 
             var resolvedConnectionString = DbContext.Database.GetConnectionString();
@@ -530,7 +561,7 @@ END;
                 atom = new Atom
                 {
                     ContentHash = contentHash,
-                    Modality = "text",
+                    Modality = Modality.Text.ToJsonString(),
                     Subtype = "document",
                     SourceUri = "integration://seed",
                     SourceType = "integration-test",

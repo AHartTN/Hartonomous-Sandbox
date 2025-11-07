@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Services;
 using Hartonomous.Testing.Common;
@@ -153,7 +154,7 @@ public sealed class EmbeddingIngestionServiceTests
                 AtomId = Math.Abs(text.GetHashCode()) + 1L,
                 ContentHash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text)),
                 CanonicalText = text,
-                Modality = "text"
+                Modality = Modality.Text.ToJsonString()
             };
         }
 

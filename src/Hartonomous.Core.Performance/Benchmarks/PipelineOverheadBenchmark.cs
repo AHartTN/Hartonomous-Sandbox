@@ -1,5 +1,6 @@
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Running;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Pipelines;
 using Hartonomous.Core.Pipelines.Ingestion;
 using System.Threading.Channels;
@@ -31,7 +32,7 @@ public class PipelineOverheadBenchmark
         _request = new AtomIngestionPipelineRequest
         {
             HashInput = "benchmark test content",
-            Modality = "text",
+            Modality = Modality.Text.ToJsonString(),
             Subtype = "plain",
             CanonicalText = "Benchmark test atom",
             SourceUri = "benchmark://test",

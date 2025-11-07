@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
+using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
 using System.Data;
@@ -50,14 +51,10 @@ public class SpatialInferenceService : ISpatialInferenceService
             while (await reader.ReadAsync(token).ConfigureAwait(false))
             {
                 var tokenId = reader.GetInt64(reader.GetOrdinal("TokenId"));
-                var tokenText = reader.IsDBNull(reader.GetOrdinal("TokenText"))
-                    ? string.Empty
-                    : reader.GetString(reader.GetOrdinal("TokenText"));
+                var tokenText = reader.GetStringOrNull(reader.GetOrdinal("TokenText")) ?? string.Empty;
                 var spatialDistance = reader.GetDouble(reader.GetOrdinal("SpatialDistance"));
                 var attentionWeight = reader.GetDouble(reader.GetOrdinal("AttentionWeight"));
-                var resolution = reader.IsDBNull(reader.GetOrdinal("ResolutionLevel"))
-                    ? "UNKNOWN"
-                    : reader.GetString(reader.GetOrdinal("ResolutionLevel"));
+                var resolution = reader.GetStringOrNull(reader.GetOrdinal("ResolutionLevel")) ?? "UNKNOWN";
 
                 results.Add(new SpatialAttentionResult(tokenId, tokenText, attentionWeight, spatialDistance, resolution));
             }
@@ -95,9 +92,7 @@ public class SpatialInferenceService : ISpatialInferenceService
             while (await reader.ReadAsync(token).ConfigureAwait(false))
             {
                 var tokenId = reader.GetInt64(reader.GetOrdinal("TokenId"));
-                var tokenText = reader.IsDBNull(reader.GetOrdinal("TokenText"))
-                    ? string.Empty
-                    : reader.GetString(reader.GetOrdinal("TokenText"));
+                var tokenText = reader.GetStringOrNull(reader.GetOrdinal("TokenText")) ?? string.Empty;
                 var spatialDistance = reader.GetDouble(reader.GetOrdinal("SpatialDistance"));
                 var probabilityScore = reader.GetDouble(reader.GetOrdinal("ProbabilityScore"));
 
@@ -146,14 +141,14 @@ public class SpatialInferenceService : ISpatialInferenceService
                 var embeddingId = reader.GetInt64(reader.GetOrdinal("AtomEmbeddingId"));
                 var atomId = reader.GetInt64(reader.GetOrdinal("AtomId"));
                 var modality = reader.GetString(reader.GetOrdinal("Modality"));
-                var subtype = reader.IsDBNull(reader.GetOrdinal("Subtype")) ? null : reader.GetString(reader.GetOrdinal("Subtype"));
-                var sourceType = reader.IsDBNull(reader.GetOrdinal("SourceType")) ? null : reader.GetString(reader.GetOrdinal("SourceType"));
-                var sourceUri = reader.IsDBNull(reader.GetOrdinal("SourceUri")) ? null : reader.GetString(reader.GetOrdinal("SourceUri"));
-                var canonicalText = reader.IsDBNull(reader.GetOrdinal("CanonicalText")) ? null : reader.GetString(reader.GetOrdinal("CanonicalText"));
+                var subtype = reader.GetStringOrNull(reader.GetOrdinal("Subtype"));
+                var sourceType = reader.GetStringOrNull(reader.GetOrdinal("SourceType"));
+                var sourceUri = reader.GetStringOrNull(reader.GetOrdinal("SourceUri"));
+                var canonicalText = reader.GetStringOrNull(reader.GetOrdinal("CanonicalText"));
                 var embeddingType = reader.GetString(reader.GetOrdinal("EmbeddingType"));
-                int? modelId = reader.IsDBNull(reader.GetOrdinal("ModelId")) ? null : reader.GetInt32(reader.GetOrdinal("ModelId"));
+                int? modelId = reader.GetInt32OrNull(reader.GetOrdinal("ModelId"));
                 var spatialDistance = reader.GetDouble(reader.GetOrdinal("SpatialDistance"));
-                var coarseDistance = reader.IsDBNull(reader.GetOrdinal("CoarseDistance")) ? double.NaN : reader.GetDouble(reader.GetOrdinal("CoarseDistance"));
+                var coarseDistance = reader.GetDoubleOrNull(reader.GetOrdinal("CoarseDistance")) ?? double.NaN;
 
                 results.Add(new MultiResolutionSearchResult(
                     embeddingId,
@@ -201,10 +196,10 @@ public class SpatialInferenceService : ISpatialInferenceService
             {
                 var embeddingId = reader.GetInt64(reader.GetOrdinal("AtomEmbeddingId"));
                 var atomId = reader.GetInt64(reader.GetOrdinal("AtomId"));
-                var modality = reader.IsDBNull(reader.GetOrdinal("Modality")) ? null : reader.GetString(reader.GetOrdinal("Modality"));
-                var subtype = reader.IsDBNull(reader.GetOrdinal("Subtype")) ? null : reader.GetString(reader.GetOrdinal("Subtype"));
-                var sourceType = reader.IsDBNull(reader.GetOrdinal("SourceType")) ? null : reader.GetString(reader.GetOrdinal("SourceType"));
-                var canonicalText = reader.IsDBNull(reader.GetOrdinal("CanonicalText")) ? null : reader.GetString(reader.GetOrdinal("CanonicalText"));
+                var modality = reader.GetStringOrNull(reader.GetOrdinal("Modality"));
+                var subtype = reader.GetStringOrNull(reader.GetOrdinal("Subtype"));
+                var sourceType = reader.GetStringOrNull(reader.GetOrdinal("SourceType"));
+                var canonicalText = reader.GetStringOrNull(reader.GetOrdinal("CanonicalText"));
                 var strength = reader.GetDouble(reader.GetOrdinal("ActivationStrength"));
                 var level = reader.GetString(reader.GetOrdinal("ActivationLevel"));
 
@@ -243,9 +238,7 @@ public class SpatialInferenceService : ISpatialInferenceService
                 return prompt;
             }
 
-            return reader.IsDBNull(reader.GetOrdinal("GeneratedText"))
-                ? prompt
-                : reader.GetString(reader.GetOrdinal("GeneratedText"));
+            return reader.GetStringOrNull(reader.GetOrdinal("GeneratedText")) ?? prompt;
         }, cancellationToken).ConfigureAwait(false);
     }
 }

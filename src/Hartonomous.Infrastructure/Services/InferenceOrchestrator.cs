@@ -301,10 +301,10 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="record">Record containing the column.</param>
     /// <param name="columnName">Name of the column to retrieve.</param>
     /// <returns>Column value or zero when the field is missing or <c>null</c>.</returns>
-    private static long GetInt64(IDataRecord record, string columnName)
+    private static long GetInt64(SqlDataReader record, string columnName)
     {
-        var ordinal = GetOrdinal(record, columnName);
-        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt64(ordinal) : 0;
+        var ordinal = record.GetOrdinalSafe(columnName);
+        return record.GetInt64OrNull(ordinal) ?? 0;
     }
 
     /// <summary>
@@ -313,10 +313,9 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="record">Record containing the column.</param>
     /// <param name="columnName">Name of the column to retrieve.</param>
     /// <returns>String value or <c>null</c> when unavailable.</returns>
-    private static string? GetString(IDataRecord record, string columnName)
+    private static string? GetString(SqlDataReader record, string columnName)
     {
-        var ordinal = GetOrdinal(record, columnName);
-        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetString(ordinal) : null;
+        return record.GetStringOrNull(record.GetOrdinalSafe(columnName));
     }
 
     /// <summary>
@@ -325,10 +324,9 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="record">Record containing the data.</param>
     /// <param name="columnName">Column to read.</param>
     /// <returns>Nullable integer with the column contents.</returns>
-    private static int? GetNullableInt(IDataRecord record, string columnName)
+    private static int? GetNullableInt(SqlDataReader record, string columnName)
     {
-        var ordinal = GetOrdinal(record, columnName);
-        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetInt32(ordinal) : null;
+        return record.GetInt32OrNull(record.GetOrdinalSafe(columnName));
     }
 
     /// <summary>
@@ -337,10 +335,9 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="record">Record containing the data.</param>
     /// <param name="columnName">Column to read.</param>
     /// <returns>Nullable <see cref="double"/> with the column contents.</returns>
-    private static double? GetNullableDouble(IDataRecord record, string columnName)
+    private static double? GetNullableDouble(SqlDataReader record, string columnName)
     {
-        var ordinal = GetOrdinal(record, columnName);
-        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDouble(ordinal) : null;
+        return record.GetDoubleOrNull(record.GetOrdinalSafe(columnName));
     }
 
     /// <summary>
@@ -349,30 +346,12 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="record">Record containing the data.</param>
     /// <param name="columnName">Column to read.</param>
     /// <returns>Nullable timestamp with the column contents.</returns>
-    private static DateTime? GetNullableDateTime(IDataRecord record, string columnName)
+    private static DateTime? GetNullableDateTime(SqlDataReader record, string columnName)
     {
-        var ordinal = GetOrdinal(record, columnName);
-        return ordinal >= 0 && !record.IsDBNull(ordinal) ? record.GetDateTime(ordinal) : null;
+        return record.GetDateTimeOrNull(record.GetOrdinalSafe(columnName));
     }
 
-    /// <summary>
-    /// Resolves the ordinal index for the specified column, ignoring case.
-    /// </summary>
-    /// <param name="record">Record that exposes the schema fields.</param>
-    /// <param name="columnName">Name of the column to resolve.</param>
-    /// <returns>Column index or <c>-1</c> when the column is absent.</returns>
-    private static int GetOrdinal(IDataRecord record, string columnName)
-    {
-        for (var i = 0; i < record.FieldCount; i++)
-        {
-            if (string.Equals(record.GetName(i), columnName, StringComparison.OrdinalIgnoreCase))
-            {
-                return i;
-            }
-        }
 
-        return -1;
-    }
 
 
 

@@ -237,3 +237,38 @@ RETURNS TABLE (
 )
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.GenerationFunctions].GenerateTextSequence;
 GO
+
+IF OBJECT_ID('dbo.fn_DiscoverConcepts', 'TF') IS NOT NULL DROP FUNCTION dbo.fn_DiscoverConcepts;
+GO
+CREATE FUNCTION dbo.fn_DiscoverConcepts(
+    @MinClusterSize INT,
+    @CoherenceThreshold FLOAT,
+    @MaxConcepts INT,
+    @TenantId INT
+)
+RETURNS TABLE (
+    ConceptId UNIQUEIDENTIFIER,
+    Centroid VARBINARY(MAX),
+    AtomCount INT,
+    Coherence FLOAT,
+    SpatialBucket INT
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ConceptDiscovery].fn_DiscoverConcepts;
+GO
+
+IF OBJECT_ID('dbo.fn_BindConcepts', 'TF') IS NOT NULL DROP FUNCTION dbo.fn_BindConcepts;
+GO
+CREATE FUNCTION dbo.fn_BindConcepts(
+    @AtomId BIGINT,
+    @SimilarityThreshold FLOAT,
+    @MaxConceptsPerAtom INT,
+    @TenantId INT
+)
+RETURNS TABLE (
+    AtomId BIGINT,
+    ConceptId UNIQUEIDENTIFIER,
+    Similarity FLOAT,
+    IsPrimary BIT
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ConceptBinding].fn_BindConcepts;
+GO

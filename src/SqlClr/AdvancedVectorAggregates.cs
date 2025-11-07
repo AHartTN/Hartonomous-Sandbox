@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -45,7 +46,7 @@ namespace SqlClrFunctions
         {
             if (vectorJson.IsNull) return;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -105,26 +106,6 @@ namespace SqlClrFunctions
             {
                 foreach (var val in vec)
                     w.Write(val);
-            }
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]"))
-                    return null;
-
-                var elements = json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-                return elements;
-            }
-            catch
-            {
-                return null;
             }
         }
     }
@@ -300,7 +281,7 @@ namespace SqlClrFunctions
 
             if (k == 0) k = kValue.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -388,7 +369,7 @@ namespace SqlClrFunctions
             double minDist = double.MaxValue;
             for (int i = 0; i < centroids.Count; i++)
             {
-                double dist = EuclideanDistance(vec, centroids[i]);
+                double dist = VectorUtilities.EuclideanDistance(vec, centroids[i]);
                 if (dist < minDist)
                 {
                     minDist = dist;
@@ -407,36 +388,6 @@ namespace SqlClrFunctions
                 centroid[i] = (centroid[i] * count + vec[i]) / (count + 1);
             }
             counts[index] = count + 1;
-        }
-
-        private static double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return Math.Sqrt(sum);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]"))
-                    return null;
-
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch
-            {
-                return null;
-            }
         }
     }
 
@@ -467,7 +418,7 @@ namespace SqlClrFunctions
         public void Accumulate(SqlString vectorJson)
         {
             if (vectorJson.IsNull) return;
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -545,25 +496,6 @@ namespace SqlClrFunctions
             foreach (var vec in vectors)
                 foreach (var val in vec)
                     w.Write(val);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]"))
-                    return null;
-
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch
-            {
-                return null;
-            }
         }
     }
 }

@@ -21,16 +21,10 @@ public class GenerationStreamConfigurationTests
         Assert.NotNull(entity);
         Assert.Equal("provenance", entity!.GetSchema());
 
-        var streamProperty = entity.FindProperty(nameof(GenerationStream.Stream));
+        var streamProperty = entity.FindProperty(nameof(GenerationStream.ProvenanceStream));
         Assert.NotNull(streamProperty);
-        Assert.Equal("provenance.AtomicStream", streamProperty!.GetColumnType());
-        Assert.False(streamProperty.IsNullable);
-
-        var payloadProperty = entity.FindProperty(nameof(GenerationStream.PayloadSizeBytes));
-        Assert.NotNull(payloadProperty);
-        Assert.Equal(ValueGenerated.OnAddOrUpdate, payloadProperty!.ValueGenerated);
-        Assert.Equal("CONVERT(BIGINT, DATALENGTH([Stream]))", payloadProperty.GetComputedColumnSql());
-        Assert.Equal(PropertySaveBehavior.Ignore, payloadProperty.GetAfterSaveBehavior());
+        Assert.Equal("varbinary(max)", streamProperty!.GetColumnType());
+        Assert.True(streamProperty.IsNullable);
 
         var scopeIndex = Assert.Single(entity.GetIndexes(), i => i.GetDatabaseName() == "IX_GenerationStreams_Scope");
         Assert.Equal(nameof(GenerationStream.Scope), Assert.Single(scopeIndex.Properties).Name);

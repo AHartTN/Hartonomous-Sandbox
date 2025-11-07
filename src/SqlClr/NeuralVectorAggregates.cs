@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -58,9 +59,9 @@ namespace SqlClrFunctions
 
             if (numHeads == 0) numHeads = heads.Value;
 
-            var q = ParseVectorJson(queryJson.Value);
-            var k = ParseVectorJson(keyJson.Value);
-            var v = ParseVectorJson(valueJson.Value);
+            var q = VectorUtilities.ParseVectorJson(queryJson.Value);
+            var k = VectorUtilities.ParseVectorJson(keyJson.Value);
+            var v = VectorUtilities.ParseVectorJson(valueJson.Value);
 
             if (q == null || k == null || v == null)
                 return;
@@ -174,28 +175,6 @@ namespace SqlClrFunctions
                 foreach (var val in values[i]) w.Write(val);
             }
         }
-
-        private static double DotProduct(float[] a, float[] b, int start, int end)
-        {
-            double sum = 0;
-            for (int i = start; i < end && i < a.Length && i < b.Length; i++)
-                sum += a[i] * b[i];
-            return sum;
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -235,7 +214,7 @@ namespace SqlClrFunctions
 
             if (targetDim == 0) targetDim = compressedDimension.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (sourceDim == 0)
@@ -321,20 +300,6 @@ namespace SqlClrFunctions
                 foreach (var val in vec)
                     w.Write(val);
         }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
-        }
     }
 
     /// <summary>
@@ -370,7 +335,7 @@ namespace SqlClrFunctions
         {
             if (gradientJson.IsNull) return;
 
-            var grad = ParseVectorJson(gradientJson.Value);
+            var grad = VectorUtilities.ParseVectorJson(gradientJson.Value);
             if (grad == null) return;
 
             if (dimension == 0)
@@ -460,20 +425,6 @@ namespace SqlClrFunctions
             foreach (var grad in gradients)
                 foreach (var val in grad)
                     w.Write(val);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
         }
     }
 

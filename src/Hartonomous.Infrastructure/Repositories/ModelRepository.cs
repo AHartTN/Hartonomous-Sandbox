@@ -80,7 +80,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
             {
                 // Parse supported tasks
                 var supportedTasks = EnumExtensions.ParseTaskTypes(model.Metadata!.SupportedTasks);
-                var supportsAnyTask = tasks.Any(t => supportedTasks.Contains(t));
+                var supportsAnyTask = tasks.Any(t => (supportedTasks & t) != TaskType.None);
 
                 if (!supportsAnyTask)
                     return false;

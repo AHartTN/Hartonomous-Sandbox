@@ -15,7 +15,10 @@ using Hartonomous.Core.Security;
 using Hartonomous.Core.Serialization;
 using Hartonomous.Core.Services;
 using Hartonomous.Core.Messaging;
+using Hartonomous.Core.Performance;
+using Hartonomous.Core.Shared;
 using Hartonomous.Data;
+using Hartonomous.Data.Repositories;
 using Hartonomous.Infrastructure.Data;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Services;
@@ -247,7 +250,8 @@ public static class DependencyInjection
         services.AddScoped<IAtomRelationRepository, AtomRelationRepository>();
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
         services.AddScoped<IDeduplicationPolicyRepository, DeduplicationPolicyRepository>();
-        services.AddScoped<IAtomIngestionService, AtomIngestionService>();
+        // services.AddScoped<IAtomIngestionService, AtomIngestionService>(); // Replaced with SQL CLR version
+        services.AddScoped<IAtomIngestionService, SqlClrAtomIngestionService>(); // Uses intelligent SQL procedures
         services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
     services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
@@ -255,6 +259,13 @@ public static class DependencyInjection
         services.AddScoped<IStudentModelService, StudentModelService>();
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
+
+        // Autonomous learning repositories (EF Core replacements for stored procedures)
+        services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();
+        services.AddScoped<IAutonomousActionRepository, AutonomousActionRepository>();
+        services.AddScoped<IAutonomousLearningRepository, AutonomousLearningRepository>();
+        services.AddScoped<IConceptDiscoveryRepository, ConceptDiscoveryRepository>();
+        services.AddScoped<Hartonomous.Data.Repositories.IVectorSearchRepository, VectorSearchRepository>();
 
         // Search services (extracted from InferenceOrchestrator for SOLID compliance)
         services.AddScoped<ISemanticSearchService, Services.Search.SemanticSearchService>();
@@ -355,6 +366,9 @@ public static class DependencyInjection
         // Custom metrics for Hartonomous-specific telemetry
         services.AddSingleton<Observability.CustomMetrics>(sp => 
             new Observability.CustomMetrics(sp.GetRequiredService<Meter>()));
+
+        // Enterprise-grade performance monitoring
+        services.AddSingleton<PerformanceMonitor>();
 
         // Rate limiting configuration
         services.Configure<RateLimitOptions>(configuration.GetSection(RateLimitOptions.SectionName));

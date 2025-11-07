@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Linq;
 using Hartonomous.Api.DTOs;
 using Hartonomous.Api.DTOs.Search;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
 using Hartonomous.Core.Utilities;
@@ -210,7 +211,7 @@ public sealed class SearchController : ApiControllerBase
             var response = new DTOs.Search.CrossModalSearchResponse
             {
                 Results = results,
-                QueryModality = "text",
+                QueryModality = Modality.Text.ToJsonString(),
                 TargetModalities = request.TargetModalities
             };
 

@@ -152,6 +152,76 @@ public class GetGraphStatsResponse
     public long IsolatedNodes { get; set; }
 }
 
+public class GraphStatsResponse
+{
+    public long TotalNodes { get; set; }
+    public long TotalRelationships { get; set; }
+    public required List<string> Modalities { get; set; }
+    public required Dictionary<string, long> ModalityCounts { get; set; }
+    public required List<string> RelationshipTypes { get; set; }
+    public required Dictionary<string, long> RelationshipTypeCounts { get; set; }
+    public double Density { get; set; }
+    public long? ConnectedComponents { get; set; }
+    public Dictionary<string, object>? ComponentDistribution { get; set; }
+    public double AverageDegree { get; set; }
+}
+
+public class RelationshipAnalysisRequest
+{
+    public string? ModalityFilter { get; set; }
+    public int? TopRelationships { get; set; } = 20;
+}
+
+public class RelationshipAnalysisResponse
+{
+    public string? ModalityFilter { get; set; }
+    public required List<RelationshipStats> RelationshipStats { get; set; }
+    public List<CrossModalityStats>? CrossModalityStats { get; set; }
+    public long TotalRelationshipsAnalyzed { get; set; }
+}
+
+public class RelationshipStats
+{
+    public required string RelationshipType { get; set; }
+    public long Count { get; set; }
+    public double? AverageWeight { get; set; }
+    public double? MinWeight { get; set; }
+    public double? MaxWeight { get; set; }
+    public double? WeightStdDev { get; set; }
+    public required List<string> SourceModalities { get; set; }
+    public required List<string> TargetModalities { get; set; }
+}
+
+public class CrossModalityStats
+{
+    public required string SourceModality { get; set; }
+    public required string TargetModality { get; set; }
+    public required string RelationshipType { get; set; }
+    public long Count { get; set; }
+}
+
+public class CentralityAnalysisRequest
+{
+    public string Algorithm { get; set; } = "degree";
+    public int? TopNodes { get; set; } = 100;
+}
+
+public class CentralityAnalysisResponse
+{
+    public required string Algorithm { get; set; }
+    public required List<CentralityScore> CentralityScores { get; set; }
+    public int TotalNodesAnalyzed { get; set; }
+}
+
+public class CentralityScore
+{
+    public long AtomId { get; set; }
+    public double Score { get; set; }
+    public int Rank { get; set; }
+    public string? Modality { get; set; }
+    public string? CanonicalText { get; set; }
+}
+
 public class CreateRelationshipRequest
 {
     [Required]

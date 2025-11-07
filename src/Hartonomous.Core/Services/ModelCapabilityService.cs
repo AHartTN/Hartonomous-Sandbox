@@ -20,7 +20,7 @@ public class ModelCapabilityService : IModelCapabilityService
     // Default capabilities for models without metadata
     private static readonly ModelCapabilities DefaultCapabilities = new()
     {
-        SupportedTasks = new[] { TaskType.TextGeneration },
+        SupportedTasks = TaskType.TextGeneration,
         SupportedModalities = Modality.Text,
         MaxTokens = 2048,
         MaxContextWindow = 4096

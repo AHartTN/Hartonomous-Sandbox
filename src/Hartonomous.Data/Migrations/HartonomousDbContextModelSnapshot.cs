@@ -207,6 +207,163 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("AtomEmbeddingComponents", (string)null);
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomGraphEdge", b =>
+                {
+                    b.Property<long>("EdgeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("EdgeId"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("EdgeType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Metadata")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("ValidFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ValidTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("Weight")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("float")
+                        .HasDefaultValue(1.0);
+
+                    b.HasKey("EdgeId");
+
+                    b.HasIndex("CreatedUtc")
+                        .HasDatabaseName("IX_AtomGraphEdges_CreatedUtc");
+
+                    b.HasIndex("EdgeType")
+                        .HasDatabaseName("IX_AtomGraphEdges_EdgeType");
+
+                    b.HasIndex("Weight")
+                        .HasDatabaseName("IX_AtomGraphEdges_Weight");
+
+                    b.ToTable("AtomGraphEdges", "graph", t =>
+                        {
+                            t.HasCheckConstraint("CK_AtomGraphEdges_EdgeType", "[EdgeType] IN ('DerivedFrom', 'ComponentOf', 'SimilarTo', 'Uses', 'InputTo', 'OutputFrom', 'BindsToConcept')");
+
+                            t.HasCheckConstraint("CK_AtomGraphEdges_Weight", "[Weight] >= 0.0 AND [Weight] <= 1.0");
+                        });
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomGraphNode", b =>
+                {
+                    b.Property<long>("NodeId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("NodeId"));
+
+                    b.Property<long>("AtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("NodeLabel")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("NodeType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Properties")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime?>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("NodeId");
+
+                    b.HasIndex("AtomId")
+                        .HasDatabaseName("IX_AtomGraphNodes_AtomId");
+
+                    b.HasIndex("CreatedUtc")
+                        .HasDatabaseName("IX_AtomGraphNodes_CreatedUtc");
+
+                    b.HasIndex("NodeType")
+                        .HasDatabaseName("IX_AtomGraphNodes_NodeType");
+
+                    b.ToTable("AtomGraphNodes", "graph");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomPayloadStore", b =>
+                {
+                    b.Property<long>("PayloadId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("PayloadId"));
+
+                    b.Property<long>("AtomId")
+                        .HasColumnType("bigint");
+
+                    b.Property<byte[]>("ContentHash")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("binary(32)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<byte[]>("PayloadData")
+                        .IsRequired()
+                        .HasColumnType("VARBINARY(MAX) FILESTREAM");
+
+                    b.Property<Guid>("RowGuid")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("PayloadId");
+
+                    b.HasIndex("AtomId")
+                        .HasDatabaseName("IX_AtomPayloadStore_AtomId");
+
+                    b.HasIndex("ContentHash")
+                        .IsUnique()
+                        .HasDatabaseName("UX_AtomPayloadStore_ContentHash");
+
+                    b.HasIndex("RowGuid")
+                        .HasDatabaseName("IX_AtomPayloadStore_RowGuid");
+
+                    b.ToTable("AtomPayloadStore", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AtomPayloadStore_ContentType", "[ContentType] LIKE '%/%'");
+
+                            t.HasCheckConstraint("CK_AtomPayloadStore_SizeBytes", "[SizeBytes] > 0");
+                        });
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.AtomRelation", b =>
                 {
                     b.Property<long>("AtomRelationId")
@@ -484,6 +641,98 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("AudioFrames", "dbo");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.AutonomousImprovementHistory", b =>
+                {
+                    b.Property<Guid>("ImprovementId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWID()");
+
+                    b.Property<string>("AnalysisResults")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ChangeType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("EstimatedImpact")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("GeneratedCode")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("GitCommitHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<decimal?>("PerformanceDelta")
+                        .HasPrecision(10, 4)
+                        .HasColumnType("decimal(10,4)");
+
+                    b.Property<string>("RiskLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("RolledBackAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("SuccessScore")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("decimal(5,4)");
+
+                    b.Property<string>("TargetFile")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<int?>("TestsFailed")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TestsPassed")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("WasDeployed")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("WasRolledBack")
+                        .HasColumnType("bit");
+
+                    b.HasKey("ImprovementId");
+
+                    b.HasIndex("StartedAt")
+                        .IsDescending()
+                        .HasDatabaseName("IX_AutonomousImprovement_StartedAt");
+
+                    b.HasIndex("SuccessScore")
+                        .IsDescending()
+                        .HasDatabaseName("IX_AutonomousImprovement_SuccessScore")
+                        .HasFilter("[WasDeployed] = 1 AND [WasRolledBack] = 0");
+
+                    b.HasIndex("ChangeType", "RiskLevel")
+                        .HasDatabaseName("IX_AutonomousImprovement_ChangeType_RiskLevel");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("ChangeType", "RiskLevel"), new[] { "ErrorMessage", "SuccessScore" });
+
+                    b.ToTable("AutonomousImprovementHistory", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AutonomousImprovement_SuccessScore", "[SuccessScore] >= 0 AND [SuccessScore] <= 1");
+                        });
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.BillingMultiplier", b =>
                 {
                     b.Property<Guid>("MultiplierId")
@@ -695,6 +944,78 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("BillingRatePlans", (string)null);
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.BillingUsageLedger", b =>
+                {
+                    b.Property<long>("LedgerId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("LedgerId"));
+
+                    b.Property<decimal>("BaseRate")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Handler")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("MessageType")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("MetadataJson")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("Multiplier")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)")
+                        .HasDefaultValue(1.0m);
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("PrincipalId")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<decimal>("TotalCost")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("Units")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.HasKey("LedgerId");
+
+                    b.HasIndex("Operation", "TimestampUtc")
+                        .HasDatabaseName("IX_BillingUsageLedger_Operation_Timestamp");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("Operation", "TimestampUtc"), new[] { "TenantId", "Units", "TotalCost" });
+
+                    b.HasIndex("TenantId", "TimestampUtc")
+                        .HasDatabaseName("IX_BillingUsageLedger_TenantId_Timestamp");
+
+                    SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("TenantId", "TimestampUtc"), new[] { "Operation", "TotalCost" });
+
+                    b.ToTable("BillingUsageLedger", (string)null);
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.CachedActivation", b =>
                 {
                     b.Property<long>("CacheId")
@@ -862,6 +1183,79 @@ namespace Hartonomous.Data.Migrations
                         .HasDatabaseName("IX_CodeAtoms_QualityScore");
 
                     b.ToTable("CodeAtoms", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.Concept", b =>
+                {
+                    b.Property<long>("ConceptId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("ConceptId"));
+
+                    b.Property<byte[]>("CentroidVector")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<double?>("CoherenceScore")
+                        .HasColumnType("float");
+
+                    b.Property<string>("ConceptName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("DiscoveredAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("DiscoveryMethod")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<DateTime?>("LastUpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MemberCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("ModelId")
+                        .HasColumnType("int");
+
+                    b.Property<double?>("SeparationScore")
+                        .HasColumnType("float");
+
+                    b.Property<int>("VectorDimension")
+                        .HasColumnType("int");
+
+                    b.HasKey("ConceptId");
+
+                    b.HasIndex("CoherenceScore")
+                        .IsDescending()
+                        .HasDatabaseName("IX_Concepts_CoherenceScore");
+
+                    b.HasIndex("ConceptName")
+                        .HasDatabaseName("IX_Concepts_ConceptName");
+
+                    b.HasIndex("DiscoveryMethod")
+                        .HasDatabaseName("IX_Concepts_DiscoveryMethod");
+
+                    b.HasIndex("ModelId", "IsActive")
+                        .HasDatabaseName("IX_Concepts_ModelId_IsActive");
+
+                    b.ToTable("Concepts", "provenance");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.DeduplicationPolicy", b =>
@@ -1090,6 +1484,72 @@ namespace Hartonomous.Data.Migrations
                         .HasDatabaseName("IX_ImagePatches_ImageId_PatchX_PatchY");
 
                     b.ToTable("ImagePatches", "dbo");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.InferenceCache", b =>
+                {
+                    b.Property<long>("CacheId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("CacheId"));
+
+                    b.Property<long>("AccessCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint")
+                        .HasDefaultValue(0L);
+
+                    b.Property<string>("CacheKey")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<double?>("ComputeTimeMs")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("InferenceType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<byte[]>("InputHash")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<byte[]>("IntermediateStates")
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<DateTime?>("LastAccessedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ModelId")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("OutputData")
+                        .IsRequired()
+                        .HasColumnType("varbinary(max)");
+
+                    b.Property<long?>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("CacheId");
+
+                    b.HasIndex("CacheKey")
+                        .HasDatabaseName("IX_InferenceCache_CacheKey");
+
+                    b.HasIndex("LastAccessedUtc")
+                        .IsDescending()
+                        .HasDatabaseName("IX_InferenceCache_LastAccessedUtc");
+
+                    b.HasIndex("ModelId", "InferenceType")
+                        .HasDatabaseName("IX_InferenceCache_ModelId_InferenceType");
+
+                    b.ToTable("InferenceCache", (string)null);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.InferenceRequest", b =>
@@ -1591,6 +2051,74 @@ namespace Hartonomous.Data.Migrations
                     b.ToTable("ModelMetadata", (string)null);
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.TenantSecurityPolicy", b =>
+                {
+                    b.Property<int>("PolicyId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("PolicyId"));
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<DateTime?>("EffectiveFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("EffectiveTo")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("PolicyName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("PolicyRules")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("PolicyType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime?>("UpdatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("PolicyId");
+
+                    b.HasIndex("IsActive")
+                        .HasDatabaseName("IX_TenantSecurityPolicy_IsActive");
+
+                    b.HasIndex("EffectiveFrom", "EffectiveTo")
+                        .HasDatabaseName("IX_TenantSecurityPolicy_EffectiveDates");
+
+                    b.HasIndex("TenantId", "PolicyType")
+                        .HasDatabaseName("IX_TenantSecurityPolicy_TenantId_PolicyType");
+
+                    b.ToTable("TenantSecurityPolicy", (string)null);
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.TensorAtom", b =>
                 {
                     b.Property<long>("TensorAtomId")
@@ -1671,6 +2199,80 @@ namespace Hartonomous.Data.Migrations
                         .HasDatabaseName("IX_TensorAtomCoefficients_Lookup");
 
                     b.ToTable("TensorAtomCoefficients", (string)null);
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.TestResults", b =>
+                {
+                    b.Property<long>("TestResultId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("TestResultId"));
+
+                    b.Property<double?>("CpuUsagePercent")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Environment")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("ExecutedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<double?>("ExecutionTimeMs")
+                        .HasColumnType("float");
+
+                    b.Property<double?>("MemoryUsageMB")
+                        .HasColumnType("float");
+
+                    b.Property<string>("StackTrace")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TestCategory")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TestName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TestOutput")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("TestStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TestSuite")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("TestResultId");
+
+                    b.HasIndex("ExecutionTimeMs")
+                        .IsDescending()
+                        .HasDatabaseName("IX_TestResults_ExecutionTimeMs");
+
+                    b.HasIndex("TestStatus")
+                        .HasDatabaseName("IX_TestResults_TestStatus");
+
+                    b.HasIndex("TestCategory", "ExecutedAt")
+                        .IsDescending()
+                        .HasDatabaseName("IX_TestResults_TestCategory_ExecutedAt");
+
+                    b.HasIndex("TestSuite", "ExecutedAt")
+                        .IsDescending()
+                        .HasDatabaseName("IX_TestResults_TestSuite_ExecutedAt");
+
+                    b.ToTable("TestResults", (string)null);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.TextDocument", b =>
@@ -1922,6 +2524,28 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("AtomEmbedding");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomGraphNode", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "Atom")
+                        .WithMany()
+                        .HasForeignKey("AtomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Atom");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.AtomPayloadStore", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Atom", "Atom")
+                        .WithMany()
+                        .HasForeignKey("AtomId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Atom");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.AtomRelation", b =>
                 {
                     b.HasOne("Hartonomous.Core.Entities.Atom", "SourceAtom")
@@ -1993,6 +2617,17 @@ namespace Hartonomous.Data.Migrations
                     b.Navigation("Model");
                 });
 
+            modelBuilder.Entity("Hartonomous.Core.Entities.Concept", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Model", "Model")
+                        .WithMany()
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Model");
+                });
+
             modelBuilder.Entity("Hartonomous.Core.Entities.GenerationStream", b =>
                 {
                     b.HasOne("Hartonomous.Core.Entities.Model", "ModelNavigation")
@@ -2013,6 +2648,17 @@ namespace Hartonomous.Data.Migrations
                         .IsRequired();
 
                     b.Navigation("Image");
+                });
+
+            modelBuilder.Entity("Hartonomous.Core.Entities.InferenceCache", b =>
+                {
+                    b.HasOne("Hartonomous.Core.Entities.Model", "Model")
+                        .WithMany()
+                        .HasForeignKey("ModelId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Model");
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.InferenceRequest", b =>

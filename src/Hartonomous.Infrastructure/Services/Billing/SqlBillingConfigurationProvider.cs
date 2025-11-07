@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Hartonomous.Core.Billing;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
@@ -125,17 +126,17 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
             return MapOptionsToConfiguration(options);
         }
 
-        if (reader.IsDBNull(0))
+        if (reader.GetGuidOrNull(0) is null)
         {
             return MapOptionsToConfiguration(options);
         }
 
         var ratePlanId = reader.GetGuid(0);
-        var planCode = reader.IsDBNull(1) ? options.DefaultPlanCode : reader.GetString(1);
-        var planName = reader.IsDBNull(2) ? options.DefaultPlanName : reader.GetString(2);
-        var defaultRate = reader.IsDBNull(3) ? options.DefaultRate : reader.GetDecimal(3);
-        var monthlyFee = reader.IsDBNull(4) ? options.DefaultMonthlyFee : reader.GetDecimal(4);
-        var unitPricePerDcu = reader.IsDBNull(5) ? options.UnitPricePerDcu : reader.GetDecimal(5);
+        var planCode = reader.GetStringOrNull(1) ?? options.DefaultPlanCode;
+        var planName = reader.GetStringOrNull(2) ?? options.DefaultPlanName;
+        var defaultRate = reader.GetDecimalOrNull(3) ?? options.DefaultRate;
+        var monthlyFee = reader.GetDecimalOrNull(4) ?? options.DefaultMonthlyFee;
+        var unitPricePerDcu = reader.GetDecimalOrNull(5) ?? options.UnitPricePerDcu;
         if (unitPricePerDcu <= 0)
         {
             unitPricePerDcu = options.UnitPricePerDcu;
@@ -155,31 +156,26 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                var operation = reader.GetStringOrNull(0);
+                var rate = reader.GetDecimalOrNull(1);
+
+                if (operation is null || rate is null)
                 {
                     continue;
                 }
 
-                var operation = reader.GetString(0);
-                var rate = reader.GetDecimal(1);
-                operationRates[operation] = rate;
+                operationRates[operation] = rate.Value;
 
-                if (!reader.IsDBNull(2))
+                var unit = reader.GetStringOrNull(2);
+                if (unit is not null && !string.IsNullOrWhiteSpace(unit))
                 {
-                    var unit = reader.GetString(2);
-                    if (!string.IsNullOrWhiteSpace(unit))
-                    {
-                        operationUnits[operation] = unit;
-                    }
+                    operationUnits[operation] = unit;
                 }
 
-                if (!reader.IsDBNull(3))
+                var category = reader.GetStringOrNull(3);
+                if (category is not null && !string.IsNullOrWhiteSpace(category))
                 {
-                    var category = reader.GetString(3);
-                    if (!string.IsNullOrWhiteSpace(category))
-                    {
-                        operationCategories[operation] = category;
-                    }
+                    operationCategories[operation] = category;
                 }
             }
         }
@@ -195,36 +191,36 @@ WHERE RatePlanId = @ResolvedRatePlanId AND IsActive = 1;";
         {
             while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
             {
-                if (reader.IsDBNull(0) || reader.IsDBNull(1) || reader.IsDBNull(2))
+                var dimension = reader.GetStringOrNull(0);
+                var key = reader.GetStringOrNull(1);
+                var multiplier = reader.GetDecimalOrNull(2);
+
+                if (dimension is null || key is null || multiplier is null)
                 {
                     continue;
                 }
-
-                var dimension = reader.GetString(0);
-                var key = reader.GetString(1);
-                var multiplier = reader.GetDecimal(2);
 
                 switch (dimension.ToLowerInvariant())
                 {
                     case "generation":
                     case "generationtype":
-                        generationMultipliers[key] = multiplier;
+                        generationMultipliers[key] = multiplier.Value;
                         break;
                     case "complexity":
-                        complexityMultipliers[key] = multiplier;
+                        complexityMultipliers[key] = multiplier.Value;
                         break;
                     case "content":
                     case "contenttype":
-                        contentTypeMultipliers[key] = multiplier;
+                        contentTypeMultipliers[key] = multiplier.Value;
                         break;
                     case "grounding":
-                        groundingMultipliers[key] = multiplier;
+                        groundingMultipliers[key] = multiplier.Value;
                         break;
                     case "guarantee":
-                        guaranteeMultipliers[key] = multiplier;
+                        guaranteeMultipliers[key] = multiplier.Value;
                         break;
                     case "provenance":
-                        provenanceMultipliers[key] = multiplier;
+                        provenanceMultipliers[key] = multiplier.Value;
                         break;
                 }
             }

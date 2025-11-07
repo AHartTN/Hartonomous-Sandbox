@@ -96,9 +96,176 @@ stages:
         ArtifactName: 'drop'
         publishLocation: 'Container'
 
+- stage: 'DeployDatabase'
+  displayName: 'Deploy Database to HART-SERVER (Arc SQL)'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployDatabaseToArc
+    displayName: 'Deploy Database to Arc-enabled SQL Server'
+    environment: 'hart-server-database'
+    pool:
+      vmImage: 'ubuntu-latest'
+    variables:
+      SQL_SERVER: 'hart-server'
+      SQL_DATABASE: 'Hartonomous'
+      FILESTREAM_PATH: '/var/opt/mssql/data/filestream'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - checkout: self
+            displayName: 'Checkout source for deployment scripts'
+
+          - download: current
+            artifact: drop
+            displayName: 'Download build artifacts'
+
+          - task: UseDotNet@2
+            displayName: 'Install .NET SDK for EF migrations'
+            inputs:
+              packageType: 'sdk'
+              version: '9.x'
+              performMultiLevelLookup: true
+
+          - task: PowerShell@2
+            displayName: 'Build UNSAFE CLR Assembly'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "Building SqlClr project with UNSAFE permission set..."
+                dotnet build src/SqlClr/SqlClrFunctions.csproj --configuration Release
+                
+                $dllPath = "src/SqlClr/bin/Release/SqlClrFunctions.dll"
+                if (Test-Path $dllPath) {
+                  Write-Host "✓ CLR assembly built: $dllPath"
+                  $hash = (Get-FileHash $dllPath -Algorithm SHA256).Hash
+                  Write-Host "Assembly SHA256: $hash"
+                  Copy-Item $dllPath -Destination "$(Build.ArtifactStagingDirectory)/clr/"
+                } else {
+                  Write-Error "CLR assembly not found at $dllPath"
+                  exit 1
+                }
+              pwsh: true
+
+          - task: PowerShell@2
+            displayName: 'Generate EF Core Migration Scripts'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "Installing EF Core tools..."
+                dotnet tool install --global dotnet-ef --version 10.* || dotnet tool update --global dotnet-ef --version 10.*
+                
+                Write-Host "Generating idempotent migration script..."
+                cd src/Hartonomous.Data
+                dotnet ef migrations script --idempotent --output "$(Build.ArtifactStagingDirectory)/sql/migrations.sql" --context HartonomousDbContext --project Hartonomous.Data.csproj
+                
+                if (Test-Path "$(Build.ArtifactStagingDirectory)/sql/migrations.sql") {
+                  Write-Host "✓ Migration script generated"
+                  Get-Content "$(Build.ArtifactStagingDirectory)/sql/migrations.sql" | Select-Object -First 20
+                } else {
+                  Write-Error "Migration script not generated"
+                  exit 1
+                }
+              pwsh: true
+
+          - task: CopyFiles@2
+            displayName: 'Copy SQL deployment scripts'
+            inputs:
+              SourceFolder: 'sql'
+              Contents: '**/*.sql'
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/sql'
+
+          - task: CopyFiles@2
+            displayName: 'Copy PowerShell deployment scripts'
+            inputs:
+              SourceFolder: 'scripts'
+              Contents: |
+                deploy/**/*.ps1
+                deploy-database.ps1
+                deployment-functions.ps1
+                *.sql
+              TargetFolder: '$(Build.ArtifactStagingDirectory)/scripts'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish database deployment package'
+            inputs:
+              targetPath: '$(Build.ArtifactStagingDirectory)'
+              artifact: 'database-deployment'
+              publishLocation: 'pipeline'
+
+          - task: SSH@0
+            displayName: 'Deploy database scripts to hart-server via SSH'
+            inputs:
+              sshEndpoint: 'hart-server-ssh'
+              runOptions: 'commands'
+              commands: |
+                # Create deployment directory on Arc server
+                mkdir -p /srv/deployment/hartonomous/database
+                echo "Deployment directory ready"
+            
+          - task: CopyFilesOverSSH@0
+            displayName: 'Copy deployment package to hart-server'
+            inputs:
+              sshEndpoint: 'hart-server-ssh'
+              sourceFolder: '$(Build.ArtifactStagingDirectory)'
+              contents: '**'
+              targetFolder: '/srv/deployment/hartonomous/database'
+              cleanTargetFolder: true
+              overwrite: true
+              failOnEmptySource: true
+
+          - task: SSH@0
+            displayName: 'Execute database deployment on hart-server'
+            inputs:
+              sshEndpoint: 'hart-server-ssh'
+              runOptions: 'commands'
+              commands: |
+                cd /srv/deployment/hartonomous/database
+                
+                # Make scripts executable
+                chmod +x scripts/deploy/*.ps1
+                
+                # Execute deployment orchestrator with PowerShell Core
+                pwsh -File scripts/deploy/deploy-database.ps1 \
+                  -ServerName "localhost" \
+                  -DatabaseName "$(SQL_DATABASE)" \
+                  -ScriptsDirectory "scripts/deploy" \
+                  -AssemblyPath "clr/SqlClrFunctions.dll" \
+                  -ProjectPath "$(Pipeline.Workspace)/drop/src/Hartonomous.Infrastructure/Hartonomous.Infrastructure.csproj" \
+                  -SqlUser "$(SQL_USERNAME)" \
+                  -SqlPassword (ConvertTo-SecureString -String "$(SQL_PASSWORD)" -AsPlainText -Force) \
+                  -Verbose
+                
+                # Check exit code
+                if [ $? -eq 0 ]; then
+                  echo "✓ Database deployment completed successfully"
+                  exit 0
+                else
+                  echo "✗ Database deployment failed"
+                  exit 1
+                fi
+
+          - bash: |
+              echo "========================================" 
+              echo "  Database Deployment Summary"
+              echo "========================================"
+              echo "Target: $(SQL_SERVER) (Azure Arc-enabled)"
+              echo "Database: $(SQL_DATABASE)"
+              echo "CLR Mode: UNSAFE (on-premises only)"
+              echo "FILESTREAM: $(FILESTREAM_PATH)"
+              echo ""
+              echo "Artifacts published:"
+              ls -lh $(Build.ArtifactStagingDirectory)/clr/
+              ls -lh $(Build.ArtifactStagingDirectory)/sql/
+              echo "========================================"
+            displayName: 'Display deployment summary'
+
 - stage: 'DeployToProduction'
   displayName: 'Deploy to HART-SERVER Production'
-  dependsOn: Build
+  dependsOn: 
+    - Build
+    - DeployDatabase
   condition: succeeded()
   jobs:
   - deployment: DeployServices

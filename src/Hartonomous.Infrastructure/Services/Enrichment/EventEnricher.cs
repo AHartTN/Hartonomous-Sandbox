@@ -88,7 +88,7 @@ public class EventEnricher : IEventEnricher
                 ["supports_text"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.TextGeneration),
                 ["supports_vision"] = capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ObjectDetection) ||
                                       capabilities.SupportsTask(Hartonomous.Core.Enums.TaskType.ImageEmbedding),
-                ["supports_function_calling"] = capabilities.SupportedTasks.Any(), // Placeholder - need specific function calling enum
+                ["supports_function_calling"] = capabilities.SupportedTasks != TaskType.None, // Placeholder - need specific function calling enum
                 ["max_tokens"] = capabilities.MaxTokens,
                 ["context_window"] = capabilities.MaxContextWindow
             };

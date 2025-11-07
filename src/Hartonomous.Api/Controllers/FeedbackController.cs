@@ -1,5 +1,6 @@
 using Hartonomous.Api.Common;
 using Hartonomous.Api.DTOs.Feedback;
+using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
 using System.Data;
@@ -49,11 +50,11 @@ public class FeedbackController : ControllerBase
             long feedbackId;
             await using (var command = new SqlCommand(insertQuery, connection))
             {
-                command.Parameters.AddWithValue("@InferenceId", request.InferenceId);
-                command.Parameters.AddWithValue("@Rating", request.Rating);
-                command.Parameters.AddWithValue("@FeedbackText", request.FeedbackText ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@Metadata", 
-                    request.Metadata != null ? System.Text.Json.JsonSerializer.Serialize(request.Metadata) : (object)DBNull.Value);
+                command.Parameters.Add("@InferenceId", SqlDbType.BigInt).Value = request.InferenceId;
+                command.Parameters.Add("@Rating", SqlDbType.Int).Value = request.Rating;
+                command.Parameters.Add("@FeedbackText", SqlDbType.NVarChar).Value = request.FeedbackText ?? (object)DBNull.Value;
+                command.Parameters.Add("@Metadata", SqlDbType.NVarChar).Value = 
+                    request.Metadata != null ? System.Text.Json.JsonSerializer.Serialize(request.Metadata) : (object)DBNull.Value;
 
                 feedbackId = (long)await command.ExecuteScalarAsync(cancellationToken);
             }
@@ -126,7 +127,7 @@ public class FeedbackController : ControllerBase
                     // Get current importance from TensorAtoms
                     var getQuery = "SELECT ImportanceScore FROM dbo.TensorAtoms WHERE AtomId = @AtomId";
                     await using var getCmd = new SqlCommand(getQuery, connection);
-                    getCmd.Parameters.AddWithValue("@AtomId", update.AtomId);
+                    getCmd.Parameters.Add("@AtomId", SqlDbType.BigInt).Value = update.AtomId;
 
                     var currentImportanceObj = await getCmd.ExecuteScalarAsync(cancellationToken);
                     double currentImportance = currentImportanceObj != null && currentImportanceObj != DBNull.Value 
@@ -145,8 +146,8 @@ public class FeedbackController : ControllerBase
                         WHERE AtomId = @AtomId";
 
                     await using var updateCmd = new SqlCommand(updateQuery, connection);
-                    updateCmd.Parameters.AddWithValue("@AtomId", update.AtomId);
-                    updateCmd.Parameters.AddWithValue("@NewImportance", newImportance);
+                    updateCmd.Parameters.Add("@AtomId", SqlDbType.BigInt).Value = update.AtomId;
+                    updateCmd.Parameters.Add("@NewImportance", SqlDbType.Float).Value = newImportance;
 
                     var rowsAffected = await updateCmd.ExecuteNonQueryAsync(cancellationToken);
 
@@ -234,10 +235,10 @@ public class FeedbackController : ControllerBase
             int feedbackCount = 0;
             await using (var command = new SqlCommand(feedbackQuery, connection))
             {
-                command.Parameters.AddWithValue("@ModelId", request.ModelId);
-                command.Parameters.AddWithValue("@Limit", request.FeedbackLimit ?? 1000);
-                command.Parameters.AddWithValue("@StartDate", request.StartDate ?? (object)DBNull.Value);
-                command.Parameters.AddWithValue("@EndDate", request.EndDate ?? (object)DBNull.Value);
+                command.Parameters.Add("@ModelId", SqlDbType.UniqueIdentifier).Value = request.ModelId;
+                command.Parameters.Add("@Limit", SqlDbType.Int).Value = request.FeedbackLimit ?? 1000;
+                command.Parameters.Add("@StartDate", SqlDbType.DateTime2).Value = request.StartDate ?? (object)DBNull.Value;
+                command.Parameters.Add("@EndDate", SqlDbType.DateTime2).Value = request.EndDate ?? (object)DBNull.Value;
 
                 await using var reader = await command.ExecuteReaderAsync(cancellationToken);
                 while (await reader.ReadAsync(cancellationToken))
@@ -255,10 +256,10 @@ public class FeedbackController : ControllerBase
             long jobId;
             await using (var command = new SqlCommand(insertJobQuery, connection))
             {
-                command.Parameters.AddWithValue("@ModelId", request.ModelId);
-                command.Parameters.AddWithValue("@SamplesUsed", feedbackCount);
-                command.Parameters.AddWithValue("@LearningRate", request.LearningRate);
-                command.Parameters.AddWithValue("@Epochs", request.Epochs);
+                command.Parameters.Add("@ModelId", SqlDbType.UniqueIdentifier).Value = request.ModelId;
+                command.Parameters.Add("@SamplesUsed", SqlDbType.Int).Value = feedbackCount;
+                command.Parameters.Add("@LearningRate", SqlDbType.Float).Value = request.LearningRate;
+                command.Parameters.Add("@Epochs", SqlDbType.Int).Value = request.Epochs;
 
                 jobId = (long)await command.ExecuteScalarAsync(cancellationToken);
             }
@@ -333,9 +334,9 @@ public class FeedbackController : ControllerBase
                 ORDER BY FeedbackDate DESC;";
 
             await using var command = new SqlCommand(query, connection);
-            command.Parameters.AddWithValue("@ModelId", request?.ModelId ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@StartDate", request?.StartDate ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@EndDate", request?.EndDate ?? (object)DBNull.Value);
+            command.Parameters.Add("@ModelId", SqlDbType.UniqueIdentifier).Value = request?.ModelId ?? (object)DBNull.Value;
+            command.Parameters.Add("@StartDate", SqlDbType.DateTime2).Value = request?.StartDate ?? (object)DBNull.Value;
+            command.Parameters.Add("@EndDate", SqlDbType.DateTime2).Value = request?.EndDate ?? (object)DBNull.Value;
 
             var response = new GetFeedbackSummaryResponse
             {
@@ -349,7 +350,7 @@ public class FeedbackController : ControllerBase
             if (await reader.ReadAsync(cancellationToken))
             {
                 response.TotalFeedback = reader.GetInt32(0);
-                response.AverageRating = reader.IsDBNull(1) ? 0 : reader.GetDouble(1);
+                response.AverageRating = reader.GetDoubleOrNull(1) ?? 0;
                 response.PositiveFeedbackCount = reader.GetInt32(2);
                 response.NegativeFeedbackCount = reader.GetInt32(3);
             }
@@ -410,7 +411,7 @@ public class FeedbackController : ControllerBase
             WHERE AtomId IN ({atomIdList})";
 
         await using var command = new SqlCommand(query, connection);
-        command.Parameters.AddWithValue("@Delta", delta);
+        command.Parameters.Add("@Delta", SqlDbType.Float).Value = delta;
 
         await command.ExecuteNonQueryAsync(cancellationToken);
 
