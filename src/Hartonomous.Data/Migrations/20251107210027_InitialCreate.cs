@@ -8,16 +8,40 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialBaseline : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.EnsureSchema(
+                name: "graph");
+
+            migrationBuilder.EnsureSchema(
                 name: "dbo");
 
             migrationBuilder.EnsureSchema(
                 name: "provenance");
+
+            migrationBuilder.CreateTable(
+                name: "AtomGraphEdges",
+                schema: "graph",
+                columns: table => new
+                {
+                    EdgeId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    EdgeType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    Weight = table.Column<double>(type: "float", nullable: false, defaultValue: 1.0),
+                    Metadata = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ValidFrom = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    ValidTo = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AtomGraphEdges", x => x.EdgeId);
+                    table.CheckConstraint("CK_AtomGraphEdges_EdgeType", "[EdgeType] IN ('DerivedFrom', 'ComponentOf', 'SimilarTo', 'Uses', 'InputTo', 'OutputFrom', 'BindsToConcept')");
+                    table.CheckConstraint("CK_AtomGraphEdges_Weight", "[Weight] >= 0.0 AND [Weight] <= 1.0");
+                });
 
             migrationBuilder.CreateTable(
                 name: "AtomicAudioSamples",
@@ -128,6 +152,35 @@ namespace Hartonomous.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AutonomousImprovementHistory",
+                columns: table => new
+                {
+                    ImprovementId = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWID()"),
+                    AnalysisResults = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    GeneratedCode = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    TargetFile = table.Column<string>(type: "nvarchar(512)", maxLength: 512, nullable: false),
+                    ChangeType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    RiskLevel = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: false),
+                    EstimatedImpact = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    GitCommitHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true),
+                    SuccessScore = table.Column<decimal>(type: "decimal(5,4)", precision: 5, scale: 4, nullable: true),
+                    TestsPassed = table.Column<int>(type: "int", nullable: true),
+                    TestsFailed = table.Column<int>(type: "int", nullable: true),
+                    PerformanceDelta = table.Column<decimal>(type: "decimal(10,4)", precision: 10, scale: 4, nullable: true),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    WasDeployed = table.Column<bool>(type: "bit", nullable: false),
+                    WasRolledBack = table.Column<bool>(type: "bit", nullable: false),
+                    StartedAt = table.Column<DateTime>(type: "datetime2", nullable: false),
+                    CompletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    RolledBackAt = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AutonomousImprovementHistory", x => x.ImprovementId);
+                    table.CheckConstraint("CK_AutonomousImprovement_SuccessScore", "[SuccessScore] >= 0 AND [SuccessScore] <= 1");
+                });
+
+            migrationBuilder.CreateTable(
                 name: "BillingRatePlans",
                 columns: table => new
                 {
@@ -151,6 +204,29 @@ namespace Hartonomous.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_BillingRatePlans", x => x.RatePlanId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BillingUsageLedger",
+                columns: table => new
+                {
+                    LedgerId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    PrincipalId = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    Operation = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    MessageType = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    Handler = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    Units = table.Column<decimal>(type: "decimal(18,6)", precision: 18, scale: 6, nullable: false),
+                    BaseRate = table.Column<decimal>(type: "decimal(18,6)", precision: 18, scale: 6, nullable: false),
+                    Multiplier = table.Column<decimal>(type: "decimal(18,6)", precision: 18, scale: 6, nullable: false, defaultValue: 1.0m),
+                    TotalCost = table.Column<decimal>(type: "decimal(18,6)", precision: 18, scale: 6, nullable: false),
+                    MetadataJson = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TimestampUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BillingUsageLedger", x => x.LedgerId);
                 });
 
             migrationBuilder.CreateTable(
@@ -198,49 +274,6 @@ namespace Hartonomous.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_DeduplicationPolicies", x => x.DeduplicationPolicyId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "Embeddings_Production",
-                columns: table => new
-                {
-                    EmbeddingId = table.Column<long>(type: "bigint", nullable: false)
-                        .Annotation("SqlServer:Identity", "1, 1"),
-                    SourceText = table.Column<string>(type: "nvarchar(max)", nullable: true),
-                    SourceType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
-                    EmbeddingFull = table.Column<SqlVector<float>>(type: "VECTOR(768)", nullable: true),
-                    EmbeddingModel = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
-                    SpatialProjX = table.Column<double>(type: "float", nullable: true),
-                    SpatialProjY = table.Column<double>(type: "float", nullable: true),
-                    SpatialProjZ = table.Column<double>(type: "float", nullable: true),
-                    SpatialGeometry = table.Column<Point>(type: "geometry", nullable: true),
-                    SpatialCoarse = table.Column<Point>(type: "geometry", nullable: true),
-                    Dimension = table.Column<int>(type: "int", nullable: false, defaultValue: 768),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
-                    AccessCount = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
-                    LastAccessed = table.Column<DateTime>(type: "datetime2", nullable: true),
-                    ContentHash = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Embeddings_Production", x => x.EmbeddingId);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "GenerationStreams",
-                schema: "provenance",
-                columns: table => new
-                {
-                    StreamId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
-                    Scope = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
-                    Model = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
-                    CreatedUtc = table.Column<DateTime>(type: "datetime2(3)", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
-                    Stream = table.Column<byte[]>(type: "provenance.AtomicStream", nullable: false),
-                    PayloadSizeBytes = table.Column<long>(type: "bigint", nullable: false, computedColumnSql: "CONVERT(BIGINT, DATALENGTH([Stream]))", stored: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_GenerationStreams", x => x.StreamId);
                 });
 
             migrationBuilder.CreateTable(
@@ -312,6 +345,53 @@ namespace Hartonomous.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TenantSecurityPolicy",
+                columns: table => new
+                {
+                    PolicyId = table.Column<int>(type: "int", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TenantId = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false),
+                    PolicyName = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    PolicyType = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    PolicyRules = table.Column<string>(type: "nvarchar(max)", nullable: false),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
+                    EffectiveFrom = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    EffectiveTo = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    UpdatedUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    CreatedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true),
+                    UpdatedBy = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TenantSecurityPolicy", x => x.PolicyId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TestResults",
+                columns: table => new
+                {
+                    TestResultId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    TestName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    TestSuite = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    TestStatus = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: false),
+                    ExecutionTimeMs = table.Column<double>(type: "float", nullable: true),
+                    ErrorMessage = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    StackTrace = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TestOutput = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ExecutedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    Environment = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: true),
+                    TestCategory = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    MemoryUsageMB = table.Column<double>(type: "float", nullable: true),
+                    CpuUsagePercent = table.Column<double>(type: "float", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TestResults", x => x.TestResultId);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "TextDocuments",
                 schema: "dbo",
                 columns: table => new
@@ -361,6 +441,59 @@ namespace Hartonomous.Data.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Videos", x => x.VideoId);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AtomGraphNodes",
+                schema: "graph",
+                columns: table => new
+                {
+                    NodeId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    AtomId = table.Column<long>(type: "bigint", nullable: false),
+                    NodeType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    NodeLabel = table.Column<string>(type: "nvarchar(500)", maxLength: 500, nullable: true),
+                    Properties = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    UpdatedUtc = table.Column<DateTime>(type: "datetime2", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AtomGraphNodes", x => x.NodeId);
+                    table.ForeignKey(
+                        name: "FK_AtomGraphNodes_Atoms_AtomId",
+                        column: x => x.AtomId,
+                        principalTable: "Atoms",
+                        principalColumn: "AtomId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AtomPayloadStore",
+                columns: table => new
+                {
+                    PayloadId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    RowGuid = table.Column<Guid>(type: "uniqueidentifier", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    AtomId = table.Column<long>(type: "bigint", nullable: false),
+                    ContentType = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    ContentHash = table.Column<byte[]>(type: "binary(32)", maxLength: 32, nullable: false),
+                    SizeBytes = table.Column<long>(type: "bigint", nullable: false),
+                    PayloadData = table.Column<byte[]>(type: "VARBINARY(MAX) FILESTREAM", nullable: false),
+                    CreatedBy = table.Column<string>(type: "nvarchar(256)", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AtomPayloadStore", x => x.PayloadId);
+                    table.CheckConstraint("CK_AtomPayloadStore_ContentType", "[ContentType] LIKE '%/%'");
+                    table.CheckConstraint("CK_AtomPayloadStore_SizeBytes", "[SizeBytes] > 0");
+                    table.ForeignKey(
+                        name: "FK_AtomPayloadStore_Atoms_AtomId",
+                        column: x => x.AtomId,
+                        principalTable: "Atoms",
+                        principalColumn: "AtomId",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -547,7 +680,7 @@ namespace Hartonomous.Data.Migrations
                     SpatialCoarse = table.Column<Point>(type: "geometry", nullable: true),
                     SpatialBucketX = table.Column<int>(type: "int", nullable: true),
                     SpatialBucketY = table.Column<int>(type: "int", nullable: true),
-                    SpatialBucketZ = table.Column<int>(type: "int", nullable: false, defaultValue: int.MinValue),
+                    SpatialBucketZ = table.Column<int>(type: "int", nullable: false, defaultValue: -2147483648),
                     Metadata = table.Column<string>(type: "JSON", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
                 },
@@ -568,25 +701,90 @@ namespace Hartonomous.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "AtomEmbeddingSpatialMetadata",
+                name: "Concepts",
+                schema: "provenance",
                 columns: table => new
                 {
-                    SpatialBucketX = table.Column<int>(type: "int", nullable: false),
-                    SpatialBucketY = table.Column<int>(type: "int", nullable: false),
-                    SpatialBucketZ = table.Column<int>(type: "int", nullable: false),
-                    HasZ = table.Column<bool>(type: "bit", nullable: false),
-                    EmbeddingCount = table.Column<long>(type: "bigint", nullable: false),
-                    MinProjX = table.Column<double>(type: "float", nullable: true),
-                    MaxProjX = table.Column<double>(type: "float", nullable: true),
-                    MinProjY = table.Column<double>(type: "float", nullable: true),
-                    MaxProjY = table.Column<double>(type: "float", nullable: true),
-                    MinProjZ = table.Column<double>(type: "float", nullable: true),
-                    MaxProjZ = table.Column<double>(type: "float", nullable: true),
-                    UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                    ConceptId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ConceptName = table.Column<string>(type: "nvarchar(200)", maxLength: 200, nullable: false),
+                    Description = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    CentroidVector = table.Column<byte[]>(type: "varbinary(max)", nullable: false),
+                    VectorDimension = table.Column<int>(type: "int", nullable: false),
+                    MemberCount = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    CoherenceScore = table.Column<double>(type: "float", nullable: true),
+                    SeparationScore = table.Column<double>(type: "float", nullable: true),
+                    DiscoveryMethod = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    ModelId = table.Column<int>(type: "int", nullable: false),
+                    DiscoveredAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    LastUpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_AtomEmbeddingSpatialMetadata", x => new { x.SpatialBucketX, x.SpatialBucketY, x.SpatialBucketZ, x.HasZ });
+                    table.PrimaryKey("PK_Concepts", x => x.ConceptId);
+                    table.ForeignKey(
+                        name: "FK_Concepts_Models_ModelId",
+                        column: x => x.ModelId,
+                        principalTable: "Models",
+                        principalColumn: "ModelId",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "GenerationStreams",
+                schema: "provenance",
+                columns: table => new
+                {
+                    StreamId = table.Column<Guid>(type: "uniqueidentifier", nullable: false),
+                    GenerationStreamId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    ModelId = table.Column<int>(type: "int", nullable: true),
+                    Scope = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    Model = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: true),
+                    GeneratedAtomIds = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    ProvenanceStream = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
+                    ContextMetadata = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    TenantId = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2(3)", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_GenerationStreams", x => x.StreamId);
+                    table.ForeignKey(
+                        name: "FK_GenerationStreams_Models",
+                        column: x => x.ModelId,
+                        principalTable: "Models",
+                        principalColumn: "ModelId");
+                });
+
+            migrationBuilder.CreateTable(
+                name: "InferenceCache",
+                columns: table => new
+                {
+                    CacheId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("SqlServer:Identity", "1, 1"),
+                    CacheKey = table.Column<string>(type: "nvarchar(64)", maxLength: 64, nullable: false),
+                    ModelId = table.Column<int>(type: "int", nullable: false),
+                    InferenceType = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
+                    InputHash = table.Column<byte[]>(type: "varbinary(max)", nullable: false),
+                    OutputData = table.Column<byte[]>(type: "varbinary(max)", nullable: false),
+                    IntermediateStates = table.Column<byte[]>(type: "varbinary(max)", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    LastAccessedUtc = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    AccessCount = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
+                    SizeBytes = table.Column<long>(type: "bigint", nullable: true),
+                    ComputeTimeMs = table.Column<double>(type: "float", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_InferenceCache", x => x.CacheId);
+                    table.ForeignKey(
+                        name: "FK_InferenceCache_Models_ModelId",
+                        column: x => x.ModelId,
+                        principalTable: "Models",
+                        principalColumn: "ModelId",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -610,6 +808,9 @@ namespace Hartonomous.Data.Migrations
                     CacheHit = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
                     UserRating = table.Column<byte>(type: "tinyint", nullable: true),
                     UserFeedback = table.Column<string>(type: "nvarchar(max)", nullable: true),
+                    Complexity = table.Column<int>(type: "int", nullable: true),
+                    SlaTier = table.Column<string>(type: "nvarchar(50)", maxLength: 50, nullable: true),
+                    EstimatedResponseTimeMs = table.Column<int>(type: "int", nullable: true),
                     ModelId = table.Column<int>(type: "int", nullable: true)
                 },
                 constraints: table =>
@@ -859,8 +1060,8 @@ namespace Hartonomous.Data.Migrations
                     MortonCode = table.Column<long>(type: "bigint", nullable: true),
                     GeometryFootprint = table.Column<Geometry>(type: "geometry", nullable: true),
                     RawPayload = table.Column<byte[]>(type: "VARBINARY(MAX) FILESTREAM", nullable: false),
-                    CreatedAt = table.Column<DateTime>(type: "DATETIME2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
-                    PayloadRowGuid = table.Column<Guid>(type: "uniqueidentifier ROWGUIDCOL", nullable: false, defaultValueSql: "NEWSEQUENTIALID()")
+                    PayloadRowGuid = table.Column<Guid>(type: "uniqueidentifier ROWGUIDCOL", nullable: false, defaultValueSql: "NEWSEQUENTIALID()"),
+                    CreatedAt = table.Column<DateTime>(type: "DATETIME2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
                 },
                 constraints: table =>
                 {
@@ -961,9 +1162,40 @@ namespace Hartonomous.Data.Migrations
                 columns: new[] { "SpatialBucketX", "SpatialBucketY", "SpatialBucketZ" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_AtomEmbeddingSpatialMetadata_Count",
-                table: "AtomEmbeddingSpatialMetadata",
-                column: "EmbeddingCount");
+                name: "IX_AtomGraphEdges_CreatedUtc",
+                schema: "graph",
+                table: "AtomGraphEdges",
+                column: "CreatedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomGraphEdges_EdgeType",
+                schema: "graph",
+                table: "AtomGraphEdges",
+                column: "EdgeType");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomGraphEdges_Weight",
+                schema: "graph",
+                table: "AtomGraphEdges",
+                column: "Weight");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomGraphNodes_AtomId",
+                schema: "graph",
+                table: "AtomGraphNodes",
+                column: "AtomId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomGraphNodes_CreatedUtc",
+                schema: "graph",
+                table: "AtomGraphNodes",
+                column: "CreatedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomGraphNodes_NodeType",
+                schema: "graph",
+                table: "AtomGraphNodes",
+                column: "NodeType");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AtomicAudioSamples_AmplitudeNormalized",
@@ -980,6 +1212,22 @@ namespace Hartonomous.Data.Migrations
                 name: "IX_AtomicTextTokens_TokenText",
                 table: "AtomicTextTokens",
                 column: "TokenText",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomPayloadStore_AtomId",
+                table: "AtomPayloadStore",
+                column: "AtomId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AtomPayloadStore_RowGuid",
+                table: "AtomPayloadStore",
+                column: "RowGuid");
+
+            migrationBuilder.CreateIndex(
+                name: "UX_AtomPayloadStore_ContentHash",
+                table: "AtomPayloadStore",
+                column: "ContentHash",
                 unique: true);
 
             migrationBuilder.CreateIndex(
@@ -1012,6 +1260,25 @@ namespace Hartonomous.Data.Migrations
                 descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
+                name: "IX_AutonomousImprovement_ChangeType_RiskLevel",
+                table: "AutonomousImprovementHistory",
+                columns: new[] { "ChangeType", "RiskLevel" })
+                .Annotation("SqlServer:Include", new[] { "ErrorMessage", "SuccessScore" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AutonomousImprovement_StartedAt",
+                table: "AutonomousImprovementHistory",
+                column: "StartedAt",
+                descending: new bool[0]);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AutonomousImprovement_SuccessScore",
+                table: "AutonomousImprovementHistory",
+                column: "SuccessScore",
+                descending: new bool[0],
+                filter: "[WasDeployed] = 1 AND [WasRolledBack] = 0");
+
+            migrationBuilder.CreateIndex(
                 name: "UX_BillingMultipliers_Active",
                 table: "BillingMultipliers",
                 columns: new[] { "RatePlanId", "Dimension", "Key" },
@@ -1037,6 +1304,18 @@ namespace Hartonomous.Data.Migrations
                 columns: new[] { "TenantId", "PlanCode" },
                 unique: true,
                 filter: "[PlanCode] <> ''");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BillingUsageLedger_Operation_Timestamp",
+                table: "BillingUsageLedger",
+                columns: new[] { "Operation", "TimestampUtc" })
+                .Annotation("SqlServer:Include", new[] { "TenantId", "Units", "TotalCost" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BillingUsageLedger_TenantId_Timestamp",
+                table: "BillingUsageLedger",
+                columns: new[] { "TenantId", "TimestampUtc" })
+                .Annotation("SqlServer:Include", new[] { "Operation", "TotalCost" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_CachedActivations_LastAccessed_HitCount",
@@ -1088,15 +1367,47 @@ namespace Hartonomous.Data.Migrations
                 column: "QualityScore");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Concepts_CoherenceScore",
+                schema: "provenance",
+                table: "Concepts",
+                column: "CoherenceScore",
+                descending: new bool[0]);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Concepts_ConceptName",
+                schema: "provenance",
+                table: "Concepts",
+                column: "ConceptName");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Concepts_DiscoveryMethod",
+                schema: "provenance",
+                table: "Concepts",
+                column: "DiscoveryMethod");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Concepts_ModelId_IsActive",
+                schema: "provenance",
+                table: "Concepts",
+                columns: new[] { "ModelId", "IsActive" });
+
+            migrationBuilder.CreateIndex(
                 name: "UX_DeduplicationPolicies_PolicyName",
                 table: "DeduplicationPolicies",
                 column: "PolicyName",
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_Embeddings_Production_ContentHash",
-                table: "Embeddings_Production",
-                column: "ContentHash");
+                name: "IX_GenerationStreams_CreatedUtc",
+                schema: "provenance",
+                table: "GenerationStreams",
+                column: "CreatedUtc");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GenerationStreams_GenerationStreamId",
+                schema: "provenance",
+                table: "GenerationStreams",
+                column: "GenerationStreamId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_GenerationStreams_Model",
@@ -1105,10 +1416,22 @@ namespace Hartonomous.Data.Migrations
                 column: "Model");
 
             migrationBuilder.CreateIndex(
+                name: "IX_GenerationStreams_ModelId",
+                schema: "provenance",
+                table: "GenerationStreams",
+                column: "ModelId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_GenerationStreams_Scope",
                 schema: "provenance",
                 table: "GenerationStreams",
                 column: "Scope");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_GenerationStreams_TenantId",
+                schema: "provenance",
+                table: "GenerationStreams",
+                column: "TenantId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_ImagePatches_ImageId_PatchX_PatchY",
@@ -1128,6 +1451,22 @@ namespace Hartonomous.Data.Migrations
                 schema: "dbo",
                 table: "Images",
                 columns: new[] { "Width", "Height" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InferenceCache_CacheKey",
+                table: "InferenceCache",
+                column: "CacheKey");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InferenceCache_LastAccessedUtc",
+                table: "InferenceCache",
+                column: "LastAccessedUtc",
+                descending: new bool[0]);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_InferenceCache_ModelId_InferenceType",
+                table: "InferenceCache",
+                columns: new[] { "ModelId", "InferenceType" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_InferenceRequests_CacheHit",
@@ -1243,6 +1582,21 @@ namespace Hartonomous.Data.Migrations
                 column: "ModelType");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TenantSecurityPolicy_EffectiveDates",
+                table: "TenantSecurityPolicy",
+                columns: new[] { "EffectiveFrom", "EffectiveTo" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantSecurityPolicy_IsActive",
+                table: "TenantSecurityPolicy",
+                column: "IsActive");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TenantSecurityPolicy_TenantId_PolicyType",
+                table: "TenantSecurityPolicy",
+                columns: new[] { "TenantId", "PolicyType" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TensorAtomCoefficients_Lookup",
                 table: "TensorAtomCoefficients",
                 columns: new[] { "TensorAtomId", "ParentLayerId", "TensorRole" });
@@ -1266,6 +1620,29 @@ namespace Hartonomous.Data.Migrations
                 name: "IX_TensorAtoms_Model_Layer_Type",
                 table: "TensorAtoms",
                 columns: new[] { "ModelId", "LayerId", "AtomType" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TestResults_ExecutionTimeMs",
+                table: "TestResults",
+                column: "ExecutionTimeMs",
+                descending: new bool[0]);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TestResults_TestCategory_ExecutedAt",
+                table: "TestResults",
+                columns: new[] { "TestCategory", "ExecutedAt" },
+                descending: new bool[0]);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TestResults_TestStatus",
+                table: "TestResults",
+                column: "TestStatus");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TestResults_TestSuite_ExecutedAt",
+                table: "TestResults",
+                columns: new[] { "TestSuite", "ExecutedAt" },
+                descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
                 name: "IX_TokenVocabulary_ModelId_Token",
@@ -1312,7 +1689,12 @@ namespace Hartonomous.Data.Migrations
                 name: "AtomEmbeddingComponents");
 
             migrationBuilder.DropTable(
-                name: "AtomEmbeddingSpatialMetadata");
+                name: "AtomGraphEdges",
+                schema: "graph");
+
+            migrationBuilder.DropTable(
+                name: "AtomGraphNodes",
+                schema: "graph");
 
             migrationBuilder.DropTable(
                 name: "AtomicAudioSamples");
@@ -1324,6 +1706,9 @@ namespace Hartonomous.Data.Migrations
                 name: "AtomicTextTokens");
 
             migrationBuilder.DropTable(
+                name: "AtomPayloadStore");
+
+            migrationBuilder.DropTable(
                 name: "AtomRelations");
 
             migrationBuilder.DropTable(
@@ -1331,10 +1716,16 @@ namespace Hartonomous.Data.Migrations
                 schema: "dbo");
 
             migrationBuilder.DropTable(
+                name: "AutonomousImprovementHistory");
+
+            migrationBuilder.DropTable(
                 name: "BillingMultipliers");
 
             migrationBuilder.DropTable(
                 name: "BillingOperationRates");
+
+            migrationBuilder.DropTable(
+                name: "BillingUsageLedger");
 
             migrationBuilder.DropTable(
                 name: "CachedActivations");
@@ -1344,10 +1735,11 @@ namespace Hartonomous.Data.Migrations
                 schema: "dbo");
 
             migrationBuilder.DropTable(
-                name: "DeduplicationPolicies");
+                name: "Concepts",
+                schema: "provenance");
 
             migrationBuilder.DropTable(
-                name: "Embeddings_Production");
+                name: "DeduplicationPolicies");
 
             migrationBuilder.DropTable(
                 name: "GenerationStreams",
@@ -1356,6 +1748,9 @@ namespace Hartonomous.Data.Migrations
             migrationBuilder.DropTable(
                 name: "ImagePatches",
                 schema: "dbo");
+
+            migrationBuilder.DropTable(
+                name: "InferenceCache");
 
             migrationBuilder.DropTable(
                 name: "InferenceSteps");
@@ -1370,7 +1765,13 @@ namespace Hartonomous.Data.Migrations
                 name: "ModelMetadata");
 
             migrationBuilder.DropTable(
+                name: "TenantSecurityPolicy");
+
+            migrationBuilder.DropTable(
                 name: "TensorAtomCoefficients");
+
+            migrationBuilder.DropTable(
+                name: "TestResults");
 
             migrationBuilder.DropTable(
                 name: "TextDocuments",

@@ -1,350 +1,356 @@
 -- =============================================
--- Custom SQL CLR Aggregate Functions for Vector Operations
+-- CLR User-Defined Aggregates for Vector Operations
 -- =============================================
--- These aggregate functions enable efficient vector operations over result sets
--- without cursor-based iteration or table variables.
+-- Microsoft SQL Server CLR aggregates for ML/AI workloads
 --
--- PERFORMANCE BENEFITS:
--- 1. Single-pass aggregation (vs. cursor loops)
--- 2. In-memory accumulation (vs. temp tables)
--- 3. Parallelizable GROUP BY operations
--- 4. Native integration with query optimizer
+-- IMPORTANT: These MUST use CREATE AGGREGATE syntax, not CREATE FUNCTION
+-- Reference: https://learn.microsoft.com/en-us/sql/t-sql/statements/create-aggregate-transact-sql
 --
--- USE CASES:
--- 1. Model ensemble: AVG(vector) across all model embeddings
--- 2. Centroid computation: Mean vector of search results
--- 3. Batch normalization: Compute mean + std dev in one pass
--- 4. Temporal rollups: Average embeddings across time windows
+-- Prerequisites:
+-- 1. SqlClrFunctions assembly deployed with UNSAFE permission set
+-- 2. CLR integration enabled: EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
 -- =============================================
 
--- =============================================
--- AGGREGATE: VectorAvg
--- Returns element-wise average of vectors
--- =============================================
--- CLR Implementation Required: VectorAvgAggregate.cs
--- 
--- Usage Example:
--- SELECT dbo.VectorAvg(EmbeddingData)
--- FROM dbo.AtomEmbeddings
--- WHERE ModelId = 42
--- GROUP BY AtomId;
---
--- Use Cases:
--- 1. Model Ensemble: Average predictions from multiple models
--- 2. Centroid Computation: Find cluster centers for embeddings
--- 3. Temporal Aggregation: Average embeddings over time windows
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorAvg (@vector VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    -- Placeholder: Requires CLR aggregate implementation
-    -- See: src/SqlClr/Aggregates/VectorAvgAggregate.cs
-    RETURN dbo.clr_VectorAvg_Aggregate(@vector);
-END;
+-- Drop existing aggregates if they exist (for redeployment)
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorMeanVariance')
+    DROP AGGREGATE dbo.VectorMeanVariance;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'GeometricMedian')
+    DROP AGGREGATE dbo.GeometricMedian;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'StreamingSoftmax')
+    DROP AGGREGATE dbo.StreamingSoftmax;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorAttentionAggregate')
+    DROP AGGREGATE dbo.VectorAttentionAggregate;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'AutoencoderCompression')
+    DROP AGGREGATE dbo.AutoencoderCompression;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'GradientStatistics')
+    DROP AGGREGATE dbo.GradientStatistics;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'CosineAnnealingSchedule')
+    DROP AGGREGATE dbo.CosineAnnealingSchedule;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'TreeOfThought')
+    DROP AGGREGATE dbo.TreeOfThought;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ReflexionAggregate')
+    DROP AGGREGATE dbo.ReflexionAggregate;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SelfConsistency')
+    DROP AGGREGATE dbo.SelfConsistency;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ChainOfThoughtCoherence')
+    DROP AGGREGATE dbo.ChainOfThoughtCoherence;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'GraphPathVectorSummary')
+    DROP AGGREGATE dbo.GraphPathVectorSummary;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'EdgeWeightedByVectorSimilarity')
+    DROP AGGREGATE dbo.EdgeWeightedByVectorSimilarity;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorDriftOverTime')
+    DROP AGGREGATE dbo.VectorDriftOverTime;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorSequencePatterns')
+    DROP AGGREGATE dbo.VectorSequencePatterns;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorARForecast')
+    DROP AGGREGATE dbo.VectorARForecast;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'DTWDistance')
+    DROP AGGREGATE dbo.DTWDistance;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ChangePointDetection')
+    DROP AGGREGATE dbo.ChangePointDetection;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'IsolationForestScore')
+    DROP AGGREGATE dbo.IsolationForestScore;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'LocalOutlierFactor')
+    DROP AGGREGATE dbo.LocalOutlierFactor;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'DBSCANCluster')
+    DROP AGGREGATE dbo.DBSCANCluster;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'MahalanobisDistance')
+    DROP AGGREGATE dbo.MahalanobisDistance;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'CollaborativeFilter')
+    DROP AGGREGATE dbo.CollaborativeFilter;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ContentBasedFilter')
+    DROP AGGREGATE dbo.ContentBasedFilter;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'MatrixFactorization')
+    DROP AGGREGATE dbo.MatrixFactorization;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'DiversityRecommendation')
+    DROP AGGREGATE dbo.DiversityRecommendation;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'PrincipalComponentAnalysis')
+    DROP AGGREGATE dbo.PrincipalComponentAnalysis;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'TSNEProjection')
+    DROP AGGREGATE dbo.TSNEProjection;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'RandomProjection')
+    DROP AGGREGATE dbo.RandomProjection;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ResearchWorkflow')
+    DROP AGGREGATE dbo.ResearchWorkflow;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ToolExecutionChain')
+    DROP AGGREGATE dbo.ToolExecutionChain;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'UserJourney')
+    DROP AGGREGATE dbo.UserJourney;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ABTestAnalysis')
+    DROP AGGREGATE dbo.ABTestAnalysis;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ChurnPrediction')
+    DROP AGGREGATE dbo.ChurnPrediction;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorCentroid')
+    DROP AGGREGATE dbo.VectorCentroid;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorCovariance')
+    DROP AGGREGATE dbo.VectorCovariance;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'VectorKMeansCluster')
+    DROP AGGREGATE dbo.VectorKMeansCluster;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SpatialConvexHull')
+    DROP AGGREGATE dbo.SpatialConvexHull;
+IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SpatialDensityGrid')
+    DROP AGGREGATE dbo.SpatialDensityGrid;
 GO
 
 -- =============================================
--- AGGREGATE: VectorSum
--- Returns element-wise sum of vectors
+-- VECTOR AGGREGATES (Basic Statistics)
 -- =============================================
--- Usage Example:
--- SELECT dbo.VectorSum(EmbeddingData)
--- FROM dbo.AtomEmbeddings
--- WHERE AtomId IN (SELECT AtomId FROM @relatedAtoms);
---
--- Use Cases:
--- 1. Feature Accumulation: Sum activations across layers
--- 2. Gradient Aggregation: Sum gradients for batch updates
--- 3. Weighted Ensemble: Sum vectors before normalization
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorSum (@vector VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    RETURN dbo.clr_VectorSum_Aggregate(@vector);
-END;
+
+CREATE AGGREGATE dbo.VectorMeanVariance(@vector NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorMeanVariance];
+GO
+
+CREATE AGGREGATE dbo.GeometricMedian(@vector NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.GeometricMedian];
+GO
+
+CREATE AGGREGATE dbo.StreamingSoftmax(@vector NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.StreamingSoftmax];
+GO
+
+CREATE AGGREGATE dbo.VectorCentroid(@vector NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorCentroid];
+GO
+
+CREATE AGGREGATE dbo.VectorCovariance(@vector NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorCovariance];
+GO
+
+CREATE AGGREGATE dbo.VectorKMeansCluster(@vector NVARCHAR(MAX), @k INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorKMeansCluster];
 GO
 
 -- =============================================
--- AGGREGATE: VectorMedian
--- Returns element-wise median of vectors
+-- NEURAL NETWORK AGGREGATES
 -- =============================================
--- Usage Example:
--- SELECT dbo.VectorMedian(EmbeddingData)
--- FROM dbo.AtomEmbeddings
--- WHERE ModelId = 42
--- GROUP BY AtomId;
---
--- Use Cases:
--- 1. Robust Ensemble: Median is less sensitive to outliers than mean
--- 2. Anomaly Detection: Find central tendency ignoring outliers
--- 3. Data Cleaning: Median-based imputation for corrupted embeddings
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorMedian (@vector VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    RETURN dbo.clr_VectorMedian_Aggregate(@vector);
-END;
+
+CREATE AGGREGATE dbo.VectorAttentionAggregate(
+    @query NVARCHAR(MAX),
+    @key NVARCHAR(MAX),
+    @value NVARCHAR(MAX),
+    @numHeads INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorAttentionAggregate];
 GO
 
--- =============================================
--- AGGREGATE: VectorWeightedAvg
--- Returns weighted average of vectors
--- =============================================
--- Usage Example:
--- SELECT dbo.VectorWeightedAvg(EmbeddingData, ModelWeight)
--- FROM dbo.AtomEmbeddings ae
--- JOIN dbo.ModelWeights mw ON ae.ModelId = mw.ModelId;
---
--- Use Cases:
--- 1. Model Ensemble: Weight models by accuracy/confidence
--- 2. Temporal Decay: Weight recent embeddings higher
--- 3. Importance Sampling: Weight by sample significance
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorWeightedAvg (@vector VARBINARY(MAX), @weight FLOAT)
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    RETURN dbo.clr_VectorWeightedAvg_Aggregate(@vector, @weight);
-END;
+CREATE AGGREGATE dbo.AutoencoderCompression(@input NVARCHAR(MAX), @latentDim INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.AutoencoderCompression];
 GO
 
--- =============================================
--- AGGREGATE: VectorStdDev
--- Returns element-wise standard deviation
--- =============================================
--- Usage Example:
--- SELECT 
---     AtomId,
---     dbo.VectorAvg(EmbeddingData) AS MeanEmbedding,
---     dbo.VectorStdDev(EmbeddingData) AS StdDevEmbedding
--- FROM dbo.AtomEmbeddings
--- GROUP BY AtomId;
---
--- Use Cases:
--- 1. Uncertainty Estimation: Std dev indicates embedding variance
--- 2. Quality Metrics: Low std dev = consistent embeddings
--- 3. Normalization: Z-score normalization requires mean + std dev
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorStdDev (@vector VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    RETURN dbo.clr_VectorStdDev_Aggregate(@vector);
-END;
+CREATE AGGREGATE dbo.GradientStatistics(@gradient NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.GradientStatistics];
 GO
 
--- =============================================
--- AGGREGATE: VectorConcat
--- Concatenates vectors into a single long vector
--- =============================================
--- Usage Example:
--- SELECT dbo.VectorConcat(EmbeddingData ORDER BY LayerDepth)
--- FROM dbo.LayerActivations
--- WHERE AtomId = 123;
---
--- Use Cases:
--- 1. Feature Stacking: Combine embeddings from multiple models
--- 2. Multi-modal Fusion: Concatenate text + image + audio embeddings
--- 3. Layer Concatenation: Combine activations from all layers
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorConcat (@vector VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    RETURN dbo.clr_VectorConcat_Aggregate(@vector);
-END;
-GO
-
--- =============================================
--- AGGREGATE: VectorCentroid (Spatial-Aware)
--- Returns 3D centroid of spatial projections
--- =============================================
--- Usage Example:
--- SELECT dbo.VectorCentroid(Spatial3D)
--- FROM dbo.AtomEmbeddings
--- WHERE TopicId = 'machine-learning';
---
--- Use Cases:
--- 1. Cluster Centers: Find geometric center of topic clusters
--- 2. Spatial Rollups: Aggregate spatial regions for coarse search
--- 3. Region Queries: Pre-compute region centroids for bounding box checks
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorCentroid (@spatial GEOMETRY)
-RETURNS GEOMETRY
-AS
-BEGIN
-    -- Return the geometric centroid
-    RETURN @spatial.STCentroid();
-END;
-GO
-
--- =============================================
--- AGGREGATE: CosineSimilarityAvg
--- Returns average cosine similarity to query vector
--- =============================================
--- Usage Example:
--- DECLARE @query VARBINARY(MAX) = (SELECT TOP 1 EmbeddingData FROM dbo.AtomEmbeddings WHERE AtomId = 123);
--- SELECT 
---     ModelId,
---     dbo.CosineSimilarityAvg(EmbeddingData, @query) AS AvgSimilarity
--- FROM dbo.AtomEmbeddings
--- GROUP BY ModelId;
---
--- Use Cases:
--- 1. Model Quality Metrics: Which model has highest avg similarity to query?
--- 2. Topic Coherence: Measure avg similarity within topic clusters
--- 3. Batch Scoring: Score groups of embeddings in one query
--- =============================================
-CREATE OR ALTER FUNCTION dbo.CosineSimilarityAvg (@vector VARBINARY(MAX), @query VARBINARY(MAX))
+CREATE AGGREGATE dbo.CosineAnnealingSchedule(@iteration INT, @maxIterations INT)
 RETURNS FLOAT
-AS
-BEGIN
-    RETURN dbo.clr_CosineSimilarityAvg_Aggregate(@vector, @query);
-END;
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.CosineAnnealingSchedule];
 GO
 
 -- =============================================
--- AGGREGATE: VectorPCA (First Principal Component)
--- Returns first principal component of vector set
+-- REASONING FRAMEWORK AGGREGATES
 -- =============================================
--- Usage Example:
--- SELECT dbo.VectorPCA(EmbeddingData)
--- FROM dbo.AtomEmbeddings
--- WHERE TopicId = 'machine-learning';
---
--- Use Cases:
--- 1. Dimensionality Reduction: Extract dominant direction
--- 2. Topic Vectors: PCA gives "topic direction" in embedding space
--- 3. Compression: Store only top principal component for large batches
--- =============================================
-CREATE OR ALTER FUNCTION dbo.VectorPCA (@vector VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    -- Requires matrix operations in CLR
-    RETURN dbo.clr_VectorPCA_Aggregate(@vector);
-END;
+
+CREATE AGGREGATE dbo.TreeOfThought(@hypothesis NVARCHAR(MAX), @score FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.TreeOfThought];
+GO
+
+CREATE AGGREGATE dbo.ReflexionAggregate(@trajectory NVARCHAR(MAX), @feedback NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ReflexionAggregate];
+GO
+
+CREATE AGGREGATE dbo.SelfConsistency(@reasoning NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SelfConsistency];
+GO
+
+CREATE AGGREGATE dbo.ChainOfThoughtCoherence(@step NVARCHAR(MAX), @stepNumber INT)
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChainOfThoughtCoherence];
 GO
 
 -- =============================================
--- OPTIMIZATION EXAMPLES
+-- GRAPH VECTOR AGGREGATES
 -- =============================================
 
--- EXAMPLE 1: Model Ensemble with Aggregate (BEFORE)
--- SLOW: Cursor-based averaging
-/*
-DECLARE @result VARBINARY(MAX) = NULL;
-DECLARE @count INT = 0;
-DECLARE cur CURSOR FOR
-    SELECT EmbeddingData FROM dbo.AtomEmbeddings WHERE AtomId = 123;
+CREATE AGGREGATE dbo.GraphPathVectorSummary(@nodeVector NVARCHAR(MAX), @pathDepth INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.GraphPathVectorSummary];
+GO
 
-OPEN cur;
-FETCH NEXT FROM cur INTO @vec;
-WHILE @@FETCH_STATUS = 0
-BEGIN
-    IF @result IS NULL
-        SET @result = @vec;
-    ELSE
-        SET @result = dbo.VectorAdd(@result, @vec);
-    SET @count = @count + 1;
-    FETCH NEXT FROM cur INTO @vec;
-END;
-CLOSE cur;
-DEALLOCATE cur;
-SET @result = dbo.VectorScale(@result, 1.0 / @count);
-*/
+CREATE AGGREGATE dbo.EdgeWeightedByVectorSimilarity(@sourceVector NVARCHAR(MAX), @targetVector NVARCHAR(MAX))
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.EdgeWeightedByVectorSimilarity];
+GO
 
--- EXAMPLE 1: Model Ensemble with Aggregate (AFTER)
--- FAST: Single aggregate query
-/*
-SELECT dbo.VectorAvg(EmbeddingData) AS EnsembleEmbedding
-FROM dbo.AtomEmbeddings
-WHERE AtomId = 123;
-*/
-
--- EXAMPLE 2: Weighted Ensemble (BEFORE)
--- SLOW: Multiple queries + application-side logic
-/*
-DECLARE @weighted TABLE (EmbeddingData VARBINARY(MAX), Weight FLOAT);
-INSERT INTO @weighted
-SELECT ae.EmbeddingData, mw.Weight
-FROM dbo.AtomEmbeddings ae
-JOIN dbo.ModelWeights mw ON ae.ModelId = mw.ModelId
-WHERE ae.AtomId = 123;
-
--- Application must then compute weighted average
-*/
-
--- EXAMPLE 2: Weighted Ensemble (AFTER)
--- FAST: Single aggregate query
-/*
-SELECT dbo.VectorWeightedAvg(ae.EmbeddingData, mw.Weight) AS WeightedEmbedding
-FROM dbo.AtomEmbeddings ae
-JOIN dbo.ModelWeights mw ON ae.ModelId = mw.ModelId
-WHERE ae.AtomId = 123;
-*/
-
--- EXAMPLE 3: Topic Centroids (BEFORE)
--- SLOW: Application computes centroids
-/*
-SELECT TopicId, EmbeddingData
-FROM dbo.AtomEmbeddings
-WHERE TopicId IN ('ai', 'ml', 'nlp');
--- Application groups and averages
-*/
-
--- EXAMPLE 3: Topic Centroids (AFTER)
--- FAST: Database computes centroids
-/*
-SELECT 
-    TopicId,
-    dbo.VectorAvg(EmbeddingData) AS TopicCentroid,
-    dbo.VectorStdDev(EmbeddingData) AS TopicSpread,
-    COUNT(*) AS AtomCount
-FROM dbo.AtomEmbeddings
-GROUP BY TopicId;
-*/
-
--- EXAMPLE 4: Batch Similarity Scoring (BEFORE)
--- SLOW: N queries for N comparisons
-/*
-DECLARE @query VARBINARY(MAX) = ...;
-SELECT 
-    ModelId,
-    AVG(dbo.VectorCosineSimilarity(EmbeddingData, @query)) AS AvgSimilarity
-FROM dbo.AtomEmbeddings
-GROUP BY ModelId;
--- Each row computes similarity individually
-*/
-
--- EXAMPLE 4: Batch Similarity Scoring (AFTER)
--- FAST: Aggregate directly computes average
-/*
-DECLARE @query VARBINARY(MAX) = ...;
-SELECT 
-    ModelId,
-    dbo.CosineSimilarityAvg(EmbeddingData, @query) AS AvgSimilarity
-FROM dbo.AtomEmbeddings
-GROUP BY ModelId;
--- Single-pass aggregation
-*/
+CREATE AGGREGATE dbo.VectorDriftOverTime(@vector NVARCHAR(MAX), @timestamp DATETIME2)
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorDriftOverTime];
+GO
 
 -- =============================================
--- PERFORMANCE BENCHMARKS (Expected)
+-- TIME SERIES VECTOR AGGREGATES
 -- =============================================
--- Model Ensemble (1000 embeddings):
---   Cursor Loop: ~500ms
---   Aggregate:   ~50ms (10x faster)
---
--- Topic Centroids (100 topics, 10K embeddings each):
---   Application-side: ~5s
---   Aggregate GROUP BY: ~500ms (10x faster)
---
--- Weighted Average (1000 embeddings):
---   Multi-query: ~800ms
---   Aggregate: ~80ms (10x faster)
+
+CREATE AGGREGATE dbo.VectorSequencePatterns(@vector NVARCHAR(MAX), @sequenceIndex INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorSequencePatterns];
+GO
+
+CREATE AGGREGATE dbo.VectorARForecast(@vector NVARCHAR(MAX), @lag INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorARForecast];
+GO
+
+CREATE AGGREGATE dbo.DTWDistance(@series1 NVARCHAR(MAX), @series2 NVARCHAR(MAX))
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DTWDistance];
+GO
+
+CREATE AGGREGATE dbo.ChangePointDetection(@value FLOAT, @timestamp DATETIME2)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChangePointDetection];
+GO
+
 -- =============================================
+-- ANOMALY DETECTION AGGREGATES
+-- =============================================
+
+CREATE AGGREGATE dbo.IsolationForestScore(@vector NVARCHAR(MAX), @numTrees INT)
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.IsolationForestScore];
+GO
+
+CREATE AGGREGATE dbo.LocalOutlierFactor(@vector NVARCHAR(MAX), @k INT)
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.LocalOutlierFactor];
+GO
+
+CREATE AGGREGATE dbo.DBSCANCluster(@vector NVARCHAR(MAX), @eps FLOAT, @minPts INT)
+RETURNS INT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DBSCANCluster];
+GO
+
+CREATE AGGREGATE dbo.MahalanobisDistance(@vector NVARCHAR(MAX))
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.MahalanobisDistance];
+GO
+
+-- =============================================
+-- RECOMMENDER SYSTEM AGGREGATES
+-- =============================================
+
+CREATE AGGREGATE dbo.CollaborativeFilter(@userId INT, @itemVector NVARCHAR(MAX), @rating FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.CollaborativeFilter];
+GO
+
+CREATE AGGREGATE dbo.ContentBasedFilter(@itemFeatures NVARCHAR(MAX), @userPreferences NVARCHAR(MAX))
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ContentBasedFilter];
+GO
+
+CREATE AGGREGATE dbo.MatrixFactorization(@userVector NVARCHAR(MAX), @itemVector NVARCHAR(MAX), @latentFactors INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.MatrixFactorization];
+GO
+
+CREATE AGGREGATE dbo.DiversityRecommendation(@itemVector NVARCHAR(MAX), @diversityWeight FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DiversityRecommendation];
+GO
+
+-- =============================================
+-- DIMENSIONALITY REDUCTION AGGREGATES
+-- =============================================
+
+CREATE AGGREGATE dbo.PrincipalComponentAnalysis(@vector NVARCHAR(MAX), @numComponents INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.PrincipalComponentAnalysis];
+GO
+
+CREATE AGGREGATE dbo.TSNEProjection(@vector NVARCHAR(MAX), @perplexity FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.TSNEProjection];
+GO
+
+CREATE AGGREGATE dbo.RandomProjection(@vector NVARCHAR(MAX), @targetDim INT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.RandomProjection];
+GO
+
+-- =============================================
+-- RESEARCH TOOL AGGREGATES
+-- =============================================
+
+CREATE AGGREGATE dbo.ResearchWorkflow(@actionTaken NVARCHAR(MAX), @resultQuality FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ResearchWorkflow];
+GO
+
+CREATE AGGREGATE dbo.ToolExecutionChain(@toolName NVARCHAR(MAX), @executionTime INT, @success BIT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ToolExecutionChain];
+GO
+
+-- =============================================
+-- BEHAVIORAL ANALYTICS AGGREGATES
+-- =============================================
+
+CREATE AGGREGATE dbo.UserJourney(@eventType NVARCHAR(MAX), @timestamp DATETIME2, @sessionId UNIQUEIDENTIFIER)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.UserJourney];
+GO
+
+CREATE AGGREGATE dbo.ABTestAnalysis(@variant NVARCHAR(MAX), @metric FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ABTestAnalysis];
+GO
+
+CREATE AGGREGATE dbo.ChurnPrediction(@featureVector NVARCHAR(MAX), @daysSinceLastActivity INT)
+RETURNS FLOAT
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChurnPrediction];
+GO
+
+-- =============================================
+-- SPATIAL AGGREGATES
+-- =============================================
+
+CREATE AGGREGATE dbo.SpatialConvexHull(@point GEOMETRY)
+RETURNS GEOMETRY
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SpatialConvexHull];
+GO
+
+CREATE AGGREGATE dbo.SpatialDensityGrid(@point GEOMETRY, @gridSize FLOAT)
+RETURNS NVARCHAR(MAX)
+EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SpatialDensityGrid];
+GO
+
+-- =============================================
+-- VERIFICATION
+-- =============================================
+
+-- Verify all aggregates were created
+SELECT
+    OBJECT_NAME(object_id) AS AggregateName,
+    SCHEMA_NAME(schema_id) AS SchemaName,
+    create_date AS CreatedDate
+FROM sys.objects
+WHERE type = 'AF'
+ORDER BY name;
+GO
+
+-- Expected count: 39 aggregates
+SELECT COUNT(*) AS TotalAggregates
+FROM sys.objects
+WHERE type = 'AF';
 GO

@@ -1565,6 +1565,9 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<int?>("Complexity")
+                        .HasColumnType("int");
+
                     b.Property<double?>("Confidence")
                         .HasColumnType("float");
 
@@ -1574,6 +1577,9 @@ namespace Hartonomous.Data.Migrations
                     b.Property<string>("EnsembleStrategy")
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("EstimatedResponseTimeMs")
+                        .HasColumnType("int");
 
                     b.Property<string>("InputData")
                         .HasColumnType("JSON");
@@ -1598,6 +1604,10 @@ namespace Hartonomous.Data.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("SlaTier")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Status")
                         .HasColumnType("nvarchar(max)");

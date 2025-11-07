@@ -1,0 +1,312 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOTNET_VERSION: '9.x'
+  BUILD_CONFIGURATION: 'Release'
+
+jobs:
+  # ============================================
+  # BUILD & TEST
+  # ============================================
+  build:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Restore dependencies
+      run: dotnet restore
+
+    - name: Build solution
+      run: dotnet build --no-restore --configuration ${{ env.BUILD_CONFIGURATION }}
+
+    - name: Run unit tests
+      run: dotnet test --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --verbosity normal --collect:"XPlat Code Coverage"
+
+    - name: Publish test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results
+        path: '**/TestResults/**/*.trx'
+
+    - name: Publish Hartonomous.Api
+      run: dotnet publish src/Hartonomous.Api/Hartonomous.Api.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --output ${{ github.workspace }}/artifacts/api
+
+    - name: Publish CesConsumer
+      run: dotnet publish src/CesConsumer/CesConsumer.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --output ${{ github.workspace }}/artifacts/ces-consumer
+
+    - name: Publish Neo4jSync
+      run: dotnet publish src/Neo4jSync/Neo4jSync.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --output ${{ github.workspace }}/artifacts/neo4j-sync
+
+    - name: Publish ModelIngestion
+      run: dotnet publish src/ModelIngestion/ModelIngestion.csproj --no-build --configuration ${{ env.BUILD_CONFIGURATION }} --output ${{ github.workspace }}/artifacts/model-ingestion
+
+    - name: Build CLR assembly
+      run: |
+        echo "Building SqlClr project with UNSAFE permission set..."
+        dotnet build src/SqlClr/SqlClrFunctions.csproj --configuration Release
+
+        dll_path="src/SqlClr/bin/Release/net8.0/SqlClrFunctions.dll"
+        if [ -f "$dll_path" ]; then
+          echo "✓ CLR assembly built: $dll_path"
+          sha256sum "$dll_path"
+          mkdir -p ${{ github.workspace }}/artifacts/clr
+          cp "$dll_path" ${{ github.workspace }}/artifacts/clr/
+        else
+          echo "✗ CLR assembly not found at $dll_path"
+          exit 1
+        fi
+
+    - name: Copy deployment scripts
+      run: |
+        mkdir -p ${{ github.workspace }}/artifacts/scripts
+        cp -r scripts/deploy ${{ github.workspace }}/artifacts/scripts/
+        cp -r sql ${{ github.workspace }}/artifacts/
+        cp -r deploy ${{ github.workspace }}/artifacts/
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: hartonomous-build
+        path: ${{ github.workspace }}/artifacts/
+
+  # ============================================
+  # DATABASE DEPLOYMENT
+  # ============================================
+  deploy-database:
+    name: Deploy Database to Arc SQL Server
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    environment:
+      name: hart-server-database
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hartonomous-build
+        path: ${{ github.workspace }}/artifacts
+
+    - name: Setup .NET SDK for EF migrations
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_VERSION }}
+
+    - name: Install PowerShell Core
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y powershell
+
+    - name: Install SQL Server command-line tools
+      run: |
+        curl https://packages.microsoft.com/keys/microsoft.asc | sudo tee /etc/apt/trusted.gpg.d/microsoft.asc
+        curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
+        sudo apt-get update
+        sudo ACCEPT_EULA=Y apt-get install -y mssql-tools18 unixodbc-dev
+        echo 'export PATH="$PATH:/opt/mssql-tools18/bin"' >> $HOME/.bashrc
+        export PATH="$PATH:/opt/mssql-tools18/bin"
+
+    - name: Deploy database via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        script: |
+          # Create deployment directory
+          mkdir -p /srv/deployment/hartonomous/database
+          echo "✓ Deployment directory ready"
+
+    - name: Copy deployment package to Arc server
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        source: "${{ github.workspace }}/artifacts/*"
+        target: "/srv/deployment/hartonomous/database"
+        strip_components: 2
+
+    - name: Execute database deployment
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        script: |
+          cd /srv/deployment/hartonomous/database
+
+          # Make scripts executable
+          chmod +x scripts/deploy/*.ps1
+
+          # Execute deployment orchestrator
+          pwsh -File scripts/deploy/deploy-database.ps1 \
+            -ServerName "localhost" \
+            -DatabaseName "${{ secrets.SQL_DATABASE || 'Hartonomous' }}" \
+            -ScriptsDirectory "scripts/deploy" \
+            -AssemblyPath "clr/SqlClrFunctions.dll" \
+            -ProjectPath "src/Hartonomous.Data/Hartonomous.Data.csproj" \
+            -SqlUser "${{ secrets.SQL_USERNAME }}" \
+            -SqlPassword (ConvertTo-SecureString -String "${{ secrets.SQL_PASSWORD }}" -AsPlainText -Force) \
+            -Verbose
+
+          # Check exit code
+          if [ $? -eq 0 ]; then
+            echo "✓ Database deployment completed successfully"
+            exit 0
+          else
+            echo "✗ Database deployment failed"
+            exit 1
+          fi
+
+    - name: Display deployment summary
+      if: always()
+      run: |
+        echo "========================================"
+        echo "  Database Deployment Summary"
+        echo "========================================"
+        echo "Target: ${{ secrets.ARC_SERVER_HOST }} (Azure Arc-enabled)"
+        echo "Database: ${{ secrets.SQL_DATABASE || 'Hartonomous' }}"
+        echo "CLR Mode: UNSAFE (on-premises only)"
+        echo ""
+        echo "Artifacts:"
+        ls -lh ${{ github.workspace }}/artifacts/clr/ || true
+        ls -lh ${{ github.workspace }}/artifacts/sql/ || true
+        echo "========================================"
+
+  # ============================================
+  # SERVICE DEPLOYMENT
+  # ============================================
+  deploy-services:
+    name: Deploy Hartonomous Services
+    needs: [build, deploy-database]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    environment:
+      name: hart-server-production
+
+    steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: hartonomous-build
+        path: ${{ github.workspace }}/artifacts
+
+    - name: Deploy services via SSH
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        script: |
+          # Stop existing services
+          echo "Stopping services..."
+          systemctl --user stop hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion || true
+
+          # Create service directories
+          mkdir -p /srv/www/hartonomous/{api,ces-consumer,neo4j-sync,model-ingestion}
+
+    - name: Copy API to server
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        source: "${{ github.workspace }}/artifacts/api/*"
+        target: "/srv/www/hartonomous/api"
+        strip_components: 2
+
+    - name: Copy CesConsumer to server
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        source: "${{ github.workspace }}/artifacts/ces-consumer/*"
+        target: "/srv/www/hartonomous/ces-consumer"
+        strip_components: 2
+
+    - name: Copy Neo4jSync to server
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        source: "${{ github.workspace }}/artifacts/neo4j-sync/*"
+        target: "/srv/www/hartonomous/neo4j-sync"
+        strip_components: 2
+
+    - name: Copy ModelIngestion to server
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        source: "${{ github.workspace }}/artifacts/model-ingestion/*"
+        target: "/srv/www/hartonomous/model-ingestion"
+        strip_components: 2
+
+    - name: Copy systemd service files
+      uses: appleboy/scp-action@v0.1.4
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        source: "${{ github.workspace }}/artifacts/deploy/*.service"
+        target: "/home/${{ secrets.ARC_SERVER_USER }}/.config/systemd/user/"
+        strip_components: 2
+
+    - name: Start services
+      uses: appleboy/ssh-action@v1.0.0
+      with:
+        host: ${{ secrets.ARC_SERVER_HOST }}
+        username: ${{ secrets.ARC_SERVER_USER }}
+        key: ${{ secrets.ARC_SERVER_SSH_KEY }}
+        port: ${{ secrets.ARC_SERVER_SSH_PORT || 22 }}
+        script: |
+          # Reload systemd daemon
+          systemctl --user daemon-reload
+
+          # Enable and start services
+          systemctl --user enable hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion
+          systemctl --user start hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion
+
+          # Wait for services to start
+          sleep 5
+
+          # Check service status
+          echo "Service Status:"
+          systemctl --user status hartonomous-api --no-pager || true
+          systemctl --user status hartonomous-ces-consumer --no-pager || true
+          systemctl --user status hartonomous-neo4j-sync --no-pager || true
+          systemctl --user status hartonomous-model-ingestion --no-pager || true

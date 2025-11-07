@@ -7,6 +7,7 @@ using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Pipelines.Ingestion;
+using Azure.Identity;
 using System;
 using System.Threading.Tasks;
 
@@ -70,6 +71,27 @@ namespace ModelIngestion
                     config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                           .AddEnvironmentVariables()
                           .AddCommandLine(args);
+
+                    // Azure App Configuration integration (production only)
+                    var settings = config.Build();
+                    var appConfigEndpoint = settings["Endpoints:AppConfiguration"];
+
+                    if (!string.IsNullOrEmpty(appConfigEndpoint)
+                        && context.HostingEnvironment.IsProduction())
+                    {
+                        // Production: Use Azure Arc managed identity
+                        var credential = new DefaultAzureCredential();
+
+                        config.AddAzureAppConfiguration(options =>
+                        {
+                            options.Connect(new Uri(appConfigEndpoint), credential)
+                                // Configure Key Vault integration for secret references
+                                .ConfigureKeyVault(kv =>
+                                {
+                                    kv.SetCredential(credential);
+                                });
+                        });
+                    }
                 })
                 .ConfigureServices((context, services) =>
                 {

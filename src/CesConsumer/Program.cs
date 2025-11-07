@@ -6,6 +6,7 @@ using Hartonomous.Core.Mappers;
 using Hartonomous.Core.Models;
 using Hartonomous.Infrastructure;
 using Hartonomous.Infrastructure.Services.CDC;
+using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -25,6 +26,27 @@ class Program
                 config.AddJsonFile("appsettings.json", optional: true);
                 config.AddJsonFile($"appsettings.{context.HostingEnvironment.EnvironmentName}.json", optional: true);
                 config.AddEnvironmentVariables();
+
+                // Azure App Configuration integration (production only)
+                var settings = config.Build();
+                var appConfigEndpoint = settings["Endpoints:AppConfiguration"];
+
+                if (!string.IsNullOrEmpty(appConfigEndpoint)
+                    && context.HostingEnvironment.IsProduction())
+                {
+                    // Production: Use Azure Arc managed identity
+                    var credential = new DefaultAzureCredential();
+
+                    config.AddAzureAppConfiguration(options =>
+                    {
+                        options.Connect(new Uri(appConfigEndpoint), credential)
+                            // Configure Key Vault integration for secret references
+                            .ConfigureKeyVault(kv =>
+                            {
+                                kv.SetCredential(credential);
+                            });
+                    });
+                }
             })
             .ConfigureServices((context, services) =>
             {

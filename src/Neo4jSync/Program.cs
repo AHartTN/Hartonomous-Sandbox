@@ -12,6 +12,7 @@ using Hartonomous.Infrastructure.Services.Billing;
 using Hartonomous.Infrastructure.Services.Messaging;
 using Hartonomous.Infrastructure.Services.Security;
 using Hartonomous.Neo4jSync.Services;
+using Azure.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,6 +20,25 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+// Azure App Configuration integration (production only)
+var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"];
+if (!string.IsNullOrEmpty(appConfigEndpoint)
+    && builder.Environment.IsProduction())
+{
+    // Production: Use Azure Arc managed identity
+    var credential = new DefaultAzureCredential();
+
+    builder.Configuration.AddAzureAppConfiguration(options =>
+    {
+        options.Connect(new Uri(appConfigEndpoint), credential)
+            // Configure Key Vault integration for secret references
+            .ConfigureKeyVault(kv =>
+            {
+                kv.SetCredential(credential);
+            });
+    });
+}
 
 var sqlConnectionString = Environment.GetEnvironmentVariable("HARTONOMOUS_SQL_CONNECTION")
     ?? builder.Configuration.GetConnectionString("HartonomousDb")

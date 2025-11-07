@@ -12,7 +12,8 @@
     4. CLR assembly deployment (04-clr-assembly.ps1)
     5. EF Core migrations (05-ef-migrations.ps1)
     6. Service Broker configuration (06-service-broker.ps1)
-    7. Deployment verification (07-verification.ps1)
+    7. Stored procedures creation (08-create-procedures.ps1)
+    8. Deployment verification (07-verification.ps1)
     
     Aggregates JSON outputs from each step and publishes as pipeline artifact.
 
@@ -84,7 +85,7 @@ $deploymentResult = @{
     Success = $false
     Steps = @()
     Summary = @{
-        TotalSteps = 7
+        TotalSteps = 8
         CompletedSteps = 0
         FailedStep = ""
         Errors = @()
@@ -237,8 +238,15 @@ try {
         -StepName "Service Broker Setup" `
         -ScriptPath (Join-Path $ScriptsDirectory "06-service-broker.ps1") `
         -Parameters $brokerParams
-    
-    # Step 7: Verification (unless skipped)
+
+    # Step 7: Create Stored Procedures
+    $proceduresParams = $commonParams.Clone()
+    Invoke-DeploymentStep `
+        -StepName "Create Stored Procedures" `
+        -ScriptPath (Join-Path $ScriptsDirectory "08-create-procedures.ps1") `
+        -Parameters $proceduresParams
+
+    # Step 8: Verification (unless skipped)
     if (-not $SkipVerification) {
         $verifyParams = $commonParams.Clone()
         Invoke-DeploymentStep `

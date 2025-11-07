@@ -103,13 +103,13 @@ stages:
   jobs:
   - deployment: DeployDatabaseToArc
     displayName: 'Deploy Database to Arc-enabled SQL Server'
-    environment: 'hart-server-database'
+    environment: 'hart-desktop-database'
     pool:
       vmImage: 'ubuntu-latest'
     variables:
-      SQL_SERVER: 'hart-server'
+      SQL_SERVER: 'HART-DESKTOP'
       SQL_DATABASE: 'Hartonomous'
-      FILESTREAM_PATH: '/var/opt/mssql/data/filestream'
+      FILESTREAM_PATH: 'D:\SQLData\FILESTREAM'
     strategy:
       runOnce:
         deploy:
@@ -148,27 +148,6 @@ stages:
                 }
               pwsh: true
 
-          - task: PowerShell@2
-            displayName: 'Generate EF Core Migration Scripts'
-            inputs:
-              targetType: 'inline'
-              script: |
-                Write-Host "Installing EF Core tools..."
-                dotnet tool install --global dotnet-ef --version 10.* || dotnet tool update --global dotnet-ef --version 10.*
-                
-                Write-Host "Generating idempotent migration script..."
-                cd src/Hartonomous.Data
-                dotnet ef migrations script --idempotent --output "$(Build.ArtifactStagingDirectory)/sql/migrations.sql" --context HartonomousDbContext --project Hartonomous.Data.csproj
-                
-                if (Test-Path "$(Build.ArtifactStagingDirectory)/sql/migrations.sql") {
-                  Write-Host "✓ Migration script generated"
-                  Get-Content "$(Build.ArtifactStagingDirectory)/sql/migrations.sql" | Select-Object -First 20
-                } else {
-                  Write-Error "Migration script not generated"
-                  exit 1
-                }
-              pwsh: true
-
           - task: CopyFiles@2
             displayName: 'Copy SQL deployment scripts'
             inputs:
@@ -195,56 +174,51 @@ stages:
               publishLocation: 'pipeline'
 
           - task: SSH@0
-            displayName: 'Deploy database scripts to hart-server via SSH'
+            displayName: 'Deploy database scripts to HART-DESKTOP via SSH'
             inputs:
-              sshEndpoint: 'hart-server-ssh'
+              sshEndpoint: 'hart-desktop-ssh'
               runOptions: 'commands'
               commands: |
-                # Create deployment directory on Arc server
-                mkdir -p /srv/deployment/hartonomous/database
-                echo "Deployment directory ready"
+                # Create deployment directory on Windows Arc server
+                powershell -Command "New-Item -ItemType Directory -Force -Path 'C:\Deploy\hartonomous\database' | Out-Null; Write-Host 'Deployment directory ready'"
             
           - task: CopyFilesOverSSH@0
-            displayName: 'Copy deployment package to hart-server'
+            displayName: 'Copy deployment package to HART-DESKTOP'
             inputs:
-              sshEndpoint: 'hart-server-ssh'
+              sshEndpoint: 'hart-desktop-ssh'
               sourceFolder: '$(Build.ArtifactStagingDirectory)'
               contents: '**'
-              targetFolder: '/srv/deployment/hartonomous/database'
+              targetFolder: 'C:\Deploy\hartonomous\database'
               cleanTargetFolder: true
               overwrite: true
               failOnEmptySource: true
 
           - task: SSH@0
-            displayName: 'Execute database deployment on hart-server'
+            displayName: 'Execute database deployment on HART-DESKTOP'
             inputs:
-              sshEndpoint: 'hart-server-ssh'
+              sshEndpoint: 'hart-desktop-ssh'
               runOptions: 'commands'
               commands: |
-                cd /srv/deployment/hartonomous/database
-                
-                # Make scripts executable
-                chmod +x scripts/deploy/*.ps1
-                
-                # Execute deployment orchestrator with PowerShell Core
-                pwsh -File scripts/deploy/deploy-database.ps1 \
-                  -ServerName "localhost" \
-                  -DatabaseName "$(SQL_DATABASE)" \
-                  -ScriptsDirectory "scripts/deploy" \
-                  -AssemblyPath "clr/SqlClrFunctions.dll" \
-                  -ProjectPath "$(Pipeline.Workspace)/drop/src/Hartonomous.Infrastructure/Hartonomous.Infrastructure.csproj" \
-                  -SqlUser "$(SQL_USERNAME)" \
-                  -SqlPassword (ConvertTo-SecureString -String "$(SQL_PASSWORD)" -AsPlainText -Force) \
+                cd C:\Deploy\hartonomous\database
+
+                # Execute deployment orchestrator with PowerShell
+                powershell -ExecutionPolicy Bypass -File scripts\deploy\deploy-database.ps1 `
+                  -ServerName "localhost" `
+                  -DatabaseName "$(SQL_DATABASE)" `
+                  -ScriptsDirectory "scripts\deploy" `
+                  -AssemblyPath "clr\SqlClrFunctions.dll" `
+                  -ProjectPath "src\Hartonomous.Data\Hartonomous.Data.csproj" `
+                  -SqlUser "$(SQL_USERNAME)" `
+                  -SqlPassword (ConvertTo-SecureString -String "$(SQL_PASSWORD)" -AsPlainText -Force) `
                   -Verbose
-                
-                # Check exit code
-                if [ $? -eq 0 ]; then
-                  echo "✓ Database deployment completed successfully"
+
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "✓ Database deployment completed successfully"
                   exit 0
-                else
-                  echo "✗ Database deployment failed"
+                } else {
+                  Write-Host "✗ Database deployment failed"
                   exit 1
-                fi
+                }
 
           - bash: |
               echo "========================================" 

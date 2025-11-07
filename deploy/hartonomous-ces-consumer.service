@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=notify
-User=ahart
+User=hartonomous
 WorkingDirectory=/srv/www/hartonomous/ces-consumer
 ExecStart=/usr/bin/dotnet /srv/www/hartonomous/ces-consumer/CesConsumer.dll
 Restart=always
@@ -13,7 +13,6 @@ KillSignal=SIGINT
 SyslogIdentifier=hartonomous-ces-consumer
 Environment=ASPNETCORE_ENVIRONMENT=Production
 Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false
-Environment=AZURE_CLIENT_ID=c25ed11d-c712-4574-8897-6a3a0c8dbb7f
 
 [Install]
 WantedBy=multi-user.target
