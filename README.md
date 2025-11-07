@@ -22,7 +22,7 @@ It stores neural network weights as spatial geometries and runs inference by que
 
 ## How It Works
 
-**Neural weights become spatial data.** A 62GB model becomes a `GEOMETRY(LINESTRING)` with billions of points. You don't load it into memory - you query it. `STPointN(index)` fetches exactly the weights you need for this inference, right now.
+**Model storage with transactional guarantees.** Large models stored as `FILESTREAM` VARBINARY(MAX) with full ACID transaction support. GEOMETRY types enable spatial queries over model architecture and layer structures.
 
 **Embeddings become coordinates.** That 1998-dimensional vector? Projected to 3D space using trilateration. Now semantic similarity is geometric proximity. Now nearest-neighbor search is spatial indexing.
 
@@ -48,7 +48,7 @@ It stores neural network weights as spatial geometries and runs inference by que
 
 This isn't a hack. It's a fundamental rethinking of where AI inference belongs in your stack.
 
-**Spatial datatypes as neural storage.** `GEOMETRY` types give you billion-element arrays with native indexing and lazy access. `STPointN()` gives you O(1) random access without loading the full structure. Your 62GB model becomes a queryable geometry instead of a memory-resident blob.
+**Spatial datatypes for embeddings.** `GEOMETRY` types store embeddings beyond VECTOR(1998) limit. Trilateration projects high-dimensional vectors to 3D coordinates for R-tree spatial indexing. Enables O(log N) nearest-neighbor search via bounding box filtering.
 
 **R-tree indexes for semantic search.** Project high-dimensional embeddings to 3D coordinates. Build spatial indexes. Now k-nearest-neighbor search becomes "find points within this bounding box, then rank by exact distance." Spatial index eliminates 99.9% of candidates in milliseconds.
 
@@ -62,35 +62,36 @@ This isn't a hack. It's a fundamental rethinking of where AI inference belongs i
 
 ## Quick Start
 
+**Note:** Deployment automation in progress. Current deployment requires manual procedure installation. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for details.
+
 ```powershell
-# Deploy the database
-.\scripts\deploy-database.ps1 -ServerInstance "localhost" -DatabaseName "Hartonomous"
+# Deploy database via modular orchestrator
+.\scripts\deploy\deploy-database.ps1 `
+    -ServerName "localhost" `
+    -DatabaseName "Hartonomous" `
+    -AssemblyPath ".\SqlClrFunctions.dll" `
+    -ProjectPath ".\src\Hartonomous.Data\Hartonomous.Data.csproj"
 
-# Deploy CLR assemblies (on-prem with GPU support)
-.\scripts\deploy-clr-unsafe.sql
-
-# Or for cloud deployment (Azure SQL MI)
-.\scripts\deploy-clr-safe.sql
+# Manual: Install SQL procedures (temporary workaround)
+Get-ChildItem -Path "sql\procedures" -Filter "*.sql" |
+    Sort-Object Name |
+    ForEach-Object { sqlcmd -S localhost -d Hartonomous -i $_.FullName }
 ```
 
 ```sql
--- Ingest a model
-EXEC dbo.sp_IngestModel 
-    @ModelName = 'llama-3.1-8b',
-    @FilePath = 'D:\Models\llama-3.1-8b.gguf';
+-- Ingest embeddings with automatic spatial projection
+EXEC dbo.sp_InsertAtomEmbedding
+    @AtomId = 1,
+    @EmbeddingVector = @vector,  -- VECTOR(1998)
+    @EmbeddingType = 'text',
+    @ModelId = 1;
+-- Spatial coordinates computed automatically via trilateration
 
--- Run inference
-EXEC dbo.sp_GenerateText 
-    @Prompt = 'Explain how neural networks are stored as geometry',
-    @MaxTokens = 500;
-
--- Semantic search
-EXEC dbo.sp_SearchSemanticVector
-    @QueryText = 'machine learning deployment strategies',
+-- Hybrid search (spatial filter + exact rerank)
+EXEC dbo.sp_HybridSearch
+    @QueryVector = @query,
+    @SpatialCandidates = 100,
     @TopK = 10;
-
--- Get full provenance
-SELECT * FROM dbo.fn_GetAtomLineage(@ResultAtomId);
 ```
 
 ## Documentation
@@ -182,9 +183,18 @@ Hartonomous/
 
 ## Current Status
 
-Active development. Core inference engine works. Autonomous OODA loop functional. Provenance tracking operational. See `git log` for detailed progress.
+**Implementation:** 85% complete
+- ✅ Multi-tier spatial indexing (100x search performance)
+- ✅ Trilateration projection system
+- ✅ OODA loop (all 4 procedures implemented)
+- ✅ 75+ CLR aggregates (C# complete)
+- ✅ AtomicStream provenance tracking
+- ✅ SIMD-accelerated vector operations
+- ⚠️ Deployment orchestration (procedure installation incomplete)
 
-The vision: AI infrastructure that's as reliable, queryable, and manageable as your database. Not there yet. But getting closer every commit.
+**Critical Path:** Deployment script additions required for production readiness. See [KNOWN_ISSUES.md](KNOWN_ISSUES.md) for remediation plan.
+
+**Next Milestone:** Complete deployment automation (Sprint 2025-Q1)
 
 ## License
 

@@ -105,19 +105,19 @@ High-dimensional embeddings (1998D) are projected to 3D coordinates using distan
 
 **Impact:** Preserves neighborhood relationships while enabling sub-50ms spatial queries.
 
-### 3. Billion-Parameter Models in SQL
+### 3. Large-Scale Model Storage
 
-Neural network weights stored as GEOMETRY LINESTRING with lazy point access:
+Neural network weights stored using FILESTREAM for ACID transactional guarantees on multi-GB files:
 
 ```sql
--- 62GB model stored as single LINESTRING geometry
--- Access individual weight without loading full model
-SELECT WeightsGeometry.STPointN(12345).STX
-FROM dbo.TensorAtoms
-WHERE AtomId = 1;
+-- 62GB model stored as FILESTREAM VARBINARY(MAX)
+-- GEOMETRY LINESTRING available for spatial queries on model structure
+SELECT ModelMetadata, WeightCount, LayerStructure
+FROM dbo.Models
+WHERE ModelId = 1;
 ```
 
-**Impact:** 6,200x memory reduction - query 62GB models with <10MB footprint.
+**Impact:** Transactional model management with ACID guarantees. Optional GEOMETRY indexing enables spatial queries over model architecture.
 
 ### 4. AtomicStream Provenance
 
@@ -276,10 +276,10 @@ Hartonomous is organized into 15 distinct architectural layers, each building on
 
 | Operation | Model Size | Traditional | Hartonomous | Improvement |
 |-----------|-----------|-------------|-------------|-------------|
-| Load Model | 62GB | 62GB RAM | <10MB | **6,200x** |
-| Weight Access | - | Load full | STPointN | **Lazy** |
-| Model Query | - | Python API | SQL SELECT | **Native** |
-| Version Storage | 5 versions | 310GB | 70GB | **4.4x** |
+| Model Storage | 62GB | Object Store | FILESTREAM | **ACID Transactional** |
+| Model Query | - | Python API | SQL SELECT | **Native Integration** |
+| Version Storage | 5 versions | 310GB | 70GB | **4.4x Compression** |
+| Weight Access | - | Full File Load | Streaming | **Efficient I/O** |
 
 ### Billing Operations
 
