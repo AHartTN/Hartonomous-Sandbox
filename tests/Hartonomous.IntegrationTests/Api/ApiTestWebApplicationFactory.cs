@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using System.Security.Claims;
@@ -26,6 +27,18 @@ public class ApiTestWebApplicationFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Set environment to Test to skip Azure configuration
+        builder.UseEnvironment("Test");
+        
+        // Add in-memory configuration with connection string
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:HartonomousDb"] = _connectionString
+            });
+        });
+        
         builder.ConfigureTestServices(services =>
         {
             // Replace DbContext with test database

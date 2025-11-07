@@ -1,5 +1,6 @@
 using System.Linq;
 using System.Threading.RateLimiting;
+using Azure.Core;
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
@@ -38,17 +39,37 @@ builder.Host.ConfigureHostOptions(options =>
 // Enable redaction in logging
 builder.Logging.EnableRedaction();
 
+// Configure Azure credentials based on environment
+TokenCredential azureCredential;
+if (builder.Environment.IsProduction() || builder.Environment.IsStaging())
+{
+    // Production/Staging: Use Managed Identity
+    azureCredential = new DefaultAzureCredential();
+}
+else
+{
+    // Local Development: Use DefaultAzureCredential with local dev tools (Azure CLI, Visual Studio, etc.)
+    // Excludes ManagedIdentityCredential to avoid timeout delays locally
+    azureCredential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+    {
+        ExcludeManagedIdentityCredential = true,
+        ExcludeWorkloadIdentityCredential = true
+    });
+}
+
 // Azure App Configuration integration (only in Azure environments)
 var appConfigEndpoint = builder.Configuration["Endpoints:AppConfiguration"];
-if (!string.IsNullOrEmpty(appConfigEndpoint) && !builder.Environment.IsDevelopment())
+if (!string.IsNullOrEmpty(appConfigEndpoint) 
+    && !builder.Environment.IsDevelopment() 
+    && builder.Environment.EnvironmentName != "Test")
 {
     builder.Configuration.AddAzureAppConfiguration(options =>
     {
-        options.Connect(new Uri(appConfigEndpoint), new DefaultAzureCredential())
+        options.Connect(new Uri(appConfigEndpoint), azureCredential)
             // Configure Key Vault integration for secret references
             .ConfigureKeyVault(kv =>
             {
-                kv.SetCredential(new DefaultAzureCredential());
+                kv.SetCredential(azureCredential);
             })
             // Enable configuration refresh (optional)
             .ConfigureRefresh(refresh =>
@@ -309,17 +330,49 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
     var accountName = config["AzureStorage:AccountName"];
     var blobEndpoint = config["AzureStorage:BlobEndpoint"];
-    var credential = new DefaultAzureCredential();
+    
+    // Use environment-aware credential
+    TokenCredential credential;
+    if (environment.IsProduction() || environment.IsStaging())
+    {
+        credential = new DefaultAzureCredential();
+    }
+    else
+    {
+        credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ExcludeManagedIdentityCredential = true,
+            ExcludeWorkloadIdentityCredential = true
+        });
+    }
+    
     return new BlobServiceClient(new Uri(blobEndpoint!), credential);
 });
 
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
     var queueEndpoint = config["AzureStorage:QueueEndpoint"];
-    var credential = new DefaultAzureCredential();
+    
+    // Use environment-aware credential
+    TokenCredential credential;
+    if (environment.IsProduction() || environment.IsStaging())
+    {
+        credential = new DefaultAzureCredential();
+    }
+    else
+    {
+        credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ExcludeManagedIdentityCredential = true,
+            ExcludeWorkloadIdentityCredential = true
+        });
+    }
+    
     return new QueueServiceClient(new Uri(queueEndpoint!), credential);
 });
 
