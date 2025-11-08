@@ -1,11 +1,14 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- .NET Standard 2.0 bridge: SQL CLR (.NET Framework 4.8.1) → Bridge (.NET Standard 2.0) → .NET 10 features -->
     <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <Description>Bridge library between SQL CLR (.NET Framework 4.8.1) and modern .NET (10.0+)</Description>
+    <!-- Copy all dependencies to output for SQL CLR deployment -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
   <ItemGroup>

@@ -44,6 +44,7 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="ILRepack.MSBuild.Task" Version="2.0.13" />
     <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
     <PackageReference Include="System.Memory" Version="4.5.5" />
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
@@ -92,5 +93,7 @@
     <Compile Include="Core\SqlTensorProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
+
+
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
