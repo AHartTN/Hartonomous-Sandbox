@@ -81,7 +81,8 @@ namespace SqlClrFunctions
             for (int i = 0; i < dimension; i++)
                 centroid[i] /= vectors.Count;
 
-            return new SqlString("[" + string.Join(",", centroid.Select(v => v.ToString("G9"))) + "]");
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.SerializeFloatArray(centroid));
         }
 
         public void Read(BinaryReader r)
@@ -326,11 +327,8 @@ namespace SqlClrFunctions
             if (centroids.Count == 0)
                 return SqlString.Null;
 
-            // Return JSON array of centroids
-            var json = "[" + string.Join(",",
-                centroids.Select(c => "[" + string.Join(",", c.Select(v => v.ToString("G9"))) + "]")
-            ) + "]";
-            return new SqlString(json);
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(centroids));
         }
 
         public void Read(BinaryReader r)

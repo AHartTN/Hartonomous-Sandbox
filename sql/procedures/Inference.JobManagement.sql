@@ -1,6 +1,8 @@
 CREATE OR ALTER PROCEDURE dbo.sp_SubmitInferenceJob
     @taskType NVARCHAR(50),
     @inputData NVARCHAR(MAX),
+    @modelId INT = NULL,
+    @tenantId INT = 0,
     @correlationId NVARCHAR(100) = NULL OUTPUT,
     @inferenceId BIGINT = NULL OUTPUT
 AS
@@ -50,6 +52,7 @@ BEGIN
         }')
     );
 
+    -- Insert inference request
     INSERT INTO dbo.InferenceRequests (
         TaskType,
         InputData,
@@ -63,7 +66,7 @@ BEGIN
     VALUES (
         @taskType,
         @metadataJson,
-        'Pending',
+        'Queued', -- Changed from 'Pending' to 'Queued'
         @correlationId,
         SYSUTCDATETIME(),
         @complexity,
@@ -72,6 +75,40 @@ BEGIN
     );
 
     SET @inferenceId = SCOPE_IDENTITY();
+
+    -- PARADIGM-COMPLIANT REFACTOR: Send message to Service Broker queue instead of polling
+    -- This replaces the C# InferenceJobWorker polling service
+    BEGIN DIALOG CONVERSATION @correlationId
+        FROM SERVICE [InferenceService]
+        TO SERVICE 'InferenceService'
+        ON CONTRACT [InferenceJobContract]
+        WITH ENCRYPTION = OFF;
+    
+    -- Construct XML message
+    DECLARE @MessageXml XML = (
+        SELECT 
+            @inferenceId AS InferenceId,
+            @taskType AS TaskType,
+            @metadataJson AS InputData,
+            @modelId AS ModelId,
+            @tenantId AS TenantId,
+            @correlationId AS CorrelationId
+        FOR XML PATH('InferenceJob'), TYPE
+    );
+    
+    -- Send message to queue (activates sp_ExecuteInference_Activated)
+    SEND ON CONVERSATION @correlationId
+        MESSAGE TYPE [InferenceJobRequest]
+        (@MessageXml);
+    
+    -- Return job info
+    SELECT 
+        @inferenceId AS InferenceId,
+        @correlationId AS CorrelationId,
+        'Queued' AS Status,
+        @complexity AS Complexity,
+        @sla AS SlaTier,
+        @estimatedResponseTimeMs AS EstimatedResponseTimeMs;
 END;
 GO
 

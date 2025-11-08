@@ -23,7 +23,7 @@
     <DefineConstants>DEBUG;TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-  <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
     <DebugType>pdbonly</DebugType>
@@ -32,7 +32,7 @@
     <DefineConstants>TRACE</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
-  <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -45,6 +45,16 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="6.0.0" />
+    <!-- Bridge to modern .NET Standard libraries -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Reference the .NET Standard 2.0 bridge library -->
+    <ProjectReference Include="..\Hartonomous.Sql.Bridge\Hartonomous.Sql.Bridge.csproj" />
   </ItemGroup>
   <ItemGroup>
   <Compile Include="AtomicStream.cs" />
@@ -61,6 +71,25 @@
     <Compile Include="FileSystemFunctions.cs" />
     <Compile Include="ConceptDiscovery.cs" />
     <Compile Include="AutonomousFunctions.cs" />
+    <Compile Include="ModelIngestionFunctions.cs" />
+    <Compile Include="ReasoningFrameworkAggregates.cs" />
+    <Compile Include="AnomalyDetectionAggregates.cs" />
+    <Compile Include="AttentionGeneration.cs" />
+    <Compile Include="EmbeddingFunctions.cs" />
+    <Compile Include="StreamOrchestrator.cs" />
+    <Compile Include="MultiModalGeneration.cs" />
+    <Compile Include="AdvancedVectorAggregates.cs" />
+    <Compile Include="BehavioralAggregates.cs" />
+    <Compile Include="DimensionalityReductionAggregates.cs" />
+    <Compile Include="GraphVectorAggregates.cs" />
+    <Compile Include="NeuralVectorAggregates.cs" />
+    <Compile Include="RecommenderAggregates.cs" />
+    <Compile Include="ResearchToolAggregates.cs" />
+    <Compile Include="TimeSeriesVectorAggregates.cs" />
+    <Compile Include="VectorAggregates.cs" />
+    <Compile Include="Core\VectorUtilities.cs" />
+    <Compile Include="Core\VectorMath.cs" />
+    <Compile Include="Core\SqlTensorProvider.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

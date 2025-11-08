@@ -74,8 +74,8 @@ namespace SqlClrFunctions
         {
             if (stepNumber.IsNull || stepType.IsNull) return;
 
-            var queryVec = !queryVectorJson.IsNull ? VectorParser.ParseVectorJson(queryVectorJson.Value) : null;
-            var resultVec = !resultVectorJson.IsNull ? VectorParser.ParseVectorJson(resultVectorJson.Value) : null;
+            var queryVec = !queryVectorJson.IsNull ? VectorUtilities.ParseVectorJson(queryVectorJson.Value) : null;
+            var resultVec = !resultVectorJson.IsNull ? VectorUtilities.ParseVectorJson(resultVectorJson.Value) : null;
 
             if (queryVec != null)
             {
@@ -397,8 +397,8 @@ namespace SqlClrFunctions
         {
             if (executionOrder.IsNull || toolName.IsNull) return;
 
-            var inputVec = !inputVectorJson.IsNull ? VectorParser.ParseVectorJson(inputVectorJson.Value) : null;
-            var outputVec = !outputVectorJson.IsNull ? VectorParser.ParseVectorJson(outputVectorJson.Value) : null;
+            var inputVec = !inputVectorJson.IsNull ? VectorUtilities.ParseVectorJson(inputVectorJson.Value) : null;
+            var outputVec = !outputVectorJson.IsNull ? VectorUtilities.ParseVectorJson(outputVectorJson.Value) : null;
 
             if (inputVec != null)
             {
@@ -483,7 +483,7 @@ namespace SqlClrFunctions
             
             sb.Append("\"tool_usage\":[");
             sb.Append(string.Join(",", toolStats.Select(t =>
-                $"{{\"tool\":\"{JsonFormatter.EscapeString(t.Tool)}\"," +
+                $"{{\"tool\":\"{t.Tool.Replace("\"", "\\\"")}\"," +
                 $"\"count\":{t.Count}," +
                 $"\"success_rate\":{t.SuccessRate:G6}," +
                 $"\"avg_time_ms\":{t.AvgTime:G3}," +
@@ -493,7 +493,7 @@ namespace SqlClrFunctions
 
             sb.Append("\"bottlenecks\":[");
             sb.Append(string.Join(",", bottlenecks.Select(b =>
-                $"{{\"tool\":\"{JsonFormatter.EscapeString(b.ToolName)}\"," +
+                $"{{\"tool\":\"{b.ToolName.Replace("\"", "\\\"")}\"," +
                 $"\"order\":{b.Order}," +
                 $"\"time_ms\":{b.ExecutionTimeMs}}}"
             )));

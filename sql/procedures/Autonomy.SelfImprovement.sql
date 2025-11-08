@@ -352,48 +352,68 @@ OUTPUT FORMAT (JSON):
         -- Write code to file system and execute Git commands via CLR
         DECLARE @FileContent NVARCHAR(MAX) = JSON_VALUE(@GeneratedCode, '$.code');
         DECLARE @FullFilePath NVARCHAR(1000) = 'D:\Repositories\Hartonomous\' + @TargetFile;
-        DECLARE @GitOutput NVARCHAR(MAX);
+        DECLARE @GitOutput TABLE (OutputLine NVARCHAR(MAX), IsError BIT);
+        DECLARE @GitWorkingDir NVARCHAR(1000) = 'D:\Repositories\Hartonomous';
         
         BEGIN TRY
             -- Write generated code to file
             EXEC dbo.clr_WriteFileText @FullFilePath, @FileContent;
             
-            -- Stage file in git
-            DECLARE @GitAdd NVARCHAR(1000) = 'git add "' + @TargetFile + '"';
-            EXEC dbo.clr_ExecuteShellCommand @GitAdd, @GitOutput OUTPUT;
+            -- Stage file in git (SECURITY: Using ArgumentList to prevent injection)
+            DELETE FROM @GitOutput;
+            INSERT INTO @GitOutput
+            SELECT * FROM dbo.clr_ExecuteShellCommand(
+                'git',
+                '["add", "' + REPLACE(@TargetFile, '"', '\"') + '"]',
+                @GitWorkingDir,
+                30
+            );
             
-            IF @GitOutput LIKE '%error%' OR @GitOutput LIKE '%fatal%'
+            IF EXISTS (SELECT 1 FROM @GitOutput WHERE IsError = 1 AND (OutputLine LIKE '%error%' OR OutputLine LIKE '%fatal%'))
             BEGIN
-                RAISERROR('Git add failed: %s', 16, 1, @GitOutput);
+                DECLARE @ErrorMsg NVARCHAR(MAX) = (SELECT TOP 1 OutputLine FROM @GitOutput WHERE IsError = 1);
+                RAISERROR('Git add failed: %s', 16, 1, @ErrorMsg);
             END
             
             -- Commit change
             DECLARE @CommitMessage NVARCHAR(500) = 'Autonomous improvement: ' + @ChangeType + ' - ' + JSON_VALUE(@GeneratedCode, '$.description');
-            DECLARE @GitCommit NVARCHAR(1000) = 'git commit -m "' + @CommitMessage + '"';
-            EXEC dbo.clr_ExecuteShellCommand @GitCommit, @GitOutput OUTPUT;
+            DELETE FROM @GitOutput;
+            INSERT INTO @GitOutput
+            SELECT * FROM dbo.clr_ExecuteShellCommand(
+                'git',
+                '["commit", "-m", "' + REPLACE(@CommitMessage, '"', '\"') + '"]',
+                @GitWorkingDir,
+                30
+            );
             
-            -- Extract commit hash from git output
-            -- Git commit output format: "[branch hash] message"
-            DECLARE @HashStart INT = CHARINDEX('[', @GitOutput) + 1;
-            DECLARE @HashEnd INT = CHARINDEX(' ', @GitOutput, @HashStart);
-            SET @GitCommitHash = SUBSTRING(@GitOutput, @HashStart, @HashEnd - @HashStart);
+            -- Extract commit hash from git log
+            DECLARE @HashOutput TABLE (OutputLine NVARCHAR(MAX), IsError BIT);
+            INSERT INTO @HashOutput
+            SELECT * FROM dbo.clr_ExecuteShellCommand(
+                'git',
+                '["log", "-1", "--format=%H"]',
+                @GitWorkingDir,
+                30
+            );
             
-            IF @GitCommitHash IS NULL OR LEN(@GitCommitHash) = 0
-            BEGIN
-                -- Fallback: get hash from git log
-                EXEC dbo.clr_ExecuteShellCommand 'git log -1 --format=%H', @GitCommitHash OUTPUT;
-                SET @GitCommitHash = RTRIM(LTRIM(@GitCommitHash));
-            END
+            SET @GitCommitHash = (SELECT TOP 1 RTRIM(LTRIM(OutputLine)) FROM @HashOutput WHERE IsError = 0);
             
             -- Push to remote (optional - may want manual approval for this)
             IF @RequireHumanApproval = 0
             BEGIN
-                DECLARE @GitPush NVARCHAR(1000) = 'git push origin main';
-                EXEC dbo.clr_ExecuteShellCommand @GitPush, @GitOutput OUTPUT;
+                DELETE FROM @GitOutput;
+                INSERT INTO @GitOutput
+                SELECT * FROM dbo.clr_ExecuteShellCommand(
+                    'git',
+                    '["push", "origin", "main"]',
+                    @GitWorkingDir,
+                    60
+                );
                 
-                IF @GitOutput LIKE '%error%' OR @GitOutput LIKE '%fatal%'
+                IF EXISTS (SELECT 1 FROM @GitOutput WHERE IsError = 1 AND (OutputLine LIKE '%error%' OR OutputLine LIKE '%fatal%'))
                 BEGIN
-                    RAISERROR('Git push failed: %s', 16, 1, @GitOutput);
+                    SET @ErrorMsg = (SELECT TOP 1 OutputLine FROM @GitOutput WHERE IsError = 1);
+                    RAISERROR('Git push failed: %s', 16, 1, @ErrorMsg);
                 END
             END
             

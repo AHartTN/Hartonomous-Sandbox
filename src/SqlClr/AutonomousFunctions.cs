@@ -4,6 +4,8 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Hartonomous.Sql.Bridge.Contracts;
+using Hartonomous.Sql.Bridge.JsonProcessing;
 
 namespace SqlClrFunctions
 {
@@ -750,13 +752,23 @@ namespace SqlClrFunctions
 
         private static List<Hypothesis> ParseHypothesesJson(string json)
         {
-            // Simplified JSON parsing - in real implementation would use proper JSON parser
-            var hypotheses = new List<Hypothesis>();
-            if (string.IsNullOrWhiteSpace(json) || json == "[]") return hypotheses;
+            if (string.IsNullOrWhiteSpace(json) || json == "[]") 
+                return new List<Hypothesis>();
 
-            // This is a very basic parser - real implementation would need proper JSON parsing
-            // For now, return empty list to avoid parsing errors
-            return hypotheses;
+            try
+            {
+                // Use bridge library for enterprise-grade JSON parsing
+                var serializer = new JsonSerializerImpl();
+                
+                // Deserialize to simpler local Hypothesis structure
+                var hypotheses = serializer.DeserializeArray<Hypothesis>(json);
+                return hypotheses;
+            }
+            catch (Exception ex)
+            {
+                SqlContext.Pipe.Send($"ParseHypothesesJson error: {ex.Message}");
+                return new List<Hypothesis>();
+            }
         }
 
         private static (string executedActions, string status) ExecuteIndexOptimization(SqlConnection connection)

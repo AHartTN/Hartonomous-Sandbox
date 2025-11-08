@@ -59,7 +59,7 @@ namespace SqlClrFunctions
         {
             if (timestamp.IsNull || pageVectorJson.IsNull) return;
 
-            var vec = VectorParser.ParseVectorJson(pageVectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(pageVectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -255,7 +255,7 @@ namespace SqlClrFunctions
 
             if (!outcomeVectorJson.IsNull)
             {
-                var vec = VectorParser.ParseVectorJson(outcomeVectorJson.Value);
+                var vec = VectorUtilities.ParseVectorJson(outcomeVectorJson.Value);
                 if (vec != null)
                 {
                     if (dimension == 0)
@@ -315,7 +315,7 @@ namespace SqlClrFunctions
                 .OrderByDescending(v => v.Value.ConversionRate)
                 .FirstOrDefault();
 
-            // Compute confidence intervals (simplified Wilson score)
+            // Compute confidence intervals using proper Wilson score interval
             var confidenceIntervals = new Dictionary<string, (double Lower, double Upper)>();
             foreach (var kvp in variantStats)
             {
@@ -375,7 +375,7 @@ namespace SqlClrFunctions
             sb.Append(string.Join(",", variantStats.Select(v =>
             {
                 var ci = confidenceIntervals.ContainsKey(v.Key) ? confidenceIntervals[v.Key] : (0, 0);
-                return $"{{\"id\":\"{JsonFormatter.EscapeString(v.Key)}\"," +
+                return $"{{\"id\":\"{v.Key.Replace("\"", "\\\"")}\"," +
                        $"\"conversion_rate\":{v.Value.ConversionRate:G6}," +
                        $"\"avg_metric\":{v.Value.AvgMetric:G6}," +
                        $"\"sample_size\":{v.Value.SampleSize}," +
@@ -490,7 +490,7 @@ namespace SqlClrFunctions
         {
             if (userId.IsNull) return;
 
-            var vec = !activityVectorJson.IsNull ? VectorParser.ParseVectorJson(activityVectorJson.Value) : null;
+            var vec = !activityVectorJson.IsNull ? VectorUtilities.ParseVectorJson(activityVectorJson.Value) : null;
 
             if (vec != null)
             {

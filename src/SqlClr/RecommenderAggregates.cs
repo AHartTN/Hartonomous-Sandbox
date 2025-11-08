@@ -128,16 +128,10 @@ namespace SqlClrFunctions
                 .Select(kvp => itemVectors[kvp.Key])
                 .ToList();
 
-            // Return as JSON
-            var json = "{\"recommendations\":[" +
-                string.Join(",",
-                    topItems.Select((vec, idx) =>
-                        $"{{\"rank\":{idx + 1}," +
-                        $"\"vector\":[{string.Join(",", vec.Select(v => v.ToString("G9")))}]}}"
-                    )
-                ) + "]}";
-
-            return new SqlString(json);
+            var recommendations = topItems.Select((vec, idx) => new { rank = idx + 1, vector = vec }).ToArray();
+            var result = new { recommendations };
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)
@@ -270,13 +264,14 @@ namespace SqlClrFunctions
 
             double avgVariance = variance.Average();
 
-            var json = "{" +
-                $"\"user_profile\":[{string.Join(",", profile.Select(v => v.ToString("G9")))}]," +
-                $"\"preference_diversity\":{avgVariance:G6}," +
-                $"\"num_items\":{items.Count}" +
-                "}";
-
-            return new SqlString(json);
+            var result = new
+            {
+                user_profile = profile,
+                preference_diversity = avgVariance,
+                num_items = items.Count
+            };
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)
@@ -397,71 +392,48 @@ namespace SqlClrFunctions
 
             // Initialize factor matrices
             Random rng = new Random(42);
-            var userFactors = new float[numUsers][];
-            var itemFactors = new float[numItems][];
+            // Use bridge library for PROPER matrix factorization
+            // Replaces: "Simplified" SGD with only 10 iterations and improper index handling
+            
+            // Convert ratings to array format expected by bridge
+            var interactionArray = ratings.Select(r => (r.Item1, r.Item2, (float)r.Item3)).ToArray();
+            
+            // Run proper SGD matrix factorization with 100 iterations
+            var (userFactors, itemFactors) = Hartonomous.Sql.Bridge.MachineLearning.MatrixFactorization.Factorize(
+                interactionArray,
+                numUsers: numUsers,
+                numItems: numItems,
+                latentDim: k,
+                learningRate: 0.01,
+                regularization: 0.01,
+                iterations: 100 // Proper number of iterations for convergence
+            );
 
-            for (int i = 0; i < numUsers; i++)
-            {
-                userFactors[i] = new float[k];
-                for (int j = 0; j < k; j++)
-                    userFactors[i][j] = (float)(rng.NextDouble() * 0.1);
-            }
-            for (int i = 0; i < numItems; i++)
-            {
-                itemFactors[i] = new float[k];
-                for (int j = 0; j < k; j++)
-                    itemFactors[i][j] = (float)(rng.NextDouble() * 0.1);
-            }
-
-            // SGD iterations (simplified)
-            double learningRate = 0.01;
-            double regularization = 0.01;
-            int iterations = 10;
-
-            for (int iter = 0; iter < iterations; iter++)
-            {
-                foreach (var (user, item, rating) in ratings)
-                {
-                    // Predict
-                    double prediction = 0;
-                    for (int f = 0; f < k; f++)
-                        prediction += userFactors[user][f] * itemFactors[item][f];
-
-                    double error = rating - prediction;
-
-                    // Update factors
-                    for (int f = 0; f < k; f++)
-                    {
-                        float userF = userFactors[user][f];
-                        float itemF = itemFactors[item][f];
-
-                        userFactors[user][f] += (float)(learningRate * (error * itemF - regularization * userF));
-                        itemFactors[item][f] += (float)(learningRate * (error * userF - regularization * itemF));
-                    }
-                }
-            }
-
-            // Compute RMSE
+            // Compute RMSE with learned factors
             double sumSquaredError = 0;
             foreach (var (user, item, rating) in ratings)
             {
-                double prediction = 0;
-                for (int f = 0; f < k; f++)
-                    prediction += userFactors[user][f] * itemFactors[item][f];
+                float prediction = Hartonomous.Sql.Bridge.MachineLearning.MatrixFactorization.PredictRating(
+                    userFactors[user], 
+                    itemFactors[item]
+                );
                 double error = rating - prediction;
                 sumSquaredError += error * error;
             }
             double rmse = Math.Sqrt(sumSquaredError / ratings.Count);
 
-            var json = "{" +
-                $"\"num_users\":{numUsers}," +
-                $"\"num_items\":{numItems}," +
-                $"\"num_factors\":{k}," +
-                $"\"rmse\":{rmse:G6}," +
-                $"\"num_ratings\":{ratings.Count}" +
-                "}";
-
-            return new SqlString(json);
+            // Use bridge JSON serializer instead of manual concatenation
+            var result = new
+            {
+                num_users = numUsers,
+                num_items = numItems,
+                num_factors = k,
+                rmse = rmse,
+                num_ratings = ratings.Count
+            };
+            
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)

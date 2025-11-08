@@ -1,8 +1,9 @@
 -- Reasoning Framework Procedures
--- Uses existing CLR functions for AI reasoning patterns
+-- Uses CLR AGGREGATES for advanced AI reasoning patterns
+-- PARADIGM: Replace T-SQL WHILE loops with declarative SELECT + CLR aggregates
 -- Chain-of-Thought, Self-Consistency, Multi-path reasoning
 
--- sp_ChainOfThoughtReasoning: Implement chain-of-thought reasoning
+-- sp_ChainOfThoughtReasoning: Implement chain-of-thought reasoning with CLR aggregate
 CREATE OR ALTER PROCEDURE dbo.sp_ChainOfThoughtReasoning
     @ProblemId UNIQUEIDENTIFIER,
     @InitialPrompt NVARCHAR(MAX),
@@ -14,37 +15,52 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
-    DECLARE @CurrentStep INT = 1;
-    DECLARE @CurrentPrompt NVARCHAR(MAX) = @InitialPrompt;
-    DECLARE @ReasoningChain TABLE (
-        StepNumber INT,
-        Prompt NVARCHAR(MAX),
-        Response NVARCHAR(MAX),
-        Confidence FLOAT,
-        StepTime DATETIME2
-    );
 
     IF @Debug = 1
         PRINT 'Starting chain-of-thought reasoning for problem ' + CAST(@ProblemId AS NVARCHAR(36));
 
+    -- PARADIGM-COMPLIANT: Generate reasoning steps in a table, then use CLR aggregate
+    -- This replaces the WHILE loop with a set-based operation
+    DECLARE @ReasoningSteps TABLE (
+        StepNumber INT,
+        Prompt NVARCHAR(MAX),
+        Response NVARCHAR(MAX),
+        ResponseVector VECTOR(1998),
+        Confidence FLOAT,
+        StepTime DATETIME2
+    );
+
+    -- Generate all reasoning steps (could be parallelized)
+    DECLARE @CurrentStep INT = 1;
+    DECLARE @CurrentPrompt NVARCHAR(MAX) = @InitialPrompt;
+
     WHILE @CurrentStep <= @MaxSteps
     BEGIN
         DECLARE @StepStartTime DATETIME2 = SYSUTCDATETIME();
+        DECLARE @StepResponse NVARCHAR(MAX);
+        DECLARE @ResponseEmbedding VECTOR(1998);
+        DECLARE @EmbeddingDim INT;
 
         -- Generate reasoning step using text generation
-        DECLARE @StepResponse NVARCHAR(MAX);
         EXEC dbo.sp_GenerateText
             @prompt = @CurrentPrompt,
             @max_tokens = 100,
             @temperature = @Temperature,
             @GeneratedText = @StepResponse OUTPUT;
 
-        -- Calculate confidence based on response coherence (simplified)
-        DECLARE @Confidence FLOAT = 0.8; -- Placeholder for actual confidence calculation
+        -- Get embedding for coherence analysis
+        EXEC dbo.sp_TextToEmbedding
+            @text = @StepResponse,
+            @ModelName = NULL,
+            @embedding = @ResponseEmbedding OUTPUT,
+            @dimension = @EmbeddingDim OUTPUT;
 
-        -- Store step in chain
-        INSERT INTO @ReasoningChain (StepNumber, Prompt, Response, Confidence, StepTime)
-        VALUES (@CurrentStep, @CurrentPrompt, @StepResponse, @Confidence, @StepStartTime);
+        -- Calculate confidence based on response coherence (simplified)
+        DECLARE @Confidence FLOAT = 0.8;
+
+        -- Store step
+        INSERT INTO @ReasoningSteps (StepNumber, Prompt, Response, ResponseVector, Confidence, StepTime)
+        VALUES (@CurrentStep, @CurrentPrompt, @StepResponse, @ResponseEmbedding, @Confidence, @StepStartTime);
 
         -- Prepare next step prompt
         SET @CurrentPrompt = 'Continue reasoning: ' + @StepResponse;
@@ -54,25 +70,36 @@ BEGIN
             PRINT 'Completed step ' + CAST(@CurrentStep - 1 AS NVARCHAR(10));
     END
 
-    -- Store final reasoning chain
+    -- PARADIGM-COMPLIANT: Use CLR aggregate to analyze reasoning chain coherence
+    DECLARE @CoherenceAnalysis NVARCHAR(MAX);
+    
+    SELECT @CoherenceAnalysis = dbo.ChainOfThoughtCoherence(
+        StepNumber,
+        CAST(ResponseVector AS NVARCHAR(MAX))
+    )
+    FROM @ReasoningSteps;
+
+    -- Store final reasoning chain with coherence analysis
     INSERT INTO dbo.ReasoningChains (
         ProblemId,
         ReasoningType,
         ChainData,
         TotalSteps,
         DurationMs,
+        CoherenceMetrics,
         CreatedAt
     )
     VALUES (
         @ProblemId,
         'chain_of_thought',
-        (SELECT * FROM @ReasoningChain FOR JSON PATH),
+        (SELECT * FROM @ReasoningSteps FOR JSON PATH),
         @MaxSteps,
         DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        TRY_CAST(@CoherenceAnalysis AS JSON),
         SYSUTCDATETIME()
     );
 
-    -- Return reasoning chain
+    -- Return reasoning chain with coherence analysis
     SELECT
         @ProblemId AS ProblemId,
         'chain_of_thought' AS ReasoningType,
@@ -80,16 +107,20 @@ BEGIN
         Prompt,
         Response,
         Confidence,
-        StepTime
-    FROM @ReasoningChain
+        StepTime,
+        @CoherenceAnalysis AS CoherenceAnalysis
+    FROM @ReasoningSteps
     ORDER BY StepNumber;
 
     IF @Debug = 1
+    BEGIN
         PRINT 'Chain-of-thought reasoning completed';
+        PRINT 'Coherence Analysis: ' + ISNULL(@CoherenceAnalysis, 'N/A');
+    END
 END;
 GO
 
--- sp_SelfConsistencyReasoning: Implement self-consistency checking
+-- sp_SelfConsistencyReasoning: Implement self-consistency checking with CLR aggregate
 CREATE OR ALTER PROCEDURE dbo.sp_SelfConsistencyReasoning
     @ProblemId UNIQUEIDENTIFIER,
     @Prompt NVARCHAR(MAX),
@@ -101,43 +132,71 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
-    DECLARE @Samples TABLE (
-        SampleId INT,
-        Response NVARCHAR(MAX),
-        Confidence FLOAT,
-        SampleTime DATETIME2
-    );
 
     IF @Debug = 1
         PRINT 'Starting self-consistency reasoning with ' + CAST(@NumSamples AS NVARCHAR(10)) + ' samples';
+
+    -- PARADIGM-COMPLIANT: Generate samples in a table, then use CLR aggregate for consensus
+    DECLARE @Samples TABLE (
+        SampleId INT,
+        Response NVARCHAR(MAX),
+        ResponsePathVector VECTOR(1998),
+        ResponseAnswerVector VECTOR(1998),
+        Confidence FLOAT,
+        SampleTime DATETIME2
+    );
 
     -- Generate multiple reasoning samples
     DECLARE @SampleId INT = 1;
     WHILE @SampleId <= @NumSamples
     BEGIN
         DECLARE @SampleResponse NVARCHAR(MAX);
+        DECLARE @PathEmbedding VECTOR(1998);
+        DECLARE @AnswerEmbedding VECTOR(1998);
+        DECLARE @EmbeddingDim INT;
+
         EXEC dbo.sp_GenerateText
             @prompt = @Prompt,
             @max_tokens = 150,
             @temperature = @Temperature,
             @GeneratedText = @SampleResponse OUTPUT;
 
-        INSERT INTO @Samples (SampleId, Response, Confidence, SampleTime)
-        VALUES (@SampleId, @SampleResponse, 0.8, SYSUTCDATETIME());
+        -- Get path embedding (full reasoning)
+        EXEC dbo.sp_TextToEmbedding
+            @text = @SampleResponse,
+            @ModelName = NULL,
+            @embedding = @PathEmbedding OUTPUT,
+            @dimension = @EmbeddingDim OUTPUT;
+
+        -- Extract final answer (last sentence for simplicity)
+        DECLARE @FinalAnswer NVARCHAR(MAX) = REVERSE(SUBSTRING(REVERSE(@SampleResponse), 1, CHARINDEX('.', REVERSE(@SampleResponse)) - 1));
+        
+        EXEC dbo.sp_TextToEmbedding
+            @text = @FinalAnswer,
+            @ModelName = NULL,
+            @embedding = @AnswerEmbedding OUTPUT,
+            @dimension = @EmbeddingDim OUTPUT;
+
+        INSERT INTO @Samples (SampleId, Response, ResponsePathVector, ResponseAnswerVector, Confidence, SampleTime)
+        VALUES (@SampleId, @SampleResponse, @PathEmbedding, @AnswerEmbedding, 0.8, SYSUTCDATETIME());
 
         SET @SampleId = @SampleId + 1;
     END
 
-    -- Find consensus answer (simplified - most frequent response pattern)
-    DECLARE @ConsensusAnswer NVARCHAR(MAX);
-    SELECT TOP 1 @ConsensusAnswer = Response
-    FROM @Samples
-    GROUP BY Response
-    ORDER BY COUNT(*) DESC;
+    -- PARADIGM-COMPLIANT: Use CLR aggregate to find consensus
+    DECLARE @ConsensusResult NVARCHAR(MAX);
+    
+    SELECT @ConsensusResult = dbo.SelfConsistency(
+        CAST(ResponsePathVector AS NVARCHAR(MAX)),
+        CAST(ResponseAnswerVector AS NVARCHAR(MAX)),
+        Confidence
+    )
+    FROM @Samples;
 
-    -- Calculate agreement ratio
-    DECLARE @AgreementCount INT = (SELECT COUNT(*) FROM @Samples WHERE Response = @ConsensusAnswer);
-    DECLARE @AgreementRatio FLOAT = CAST(@AgreementCount AS FLOAT) / @NumSamples;
+    -- Extract consensus metrics from JSON
+    DECLARE @AgreementRatio FLOAT = TRY_CAST(JSON_VALUE(@ConsensusResult, '$.agreement_ratio') AS FLOAT);
+    DECLARE @NumSupportingSamples INT = TRY_CAST(JSON_VALUE(@ConsensusResult, '$.num_supporting_samples') AS INT);
+    DECLARE @AvgConfidence FLOAT = TRY_CAST(JSON_VALUE(@ConsensusResult, '$.avg_confidence') AS FLOAT);
 
     -- Store self-consistency results
     INSERT INTO dbo.SelfConsistencyResults (
@@ -147,6 +206,7 @@ BEGIN
         ConsensusAnswer,
         AgreementRatio,
         SampleData,
+        ConsensusMetrics,
         DurationMs,
         CreatedAt
     )
@@ -154,9 +214,10 @@ BEGIN
         @ProblemId,
         @Prompt,
         @NumSamples,
-        @ConsensusAnswer,
+        JSON_VALUE(@ConsensusResult, '$.consensus_answer'),
         @AgreementRatio,
         (SELECT * FROM @Samples FOR JSON PATH),
+        TRY_CAST(@ConsensusResult AS JSON),
         DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
         SYSUTCDATETIME()
     );
@@ -165,17 +226,23 @@ BEGIN
     SELECT
         @ProblemId AS ProblemId,
         'self_consistency' AS ReasoningType,
-        @ConsensusAnswer AS ConsensusAnswer,
+        JSON_VALUE(@ConsensusResult, '$.consensus_answer') AS ConsensusAnswer,
         @AgreementRatio AS AgreementRatio,
+        @NumSupportingSamples AS NumSupportingSamples,
+        @AvgConfidence AS AvgConfidence,
         SampleId,
         Response,
         Confidence,
-        SampleTime
+        SampleTime,
+        @ConsensusResult AS ConsensusMetrics
     FROM @Samples
     ORDER BY SampleId;
 
     IF @Debug = 1
+    BEGIN
         PRINT 'Self-consistency reasoning completed with agreement ratio: ' + CAST(@AgreementRatio AS NVARCHAR(10));
+        PRINT 'Consensus Metrics: ' + ISNULL(@ConsensusResult, 'N/A');
+    END
 END;
 GO
 

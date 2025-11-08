@@ -59,7 +59,7 @@ namespace SqlClrFunctions
 
             if (!pointWkt.IsNull)
             {
-                var pt = ParsePointWkt(pointWkt.Value);
+                var pt = VectorUtilities.ParsePointWkt(pointWkt.Value);
                 if (pt.HasValue)
                     spatialPoints.Add(pt.Value);
             }
@@ -90,9 +90,10 @@ namespace SqlClrFunctions
                 for (int i = 0; i < dim; i++)
                     centroid[i] /= vectors.Count;
 
-                result.Append("\"centroid\":[");
-                result.Append(string.Join(",", centroid.Take(10).Select(v => v.ToString("G6"))));
-                result.Append("],");
+                var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+                result.Append("\"centroid\":");
+                result.Append(serializer.SerializeFloatArray(centroid.Take(10).ToArray()));
+                result.Append(",");
 
                 // Vector diameter (max distance between any two vectors)
                 double maxDist = 0;
@@ -427,17 +428,16 @@ namespace SqlClrFunctions
             // Velocity: drift per second
             double velocity = magnitude / timeDelta;
 
-            var result = new StringBuilder();
-            result.Append("{");
-            result.Append($"\"drift_magnitude\":{magnitude:G6},");
-            result.Append($"\"velocity\":{velocity:G9},");
-            result.Append($"\"time_span_seconds\":{timeDelta:F0},");
-            result.Append($"\"snapshots\":{snapshots.Count},");
-            result.Append("\"drift_direction\":[");
-            result.Append(string.Join(",", driftVector.Take(10).Select(d => d.ToString("G6"))));
-            result.Append("]}");
-
-            return new SqlString(result.ToString());
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var result = new
+            {
+                drift_magnitude = magnitude,
+                velocity,
+                time_span_seconds = timeDelta,
+                snapshots = snapshots.Count,
+                drift_direction = driftVector.Take(10).ToArray()
+            };
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)

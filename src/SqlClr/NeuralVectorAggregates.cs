@@ -91,8 +91,8 @@ namespace SqlClrFunctions
             if (queries.Count == 0 || dimension == 0 || numHeads == 0)
                 return SqlString.Null;
 
-            // Simplified multi-head attention:
-            // For each head, compute attention weights and weighted sum
+            // Proper multi-head scaled dot-product attention
+            // Implements: Attention(Q,K,V) = softmax(QK^T / sqrt(d_k)) V
             int headDim = dimension / numHeads;
             float[] output = new float[dimension];
 
@@ -100,42 +100,70 @@ namespace SqlClrFunctions
             {
                 int startIdx = h * headDim;
                 int endIdx = Math.Min((h + 1) * headDim, dimension);
+                int actualHeadDim = endIdx - startIdx;
+                
+                // Scaling factor for dot products (prevents softmax saturation)
+                double scale = Math.Sqrt(actualHeadDim);
 
-                // Compute attention scores for this head
-                double[] attentionScores = new double[queries.Count];
+                // Compute attention matrix: QK^T / sqrt(d_k)
+                // Shape: [queries.Count x keys.Count]
+                double[,] attentionMatrix = new double[queries.Count, keys.Count];
+                
                 for (int i = 0; i < queries.Count; i++)
                 {
-                    // Average query across all items
-                    double score = 0;
-                    for (int j = 0; j < queries.Count; j++)
+                    for (int j = 0; j < keys.Count; j++)
                     {
-                        score += DotProduct(queries[i], keys[j], startIdx, endIdx);
+                        // Scaled dot-product: q_i · k_j / sqrt(d_k)
+                        double dotProduct = DotProduct(queries[i], keys[j], startIdx, endIdx);
+                        attentionMatrix[i, j] = dotProduct / scale;
                     }
-                    attentionScores[i] = score / queries.Count;
                 }
 
-                // Softmax
-                double maxScore = attentionScores.Max();
-                double sumExp = 0;
-                for (int i = 0; i < attentionScores.Length; i++)
+                // Apply softmax over keys for each query
+                for (int i = 0; i < queries.Count; i++)
                 {
-                    attentionScores[i] = Math.Exp(attentionScores[i] - maxScore);
-                    sumExp += attentionScores[i];
-                }
-                for (int i = 0; i < attentionScores.Length; i++)
-                    attentionScores[i] /= sumExp;
+                    // Find max for numerical stability
+                    double maxScore = double.NegativeInfinity;
+                    for (int j = 0; j < keys.Count; j++)
+                    {
+                        if (attentionMatrix[i, j] > maxScore)
+                            maxScore = attentionMatrix[i, j];
+                    }
 
-                // Weighted sum of values
+                    // Compute exp and sum
+                    double sumExp = 0;
+                    for (int j = 0; j < keys.Count; j++)
+                    {
+                        attentionMatrix[i, j] = Math.Exp(attentionMatrix[i, j] - maxScore);
+                        sumExp += attentionMatrix[i, j];
+                    }
+
+                    // Normalize
+                    for (int j = 0; j < keys.Count; j++)
+                    {
+                        attentionMatrix[i, j] /= sumExp;
+                    }
+                }
+
+                // Apply attention weights to values: output = attention_weights * V
+                // For aggregate, average across all queries
                 for (int d = startIdx; d < endIdx; d++)
                 {
-                    for (int i = 0; i < values.Count; i++)
+                    double headOutput = 0;
+                    for (int i = 0; i < queries.Count; i++)
                     {
-                        output[d] += (float)(attentionScores[i] * values[i][d]);
+                        for (int j = 0; j < values.Count; j++)
+                        {
+                            headOutput += attentionMatrix[i, j] * values[j][d];
+                        }
                     }
+                    output[d] = (float)(headOutput / queries.Count);
                 }
             }
 
-            return new SqlString("[" + string.Join(",", output.Select(v => v.ToString("G9"))) + "]");
+            // Use bridge JSON serializer instead of manual concatenation
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.SerializeFloatArray(output));
         }
 
         public void Read(BinaryReader r)
@@ -174,6 +202,14 @@ namespace SqlClrFunctions
                 foreach (var val in keys[i]) w.Write(val);
                 foreach (var val in values[i]) w.Write(val);
             }
+        }
+
+        private static double DotProduct(float[] a, float[] b, int start, int end)
+        {
+            double sum = 0;
+            for (int i = start; i < end && i < a.Length && i < b.Length; i++)
+                sum += a[i] * b[i];
+            return sum;
         }
     }
 
@@ -236,44 +272,34 @@ namespace SqlClrFunctions
             if (vectors.Count == 0 || sourceDim == 0 || targetDim == 0)
                 return SqlString.Null;
 
-            // Simplified PCA-like compression (using SVD would be better but more complex)
-            // Compute covariance matrix, find top K eigenvectors
+            // Use bridge library for PROPER SVD-based compression
+            // Replaces: Variance-picking "simplified PCA-like compression" (greedy approximation)
+            
+            var vectorArray = vectors.ToArray();
+            
+            // Run proper SVD compression
+            var compressed = Hartonomous.Sql.Bridge.MachineLearning.SVDCompression.Compress(
+                vectorArray, 
+                targetDim
+            );
 
-            // Step 1: Center the data
-            float[] mean = new float[sourceDim];
-            foreach (var vec in vectors)
-                for (int i = 0; i < sourceDim; i++)
-                    mean[i] += vec[i];
-            for (int i = 0; i < sourceDim; i++)
-                mean[i] /= vectors.Count;
-
-            // Step 2: Compute variance per dimension (simplified)
-            var variances = new (int Index, double Variance)[sourceDim];
-            for (int d = 0; d < sourceDim; d++)
+            // Average the compressed vectors (aggregate function behavior)
+            float[] avgCompressed = new float[targetDim];
+            for (int i = 0; i < compressed.Length; i++)
             {
-                double variance = 0;
-                foreach (var vec in vectors)
+                for (int j = 0; j < targetDim; j++)
                 {
-                    double diff = vec[d] - mean[d];
-                    variance += diff * diff;
+                    avgCompressed[j] += compressed[i][j];
                 }
-                variances[d] = (d, variance / vectors.Count);
             }
-
-            // Step 3: Select top K dimensions by variance (greedy approximation)
-            var topDims = variances.OrderByDescending(v => v.Variance).Take(targetDim).Select(v => v.Index).ToArray();
-
-            // Step 4: Project to compressed space (mean of selected dimensions)
-            float[] compressed = new float[targetDim];
-            for (int i = 0; i < targetDim; i++)
+            for (int j = 0; j < targetDim; j++)
             {
-                int srcDim = topDims[i];
-                foreach (var vec in vectors)
-                    compressed[i] += vec[srcDim] - mean[srcDim];
-                compressed[i] /= vectors.Count;
+                avgCompressed[j] /= compressed.Length;
             }
 
-            return new SqlString("[" + string.Join(",", compressed.Select(v => v.ToString("G9"))) + "]");
+            // Use bridge JSON serializer instead of manual concatenation
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.SerializeFloatArray(avgCompressed));
         }
 
         public void Read(BinaryReader r)

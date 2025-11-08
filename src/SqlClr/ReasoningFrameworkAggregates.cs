@@ -108,6 +108,7 @@ namespace SqlClrFunctions
                 roots = nodes.Values.Take(1).ToList(); // Fallback
 
             // Compute cumulative scores via DFS
+            var localNodes = nodes; // Copy to local variable for lambda access
             void ComputeScores(ReasoningNode node, double parentScore, float[] parentVector)
             {
                 // Score = confidence + semantic coherence with parent
@@ -124,8 +125,8 @@ namespace SqlClrFunctions
 
                 foreach (int childStep in node.Children)
                 {
-                    if (nodes.ContainsKey(childStep))
-                        ComputeScores(nodes[childStep], node.CumulativeScore, node.Vector);
+                    if (localNodes.ContainsKey(childStep))
+                        ComputeScores(localNodes[childStep], node.CumulativeScore, node.Vector);
                 }
             }
 
@@ -581,17 +582,18 @@ namespace SqlClrFunctions
             }
             diversity = Math.Sqrt(diversity / (consensusCluster.Members.Count * dimension));
 
-            var json = "{" +
-                $"\"consensus_answer\":[{string.Join(",", consensusAnswer.Select(v => v.ToString("G9")))}]," +
-                $"\"agreement_ratio\":{agreementRatio:G6}," +
-                $"\"num_supporting_samples\":{consensusCluster.Members.Count}," +
-                $"\"total_samples\":{samples.Count}," +
-                $"\"avg_confidence\":{avgConfidence:G6}," +
-                $"\"answer_diversity\":{diversity:G6}," +
-                $"\"num_clusters\":{clusters.Count}" +
-                "}";
-
-            return new SqlString(json);
+            var result = new
+            {
+                consensus_answer = consensusAnswer,
+                agreement_ratio = agreementRatio,
+                num_supporting_samples = consensusCluster.Members.Count,
+                total_samples = samples.Count,
+                avg_confidence = avgConfidence,
+                answer_diversity = diversity,
+                num_clusters = clusters.Count
+            };
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)

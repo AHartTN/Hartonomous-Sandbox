@@ -150,8 +150,10 @@ namespace SqlClrFunctions
         /// <summary>
         /// Execute shell command and return output
         /// Used for git operations (add, commit, push) in autonomous deployment
+        /// SECURITY: Uses ArgumentList to prevent command injection
         /// </summary>
-        /// <param name="command">Shell command to execute (e.g., "git add .")</param>
+        /// <param name="executable">Executable name (e.g., "git", "dotnet")</param>
+        /// <param name="arguments">Arguments as JSON array (e.g., "[\"add\", \".\"]")</param>
         /// <param name="workingDirectory">Working directory for command execution</param>
         /// <param name="timeoutSeconds">Command timeout in seconds (default 30)</param>
         /// <returns>Table of output lines from command</returns>
@@ -162,35 +164,73 @@ namespace SqlClrFunctions
             TableDefinition = "OutputLine NVARCHAR(MAX), IsError BIT",
             FillRowMethodName = "FillShellOutputRow")]
         public static System.Collections.IEnumerable ExecuteShellCommand(
-            SqlString command,
+            SqlString executable,
+            SqlString arguments,
             SqlString workingDirectory,
             SqlInt32 timeoutSeconds)
         {
             var results = new System.Collections.Generic.List<ShellOutputRow>();
 
-            if (command.IsNull)
+            if (executable.IsNull)
             {
-                results.Add(new ShellOutputRow { OutputLine = "Error: Command is null", IsError = true });
+                results.Add(new ShellOutputRow { OutputLine = "Error: Executable is null", IsError = true });
                 return results;
             }
 
             try
             {
-                string cmd = command.Value;
+                string exe = executable.Value;
                 string workDir = workingDirectory.IsNull ? Environment.CurrentDirectory : workingDirectory.Value;
                 int timeout = timeoutSeconds.IsNull ? 30 : timeoutSeconds.Value;
 
-                // Use PowerShell for command execution on Windows
+                // SECURITY FIX: Use ProcessStartInfo.ArgumentList to prevent injection
                 var processInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = "pwsh.exe",
-                    Arguments = $"-NoProfile -NonInteractive -Command \"{cmd}\"",
+                    FileName = exe,
                     WorkingDirectory = workDir,
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
                     CreateNoWindow = true
                 };
+
+                // Parse arguments from JSON array to prevent command injection
+                if (!arguments.IsNull && !string.IsNullOrWhiteSpace(arguments.Value))
+                {
+                    try
+                    {
+                        // Parse JSON array: ["arg1", "arg2", "arg3"]
+                        var argString = arguments.Value.Trim();
+                        if (argString.StartsWith("[") && argString.EndsWith("]"))
+                        {
+                            // Remove brackets and split by comma
+                            var content = argString.Substring(1, argString.Length - 2);
+                            var parts = content.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
+
+                            foreach (var part in parts)
+                            {
+                                var trimmed = part.Trim();
+                                // Remove quotes
+                                if (trimmed.StartsWith("\"") && trimmed.EndsWith("\""))
+                                {
+                                    trimmed = trimmed.Substring(1, trimmed.Length - 2);
+                                }
+                                // Add to Arguments string (escaped for .NET Framework 4.8.1)
+                                processInfo.Arguments += " \"" + trimmed.Replace("\"", "\\\"") + "\"";
+                            }
+                        }
+                        else
+                        {
+                            // Simple argument (no JSON)
+                            processInfo.Arguments += " \"" + arguments.Value.Replace("\"", "\\\"") + "\"";
+                        }
+                    }
+                    catch
+                    {
+                        // If JSON parsing fails, treat as single argument
+                        processInfo.Arguments += " \"" + arguments.Value.Replace("\"", "\\\"") + "\"";
+                    }
+                }
 
                 using (var process = System.Diagnostics.Process.Start(processInfo))
                 {

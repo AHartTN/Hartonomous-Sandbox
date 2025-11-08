@@ -51,10 +51,12 @@ AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].ReadFileT
 GO
 
 -- Execute shell command and return output
+-- SECURITY: Updated signature to prevent command injection
 IF OBJECT_ID('dbo.clr_ExecuteShellCommand', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_ExecuteShellCommand;
 GO
 CREATE FUNCTION dbo.clr_ExecuteShellCommand(
-    @Command NVARCHAR(MAX),
+    @Executable NVARCHAR(MAX),
+    @Arguments NVARCHAR(MAX),
     @WorkingDirectory NVARCHAR(MAX),
     @TimeoutSeconds INT
 )

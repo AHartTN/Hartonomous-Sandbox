@@ -252,7 +252,9 @@ namespace SqlClrFunctions
                 }
             }
 
-            return new SqlString("[" + string.Join(",", forecast.Select(v => v.ToString("G9"))) + "]");
+            // Use bridge library for proper JSON serialization
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.SerializeFloatArray(forecast));
         }
 
         public void Read(BinaryReader r)

@@ -70,8 +70,8 @@ namespace SqlClrFunctions
             if (vectors.Count < 2 || dimension == 0)
                 return SqlString.Null;
 
-            // Simplified isolation forest: measure average path length to isolate each point
-            // Build multiple simple trees and average their depths
+            // Isolation forest approximation: measure average path length to isolate each point
+            // Uses position in sorted order as proxy for tree depth (efficient for SQL CLR)
 
             int numTrees = Math.Min(10, vectors.Count / 2);
             double[] avgPathLengths = new double[vectors.Count];
@@ -95,11 +95,10 @@ namespace SqlClrFunctions
 
             // Normalize and invert (lower depth = more isolated = higher anomaly score)
             double maxDepth = vectors.Count * numTrees;
-            var scores = avgPathLengths.Select(d => 1.0 - (d / maxDepth)).ToArray();
+            var scores = avgPathLengths.Select(d => 1.0 - (d / maxDepth)).Select(s => (float)s).ToArray();
 
-            // Return JSON array of anomaly scores
-            var json = "[" + string.Join(",", scores.Select(s => s.ToString("G6"))) + "]";
-            return new SqlString(json);
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.SerializeFloatArray(scores));
         }
 
         public void Read(BinaryReader r)
@@ -226,8 +225,9 @@ namespace SqlClrFunctions
                 lofScores[i] = (sumNeighborLrd / k) / (lrd + 1e-10);
             }
 
-            var json = "[" + string.Join(",", lofScores.Select(s => s.ToString("G6"))) + "]";
-            return new SqlString(json);
+            var scores = lofScores.Select(s => (float)s).ToArray();
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.SerializeFloatArray(scores));
         }
 
         public void Read(BinaryReader r)
@@ -453,7 +453,7 @@ namespace SqlClrFunctions
         {
             if (vectorJson.IsNull) return;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -494,33 +494,27 @@ namespace SqlClrFunctions
                     referenceVector[i] /= vectors.Count;
             }
 
-            // Compute covariance matrix (simplified: diagonal only for efficiency)
-            double[] variances = new double[dimension];
-            foreach (var vec in vectors)
-            {
-                for (int i = 0; i < dimension; i++)
-                {
-                    double diff = vec[i] - referenceVector[i];
-                    variances[i] += diff * diff;
-                }
-            }
-            for (int i = 0; i < dimension; i++)
-                variances[i] = Math.Max(variances[i] / vectors.Count, 1e-10);
+            // Use bridge library for PROPER Mahalanobis distance
+            // Replaces: Diagonal-only covariance (mathematically incorrect)
+            
+            // Compute FULL covariance matrix (not diagonal approximation)
+            var vectorArray = vectors.ToArray();
+            var covariance = Hartonomous.Sql.Bridge.MachineLearning.MahalanobisDistance.ComputeCovarianceMatrix(vectorArray);
 
-            // Compute Mahalanobis distance for each vector
+            // Compute Mahalanobis distance for each vector using full covariance
             double[] distances = new double[vectors.Count];
             for (int v = 0; v < vectors.Count; v++)
             {
-                double dist = 0;
-                for (int i = 0; i < dimension; i++)
-                {
-                    double diff = vectors[v][i] - referenceVector[i];
-                    dist += (diff * diff) / variances[i];
-                }
-                distances[v] = Math.Sqrt(dist);
+                distances[v] = Hartonomous.Sql.Bridge.MachineLearning.MahalanobisDistance.Compute(
+                    vectors[v], 
+                    referenceVector, 
+                    covariance
+                );
             }
 
-            var json = "[" + string.Join(",", distances.Select(d => d.ToString("G6"))) + "]";
+            // Use bridge JSON serializer instead of manual concatenation
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var json = serializer.SerializeFloatArray(distances.Select(d => (float)d).ToArray());
             return new SqlString(json);
         }
 

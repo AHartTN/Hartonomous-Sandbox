@@ -39,6 +39,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
+    <ProjectReference Include="..\Hartonomous.Sql.Bridge\Hartonomous.Sql.Bridge.csproj" />
   </ItemGroup>
 
   <ItemGroup>

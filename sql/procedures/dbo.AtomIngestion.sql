@@ -54,7 +54,49 @@ BEGIN
         
         SET @AtomId = SCOPE_IDENTITY();
         
-        -- Generate embedding (if requested)
+        -- Phase 2: Deep Atomization (break content into sub-atoms based on type)
+        -- This is the "atomize as far down as we can" principle
+        BEGIN TRY
+            IF @ContentType LIKE 'audio/%'
+            BEGIN
+                -- Atomize audio into AudioFrames
+                EXEC dbo.sp_AtomizeAudio 
+                    @AtomId = @AtomId,
+                    @TenantId = @TenantId;
+            END
+            ELSE IF @ContentType LIKE 'image/%'
+            BEGIN
+                -- Atomize image into ImagePatches
+                EXEC dbo.sp_AtomizeImage 
+                    @AtomId = @AtomId,
+                    @TenantId = @TenantId;
+            END
+            ELSE IF @ContentType IN ('application/gguf', 'application/safetensors')
+            BEGIN
+                -- Atomize model into TensorAtoms with GEOMETRY representations
+                EXEC dbo.sp_AtomizeModel 
+                    @AtomId = @AtomId,
+                    @TenantId = @TenantId;
+            END
+            ELSE IF @ContentType LIKE 'video/%'
+            BEGIN
+                -- Future: Atomize video into VideoFrames
+                -- EXEC dbo.sp_AtomizeVideo @AtomId = @AtomId, @TenantId = @TenantId;
+                PRINT 'Video atomization not yet implemented';
+            END
+            ELSE IF @ContentType LIKE 'text/%'
+            BEGIN
+                -- Future: Atomize text into semantic chunks/sentences
+                -- EXEC dbo.sp_AtomizeText @AtomId = @AtomId, @TenantId = @TenantId;
+                PRINT 'Text atomization not yet implemented';
+            END
+        END TRY
+        BEGIN CATCH
+            -- Log atomization errors but don't fail the entire ingestion
+            PRINT 'Atomization failed for AtomId ' + CAST(@AtomId AS NVARCHAR(20)) + ': ' + ERROR_MESSAGE();
+        END CATCH
+        
+        -- Phase 3: Generate embedding (if requested)
         IF @GenerateEmbedding = 1
         BEGIN
             -- Use default model if not specified

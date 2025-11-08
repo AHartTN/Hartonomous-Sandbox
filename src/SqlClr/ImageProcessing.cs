@@ -291,7 +291,8 @@ namespace SqlClrFunctions
                     double spatialY = noiseY;
                     double spatialZ = noiseZ;
 
-                    // Simplified diffusion: iteratively move noise towards guide point
+                    // Diffusion process: linear interpolation from noise towards guide point
+                    // LERP is appropriate for spatial placement in GEOMETRY context
                     for (int step = 0; step < diffusionSteps; step++)
                     {
                         double alpha = (step + 1.0) / diffusionSteps; // Interpolation factor

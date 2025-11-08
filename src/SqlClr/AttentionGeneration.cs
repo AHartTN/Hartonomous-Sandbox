@@ -82,6 +82,7 @@ namespace SqlClrFunctions
                     var streamId = Guid.NewGuid();
                     var stream = AtomicStream.Create(
                         streamId,
+                        new SqlDateTime(DateTime.UtcNow),
                         "inference",
                         model.ModelName,
                         $"{{\"modelId\":{modelId.Value},\"temperature\":{temp},\"topK\":{topKValue},\"topP\":{topPValue},\"heads\":{heads}}}"
@@ -98,11 +99,11 @@ namespace SqlClrFunctions
                     foreach (var atomId in inputIds)
                     {
                         stream = stream.AddSegment(
-                            AtomicStreamSegmentKind.Input,
-                            DateTime.UtcNow,
+                            AtomicStreamSegmentKind.Input.ToString(),
+                            new SqlDateTime(DateTime.UtcNow),
                             "application/atom-reference",
                             $"{{\"atomId\":{atomId}}}",
-                            BitConverter.GetBytes(atomId)
+                            new SqlBytes(BitConverter.GetBytes(atomId))
                         );
                     }
 
@@ -149,11 +150,11 @@ namespace SqlClrFunctions
                         // Add generation step to provenance stream
                         var stepMetadata = $"{{\"step\":{step},\"candidateCount\":{candidates.Count},\"score\":{filtered[0].Score:F4}}}";
                         stream = stream.AddSegment(
-                            AtomicStreamSegmentKind.Generated,
-                            DateTime.UtcNow,
+                            AtomicStreamSegmentKind.Output.ToString(),
+                            new SqlDateTime(DateTime.UtcNow),
                             "application/atom-reference",
                             stepMetadata,
-                            BitConverter.GetBytes(selectedAtomId)
+                            new SqlBytes(BitConverter.GetBytes(selectedAtomId))
                         );
 
                         // Load embedding for next iteration
@@ -369,8 +370,164 @@ ORDER BY CreatedAt DESC;
                 return new float[embeddingDim];
             }
 
-            // Simplified multi-head attention: average pooling with head-wise weights
-            var headDim = embeddingDim / numHeads;
+            // PARADIGM-COMPLIANT REFACTOR: Query model weights from GEOMETRY tensors
+            // This is the "T-SQL queries itself" vision - we execute SQL against TensorAtoms.WeightsGeometry
+            using (var connection = new SqlConnection("context connection=true"))
+            {
+                connection.Open();
+
+                // Find the attention layer tensors for this model
+                // We'll query the Q, K, V projection matrices from the database
+                var queryWeights = LoadTensorWeightsFromGeometry(connection, "attn.q_proj.weight", embeddingDim);
+                var keyWeights = LoadTensorWeightsFromGeometry(connection, "attn.k_proj.weight", embeddingDim);
+                var valueWeights = LoadTensorWeightsFromGeometry(connection, "attn.v_proj.weight", embeddingDim);
+
+                if (queryWeights == null || keyWeights == null || valueWeights == null)
+                {
+                    // Fallback to simplified attention if tensors not available
+                    return ComputeSimplifiedAttention(embeddings, embeddingDim);
+                }
+
+                // Compute attention using the actual model weights from GEOMETRY
+                var output = new float[embeddingDim];
+                var headDim = embeddingDim / numHeads;
+
+                for (int head = 0; head < numHeads; head++)
+                {
+                    var headOffset = head * headDim;
+
+                    // For each embedding in the sequence
+                    for (int i = 0; i < embeddings.Count; i++)
+                    {
+                        var embedding = embeddings[i];
+
+                        // Project to Query, Key, Value using weights from GEOMETRY
+                        var q = ProjectWithTensor(embedding, queryWeights, headOffset, headDim);
+                        var k = ProjectWithTensor(embedding, keyWeights, headOffset, headDim);
+                        var v = ProjectWithTensor(embedding, valueWeights, headOffset, headDim);
+
+                        // Compute attention scores (Q * K^T / sqrt(d_k))
+                        double attentionScore = 0.0;
+                        for (int j = 0; j < q.Length; j++)
+                        {
+                            attentionScore += q[j] * k[j];
+                        }
+                        attentionScore /= Math.Sqrt(headDim);
+
+                        // Apply softmax and accumulate weighted values
+                        var softmaxWeight = Math.Exp(attentionScore);
+                        for (int j = 0; j < headDim; j++)
+                        {
+                            output[headOffset + j] += (float)(v[j] * softmaxWeight);
+                        }
+                    }
+                }
+
+                // Normalize output
+                var norm = ComputeL2Norm(output);
+                if (norm > 0)
+                {
+                    for (int i = 0; i < output.Length; i++)
+                    {
+                        output[i] /= (float)norm;
+                    }
+                }
+
+                return output;
+            }
+        }
+
+        /// <summary>
+        /// Load tensor weights from GEOMETRY representation via STPointN() queries.
+        /// This is the core "queryable tensors" implementation.
+        /// </summary>
+        private static float[] LoadTensorWeightsFromGeometry(
+            SqlConnection connection,
+            string tensorNamePattern,
+            int maxDimension)
+        {
+            using (var command = connection.CreateCommand())
+            {
+                // Query the GEOMETRY representation of the tensor
+                command.CommandText = @"
+SELECT TOP 1
+    ta.WeightsGeometry,
+    ta.ElementCount
+FROM dbo.TensorAtoms ta
+WHERE ta.TensorName LIKE '%' + @pattern + '%'
+ORDER BY ta.ElementCount DESC;
+";
+                command.Parameters.AddWithValue("@pattern", tensorNamePattern);
+
+                using (var reader = command.ExecuteReader())
+                {
+                    if (!reader.Read() || reader.IsDBNull(0))
+                    {
+                        return null;
+                    }
+
+                    var geometry = reader.GetValue(0) as Microsoft.SqlServer.Types.SqlGeometry;
+                    var elementCount = reader.GetInt64(1);
+
+                    if (geometry == null || geometry.IsNull)
+                    {
+                        return null;
+                    }
+
+                    // Extract weights from GEOMETRY using STPointN()
+                    var weights = new List<float>();
+                    var pointCount = geometry.STNumPoints().Value;
+
+                    for (int i = 1; i <= pointCount && weights.Count < maxDimension; i++)
+                    {
+                        var point = geometry.STPointN(i);
+                        if (!point.IsNull)
+                        {
+                            // Y coordinate is the weight value
+                            var value = point.STY.Value;
+                            weights.Add((float)value);
+                        }
+                    }
+
+                    return weights.ToArray();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Project an embedding using tensor weights from GEOMETRY.
+        /// This performs a matrix-vector multiplication using weights queried from the database.
+        /// </summary>
+        private static float[] ProjectWithTensor(
+            float[] embedding,
+            float[] tensorWeights,
+            int offset,
+            int dimension)
+        {
+            var result = new float[dimension];
+
+            for (int i = 0; i < dimension; i++)
+            {
+                double sum = 0.0;
+                for (int j = 0; j < embedding.Length && (offset + i) * embedding.Length + j < tensorWeights.Length; j++)
+                {
+                    var weightIndex = (offset + i) * embedding.Length + j;
+                    sum += embedding[j] * tensorWeights[weightIndex];
+                }
+                result[i] = (float)sum;
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Fallback simplified attention when GEOMETRY tensors are not available.
+        /// </summary>
+        private static float[] ComputeSimplifiedAttention(
+            List<float[]> embeddings,
+            int embeddingDim)
+        {
+            // Simplified multi-head attention: average pooling with recency weights
             var output = new float[embeddingDim];
             var weights = ComputeAttentionWeights(embeddings);
 
@@ -445,8 +602,8 @@ ORDER BY CreatedAt DESC;
 
             using (var command = connection.CreateCommand())
             {
-                // Convert embedding to JSON for VECTOR type
-                var embeddingJson = "[" + string.Join(",", attentionOutput.Select(v => v.ToString("F6"))) + "]";
+                var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+                var embeddingJson = serializer.SerializeFloatArray(attentionOutput);
 
                 command.CommandText = @"
 DECLARE @embedding VECTOR(1998) = CAST(@embeddingJson AS VECTOR(1998));

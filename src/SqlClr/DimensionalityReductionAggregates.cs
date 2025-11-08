@@ -74,6 +74,7 @@ namespace SqlClrFunctions
                 return SqlString.Null;
 
             int k = Math.Min(numComponents, dimension);
+            int n = vectors.Count;
 
             // Compute mean
             float[] mean = new float[dimension];
@@ -81,37 +82,52 @@ namespace SqlClrFunctions
                 for (int i = 0; i < dimension; i++)
                     mean[i] += vec[i];
             for (int i = 0; i < dimension; i++)
-                mean[i] /= vectors.Count;
+                mean[i] /= n;
 
             // Center data
             var centered = vectors.Select(v =>
                 v.Select((val, idx) => val - mean[idx]).ToArray()
             ).ToList();
 
-            // Compute covariance matrix (simplified: use top k dimensions only for tractability)
-            // Full eigendecomposition of 1998x1998 matrix is computationally expensive
-            // Use power iteration to find top k eigenvectors
-
+            // Compute covariance matrix using proper PCA algorithm
+            // Use power iteration to find top k principal components efficiently
             var components = new List<(float[] Eigenvector, double Variance)>();
 
-            // Simplified: Random projection as approximation
-            // In production, use iterative SVD or randomized PCA
-            Random rng = new Random(42);
+            // Deflation method: Extract each principal component iteratively
+            float[][] residualData = new float[n][];
+            for (int i = 0; i < n; i++)
+            {
+                residualData[i] = new float[dimension];
+                Array.Copy(centered[i], residualData[i], dimension);
+            }
             
             for (int comp = 0; comp < k; comp++)
             {
-                // Random initialization
+                // Initialize eigenvector with data-driven approach (first data point normalized)
                 float[] eigenvec = new float[dimension];
+                float initNorm = 0;
                 for (int i = 0; i < dimension; i++)
-                    eigenvec[i] = (float)(rng.NextDouble() * 2 - 1);
+                {
+                    eigenvec[i] = residualData[0][i];
+                    initNorm += eigenvec[i] * eigenvec[i];
+                }
+                initNorm = (float)Math.Sqrt(initNorm);
+                if (initNorm > 0)
+                {
+                    for (int i = 0; i < dimension; i++)
+                        eigenvec[i] /= initNorm;
+                }
                 
-                // Power iteration (simplified)
-                for (int iter = 0; iter < 10; iter++)
+                // Power iteration: Converge to dominant eigenvector of covariance matrix
+                const int maxIterations = 100;
+                const float convergenceThreshold = 1e-6f;
+                
+                for (int iter = 0; iter < maxIterations; iter++)
                 {
                     float[] newVec = new float[dimension];
                     
                     // Multiply by covariance matrix (A^T * A * v)
-                    foreach (var centeredVec in centered)
+                    foreach (var centeredVec in residualData)
                     {
                         double dot = 0;
                         for (int i = 0; i < dimension; i++)
@@ -127,35 +143,45 @@ namespace SqlClrFunctions
                         norm += newVec[i] * newVec[i];
                     norm = Math.Sqrt(norm);
 
-                    if (norm > 0)
+                    if (norm < 1e-10)
+                        break; // Convergence failure
+                    
+                    // Check convergence before updating
+                    double diff = 0;
+                    for (int i = 0; i < dimension; i++)
                     {
-                        for (int i = 0; i < dimension; i++)
-                            eigenvec[i] = (float)(newVec[i] / norm);
+                        double normalized = newVec[i] / norm;
+                        double delta = normalized - eigenvec[i];
+                        diff += delta * delta;
+                        eigenvec[i] = (float)normalized;
                     }
+                    
+                    if (Math.Sqrt(diff) < convergenceThreshold)
+                        break; // Converged
                 }
 
                 // Compute variance explained
                 double variance = 0;
-                foreach (var centeredVec in centered)
+                foreach (var centeredVec in residualData)
                 {
                     double projection = 0;
                     for (int i = 0; i < dimension; i++)
                         projection += eigenvec[i] * centeredVec[i];
                     variance += projection * projection;
                 }
-                variance /= vectors.Count;
+                variance /= n;
 
                 components.Add((eigenvec, variance));
 
-                // Deflate: remove this component from data (for next iteration)
-                for (int i = 0; i < centered.Count; i++)
+                // Deflation: remove this component from residual data (for next iteration)
+                for (int i = 0; i < n; i++)
                 {
                     double projection = 0;
                     for (int d = 0; d < dimension; d++)
-                        projection += eigenvec[d] * centered[i][d];
+                        projection += eigenvec[d] * residualData[i][d];
                     
                     for (int d = 0; d < dimension; d++)
-                        centered[i][d] -= (float)(projection * eigenvec[d]);
+                        residualData[i][d] -= (float)(projection * eigenvec[d]);
                 }
             }
 
@@ -284,66 +310,29 @@ namespace SqlClrFunctions
             int n = vectors.Count;
             int d = Math.Min(targetDims, 3); // Limit to 2D or 3D
 
-            // Simplified t-SNE: Just PCA projection as approximation
-            // Full t-SNE requires gradient descent which is too expensive for aggregate
+            // Use bridge library for PROPER t-SNE implementation
+            // Replaces: "Simplified t-SNE" that was actually random projection
+            var tsne = new Hartonomous.Sql.Bridge.MachineLearning.TSNEProjection(seed: 42);
             
-            // Compute mean
-            float[] mean = new float[dimension];
-            foreach (var vec in vectors)
-                for (int i = 0; i < dimension; i++)
-                    mean[i] += vec[i];
-            for (int i = 0; i < dimension; i++)
-                mean[i] /= n;
-
-            // Project onto first d principal components (simplified)
-            Random rng = new Random(42);
-            var projection = new float[n][];
+            // Convert List<float[]> to float[][]
+            var vectorArray = vectors.ToArray();
             
-            for (int i = 0; i < n; i++)
-                projection[i] = new float[d];
+            // Run proper t-SNE with gradient descent on KL divergence
+            // Parameters: perplexity=30, iterations=1000 (can adjust for speed vs quality)
+            int iterations = Math.Min(1000, n * 10); // Scale iterations with data size
+            double perplexity = Math.Min(30.0, n / 3.0); // Perplexity should be < n/3
+            
+            var projection = tsne.Project(
+                vectorArray, 
+                targetDim: d, 
+                perplexity: perplexity, 
+                iterations: iterations, 
+                learningRate: 200.0
+            );
 
-            // Random projection as fast approximation
-            var randomMatrix = new float[dimension][];
-            for (int i = 0; i < dimension; i++)
-            {
-                randomMatrix[i] = new float[d];
-                for (int j = 0; j < d; j++)
-                    randomMatrix[i][j] = (float)(rng.NextDouble() * 2 - 1);
-            }
-
-            // Project
-            for (int i = 0; i < n; i++)
-            {
-                for (int j = 0; j < d; j++)
-                {
-                    projection[i][j] = 0;
-                    for (int k = 0; k < dimension; k++)
-                        projection[i][j] += (vectors[i][k] - mean[k]) * randomMatrix[k][j];
-                }
-            }
-
-            // Normalize to [-1, 1]
-            for (int j = 0; j < d; j++)
-            {
-                float min = projection.Min(p => p[j]);
-                float max = projection.Max(p => p[j]);
-                float range = max - min;
-                if (range > 0)
-                {
-                    for (int i = 0; i < n; i++)
-                        projection[i][j] = 2 * (projection[i][j] - min) / range - 1;
-                }
-            }
-
-            // Build JSON
-            var json = "{\"projection\":[" +
-                string.Join(",",
-                    projection.Select(p =>
-                        "[" + string.Join(",", p.Select(v => v.ToString("G6"))) + "]"
-                    )
-                ) + "]}";
-
-            return new SqlString(json);
+            var result = new { projection };
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)
@@ -494,15 +483,9 @@ namespace SqlClrFunctions
                 }
             }
 
-            // Return projected vectors
-            var json = "{\"projected_vectors\":[" +
-                string.Join(",",
-                    projected.Select(p =>
-                        "[" + string.Join(",", p.Select(v => v.ToString("G9"))) + "]"
-                    )
-                ) + "]}";
-
-            return new SqlString(json);
+            var result = new { projected_vectors = projected };
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return new SqlString(serializer.Serialize(result));
         }
 
         public void Read(BinaryReader r)

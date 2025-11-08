@@ -122,6 +122,59 @@ BEGIN
             FOR JSON PATH
         );
         
+        -- PARADIGM-COMPLIANT FIX: Close the feedback loop by fine-tuning the model
+        -- This is the "L" (Learn) in OODA - actually update model weights based on success/failure
+        IF EXISTS (
+            SELECT 1 
+            FROM dbo.AutonomousImprovementHistory 
+            WHERE AnalysisId = @AnalysisId 
+                AND GeneratedCode IS NOT NULL
+                AND SuccessScore > 0.7 -- Only learn from successful improvements
+        )
+        BEGIN
+            -- Trigger model weight updates for successful code generations
+            DECLARE @ImprovementCursor CURSOR;
+            DECLARE @ImprovementId UNIQUEIDENTIFIER;
+            DECLARE @GeneratedCode NVARCHAR(MAX);
+            DECLARE @SuccessScore DECIMAL(5,4);
+            
+            SET @ImprovementCursor = CURSOR FOR
+                SELECT ImprovementId, GeneratedCode, SuccessScore
+                FROM dbo.AutonomousImprovementHistory
+                WHERE AnalysisId = @AnalysisId
+                    AND SuccessScore > 0.7
+                ORDER BY SuccessScore DESC;
+            
+            OPEN @ImprovementCursor;
+            FETCH NEXT FROM @ImprovementCursor INTO @ImprovementId, @GeneratedCode, @SuccessScore;
+            
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                -- Update model weights using the successful code as a training sample
+                -- This fine-tunes the code generation model (e.g., Qwen3-Coder)
+                BEGIN TRY
+                    EXEC dbo.sp_UpdateModelWeightsFromFeedback
+                        @ModelName = 'Qwen3-Coder-32B',
+                        @TrainingSample = @GeneratedCode,
+                        @RewardSignal = @SuccessScore,
+                        @LearningRate = 0.0001,
+                        @TenantId = @TenantId;
+                    
+                    -- Log the weight update
+                    PRINT 'Model weights updated for improvement: ' + CAST(@ImprovementId AS NVARCHAR(36));
+                END TRY
+                BEGIN CATCH
+                    -- Log but don't fail the learning cycle
+                    PRINT 'Weight update failed for ' + CAST(@ImprovementId AS NVARCHAR(36)) + ': ' + ERROR_MESSAGE();
+                END CATCH
+                
+                FETCH NEXT FROM @ImprovementCursor INTO @ImprovementId, @GeneratedCode, @SuccessScore;
+            END
+            
+            CLOSE @ImprovementCursor;
+            DEALLOCATE @ImprovementCursor;
+        END
+        
         DECLARE @LearningPayload NVARCHAR(MAX) = JSON_OBJECT(
             'analysisId': @AnalysisId,
             'learningCycleComplete': 1,

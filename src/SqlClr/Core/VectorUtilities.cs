@@ -25,7 +25,7 @@ internal static class VectorUtilities
     /// <returns>Parsed float array, or null if parsing fails.</returns>
     /// <remarks>
     /// This method is used across 9 SQL CLR aggregate files for vector deserialization.
-    /// Simple parsing optimized for SQL Server CLR context (no JSON library dependencies).
+    /// Uses bridge library for robust JSON parsing with System.Text.Json.
     /// </remarks>
     internal static float[]? ParseVectorJson(string json)
     {
@@ -34,31 +34,9 @@ internal static class VectorUtilities
             if (string.IsNullOrWhiteSpace(json))
                 return null;
 
-            json = json.Trim();
-
-            // Validate basic JSON array format
-            if (!json.StartsWith("[") || !json.EndsWith("]"))
-                return null;
-
-            // Remove brackets and split by comma
-            var values = json.Substring(1, json.Length - 2)
-                .Split(',')
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrEmpty(s))
-                .ToArray();
-
-            if (values.Length == 0)
-                return null;
-
-            // Parse each value as float
-            var result = new float[values.Length];
-            for (int i = 0; i < values.Length; i++)
-            {
-                if (!float.TryParse(values[i], out result[i]))
-                    return null;
-            }
-
-            return result;
+            // Use bridge library for proper JSON parsing
+            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            return serializer.ParseFloatArray(json);
         }
         catch
         {
@@ -275,5 +253,46 @@ internal static class VectorUtilities
             return false;
 
         return true;
+    }
+
+    /// <summary>
+    /// Parses a WKT POINT string into a tuple of (X, Y) coordinates.
+    /// Expected format: "POINT(x y)" or "POINT (x y)"
+    /// </summary>
+    /// <param name="wkt">WKT POINT string.</param>
+    /// <returns>Tuple of (X, Y) or null if parsing fails.</returns>
+    internal static (double X, double Y)? ParsePointWkt(string wkt)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(wkt))
+                return null;
+
+            wkt = wkt.Trim().ToUpperInvariant();
+            
+            if (!wkt.StartsWith("POINT"))
+                return null;
+
+            int startIdx = wkt.IndexOf('(');
+            int endIdx = wkt.IndexOf(')');
+            
+            if (startIdx == -1 || endIdx == -1 || endIdx <= startIdx)
+                return null;
+
+            string coords = wkt.Substring(startIdx + 1, endIdx - startIdx - 1).Trim();
+            string[] parts = coords.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+
+            if (parts.Length != 2)
+                return null;
+
+            if (double.TryParse(parts[0], out double x) && double.TryParse(parts[1], out double y))
+                return (x, y);
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 }

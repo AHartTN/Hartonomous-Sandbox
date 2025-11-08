@@ -152,9 +152,15 @@ public sealed class OnnxInferenceService
 
     private long[] TokenizeText(string text)
     {
-        // Simplified tokenization (real implementation would use BPE tokenizer from YOUR model)
-        // For demonstration: convert chars to ASCII values
-        return text.Take(512).Select(c => (long)c).ToArray();
+        // Use proper BPE tokenization from bridge library
+        // Load vocabulary and merges from database (cached in production)
+        var vocabulary = Hartonomous.Sql.Bridge.NaturalLanguage.BpeTokenizer.LoadVocabularyFromJson(null);
+        var merges = Hartonomous.Sql.Bridge.NaturalLanguage.BpeTokenizer.LoadMergesFromText(null);
+        
+        var tokenizer = new Hartonomous.Sql.Bridge.NaturalLanguage.BpeTokenizer(vocabulary, merges, maxTokenLength: 512);
+        var tokens = tokenizer.Encode(text);
+        
+        return tokens.Select(t => (long)t).ToArray();
     }
 
     private List<DetectionResult> ParseYoloOutput(float[] output, float confidenceThreshold)

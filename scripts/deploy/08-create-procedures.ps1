@@ -142,11 +142,28 @@ try {
 
     Write-Host "  Found $($allFiles.Count) SQL files" -ForegroundColor Gray
 
+    # Execute autonomous CLR functions deployment first (if exists)
+    $autonomousClrScript = Join-Path (Split-Path -Parent $ProceduresPath) "deploy-autonomous-clr-functions.sql"
+    if (Test-Path $autonomousClrScript) {
+        Write-Host "`nDeploying Autonomous CLR Functions..." -ForegroundColor Cyan
+        $success = Execute-SqlFile -FilePath $autonomousClrScript -FileName "deploy-autonomous-clr-functions.sql"
+        if ($success) {
+            Write-Host "  Autonomous CLR functions bound successfully" -ForegroundColor Green
+        } else {
+            Write-Host "  Warning: Autonomous CLR functions deployment failed" -ForegroundColor Yellow
+            $result.Warnings += "Autonomous CLR functions deployment failed"
+        }
+    } else {
+        Write-Host "`nWarning: deploy-autonomous-clr-functions.sql not found at $autonomousClrScript" -ForegroundColor Yellow
+        $result.Warnings += "deploy-autonomous-clr-functions.sql not found"
+    }
+
     # Define execution order (dependency-safe)
     # Files not explicitly listed will be executed alphabetically at the end
     $priorityOrder = @(
         # Phase 1: CLR Bindings (must be first - other procedures depend on CLR functions)
         "Common.ClrBindings.sql",
+        "Functions.AggregateVectorOperations_Core.sql",
 
         # Phase 2: Helpers and Utilities (no dependencies)
         "Common.Helpers.sql",
@@ -225,8 +242,10 @@ try {
         "dbo.fn_BindConcepts.sql",
         "dbo.fn_DiscoverConcepts.sql",
 
-        # Phase 16: CLR Aggregates (must be last - depends on CLR bindings)
-        "Functions.AggregateVectorOperations.sql"
+        # Phase 16: Advanced CLR Aggregates (optional - experimental features)
+        # NOTE: Functions.AggregateVectorOperations.sql contains 30+ unimplemented aggregates
+        # Commented out to prevent deployment failures - uncomment after implementation
+        # "Functions.AggregateVectorOperations.sql"
     )
 
     # Build final execution order: priority files first, then remaining files alphabetically
