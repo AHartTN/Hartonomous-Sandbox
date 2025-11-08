@@ -1,3 +1,4 @@
+using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Messaging.Events;
 using Microsoft.Extensions.Logging;
 
@@ -48,11 +49,14 @@ public class AtomIngestedEventHandler
 public class CacheInvalidatedEventHandler
 {
     private readonly ILogger<CacheInvalidatedEventHandler> _logger;
+    private readonly CacheInvalidationService _cacheInvalidation;
 
     public CacheInvalidatedEventHandler(
-        ILogger<CacheInvalidatedEventHandler> logger)
+        ILogger<CacheInvalidatedEventHandler> logger,
+        CacheInvalidationService cacheInvalidation)
     {
         _logger = logger;
+        _cacheInvalidation = cacheInvalidation;
     }
 
     public async Task HandleAsync(CacheInvalidatedEvent @event, CancellationToken cancellationToken)
@@ -60,7 +64,25 @@ public class CacheInvalidatedEventHandler
         _logger.LogInformation("Cache invalidation: Type={CacheType}, Reason={Reason}",
             @event.CacheType, @event.Reason);
 
-        await Task.CompletedTask;
+        // Perform cache invalidation based on type
+        switch (@event.CacheType.ToLowerInvariant())
+        {
+            case "search":
+                await _cacheInvalidation.InvalidateSearchResultsAsync(cancellationToken);
+                break;
+            
+            case "analytics":
+                if (@event.InvalidatedKeys != null && @event.InvalidatedKeys.Any())
+                {
+                    var date = DateTime.UtcNow.Date;
+                    await _cacheInvalidation.InvalidateAnalyticsCacheAsync(date, cancellationToken);
+                }
+                break;
+
+            default:
+                _logger.LogWarning("Unknown cache type for invalidation: {CacheType}", @event.CacheType);
+                break;
+        }
     }
 }
 
