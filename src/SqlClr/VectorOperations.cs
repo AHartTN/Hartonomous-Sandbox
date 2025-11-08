@@ -1,6 +1,8 @@
 using System;
 using System.Data.SqlTypes;
+using System.Numerics;
 using Microsoft.SqlServer.Server;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -11,7 +13,7 @@ namespace SqlClrFunctions
     public class VectorOperations
     {
         /// <summary>
-        /// Compute dot product of two vectors
+        /// Compute dot product of two vectors, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorDotProduct(SqlBytes vector1, SqlBytes vector2)
@@ -22,20 +24,12 @@ namespace SqlClrFunctions
             var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
             var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
-            if (length1 != length2)
-                throw new ArgumentException("Vectors must have same dimension");
-
-            double result = 0;
-            for (int i = 0; i < length1; i++)
-            {
-                result += values1[i] * values2[i];
-            }
-
-            return new SqlDouble(result);
+            // Delegate to the centralized, optimized math function
+            return new SqlDouble(VectorMath.DotProduct(values1, values2));
         }
 
         /// <summary>
-        /// Compute cosine similarity between two vectors
+        /// Compute cosine similarity between two vectors, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorCosineSimilarity(SqlBytes vector1, SqlBytes vector2)
@@ -49,16 +43,31 @@ namespace SqlClrFunctions
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
-            double dotProduct = 0;
-            double norm1 = 0;
-            double norm2 = 0;
-            for (int i = 0; i < length1; i++)
+            float dotProduct = 0;
+            float norm1 = 0;
+            float norm2 = 0;
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+            int length = values1.Length;
+
+            // Process vectors in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
             {
-                var left = values1[i];
-                var right = values2[i];
-                dotProduct += left * right;
-                norm1 += left * left;
-                norm2 += right * right;
+                var v1 = new Vector<float>(values1, i);
+                var v2 = new Vector<float>(values2, i);
+                dotProduct += Vector.Dot(v1, v2);
+                norm1 += Vector.Dot(v1, v1);
+                norm2 += Vector.Dot(v2, v2);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
+            {
+                var val1 = values1[i];
+                var val2 = values2[i];
+                dotProduct += val1 * val2;
+                norm1 += val1 * val1;
+                norm2 += val2 * val2;
             }
 
             if (norm1 == 0 || norm2 == 0)
@@ -68,7 +77,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Compute Euclidean distance between two vectors
+        /// Compute Euclidean distance between two vectors, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorEuclideanDistance(SqlBytes vector1, SqlBytes vector2)
@@ -82,10 +91,24 @@ namespace SqlClrFunctions
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
-            double sumSquares = 0;
-            for (int i = 0; i < length1; i++)
+            float sumSquares = 0;
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+            int length = values1.Length;
+
+            // Process vectors in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
             {
-                double diff = values1[i] - values2[i];
+                var v1 = new Vector<float>(values1, i);
+                var v2 = new Vector<float>(values2, i);
+                var diff = v1 - v2;
+                sumSquares += Vector.Dot(diff, diff);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
+            {
+                float diff = values1[i] - values2[i];
                 sumSquares += diff * diff;
             }
 
@@ -93,7 +116,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Add two vectors element-wise
+        /// Add two vectors element-wise, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorAdd(SqlBytes vector1, SqlBytes vector2)
@@ -108,7 +131,19 @@ namespace SqlClrFunctions
                 throw new ArgumentException("Vectors must have same dimension");
 
             var result = new float[length1];
-            for (int i = 0; i < length1; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Process vectors in SIMD chunks
+            for (; i <= length1 - vectorSize; i += vectorSize)
+            {
+                var v1 = new Vector<float>(values1, i);
+                var v2 = new Vector<float>(values2, i);
+                (v1 + v2).CopyTo(result, i);
+            }
+
+            // Process remaining elements
+            for (; i < length1; i++)
             {
                 result[i] = values1[i] + values2[i];
             }
@@ -117,7 +152,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Subtract two vectors element-wise
+        /// Subtract two vectors element-wise, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorSubtract(SqlBytes vector1, SqlBytes vector2)
@@ -132,7 +167,19 @@ namespace SqlClrFunctions
                 throw new ArgumentException("Vectors must have same dimension");
 
             var result = new float[length1];
-            for (int i = 0; i < length1; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Process vectors in SIMD chunks
+            for (; i <= length1 - vectorSize; i += vectorSize)
+            {
+                var v1 = new Vector<float>(values1, i);
+                var v2 = new Vector<float>(values2, i);
+                (v1 - v2).CopyTo(result, i);
+            }
+
+            // Process remaining elements
+            for (; i < length1; i++)
             {
                 result[i] = values1[i] - values2[i];
             }
@@ -141,7 +188,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Multiply vector by scalar
+        /// Multiply vector by scalar, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorScale(SqlBytes vector, SqlDouble scalar)
@@ -153,7 +200,19 @@ namespace SqlClrFunctions
             float s = (float)scalar.Value;
 
             var result = new float[length];
-            for (int i = 0; i < length; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Process vectors in SIMD chunks
+            var scalarVector = new Vector<float>(s);
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<float>(values, i);
+                (v * scalarVector).CopyTo(result, i);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
             {
                 result[i] = values[i] * s;
             }
@@ -162,7 +221,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Compute L2 norm (magnitude) of vector
+        /// Compute L2 norm (magnitude) of vector, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorNorm(SqlBytes vector)
@@ -172,10 +231,21 @@ namespace SqlClrFunctions
 
             var values = SqlBytesInterop.GetFloatArray(vector, out var length);
 
-            double sumSquares = 0;
-            for (int i = 0; i < length; i++)
+            float sumSquares = 0;
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Process vectors in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
             {
-                double value = values[i];
+                var v = new Vector<float>(values, i);
+                sumSquares += Vector.Dot(v, v);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
+            {
+                float value = values[i];
                 sumSquares += value * value;
             }
 
@@ -183,7 +253,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Normalize vector to unit length
+        /// Normalize vector to unit length, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorNormalize(SqlBytes vector)
@@ -193,10 +263,21 @@ namespace SqlClrFunctions
 
             var values = SqlBytesInterop.GetFloatArray(vector, out var length);
 
-            double sumSquares = 0;
-            for (int i = 0; i < length; i++)
+            float sumSquares = 0;
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Process vectors in SIMD chunks to get sum of squares
+            for (; i <= length - vectorSize; i += vectorSize)
             {
-                double value = values[i];
+                var v = new Vector<float>(values, i);
+                sumSquares += Vector.Dot(v, v);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
+            {
+                float value = values[i];
                 sumSquares += value * value;
             }
 
@@ -204,12 +285,23 @@ namespace SqlClrFunctions
 
             if (norm == 0)
             {
-                return vector;
+                return vector; // Cannot normalize a zero-length vector
             }
 
             var scale = (float)(1.0 / norm);
             var result = new float[length];
-            for (int i = 0; i < length; i++)
+            i = 0;
+
+            // Process scaling in SIMD chunks
+            var scaleVector = new Vector<float>(scale);
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<float>(values, i);
+                (v * scaleVector).CopyTo(result, i);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
             {
                 result[i] = values[i] * scale;
             }
@@ -218,7 +310,7 @@ namespace SqlClrFunctions
         }
 
         /// <summary>
-        /// Linear interpolation between two vectors
+        /// Linear interpolation between two vectors, accelerated with SIMD.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorLerp(SqlBytes vector1, SqlBytes vector2, SqlDouble t)
@@ -233,9 +325,24 @@ namespace SqlClrFunctions
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
-            float complement = 1 - tVal;
             var result = new float[length1];
-            for (int i = 0; i < length1; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Process vectors in SIMD chunks
+            float complement = 1 - tVal;
+            var tVector = new Vector<float>(tVal);
+            var complementVector = new Vector<float>(complement);
+
+            for (; i <= length1 - vectorSize; i += vectorSize)
+            {
+                var v1 = new Vector<float>(values1, i);
+                var v2 = new Vector<float>(values2, i);
+                (v1 * complementVector + v2 * tVector).CopyTo(result, i);
+            }
+
+            // Process remaining elements
+            for (; i < length1; i++)
             {
                 result[i] = values1[i] * complement + values2[i] * tVal;
             }

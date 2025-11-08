@@ -88,39 +88,47 @@ BEGIN
               AND p.IsActive = 1
               AND p.TenantId = @TenantId;
 
-            -- Check for semantic duplicates using vector similarity
-            DECLARE @SemanticDuplicates TABLE (
+            -- Define a table variable to match the output of sp_HybridSearch
+            DECLARE @CandidateDuplicates TABLE (
+                AtomEmbeddingId BIGINT,
                 AtomId BIGINT,
-                SimilarityScore FLOAT,
+                Modality NVARCHAR(128),
+                Subtype NVARCHAR(128),
+                SourceUri NVARCHAR(2048),
+                SourceType NVARCHAR(128),
                 EmbeddingType NVARCHAR(128),
-                ModelId INT
+                ModelId INT,
+                exact_distance FLOAT,
+                spatial_distance FLOAT
             );
 
-            INSERT INTO @SemanticDuplicates
-            SELECT TOP (@MaxCandidates)
-                ae.AtomId,
-                1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @Embedding) AS SimilarityScore,
-                ae.EmbeddingType,
-                ae.ModelId
-            FROM dbo.AtomEmbeddings ae
-            INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
-            WHERE a.TenantId = @TenantId
-              AND ae.EmbeddingVector IS NOT NULL
-              AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @Embedding) < (2.0 * (1.0 - @SimilarityThreshold))
-              AND (@EmbeddingType IS NULL OR ae.EmbeddingType = @EmbeddingType)
-            ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @Embedding);
+            -- First, project the incoming embedding to its 3D spatial key
+            DECLARE @QuerySpatialKey GEOMETRY = dbo.fn_ProjectTo3D(@Embedding);
 
-            -- Check if we found a semantic duplicate
+            -- Now, execute the hybrid search to get the top candidates efficiently
+            INSERT INTO @CandidateDuplicates
+            EXEC dbo.sp_HybridSearch
+                @query_vector = @Embedding,
+                @query_dimension = 1998, -- Assuming the standard dimension
+                @query_spatial_x = @QuerySpatialKey.STX,
+                @query_spatial_y = @QuerySpatialKey.STY,
+                @query_spatial_z = @QuerySpatialKey.STZ,
+                @spatial_candidates = 100, -- Widen the search for deduplication
+                @final_top_k = @MaxCandidates,
+                @embedding_type = @EmbeddingType,
+                @ModelId = @ModelId;
+
+            -- Check if we found a semantic duplicate from the candidates
             DECLARE @BestSimilarity FLOAT;
             SELECT TOP 1
-                @AtomId = sd.AtomId,
-                @BestSimilarity = sd.SimilarityScore,
+                @AtomId = cd.AtomId,
+                @BestSimilarity = (1.0 - cd.exact_distance),
                 @WasDuplicate = 1,
                 @DuplicateReason = 'Semantic similarity match (threshold: ' + CAST(@SimilarityThreshold AS NVARCHAR(10)) + ')',
-                @SemanticSimilarity = sd.SimilarityScore
-            FROM @SemanticDuplicates sd
-            WHERE sd.SimilarityScore >= @SimilarityThreshold
-            ORDER BY sd.SimilarityScore DESC;
+                @SemanticSimilarity = (1.0 - cd.exact_distance)
+            FROM @CandidateDuplicates cd
+            WHERE (1.0 - cd.exact_distance) >= @SimilarityThreshold
+            ORDER BY cd.exact_distance ASC; -- Order by distance ascending (highest similarity first)
 
             IF @AtomId IS NOT NULL
             BEGIN
@@ -193,31 +201,11 @@ BEGIN
             DECLARE @SpatialCoarse GEOGRAPHY;
             DECLARE @Dimension INT = 1998; -- SQL Server 2025 VECTOR dimension
 
-            -- For high-dimensional vectors, we use dimensionality reduction
-            -- Project to 3D for spatial indexing (simplified PCA-like projection)
-            DECLARE @X FLOAT = 0.0, @Y FLOAT = 0.0, @Z FLOAT = 0.0;
-
-            -- Simple projection: use first 3 dimensions scaled
-            -- In production, this would use proper PCA transformation
-            SELECT
-                @X = CAST(JSON_VALUE(CAST(@Embedding AS NVARCHAR(MAX)), '$[0]') AS FLOAT),
-                @Y = CAST(JSON_VALUE(CAST(@Embedding AS NVARCHAR(MAX)), '$[1]') AS FLOAT),
-                @Z = CAST(JSON_VALUE(CAST(@Embedding AS NVARCHAR(MAX)), '$[2]') AS FLOAT);
-
-            -- Normalize to unit sphere for spatial queries
-            DECLARE @Magnitude FLOAT = SQRT(@X*@X + @Y*@Y + @Z*@Z);
-            IF @Magnitude > 0
-            BEGIN
-                SET @X = @X / @Magnitude;
-                SET @Y = @Y / @Magnitude;
-                SET @Z = @Z / @Magnitude;
-            END
-
-            -- Create spatial geometry point
-            SET @SpatialGeometry = GEOMETRY::Point(@X, @Y, @Z, 0);
+            -- Project the high-dimensional vector to a 3D point using the landmark-based CLR function.
+            SET @SpatialGeometry = dbo.fn_ProjectTo3D(@Embedding);
 
             -- For coarse spatial bucketing (optional)
-            SET @SpatialCoarse = GEOGRAPHY::Point(@X * 111319.444, @Y * 111319.444, 4326); -- Convert to meters
+            SET @SpatialCoarse = GEOGRAPHY::Point(@SpatialGeometry.STX * 111319.444, @SpatialGeometry.STY * 111319.444, 4326); -- Convert to meters
 
             -- Store embedding with spatial projections
             INSERT INTO dbo.AtomEmbeddings (
@@ -243,9 +231,9 @@ BEGIN
                 @Dimension,
                 @SpatialGeometry,
                 @SpatialCoarse,
-                CAST(@X * 1000 AS INT), -- Bucket coordinates
-                CAST(@Y * 1000 AS INT),
-                CAST(@Z * 1000 AS INT),
+                CAST(@SpatialGeometry.STX * 1000 AS INT), -- Bucket coordinates from the new geometry
+                CAST(@SpatialGeometry.STY * 1000 AS INT),
+                CAST(@SpatialGeometry.STZ * 1000 AS INT),
                 @Metadata,
                 @TenantId,
                 SYSUTCDATETIME()

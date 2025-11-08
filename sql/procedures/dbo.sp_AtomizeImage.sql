@@ -15,17 +15,18 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- Retrieve the parent image atom
+        -- Retrieve the parent image atom metadata and its payload
         DECLARE @Content VARBINARY(MAX);
         DECLARE @ContentType NVARCHAR(100);
         DECLARE @Metadata NVARCHAR(MAX);
         
         SELECT 
-            @Content = Content,
-            @ContentType = ContentType,
-            @Metadata = Metadata
-        FROM dbo.Atoms
-        WHERE AtomId = @AtomId AND TenantId = @TenantId;
+            @Metadata = a.Metadata,
+            @Content = p.PayloadData,
+            @ContentType = p.ContentType
+        FROM dbo.Atoms a
+        JOIN dbo.AtomPayloadStore p ON a.AtomId = p.AtomId
+        WHERE a.AtomId = @AtomId AND a.TenantId = @TenantId;
         
         IF @Content IS NULL
         BEGIN
@@ -66,94 +67,46 @@ BEGIN
             0
         );
         
-        -- Process each patch
-        DECLARE @PatchX INT = 0;
-        DECLARE @PatchY INT = 0;
-        DECLARE @PatchIndex INT = 0;
-        DECLARE @PixelX INT;
-        DECLARE @PixelY INT;
-        DECLARE @PatchGeometry GEOMETRY;
-        DECLARE @PatchesCreated INT = 0;
-        
-        WHILE @PatchY < @PatchesY
-        BEGIN
-            SET @PatchX = 0;
-            
-            WHILE @PatchX < @PatchesX
-            BEGIN
-                SET @PixelX = @PatchX * @StrideSize;
-                SET @PixelY = @PatchY * @StrideSize;
-                
-                -- Ensure patch doesn't exceed image bounds
-                DECLARE @ActualPatchWidth INT = @PatchSize;
-                DECLARE @ActualPatchHeight INT = @PatchSize;
-                
-                IF (@PixelX + @PatchSize) > @ImageWidth
-                    SET @ActualPatchWidth = @ImageWidth - @PixelX;
-                
-                IF (@PixelY + @PatchSize) > @ImageHeight
-                    SET @ActualPatchHeight = @ImageHeight - @PixelY;
-                
-                -- Create GEOMETRY polygon for this patch
-                DECLARE @X1 INT = @PixelX;
-                DECLARE @Y1 INT = @PixelY;
-                DECLARE @X2 INT = @PixelX + @ActualPatchWidth;
-                DECLARE @Y2 INT = @PixelY + @ActualPatchHeight;
-                
-                SET @PatchGeometry = GEOMETRY::STGeomFromText(
-                    'POLYGON((' + 
-                    CAST(@X1 AS NVARCHAR(20)) + ' ' + CAST(@Y1 AS NVARCHAR(20)) + ', ' +
-                    CAST(@X2 AS NVARCHAR(20)) + ' ' + CAST(@Y1 AS NVARCHAR(20)) + ', ' +
-                    CAST(@X2 AS NVARCHAR(20)) + ' ' + CAST(@Y2 AS NVARCHAR(20)) + ', ' +
-                    CAST(@X1 AS NVARCHAR(20)) + ' ' + CAST(@Y2 AS NVARCHAR(20)) + ', ' +
-                    CAST(@X1 AS NVARCHAR(20)) + ' ' + CAST(@Y1 AS NVARCHAR(20)) + '))',
-                    0
-                );
-                
-                -- Insert the patch (we'll compute variance/features in a future enhancement)
-                -- For now, we create the spatial index for every patch
-                INSERT INTO dbo.ImagePatches (
-                    ParentAtomId,
-                    PatchIndex,
-                    RowIndex,
-                    ColIndex,
-                    PatchGeometry,
-                    PatchX,
-                    PatchY,
-                    PatchWidth,
-                    PatchHeight,
-                    MeanR,
-                    MeanG,
-                    MeanB,
-                    Variance,
-                    DominantColor,
-                    TenantId
-                )
-                VALUES (
-                    @AtomId,
-                    @PatchIndex,
-                    @PatchY,
-                    @PatchX,
-                    @PatchGeometry,
-                    @PixelX,
-                    @PixelY,
-                    @ActualPatchWidth,
-                    @ActualPatchHeight,
-                    NULL, -- MeanR (computed via CLR image processing in future)
-                    NULL, -- MeanG
-                    NULL, -- MeanB
-                    NULL, -- Variance
-                    NULL, -- DominantColor
-                    @TenantId
-                );
-                
-                SET @PatchesCreated = @PatchesCreated + 1;
-                SET @PatchIndex = @PatchIndex + 1;
-                SET @PatchX = @PatchX + 1;
-            END
-            
-            SET @PatchY = @PatchY + 1;
-        END
+        -- Process all patches in a single, set-based operation using the high-performance CLR function
+        DECLARE @PatchesCreated INT;
+
+        INSERT INTO dbo.ImagePatches (
+            ParentAtomId,
+            PatchIndex,
+            RowIndex,
+            ColIndex,
+            PatchGeometry,
+            PatchX,
+            PatchY,
+            PatchWidth,
+            PatchHeight,
+            MeanR,
+            MeanG,
+            MeanB,
+            Variance,
+            DominantColor,
+            TenantId
+        )
+        SELECT
+            @AtomId,
+            patches.PatchIndex,
+            patches.RowIndex,
+            patches.ColIndex,
+            patches.PatchGeometry,
+            patches.PatchX,
+            patches.PatchY,
+            patches.PatchWidth,
+            patches.PatchHeight,
+            patches.MeanR,
+            patches.MeanG,
+            patches.MeanB,
+            patches.Variance,
+            NULL, -- DominantColor (future enhancement)
+            @TenantId
+        FROM dbo.clr_DeconstructImageToPatches(@Content, @ImageWidth, @ImageHeight, @PatchSize, @StrideSize) AS patches;
+
+        SET @PatchesCreated = @@ROWCOUNT;
+
         
         -- Update the parent atom's metadata with atomization results
         UPDATE dbo.Atoms

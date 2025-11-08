@@ -272,3 +272,29 @@ RETURNS TABLE (
 )
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ConceptBinding].fn_BindConcepts;
 GO
+
+IF OBJECT_ID('dbo.clr_DeconstructImageToPatches', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_DeconstructImageToPatches;
+GO
+CREATE FUNCTION dbo.clr_DeconstructImageToPatches(
+    @rawImage VARBINARY(MAX),
+    @imageWidth INT,
+    @imageHeight INT,
+    @patchSize INT,
+    @strideSize INT
+)
+RETURNS TABLE (
+    PatchIndex INT,
+    RowIndex INT,
+    ColIndex INT,
+    PatchX INT,
+    PatchY INT,
+    PatchWidth INT,
+    PatchHeight INT,
+    PatchGeometry GEOMETRY,
+    MeanR FLOAT,
+    MeanG FLOAT,
+    MeanB FLOAT,
+    Variance FLOAT
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].DeconstructImageToPatches;
+GO
