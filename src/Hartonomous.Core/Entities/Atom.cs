@@ -59,7 +59,7 @@ public class Atom
     /// <summary>
     /// A locator for the atom's binary payload if it is stored outside of the primary database.
     /// For default FILESTREAM storage, this is typically null. For a hybrid storage model using
-    _or Azure Blob Storage, this would hold the blob's URI.
+    /// Azure Blob Storage, this would hold the blob's URI.
     /// </summary>
     public string? PayloadLocator { get; set; }
 

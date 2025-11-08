@@ -37,8 +37,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "SqlClr", "SqlClr", "{BCA31E
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hartonomous.Api", "src\Hartonomous.Api\Hartonomous.Api.csproj", "{F22BDA52-DB8A-425C-91E0-3BC8FD7093D5}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hartonomous.Sql.Bridge", "src\Hartonomous.Sql.Bridge\Hartonomous.Sql.Bridge.csproj", "{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -217,18 +215,6 @@ Global
 		{F22BDA52-DB8A-425C-91E0-3BC8FD7093D5}.Release|x64.Build.0 = Release|Any CPU
 		{F22BDA52-DB8A-425C-91E0-3BC8FD7093D5}.Release|x86.ActiveCfg = Release|Any CPU
 		{F22BDA52-DB8A-425C-91E0-3BC8FD7093D5}.Release|x86.Build.0 = Release|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Debug|x64.ActiveCfg = Debug|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Debug|x64.Build.0 = Debug|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Debug|x86.ActiveCfg = Debug|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Debug|x86.Build.0 = Debug|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Release|Any CPU.Build.0 = Release|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Release|x64.ActiveCfg = Release|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Release|x64.Build.0 = Release|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Release|x86.ActiveCfg = Release|Any CPU
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -249,7 +235,6 @@ Global
 		{9C58C47B-9E9B-4AB1-8AB2-2F3F5D13C9A5} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{BCA31E2D-0177-7B6F-ADCC-9A1A88678595} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{F22BDA52-DB8A-425C-91E0-3BC8FD7093D5} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{752431A2-ACF0-477F-AC0A-DCDBA04C9AD1} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {2B5B49D1-CA22-4BA2-A41C-0E5711B980D4}

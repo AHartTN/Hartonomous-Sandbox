@@ -19,15 +19,7 @@ using Hartonomous.Core.Performance;
 using Hartonomous.Core.Shared;
 using Hartonomous.Data;
 using Hartonomous.Data.Repositories;
-using Hartonomous.Infrastructure.Data;
 using Hartonomous.Infrastructure.Repositories;
-using Hartonomous.Infrastructure.Services;
-using Hartonomous.Infrastructure.Services.Enrichment;
-using Hartonomous.Infrastructure.Services.Messaging;
-using Hartonomous.Infrastructure.Services.Billing;
-using Hartonomous.Infrastructure.Services.Security;
-using Hartonomous.Infrastructure.Services.Jobs;
-using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Resilience;
 using Hartonomous.Infrastructure.RateLimiting;
 using Hartonomous.Infrastructure.Lifecycle;
@@ -116,35 +108,12 @@ public static class DependencyInjection
         });
 
         services.AddSingleton<IJsonSerializer, SystemTextJsonSerializer>();
-        services.AddSingleton<ISqlServerConnectionFactory, SqlServerConnectionFactory>();
-        services.AddSingleton<ITransientErrorDetector, SqlServerTransientErrorDetector>();
-        services.AddSingleton<Func<RetryPolicyOptions, IRetryPolicy>>(sp => options =>
-        {
-            var detector = sp.GetRequiredService<ITransientErrorDetector>();
-            var logger = sp.GetRequiredService<ILogger<ExponentialBackoffRetryPolicy>>();
-            return new ExponentialBackoffRetryPolicy(options, detector, logger);
-        });
-        services.AddSingleton<ICircuitBreakerPolicy>(sp =>
-        {
-            var resilienceOptions = sp.GetRequiredService<IOptions<ServiceBrokerResilienceOptions>>().Value;
-            var options = new CircuitBreakerOptions
-            {
-                FailureThreshold = resilienceOptions.CircuitBreakerFailureThreshold,
-                BreakDuration = resilienceOptions.CircuitBreakerBreakDuration,
-                HalfOpenSuccessThreshold = resilienceOptions.CircuitBreakerHalfOpenSuccessThreshold
-            };
 
-            return new CircuitBreakerPolicy(options, sp.GetRequiredService<ITransientErrorDetector>(), sp.GetRequiredService<ILogger<CircuitBreakerPolicy>>());
-        });
-        services.AddSingleton<IServiceBrokerResilienceStrategy, ServiceBrokerResilienceStrategy>();
-        services.AddSingleton<IMessageDeadLetterSink, SqlMessageDeadLetterSink>();
         services.AddMemoryCache();
 
         // Distributed Cache - Uses in-memory by default for development
         // For production: Replace with AddStackExchangeRedisCache, AddDistributedSqlServerCache, etc.
         services.AddDistributedMemoryCache();
-        services.AddSingleton<ICacheService, DistributedCacheService>();
-        services.AddScoped<CacheInvalidationService>();
 
         // Event Bus - Uses in-memory by default for development
         // For production: Replace with ServiceBusEventBus (Azure Service Bus)
@@ -220,16 +189,6 @@ public static class DependencyInjection
                 options.TotalRequestTimeout.Timeout = resilienceConfig.GenerationTimeout; // 10 minutes
             });
 
-        services.AddSingleton<IAccessPolicyRule, TenantAccessPolicyRule>();
-        services.AddSingleton<IAccessPolicyEngine, AccessPolicyEngine>();
-        services.AddSingleton<IThrottleEvaluator, InMemoryThrottleEvaluator>();
-        services.AddSingleton<IBillingConfigurationProvider, SqlBillingConfigurationProvider>();
-        services.AddSingleton<IBillingMeter, UsageBillingMeter>();
-        services.AddSingleton<IBillingUsageSink, SqlBillingUsageSink>();
-        services.AddScoped<ISqlCommandExecutor, SqlCommandExecutor>();
-        services.AddScoped<IAtomGraphWriter, AtomGraphWriter>();
-        services.AddSingleton<IMessageBroker, SqlMessageBroker>();
-        
         // HttpClient factory for services that need HTTP requests
         services.AddHttpClient();
 
@@ -240,9 +199,6 @@ public static class DependencyInjection
         services.AddScoped<IModelCapabilityService, ModelCapabilityService>();
         services.AddScoped<IInferenceMetadataService, InferenceMetadataService>();
 
-        // Event services
-        services.AddScoped<IEventEnricher, EventEnricher>();
-
         services.AddScoped<IAtomRepository, AtomRepository>();
         services.AddScoped<IAtomEmbeddingRepository, AtomEmbeddingRepository>();
         services.AddScoped<ITensorAtomRepository, TensorAtomRepository>();
@@ -250,15 +206,9 @@ public static class DependencyInjection
         services.AddScoped<IAtomRelationRepository, AtomRelationRepository>();
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
         services.AddScoped<IDeduplicationPolicyRepository, DeduplicationPolicyRepository>();
-        // services.AddScoped<IAtomIngestionService, AtomIngestionService>(); // Replaced with SQL CLR version
-        services.AddScoped<IAtomIngestionService, SqlClrAtomIngestionService>(); // Uses intelligent SQL procedures
         services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
-    services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
+        services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
-        services.AddScoped<ISpatialInferenceService, SpatialInferenceService>();
-        services.AddScoped<IStudentModelService, StudentModelService>();
-        services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
-        services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
 
         // Autonomous learning repositories (EF Core replacements for stored procedures)
         services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();
@@ -266,25 +216,6 @@ public static class DependencyInjection
         services.AddScoped<IAutonomousLearningRepository, AutonomousLearningRepository>();
         services.AddScoped<IConceptDiscoveryRepository, ConceptDiscoveryRepository>();
         services.AddScoped<Hartonomous.Data.Repositories.IVectorSearchRepository, VectorSearchRepository>();
-
-        // Search services (extracted from InferenceOrchestrator for SOLID compliance)
-        services.AddScoped<ISemanticSearchService, Services.Search.SemanticSearchService>();
-        services.AddScoped<ISpatialSearchService, Services.Search.SpatialSearchService>();
-
-        // Feature extraction services
-        services.AddScoped<ISemanticFeatureService, Services.Features.SemanticFeatureService>();
-
-        // Inference services
-        services.AddScoped<IEnsembleInferenceService, Services.Inference.EnsembleInferenceService>();
-        services.AddScoped<ITextGenerationService, Services.Inference.TextGenerationService>();
-
-        services.AddScoped<IInferenceService, InferenceOrchestrator>();
-        services.AddScoped<IEmbeddingService, EmbeddingService>();
-
-        services.AddScoped<ModelIngestionProcessor>();
-        services.AddScoped<ModelIngestionOrchestrator>();
-        services.AddScoped<ModelDownloader>();
-        services.AddScoped<InferenceJobProcessor>();
 
         // ============================================================================
         // PIPELINE ARCHITECTURE - MS-Validated Enterprise Patterns
@@ -321,7 +252,6 @@ public static class DependencyInjection
         services.AddScoped<EnsembleInferencePipelineFactory>();
 
         // Inference adapters and repositories
-        services.AddScoped<IInferenceOrchestrator, InferenceOrchestratorAdapter>();
         services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
 
         // Adapter: Allows existing code using IAtomIngestionService to use the pipeline
@@ -329,7 +259,6 @@ public static class DependencyInjection
 
         // Background worker for async atom ingestion
         services.AddHostedService<AtomIngestionWorker>();
-        services.AddHostedService<InferenceJobWorker>();
 
         return services;
     }
