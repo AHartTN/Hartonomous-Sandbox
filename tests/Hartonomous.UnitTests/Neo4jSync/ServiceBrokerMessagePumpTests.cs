@@ -8,7 +8,7 @@ using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Messaging;
 using Hartonomous.Core.Security;
-using Hartonomous.Neo4jSync.Services;
+using Hartonomous.Workers.Neo4jSync.Services;
 using Hartonomous.Testing.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
