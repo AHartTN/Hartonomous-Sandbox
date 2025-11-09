@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -74,41 +75,39 @@ namespace SqlClrFunctions
 
         public SqlString Terminate()
         {
-            var result = new StringBuilder();
-            result.Append("{");
-            
-            result.Append($"\"node_count\":{nodeIds.Count},");
-            
-            // Vector centroid
+            var properties = new Dictionary<string, object>
+            {
+                ["node_count"] = nodeIds.Count
+            };
+
             if (vectors.Count > 0)
             {
                 int dim = vectors[0].Length;
                 float[] centroid = new float[dim];
                 foreach (var vec in vectors)
+                {
                     for (int i = 0; i < dim; i++)
                         centroid[i] += vec[i];
+                }
                 for (int i = 0; i < dim; i++)
                     centroid[i] /= vectors.Count;
 
-                var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-                result.Append("\"centroid\":");
-                result.Append(serializer.SerializeFloatArray(centroid.Take(10).ToArray()));
-                result.Append(",");
+                var centroidSlice = centroid.Length > 10 ? centroid.Take(10).ToArray() : centroid;
+                properties["centroid"] = centroidSlice;
 
-                // Vector diameter (max distance between any two vectors)
                 double maxDist = 0;
                 for (int i = 0; i < vectors.Count; i++)
                 {
                     for (int j = i + 1; j < vectors.Count; j++)
                     {
                         double dist = VectorUtilities.EuclideanDistance(vectors[i], vectors[j]);
-                        if (dist > maxDist) maxDist = dist;
+                        if (dist > maxDist)
+                            maxDist = dist;
                     }
                 }
-                result.Append($"\"diameter\":{maxDist:G6},");
+                properties["diameter"] = maxDist;
             }
 
-            // Spatial extent (bounding box)
             if (spatialPoints.Count > 0)
             {
                 double minX = spatialPoints.Min(p => p.X);
@@ -116,17 +115,19 @@ namespace SqlClrFunctions
                 double minY = spatialPoints.Min(p => p.Y);
                 double maxY = spatialPoints.Max(p => p.Y);
 
-                result.Append($"\"spatial_extent\":{{");
-                result.Append($"\"min_x\":{minX:G6},\"max_x\":{maxX:G6},");
-                result.Append($"\"min_y\":{minY:G6},\"max_y\":{maxY:G6},");
-                result.Append($"\"area\":{(maxX - minX) * (maxY - minY):G6}");
-                result.Append("},");
+                properties["spatial_extent"] = new
+                {
+                    min_x = minX,
+                    max_x = maxX,
+                    min_y = minY,
+                    max_y = maxY,
+                    area = (maxX - minX) * (maxY - minY)
+                };
             }
 
-            result.Append($"\"unique_nodes\":{nodeIds.Distinct().Count()}");
-            result.Append("}");
+            properties["unique_nodes"] = nodeIds.Distinct().Count();
 
-            return new SqlString(result.ToString());
+            return new SqlString(JsonConvert.SerializeObject(properties));
         }
 
         public void Read(BinaryReader r)
@@ -428,16 +429,20 @@ namespace SqlClrFunctions
             // Velocity: drift per second
             double velocity = magnitude / timeDelta;
 
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
+            var driftDirection = driftVector.Length > 10
+                ? driftVector.Take(10).ToArray()
+                : driftVector;
+
             var result = new
             {
                 drift_magnitude = magnitude,
                 velocity,
                 time_span_seconds = timeDelta,
                 snapshots = snapshots.Count,
-                drift_direction = driftVector.Take(10).ToArray()
+                drift_direction = driftDirection
             };
-            return new SqlString(serializer.Serialize(result));
+
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)

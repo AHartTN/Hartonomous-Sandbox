@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -252,9 +253,7 @@ namespace SqlClrFunctions
                 }
             }
 
-            // Use bridge library for proper JSON serialization
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.SerializeFloatArray(forecast));
+            return new SqlString(JsonConvert.SerializeObject(forecast));
         }
 
         public void Read(BinaryReader r)

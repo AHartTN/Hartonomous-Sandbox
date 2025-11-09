@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions

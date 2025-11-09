@@ -4,6 +4,8 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
+using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
 {
@@ -188,19 +190,21 @@ namespace SqlClrFunctions
             // Total variance
             double totalVar = components.Sum(c => c.Variance);
 
-            // Build JSON (return only variance explained, not full eigenvectors due to size)
-            var json = "{" +
-                $"\"num_components\":{k}," +
-                $"\"total_variance\":{totalVar:G9}," +
-                "\"variance_explained\":[" +
-                string.Join(",", components.Select((c, idx) =>
-                    $"{{\"component\":{idx + 1}," +
-                    $"\"variance\":{c.Variance:G9}," +
-                    $"\"variance_ratio\":{(c.Variance / totalVar):G6}}}"
-                )) +
-                "]}";
+            var varianceEntries = components.Select((c, idx) => new
+            {
+                component = idx + 1,
+                variance = c.Variance,
+                variance_ratio = totalVar == 0 ? 0 : c.Variance / totalVar
+            }).ToList();
 
-            return new SqlString(json);
+            var result = new
+            {
+                num_components = k,
+                total_variance = totalVar,
+                variance_explained = varianceEntries
+            };
+
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)
@@ -330,9 +334,13 @@ namespace SqlClrFunctions
                 learningRate: 200.0
             );
 
-            var result = new { projection };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            var projectionRows = projection
+                .Select(row => JsonConvert.SerializeObject(row))
+                .ToList();
+            return new SqlString(JsonConvert.SerializeObject(new
+            {
+                projection = projectionRows
+            }));
         }
 
         public void Read(BinaryReader r)
@@ -483,9 +491,12 @@ namespace SqlClrFunctions
                 }
             }
 
-            var result = new { projected_vectors = projected };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            var result = new
+            {
+                projected_vectors = projected
+            };
+
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)
@@ -517,16 +528,7 @@ namespace SqlClrFunctions
 
         private static float[] ParseVectorJson(string json)
         {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
+            return SqlClrFunctions.Core.VectorUtilities.ParseVectorJson(json);
         }
     }
 }

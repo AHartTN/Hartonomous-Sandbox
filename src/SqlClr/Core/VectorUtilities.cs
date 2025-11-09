@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using Newtonsoft.Json;
 
 namespace SqlClrFunctions.Core;
 
@@ -34,9 +35,7 @@ internal static class VectorUtilities
             if (string.IsNullOrWhiteSpace(json))
                 return null;
 
-            // Use bridge library for proper JSON parsing
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return serializer.ParseFloatArray(json);
+            return JsonConvert.DeserializeObject<float[]>(json);
         }
         catch
         {

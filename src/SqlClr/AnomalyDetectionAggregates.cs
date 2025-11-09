@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -97,8 +98,7 @@ namespace SqlClrFunctions
             double maxDepth = vectors.Count * numTrees;
             var scores = avgPathLengths.Select(d => 1.0 - (d / maxDepth)).Select(s => (float)s).ToArray();
 
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.SerializeFloatArray(scores));
+            return new SqlString(JsonConvert.SerializeObject(scores));
         }
 
         public void Read(BinaryReader r)
@@ -226,8 +226,7 @@ namespace SqlClrFunctions
             }
 
             var scores = lofScores.Select(s => (float)s).ToArray();
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.SerializeFloatArray(scores));
+            return new SqlString(JsonConvert.SerializeObject(scores));
         }
 
         public void Read(BinaryReader r)
@@ -512,9 +511,7 @@ namespace SqlClrFunctions
                 );
             }
 
-            // Use bridge JSON serializer instead of manual concatenation
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            var json = serializer.SerializeFloatArray(distances.Select(d => (float)d).ToArray());
+            var json = JsonConvert.SerializeObject(distances.Select(d => (float)d).ToArray());
             return new SqlString(json);
         }
 

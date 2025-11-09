@@ -360,7 +360,7 @@ namespace Hartonomous.SqlClr
             }
 
             // Load BPE vocabulary and merges
-            var vocabulary = SqlClrFunctions.NaturalLanguage.BpeTokenizer.LoadVocabularyFromJson(vocabJson);
+            var vocabulary = SqlClrFunctions.NaturalLanguage.BpeTokenizer.LoadVocabularyFromJson(conn, vocabJson);
             var merges = SqlClrFunctions.NaturalLanguage.BpeTokenizer.LoadMergesFromText(mergesText);
             
             // Create BPE tokenizer with loaded data

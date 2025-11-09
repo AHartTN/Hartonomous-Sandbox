@@ -40,38 +40,25 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Numerics" />
+    <Reference Include="MathNet.Numerics">
+      <HintPath>$(USERPROFILE)\.nuget\packages\mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.SqlServer.Types">
-      <HintPath>$(NuGetPackageRoot)microsoft.sqlserver.types\160.1000.6\lib\net462\Microsoft.SqlServer.Types.dll</HintPath>
+      <HintPath>$(USERPROFILE)\.nuget\packages\microsoft.sqlserver.types\160.1000.6\lib\net462\Microsoft.SqlServer.Types.dll</HintPath>
     </Reference>
-    <Reference Include="System.Text.Json">
-      <HintPath>$(NuGetPackageRoot)system.text.json\8.0.5\lib\net462\System.Text.Json.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Memory">
-      <HintPath>$(NuGetPackageRoot)system.memory\4.5.5\lib\net461\System.Memory.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Buffers">
-      <HintPath>$(NuGetPackageRoot)system.buffers\4.5.1\lib\net461\System.Buffers.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe">
-      <HintPath>$(NuGetPackageRoot)system.runtime.compilerservices.unsafe\4.5.3\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
-    </Reference>
-    <Reference Include="System.Text.Encodings.Web">
-      <HintPath>$(NuGetPackageRoot)system.text.encodings.web\4.7.2\lib\net461\System.Text.Encodings.Web.dll</HintPath>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(USERPROFILE)\.nuget\packages\newtonsoft.json\13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System.Numerics.Vectors">
-      <HintPath>$(NuGetPackageRoot)system.numerics.vectors\4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
-    </Reference>
-    <Reference Include="MathNet.Numerics">
-      <HintPath>$(NuGetPackageRoot)mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll</HintPath>
+      <HintPath>$(USERPROFILE)\.nuget\packages\system.numerics.vectors\4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
-    <PackageReference Include="System.Memory" Version="4.5.5" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.3" />
-    <PackageReference Include="System.Text.Json" Version="4.7.2" />
-    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+    <!-- ONLY add ONE package: MathNet.Numerics - we know this works -->
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AdvancedVectorAggregates.cs" />
@@ -90,7 +77,6 @@
     <Compile Include="BehavioralAggregates.cs" />
     <Compile Include="ComponentStream.cs" />
     <Compile Include="ConceptDiscovery.cs" />
-    <Compile Include="Contracts\IJsonSerializer.cs" />
     <Compile Include="Contracts\ITensorProvider.cs" />
     <Compile Include="Core\LandmarkProjection.cs" />
     <Compile Include="Core\SqlTensorProvider.cs" />
@@ -103,8 +89,6 @@
     <Compile Include="GraphVectorAggregates.cs" />
     <Compile Include="ImageGeneration.cs" />
     <Compile Include="ImageProcessing.cs" />
-    <Compile Include="JsonProcessing\HypothesisParser.cs" />
-    <Compile Include="JsonProcessing\JsonSerializerImpl.cs" />
     <Compile Include="MachineLearning\MahalanobisDistance.cs" />
     <Compile Include="MachineLearning\MatrixFactorization.cs" />
     <Compile Include="MachineLearning\SVDCompression.cs" />
@@ -126,7 +110,5 @@
     <Compile Include="VectorAggregates.cs" />
     <Compile Include="VectorOperations.cs" />
   </ItemGroup>
-
-
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

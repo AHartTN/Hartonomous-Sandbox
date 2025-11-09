@@ -4,8 +4,7 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
-using SqlClrFunctions.Contracts;
-using SqlClrFunctions.JsonProcessing;
+using System.Data;
 
 namespace SqlClrFunctions
 {
@@ -663,15 +662,12 @@ namespace SqlClrFunctions
                     return;
                 }
 
-                // Parse hypotheses JSON (simplified parsing)
-                var hypotheses = ParseHypothesesJson(hypothesesJson.Value);
-
-                // Process hypotheses in priority order
-                var orderedHypotheses = hypotheses.OrderBy(h => h.Priority).ToList();
-
                 using (var connection = new SqlConnection("context connection=true"))
                 {
                     connection.Open();
+
+                    var hypotheses = ParseHypothesesJson(connection, hypothesesJson.Value);
+                    var orderedHypotheses = hypotheses.OrderBy(h => h.Priority).ToList();
 
                     foreach (var hypothesis in orderedHypotheses)
                     {
@@ -750,25 +746,53 @@ namespace SqlClrFunctions
                 "}")) + "]";
         }
 
-        private static List<Hypothesis> ParseHypothesesJson(string json)
+        private static List<Hypothesis> ParseHypothesesJson(SqlConnection connection, string json)
         {
-            if (string.IsNullOrWhiteSpace(json) || json == "[]") 
-                return new List<Hypothesis>();
+            var hypotheses = new List<Hypothesis>();
 
-            try
-            {
-                // Use bridge library for enterprise-grade JSON parsing
-                var serializer = new JsonSerializerImpl();
-                
-                // Deserialize to simpler local Hypothesis structure
-                var hypotheses = serializer.DeserializeArray<Hypothesis>(json);
+            if (connection == null || string.IsNullOrWhiteSpace(json))
                 return hypotheses;
-            }
-            catch (Exception ex)
+
+            using (var command = connection.CreateCommand())
             {
-                SqlContext.Pipe.Send($"ParseHypothesesJson error: {ex.Message}");
-                return new List<Hypothesis>();
+                command.CommandText = @"
+                    SELECT
+                        HypothesisId,
+                        HypothesisType,
+                        Priority
+                    FROM OPENJSON(@payload)
+                    WITH (
+                        HypothesisId NVARCHAR(256) '$.hypothesisId',
+                        HypothesisType NVARCHAR(128) '$.hypothesisType',
+                        Priority INT '$.priority'
+                    )
+                ";
+
+                var param = command.Parameters.Add("@payload", SqlDbType.NVarChar, -1);
+                param.Value = json;
+
+                using (var reader = command.ExecuteReader())
+                {
+                    while (reader.Read())
+                    {
+                        if (reader.IsDBNull(0))
+                            continue;
+
+                        var hypothesisId = reader.GetString(0);
+                        var hypothesisType = reader.IsDBNull(1) ? "Unknown" : reader.GetString(1);
+                        var priority = reader.IsDBNull(2) ? int.MaxValue : reader.GetInt32(2);
+
+                        hypotheses.Add(new Hypothesis
+                        {
+                            HypothesisId = hypothesisId,
+                            HypothesisType = hypothesisType,
+                            Priority = priority
+                        });
+                    }
+                }
             }
+
+            return hypotheses;
         }
 
         private static (string executedActions, string status) ExecuteIndexOptimization(SqlConnection connection)

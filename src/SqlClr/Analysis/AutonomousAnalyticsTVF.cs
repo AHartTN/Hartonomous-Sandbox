@@ -1,7 +1,10 @@
 using System.Collections;
+using System.Collections.Generic;
 using System.Data.SqlTypes;
+using System.Globalization;
+using System.Linq;
 using Microsoft.SqlServer.Server;
-using SqlClrFunctions.JsonProcessing;
+using Newtonsoft.Json;
 
 namespace SqlClrFunctions.Analysis
 {
@@ -35,8 +38,7 @@ namespace SqlClrFunctions.Analysis
             var analysisResult = systemAnalyzer.PerformComprehensiveAnalysis(targetArea.IsNull ? null : targetArea.Value);
 
             // 4. Serialize the final result object to JSON
-            var jsonSerializer = new JsonSerializerImpl();
-            var jsonResult = jsonSerializer.Serialize(analysisResult);
+            var jsonResult = SerializeAnalysisResult(analysisResult);
 
             // 5. Return the result (which will be processed by FillAnalysisRow)
             yield return jsonResult;
@@ -50,6 +52,58 @@ namespace SqlClrFunctions.Analysis
         public static void FillAnalysisRow(object obj, out SqlString analysisJson)
         {
             analysisJson = new SqlString((string)obj);
+        }
+
+        private static string SerializeAnalysisResult(ComprehensiveAnalysisResult result)
+        {
+            var slowQueries = result.SlowQueries?.Select(SerializeSlowQuery) ?? Enumerable.Empty<string>();
+            var failedTests = result.FailedTests?.Select(SerializeFailedTest) ?? Enumerable.Empty<object>();
+            var costHotspots = result.CostHotspots?.Select(SerializeCostHotspot) ?? Enumerable.Empty<object>();
+
+            return JsonConvert.SerializeObject(new
+            {
+                analysis_type = result.AnalysisType,
+                slow_queries = slowQueries,
+                failed_tests = failedTests,
+                cost_hotspots = costHotspots,
+                target_area = result.TargetArea,
+                analyzed_at = result.AnalyzedAt.ToString("o", CultureInfo.InvariantCulture)
+            });
+        }
+
+        private static object SerializeSlowQuery(SlowQueryInfo query)
+        {
+            return new
+            {
+                query_id = query.QueryId,
+                query_text = query.QueryText,
+                avg_duration_ms = query.AvgDurationMs,
+                execution_count = query.ExecutionCount,
+                total_duration_ms = query.TotalDurationMs
+            };
+        }
+
+        private static object SerializeFailedTest(FailedTestInfo test)
+        {
+            return new
+            {
+                test_suite = test.TestSuite,
+                test_name = test.TestName,
+                failure_count = test.FailureCount,
+                last_error = test.LastError
+            };
+        }
+
+        private static object SerializeCostHotspot(CostHotspotInfo hotspot)
+        {
+            return new
+            {
+                tenant_id = hotspot.TenantId,
+                operation = hotspot.Operation,
+                total_cost = hotspot.TotalCost,
+                request_count = hotspot.RequestCount,
+                avg_cost = hotspot.AvgCost
+            };
         }
     }
 }

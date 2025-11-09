@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -128,10 +129,16 @@ namespace SqlClrFunctions
                 .Select(kvp => itemVectors[kvp.Key])
                 .ToList();
 
-            var recommendations = topItems.Select((vec, idx) => new { rank = idx + 1, vector = vec }).ToArray();
-            var result = new { recommendations };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            var recommendationItems = topItems.Select((vec, idx) => new
+            {
+                rank = idx + 1,
+                vector = vec
+            });
+
+            return new SqlString(JsonConvert.SerializeObject(new
+            {
+                recommendations = recommendationItems
+            }));
         }
 
         public void Read(BinaryReader r)
@@ -270,8 +277,7 @@ namespace SqlClrFunctions
                 preference_diversity = avgVariance,
                 num_items = items.Count
             };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)
@@ -422,18 +428,16 @@ namespace SqlClrFunctions
             }
             double rmse = Math.Sqrt(sumSquaredError / ratings.Count);
 
-            // Use bridge JSON serializer instead of manual concatenation
             var result = new
             {
                 num_users = numUsers,
                 num_items = numItems,
                 num_factors = k,
-                rmse = rmse,
+                rmse,
                 num_ratings = ratings.Count
             };
-            
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)

@@ -1,7 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SqlClrFunctions.JsonProcessing;
+using System.Data;
+using System.Data.SqlClient;
 
 namespace SqlClrFunctions.NaturalLanguage
 {
@@ -177,14 +178,38 @@ namespace SqlClrFunctions.NaturalLanguage
         /// NOTE: This method should be called from SQL CLR context where SqlConnection is available.
         /// Bridge library provides the algorithm; SQL CLR provides the data access.
         /// </summary>
-        public static Dictionary<string, int> LoadVocabularyFromJson(string jsonData)
+        public static Dictionary<string, int> LoadVocabularyFromJson(SqlConnection connection, string jsonData)
         {
-            var vocabulary = new Dictionary<string, int>();
+            if (connection == null)
+                throw new ArgumentNullException(nameof(connection));
 
-            if (!string.IsNullOrEmpty(jsonData))
+            var vocabulary = new Dictionary<string, int>(StringComparer.Ordinal);
+
+            if (!string.IsNullOrWhiteSpace(jsonData))
             {
-                var serializer = new JsonSerializerImpl();
-                vocabulary = serializer.DeserializeObject<Dictionary<string, int>>(jsonData);
+                using (var command = connection.CreateCommand())
+                {
+                    command.CommandText = @"
+                        SELECT [key], TokenId
+                        FROM OPENJSON(@payload)
+                        WITH (TokenId INT '$')
+                        WHERE TokenId IS NOT NULL;
+                    ";
+
+                    var param = command.Parameters.Add("@payload", SqlDbType.NVarChar, -1);
+                    param.Value = jsonData;
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            if (reader.IsDBNull(0) || reader.IsDBNull(1))
+                                continue;
+
+                            vocabulary[reader.GetString(0)] = reader.GetInt32(1);
+                        }
+                    }
+                }
             }
 
             // Fallback: if no vocabulary found, create basic ASCII vocabulary

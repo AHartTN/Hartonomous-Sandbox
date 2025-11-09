@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -81,8 +82,7 @@ namespace SqlClrFunctions
             for (int i = 0; i < dimension; i++)
                 centroid[i] /= vectors.Count;
 
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.SerializeFloatArray(centroid));
+            return new SqlString(JsonConvert.SerializeObject(centroid));
         }
 
         public void Read(BinaryReader r)
@@ -327,8 +327,11 @@ namespace SqlClrFunctions
             if (centroids.Count == 0)
                 return SqlString.Null;
 
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(centroids));
+            var centroidJson = centroids
+                .Select(c => JsonConvert.SerializeObject(c))
+                .ToList();
+
+            return new SqlString(JsonConvert.SerializeObject(centroidJson));
         }
 
         public void Read(BinaryReader r)

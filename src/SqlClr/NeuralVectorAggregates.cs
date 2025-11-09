@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -161,9 +162,7 @@ namespace SqlClrFunctions
                 }
             }
 
-            // Use bridge JSON serializer instead of manual concatenation
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.SerializeFloatArray(output));
+            return new SqlString(JsonConvert.SerializeObject(output));
         }
 
         public void Read(BinaryReader r)
@@ -297,9 +296,7 @@ namespace SqlClrFunctions
                 avgCompressed[j] /= compressed.Length;
             }
 
-            // Use bridge JSON serializer instead of manual concatenation
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.SerializeFloatArray(avgCompressed));
+            return new SqlString(JsonConvert.SerializeObject(avgCompressed));
         }
 
         public void Read(BinaryReader r)

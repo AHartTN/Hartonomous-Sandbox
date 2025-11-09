@@ -5,6 +5,7 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 
 namespace SqlClrFunctions
 {
@@ -602,8 +603,7 @@ ORDER BY ta.ElementCount DESC;
 
             using (var command = connection.CreateCommand())
             {
-                var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-                var embeddingJson = serializer.SerializeFloatArray(attentionOutput);
+                var embeddingJson = JsonConvert.SerializeObject(attentionOutput);
 
                 command.CommandText = @"
 DECLARE @embedding VECTOR(1998) = CAST(@embeddingJson AS VECTOR(1998));

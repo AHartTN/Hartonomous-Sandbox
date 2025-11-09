@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -118,9 +119,14 @@ namespace SqlClrFunctions
                 stddev[i] = (float)Math.Sqrt(variance[i]);
             }
 
-            var result = new { mean, variance, stddev, count };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            var result = new
+            {
+                mean,
+                variance,
+                stddev,
+                count
+            };
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)
@@ -220,8 +226,7 @@ namespace SqlClrFunctions
                     return new SqlString($"POINT ({vectors[0][0]:G9} {vectors[0][1]:G9})");
                 else
                 {
-                    var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-                    return new SqlString(serializer.SerializeFloatArray(vectors[0]));
+                    return new SqlString(JsonConvert.SerializeObject(vectors[0]));
                 }
             }
 
@@ -272,8 +277,7 @@ namespace SqlClrFunctions
                 return new SqlString($"POINT ({estimate[0]:G9} {estimate[1]:G9})");
             else
             {
-                var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-                return new SqlString(serializer.SerializeFloatArray(estimate));
+                return new SqlString(JsonConvert.SerializeObject(estimate));
             }
         }
 
@@ -438,15 +442,13 @@ namespace SqlClrFunctions
                 avgProbs[i] = (float)(probSum / vectors.Count);
             }
 
-            // Use bridge library for proper JSON serialization
             var result = new
             {
                 log_sum_exp = logSumExp,
                 avg_probabilities = avgProbs,
                 count = vectors.Count
             };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)

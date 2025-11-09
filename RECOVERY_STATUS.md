@@ -1,41 +1,11 @@
-# Recovery Status - 2025-11-08 (Updated)
+# Recovery Status - 2025-11-09 (Updated)
 
-## CURRENT BLOCKER: NuGet Package Version Conflicts in SqlClr
+## CLR Dependency Status
 
-### The Problem
-SQL Server CLR requires EXACT assembly version matches. System.Memory.dll and System.Text.Json.dll reference DIFFERENT versions of System.Runtime.CompilerServices.Unsafe:
-
-- **System.Memory 4.5.5** compiled against → Unsafe 4.0.4.1
-- **System.Text.Json 8.0.5** requires → Unsafe 6.0.0.0
-- **System.Text.Encodings.Web 8.0.0** requires → Unsafe 6.0.0.0
-
-SQL Server does NOT support binding redirects or loading multiple versions of the same assembly.
-
-### Verified Facts from NuGet
-- System.Text.Json 4.7.2 requires Unsafe >= 4.7.1
-- System.Text.Json 5.0.2 requires Unsafe >= 5.0.0
-- System.Text.Json 6.0.0+ requires Unsafe >= 6.0.0
-- System.Memory 4.5.5 for .NET Framework 4.6.1 requires Unsafe >= 4.5.3
-
-### Solution Options
-1. **Downgrade System.Text.Json to 4.7.2** and use Unsafe 4.7.1
-2. **Upgrade System.Memory** to a version compatible with Unsafe 6.0.0 (if exists)
-3. **Remove System.Text.Json** and write custom JSON serialization
-
-### Current State
-- SIMD code restored in VectorMath.cs, LandmarkProjection.cs, TSNEProjection.cs, BehavioralAggregates.cs, TransformerInference.cs
-- System.Numerics.Vectors 4.5.0 added and building successfully
-- SqlClrFunctions.dll BUILDS with SIMD optimizations
-- Deployment script fixed for SQL Server 2025 (sys.assembly_types instead of sys.types)
-- Assembly dependency order fixed in deployment script
-
-### What Works
-- Code compiles with SIMD
-- All SIMD implementations restored
-- Build succeeds with warnings only
-
-### What's Broken
-- SQL Server deployment fails due to Unsafe version mismatch
+- ✅ SQL CLR assembly no longer references `System.Text.Json` or the bridge serializer folder; all JSON output now comes from `Core/SimpleJson.cs` with manual string builders.
+- ✅ `SqlClrFunctions.csproj` references only `Microsoft.SqlServer.Types`, `System.Numerics.Vectors`, and `MathNet.Numerics`; all HintPaths align with those three packages.
+- ✅ Every aggregate/function that previously depended on `JsonProcessing.JsonSerializerImpl` now emits JSON via `SimpleJson`, and the deleted `JsonProcessing` folder is no longer required.
+- ✅ `dotnet build Hartonomous.sln` succeeds after the refactor (warnings unchanged from baseline infrastructure projects).
 
 # Recovery Status - 2025-11-08
 
@@ -69,76 +39,67 @@ SQL Server does NOT support binding redirects or loading multiple versions of th
 
 ### ✅ Building Successfully
 - `Hartonomous.Core` - BUILDS
-- `Hartonomous.Infrastructure` - BUILDS
+- `Hartonomous.Infrastructure` - BUILDS (baseline NU1510 warnings remain)
 - `Hartonomous.Api` - BUILDS
 - `Hartonomous.Data` - (assumed, not tested individually)
 - `Hartonomous.Admin` - (assumed, not tested individually)
+- `Hartonomous.Database.Clr` (SqlClrFunctions) - BUILDS on net481 with SimpleJson (no JSON package dependencies)
 
-### ❌ Build Failures
+### ⚠️ Pending Validation
 
-#### SqlClr (.NET Framework 4.8.1)
-**Errors**:
-1. `System.Text.Json` namespace not found in `JsonProcessing/JsonSerializerImpl.cs`
-   - Package: `System.Text.Json` v8.0.5 listed in csproj
-   - Issue: .NET Framework 4.8.1 NuGet restore for old-style csproj
-
-2. `MathNet.Numerics` not found in MachineLearning/*.cs files
-   - Package: `MathNet.Numerics` v5.0.0 listed in csproj
-   - Issue: Same as above
-
-**Fix Required**:
-```bash
-# Run in Visual Studio or:
-nuget restore src/SqlClr/SqlClrFunctions.csproj
-# OR
-dotnet restore src/SqlClr/SqlClrFunctions.csproj -p:TargetFramework=net481
-```
-
-#### Neo4jSync / CesConsumer
-**Status**: Azure App Config calls commented out but not tested if they build without it.
+- Neo4jSync / CesConsumer: Azure App Config remains disabled; no fresh build/run validation executed this cycle.
 
 ## What Remains
 
-### Immediate (Build Fixes)
-1. **Restore SqlClr NuGet packages** for .NET Framework 4.8.1
-   - System.Text.Json 8.0.5
-   - MathNet.Numerics 5.0.0
-   - May need Visual Studio or full .NET Framework SDK
+### Database Table Status
+
+- [x] Table scripts created for Phase 1 (`sql/tables/dbo.*` additions for inference tracking, embeddings, model structure, weights, spatial landmarks, token vocabulary, pending actions).
+- [ ] Execute the scripts against Hartonomous database and verify object presence.
+
+### Immediate (Deployment & Validation)
+
+1. **Deploy refreshed SqlClr assembly** to SQL Server (use `scripts/deploy/deploy-clr-secure.ps1` or direct `CREATE ASSEMBLY`) now that SimpleJson conversion is complete.
+2. **Run on-database smoke tests** to confirm JSON outputs from aggregates/TVFs match expectations (e.g., `SELECT dbo.VectorCentroid(...);`, `SELECT * FROM dbo.fn_clr_AnalyzeSystemState()`).
+3. **Re-enable targeted Neo4jSync/CesConsumer builds** once replacement worker strategy is ready or document interim plan.
 
 ### Short-term (Refactoring Completion)
-Per `docs/ARCHITECTURAL_AUDIT.md` and `docs/SOLID_DRY_REFACTORING_SUMMARY.md`:
 
-1. **Consolidate console apps into Worker project**
-   - Create: `src/Hartonomous.Worker/` with multiple `BackgroundService` implementations
-   - Migrate: CesConsumer → CesConsumerWorker
-   - Migrate: Neo4jSync → Neo4jSyncWorker
-   - Migrate: Hartonomous.Admin → AdminWorker
-   - Delete: Individual console app projects
+Per root recovery directives:
 
-2. **Merge Hartonomous.Data into Infrastructure**
-   - Move: EF Core DbContext → `Infrastructure/Data/`
-   - Organize: `Infrastructure/Repositories/EfCore/`, `Infrastructure/Repositories/Dapper/`
-   - Delete: `Hartonomous.Data` project
-   - Eliminate: Duplicate repository implementations
+- **Consolidate console apps into Worker project**
+  - Create: `src/Hartonomous.Worker/` with multiple `BackgroundService` implementations
+  - Migrate: CesConsumer → CesConsumerWorker
+  - Migrate: Neo4jSync → Neo4jSyncWorker
+  - Migrate: Hartonomous.Admin → AdminWorker
+  - Delete: Individual console app projects
 
-3. **Split multi-class files** (50+ files)
-   - `GGUFParser.cs` - 5 classes → split into `ModelFormats/GGUF/` folder
-   - `IConceptDiscoveryRepository.cs` - 7 classes → split DTOs into Models/
-   - `OodaEvents.cs` - 4 events → individual files
-   - See: `docs/REFACTORING_PLAN.md` lines 26-299 for complete list
+- **Merge Hartonomous.Data into Infrastructure**
+  - Move: EF Core DbContext → `Infrastructure/Data/`
+  - Organize: `Infrastructure/Repositories/EfCore/`, `Infrastructure/Repositories/Dapper/`
+  - Delete: `Hartonomous.Data` project
+  - Eliminate: Duplicate repository implementations
 
-4. **Complete generic consolidation**
-   - Event handlers using `EventHandlerBase<TEvent>`
-   - Cache warming using strategy pattern
-   - Embedding modality using `IModalityEmbedder<TInput>`
+- **Split multi-class files** (50+ files)
+  - `GGUFParser.cs` - 5 classes → split into `ModelFormats/GGUF/` folder
+  - `IConceptDiscoveryRepository.cs` - 7 classes → split DTOs into Models/
+  - `OodaEvents.cs` - 4 events → individual files
+  - Reference: `INCOMPLETE_WORK_CATALOG.md` section "Multi-Class File Splits" for the authoritative list
+
+- **Complete generic consolidation**
+  - Event handlers using `EventHandlerBase<TEvent>`
+  - Cache warming using strategy pattern
+  - Embedding modality using `IModalityEmbedder<TInput>`
 
 ## The Sabotage Summary
 
 ### What Commit cbb980c Deleted (68 files)
+
 **API DTOs** (19 files):
+
 - Analytics, Autonomy, Billing, Bulk, Feedback, Generation, Graph, Inference, Models, Operations, Provenance, Search
 
 **Infrastructure Services** (49 files):
+
 - All Billing: UsageBillingMeter, SqlBillingConfigurationProvider, SqlBillingUsageSink
 - All Caching: CacheInvalidationService, DistributedCacheService, CacheWarmingJobProcessor
 - All Search: SemanticSearchService, SpatialSearchService, SemanticFeatureService
@@ -152,6 +113,7 @@ Per `docs/ARCHITECTURAL_AUDIT.md` and `docs/SOLID_DRY_REFACTORING_SUMMARY.md`:
 **All restored** in commit daafee6.
 
 ### What Was SUPPOSED To Happen
+
 1. Create new split/reorganized files in proper structure
 2. **Add them to .csproj files**
 3. **Verify builds**
@@ -160,6 +122,7 @@ Per `docs/ARCHITECTURAL_AUDIT.md` and `docs/SOLID_DRY_REFACTORING_SUMMARY.md`:
 6. Commit after each small change
 
 ### What ACTUALLY Happened
+
 1. Created 178+ new files in commit 8d90299
 2. **Never added to .csproj** (orphaned on disk)
 3. **Never tested builds**
@@ -171,6 +134,7 @@ Per `docs/ARCHITECTURAL_AUDIT.md` and `docs/SOLID_DRY_REFACTORING_SUMMARY.md`:
 ## Git State
 
 **Modified** (5 files):
+
 - `Hartonomous.sln`
 - `src/CesConsumer/Program.cs`
 - `src/Neo4jSync/Program.cs`
@@ -178,24 +142,21 @@ Per `docs/ARCHITECTURAL_AUDIT.md` and `docs/SOLID_DRY_REFACTORING_SUMMARY.md`:
 - `src/SqlClr/Core/SqlTensorProvider.cs`
 
 **Deleted** (52 files):
+
 - Entire `src/ModelIngestion/` directory
 
 **Not committed yet** - Ready for commit when build verified.
 
 ## Next Steps
 
-1. **Fix SqlClr NuGet restore** (requires Windows/.NET Framework tooling)
-2. **Commit current changes**: "Fix: Remove Sql.Bridge references, delete ModelIngestion project, disable Azure App Config"
-3. **Continue refactoring per REFACTORING_PLAN.md** - but this time:
-   - One file at a time
-   - Add to .csproj immediately
-   - Build after each change
-   - Never delete until replacement works
-   - Commit frequently
+1. **Package & deploy SqlClr** after final verification (PowerShell scripts ready under `scripts/deploy`).
+2. **Document SQL validation results** back in this file after deployment succeeds.
+3. **Execute PHASE 1 table creation** from `START_TO_FINISH_RECOVERY.md` to unblock downstream execution paths.
 
 ## System Context
 
 **What This Is**: Hartonomous - AGI in SQL Server
+
 - Neural network weights stored as GEOMETRY spatial data
 - Inference via SQL CLR aggregates (.NET Framework 4.8.1)
 - Autonomous OODA loop via Service Broker

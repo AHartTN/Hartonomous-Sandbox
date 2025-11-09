@@ -4,6 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 using SqlClrFunctions.Core;
 
 namespace SqlClrFunctions
@@ -582,7 +583,7 @@ namespace SqlClrFunctions
             }
             diversity = Math.Sqrt(diversity / (consensusCluster.Members.Count * dimension));
 
-            var result = new
+            var resultJson = new
             {
                 consensus_answer = consensusAnswer,
                 agreement_ratio = agreementRatio,
@@ -592,8 +593,7 @@ namespace SqlClrFunctions
                 answer_diversity = diversity,
                 num_clusters = clusters.Count
             };
-            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
-            return new SqlString(serializer.Serialize(result));
+            return new SqlString(JsonConvert.SerializeObject(resultJson));
         }
 
         public void Read(BinaryReader r)
