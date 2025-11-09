@@ -13,9 +13,13 @@
     <ProjectReference Include="..\..\src\Hartonomous.Core\Hartonomous.Core.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Data\Hartonomous.Data.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\ModelIngestion\ModelIngestion.csproj" />
     <ProjectReference Include="..\..\src\Neo4jSync\Neo4jSync.csproj" />
     <ProjectReference Include="..\..\src\SqlClr\SqlClrFunctions.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Exclude ModelIngestion tests - project was deleted -->
+    <Compile Remove="ModelIngestion\**\*.cs" />
   </ItemGroup>
 
 </Project>

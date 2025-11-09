@@ -13,7 +13,6 @@
     <ProjectReference Include="..\..\src\Hartonomous.Data\Hartonomous.Data.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Shared.Contracts\Hartonomous.Shared.Contracts.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
-    <ProjectReference Include="..\..\src\ModelIngestion\ModelIngestion.csproj" />
   </ItemGroup>
 
   <ItemGroup>
