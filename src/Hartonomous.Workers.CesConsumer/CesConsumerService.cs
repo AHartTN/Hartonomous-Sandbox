@@ -1,4 +1,5 @@
 using CesConsumer.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -12,14 +13,17 @@ namespace CesConsumer;
 /// </summary>
 public class CesConsumerService : IHostedService
 {
-    private readonly CdcEventProcessor _processor;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<CesConsumerService> _logger;
     private CancellationTokenSource? _cts;
     private Task? _processingTask;
+    private AsyncServiceScope _scope;
+    private bool _scopeCreated;
+    private CdcEventProcessor? _processor;
 
-    public CesConsumerService(CdcEventProcessor processor, ILogger<CesConsumerService> logger)
+    public CesConsumerService(IServiceScopeFactory scopeFactory, ILogger<CesConsumerService> logger)
     {
-        _processor = processor;
+        _scopeFactory = scopeFactory ?? throw new ArgumentNullException(nameof(scopeFactory));
         _logger = logger;
     }
 
@@ -28,6 +32,9 @@ public class CesConsumerService : IHostedService
         _logger.LogInformation("Starting CES Consumer Service");
 
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _scope = _scopeFactory.CreateAsyncScope();
+        _scopeCreated = true;
+        _processor = _scope.ServiceProvider.GetRequiredService<CdcEventProcessor>();
         _processingTask = _processor.StartAsync(_cts.Token);
 
         return Task.CompletedTask;
@@ -46,7 +53,7 @@ public class CesConsumerService : IHostedService
         {
             try
             {
-                await _processingTask;
+                await _processingTask.WaitAsync(cancellationToken);
             }
             catch (OperationCanceledException)
             {
@@ -57,5 +64,14 @@ public class CesConsumerService : IHostedService
                 _logger.LogError(ex, "Error during processor shutdown");
             }
         }
+
+        if (_scopeCreated)
+        {
+            await _scope.DisposeAsync();
+            _scopeCreated = false;
+            _processor = null;
+        }
+
+        _cts?.Dispose();
     }
 }

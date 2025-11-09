@@ -63,7 +63,7 @@ class Program
                     _ => new CdcEventMapper());
 
                 // Register CDC event processor
-                services.AddSingleton<CdcEventProcessor>();
+                services.AddScoped<CdcEventProcessor>();
 
                 // Register hosted service
                 services.AddHostedService<CesConsumerService>();

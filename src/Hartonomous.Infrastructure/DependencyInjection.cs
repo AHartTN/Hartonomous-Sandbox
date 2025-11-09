@@ -253,12 +253,13 @@ public static class DependencyInjection
         // services.AddScoped<IAtomIngestionService, AtomIngestionService>(); // Replaced with SQL CLR version
         services.AddScoped<IAtomIngestionService, SqlClrAtomIngestionService>(); // Uses intelligent SQL procedures
         services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
-    services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
+        services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<ISpatialInferenceService, SpatialInferenceService>();
         services.AddScoped<IStudentModelService, StudentModelService>();
         services.AddScoped<IModelDiscoveryService, ModelDiscoveryService>();
         services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
+        services.AddScoped<ICdcRepository, CdcRepository>();
 
         // Autonomous learning repositories (EF Core replacements for stored procedures)
         services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();

@@ -25,8 +25,20 @@ public class SqlClrAtomIngestionService : IAtomIngestionService
         IConfiguration configuration,
         ILogger<SqlClrAtomIngestionService> logger)
     {
-        _connectionString = configuration.GetConnectionString("DefaultConnection")
-            ?? throw new ArgumentNullException("DefaultConnection connection string not found");
+        if (configuration == null)
+        {
+            throw new ArgumentNullException(nameof(configuration));
+        }
+
+        var connectionString = configuration.GetConnectionString("HartonomousDb")
+            ?? configuration.GetConnectionString("DefaultConnection");
+
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new InvalidOperationException("Connection string 'HartonomousDb' (or fallback 'DefaultConnection') not configured.");
+        }
+
+        _connectionString = connectionString;
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 

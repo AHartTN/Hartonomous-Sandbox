@@ -331,49 +331,58 @@ builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var environment = sp.GetRequiredService<IWebHostEnvironment>();
-    var accountName = config["AzureStorage:AccountName"];
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AzureStorage");
+
+    var connectionString = config["AzureStorage:ConnectionString"];
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        logger.LogInformation("Initializing BlobServiceClient via connection string");
+        return new BlobServiceClient(connectionString);
+    }
+
     var blobEndpoint = config["AzureStorage:BlobEndpoint"];
-    
-    // Use environment-aware credential
-    TokenCredential credential;
-    if (environment.IsProduction() || environment.IsStaging())
+    if (!string.IsNullOrWhiteSpace(blobEndpoint))
     {
-        credential = new DefaultAzureCredential();
+        logger.LogInformation("Initializing BlobServiceClient using endpoint {Endpoint}", blobEndpoint);
+        return new BlobServiceClient(new Uri(blobEndpoint), azureCredential);
     }
-    else
+
+    if (environment.IsDevelopment() || environment.EnvironmentName == "Test")
     {
-        credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
-        {
-            ExcludeManagedIdentityCredential = true,
-            ExcludeWorkloadIdentityCredential = true
-        });
+        logger.LogWarning("Azure storage configuration missing; defaulting to development storage emulator");
+        return new BlobServiceClient("UseDevelopmentStorage=true");
     }
-    
-    return new BlobServiceClient(new Uri(blobEndpoint!), credential);
+
+    throw new InvalidOperationException("Azure storage configuration is missing. Configure 'AzureStorage:ConnectionString' or 'AzureStorage:BlobEndpoint'.");
 });
 
 builder.Services.AddSingleton(sp =>
 {
     var config = sp.GetRequiredService<IConfiguration>();
     var environment = sp.GetRequiredService<IWebHostEnvironment>();
+    var logger = sp.GetRequiredService<ILoggerFactory>().CreateLogger("AzureStorageQueues");
+
+    var connectionString = config["AzureStorage:ConnectionString"];
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        logger.LogInformation("Initializing QueueServiceClient via connection string");
+        return new QueueServiceClient(connectionString);
+    }
+
     var queueEndpoint = config["AzureStorage:QueueEndpoint"];
-    
-    // Use environment-aware credential
-    TokenCredential credential;
-    if (environment.IsProduction() || environment.IsStaging())
+    if (!string.IsNullOrWhiteSpace(queueEndpoint))
     {
-        credential = new DefaultAzureCredential();
+        logger.LogInformation("Initializing QueueServiceClient using endpoint {Endpoint}", queueEndpoint);
+        return new QueueServiceClient(new Uri(queueEndpoint), azureCredential);
     }
-    else
+
+    if (environment.IsDevelopment() || environment.EnvironmentName == "Test")
     {
-        credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
-        {
-            ExcludeManagedIdentityCredential = true,
-            ExcludeWorkloadIdentityCredential = true
-        });
+        logger.LogWarning("Azure queue storage configuration missing; defaulting to development storage emulator");
+        return new QueueServiceClient("UseDevelopmentStorage=true");
     }
-    
-    return new QueueServiceClient(new Uri(queueEndpoint!), credential);
+
+    throw new InvalidOperationException("Azure queue storage configuration is missing. Configure 'AzureStorage:ConnectionString' or 'AzureStorage:QueueEndpoint'.");
 });
 
 // Neo4j Driver
