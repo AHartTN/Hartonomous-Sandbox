@@ -1,13 +1,12 @@
 using System;
 using System.Linq;
-using SqlClrFunctions.Core;
+using System.Numerics;
 
 namespace SqlClrFunctions.MachineLearning
 {
     /// <summary>
     /// Proper t-SNE implementation with gradient descent on KL divergence.
     /// REPLACES: DimensionalityReductionAggregates.cs:313-350 (fake "simplified t-SNE" that was actually random projection)
-    /// SQL CLR does not support SIMD, so all operations use simple float[] loops.
     /// </summary>
     public class TSNEProjection
     {
@@ -293,8 +292,27 @@ namespace SqlClrFunctions.MachineLearning
 
         private float EuclideanDistance(float[] a, float[] b)
         {
-            // Delegate to VectorMath - SQL CLR does not support SIMD
-            return VectorMath.EuclideanDistance(a, b);
+            float sumSquares = 0;
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+            int length = a.Length;
+
+            // Process in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v1 = new Vector<float>(a, i);
+                var v2 = new Vector<float>(b, i);
+                var diff = v1 - v2;
+                sumSquares += Vector.Dot(diff, diff);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
+            {
+                float diff = a[i] - b[i];
+                sumSquares += diff * diff;
+            }
+            return (float)Math.Sqrt(sumSquares);
         }
     }
 }

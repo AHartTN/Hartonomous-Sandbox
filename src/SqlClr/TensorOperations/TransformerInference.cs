@@ -57,16 +57,11 @@ namespace SqlClrFunctions.TensorOperations
 
             var attended = MultiHeadAttention(inputs, layerPrefix, embeddingDim, numHeads);
             var residual1 = inputs.Add(attended);
-            // LayerNorm NOT implemented in SQL CLR
-            // Reason: ~1000 ops/token * 12 layers = 12K ops/sequence
-            // Pure managed code performance insufficient for this workload
-            // Use external API (Python + PyTorch/ONNX) for full transformer inference
-            // SQL CLR best suited for lightweight ops: dot product, aggregations, spatial
-            // See: docs/SQL_CLR_RESEARCH_FINDINGS.md FINDING 21-26
+            // TODO: Add LayerNorm
 
             var mlpOutput = MLP(residual1, layerPrefix, embeddingDim);
             var residual2 = residual1.Add(mlpOutput);
-            // Second LayerNorm also omitted - see comment above
+            // TODO: Add second LayerNorm
 
             return residual2;
         }
@@ -121,25 +116,8 @@ namespace SqlClrFunctions.TensorOperations
 
         private Matrix<float> Softmax(Matrix<float> matrix)
         {
-            // MathNet.Numerics doesn't have RowMaximums in older versions
-            // Compute manually: for each row, find the maximum value
-            int rowCount = matrix.RowCount;
-            int colCount = matrix.ColumnCount;
-            var maxVector = Vector<float>.Build.Dense(rowCount);
-
-            for (int row = 0; row < rowCount; row++)
-            {
-                float maxVal = matrix[row, 0];
-                for (int col = 1; col < colCount; col++)
-                {
-                    if (matrix[row, col] > maxVal)
-                        maxVal = matrix[row, col];
-                }
-                maxVector[row] = maxVal;
-            }
-
-            var maxMatrix = maxVector.ToColumnMatrix();
-            var exp = (matrix - maxMatrix).PointwiseExp();
+            var max = matrix.RowMaximums().ToColumnMatrix();
+            var exp = (matrix - max).PointwiseExp();
             var sum = exp.RowSums().ToColumnMatrix();
             return exp.PointwiseDivide(sum);
         }
