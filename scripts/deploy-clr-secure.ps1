@@ -49,8 +49,8 @@ Write-Host "Security:     sys.sp_add_trusted_assembly (TRUSTWORTHY OFF)`n"
 # Define assemblies in dependency order (dependencies first)
 $assemblies = @(
     @{ Name = "System.Runtime.CompilerServices.Unsafe"; Required = $true },
-    @{ Name = "System.Memory"; Required = $true },
     @{ Name = "System.Numerics.Vectors"; Required = $true },
+    @{ Name = "System.Memory"; Required = $true },
     @{ Name = "System.Text.Json"; Required = $true },
     @{ Name = "MathNet.Numerics"; Required = $true },
     @{ Name = "SqlClrFunctions"; Required = $true }
@@ -131,13 +131,13 @@ FROM sys.objects o
 INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
 INNER JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
 WHERE a.name = 'SqlClrFunctions' AND o.type IN ('AF', 'FN', 'FS', 'FT', 'IF', 'TF');
-EXEC sp_executesql @dropSql;
+IF @dropSql != '' EXEC sp_executesql @dropSql;
 
 SET @dropSql = '';
 SELECT @dropSql += 'DROP TYPE ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
-FROM sys.types
-WHERE is_assembly_type = 1 AND assembly_id = (SELECT assembly_id FROM sys.assemblies WHERE name = 'SqlClrFunctions');
-EXEC sp_executesql @dropSql;
+FROM sys.assembly_types
+WHERE assembly_id = (SELECT assembly_id FROM sys.assemblies WHERE name = 'SqlClrFunctions');
+IF @dropSql != '' EXEC sp_executesql @dropSql;
 GO
 
 PRINT 'Dropping existing assemblies in reverse dependency order...';
@@ -149,6 +149,7 @@ $reversedAssemblies = $assemblies | ForEach-Object { $_.Name } | Sort-Object -De
 foreach ($assemblyName in $reversedAssemblies) {
     if (-not $assemblyData.ContainsKey($assemblyName)) { continue }
     
+    $sql += "`n"
     $sql += @"
 IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName')
 BEGIN
@@ -180,6 +181,7 @@ foreach ($assemblyName in ($assemblies | ForEach-Object { $_.Name })) {
     
     $data = $assemblyData[$assemblyName]
     
+    $sql += "`n"
     $sql += @"
 
 -- Add $assemblyName to trusted assembly list

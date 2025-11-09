@@ -1,17 +1,18 @@
 using System;
+using System.Numerics;
 
 namespace SqlClrFunctions.Core
 {
     /// <summary>
-    /// Provides a centralized implementation of common vector mathematical operations.
-    /// SQL CLR does not support SIMD (System.Numerics.Vector), so all operations use simple float[] loops.
+    /// Provides a centralized, high-performance implementation of common vector mathematical operations,
+    /// accelerated with SIMD (Single Instruction, Multiple Data) using System.Numerics.Vectors.
     /// This class adheres to the DRY principle by consolidating logic previously duplicated
     /// across multiple classes.
     /// </summary>
     public static class VectorMath
     {
         /// <summary>
-        /// Computes the dot product of two vectors.
+        /// Computes the dot product of two vectors, accelerated with SIMD.
         /// </summary>
         /// <param name="a">The first vector.</param>
         /// <param name="b">The second vector.</param>
@@ -22,7 +23,20 @@ namespace SqlClrFunctions.Core
                 throw new ArgumentException("Vectors must have the same dimension");
 
             float result = 0;
-            for (int i = 0; i < a.Length; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+            int length = a.Length;
+
+            // Process vectors in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v1 = new Vector<float>(a, i);
+                var v2 = new Vector<float>(b, i);
+                result += Vector.Dot(v1, v2);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
             {
                 result += a[i] * b[i];
             }
@@ -30,14 +44,26 @@ namespace SqlClrFunctions.Core
         }
 
         /// <summary>
-        /// Computes the L2 Norm (or magnitude) of a vector.
+        /// Computes the L2 Norm (or magnitude) of a vector, accelerated with SIMD.
         /// </summary>
         /// <param name="a">The vector.</param>
         /// <returns>The L2 Norm of the vector.</returns>
         public static float Norm(float[] a)
         {
             float sumSquares = 0;
-            for (int i = 0; i < a.Length; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+            int length = a.Length;
+
+            // Process in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<float>(a, i);
+                sumSquares += Vector.Dot(v, v);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
             {
                 sumSquares += a[i] * a[i];
             }
@@ -115,6 +141,39 @@ namespace SqlClrFunctions.Core
             }
 
             return centroid;
+        }
+
+        /// <summary>
+        /// Computes the centroid (mean vector) of a collection of vectors and stores it in an output parameter.
+        /// </summary>
+        /// <param name="vectors">The collection of vectors.</param>
+        /// <param name="centroid">Output array to store the centroid.</param>
+        public static void ComputeCentroid(float[][] vectors, float[] centroid)
+        {
+            if (vectors == null || vectors.Length == 0)
+                throw new ArgumentException("Vectors array cannot be null or empty");
+
+            int dimensions = vectors[0].Length;
+            if (centroid.Length != dimensions)
+                throw new ArgumentException("Centroid array must match vector dimensions");
+
+            Array.Clear(centroid, 0, centroid.Length);
+
+            foreach (var vector in vectors)
+            {
+                if (vector.Length != dimensions)
+                    throw new ArgumentException("All vectors must have the same dimension");
+
+                for (int i = 0; i < dimensions; i++)
+                {
+                    centroid[i] += vector[i];
+                }
+            }
+
+            for (int i = 0; i < dimensions; i++)
+            {
+                centroid[i] /= vectors.Length;
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using System.Numerics;
 
 namespace SqlClrFunctions.Core
 {
@@ -6,7 +7,6 @@ namespace SqlClrFunctions.Core
     /// Performs a landmark-based projection to reduce high-dimensional vectors to 3D space.
     /// This is a fast, stateless dimensionality reduction technique conceptually similar to
     /// the user's intent of "Trilateration Projection".
-    /// SQL CLR does not support SIMD, so all operations use simple float[] loops.
     /// </summary>
     public static class LandmarkProjection
     {
@@ -62,14 +62,25 @@ namespace SqlClrFunctions.Core
         private static float[] CreateRandomUnitVector(Random rand, int dimensions)
         {
             var vector = new float[dimensions];
-            for (int i = 0; i < dimensions; i++)
+            int i;
+            for (i = 0; i < dimensions; i++)
             {
                 vector[i] = (float)(rand.NextDouble() * 2.0 - 1.0);
             }
 
-            // Calculate sum of squares
             float sumSquares = 0;
-            for (int i = 0; i < dimensions; i++)
+            i = 0;
+            int vectorSize = Vector<float>.Count;
+
+            // Calculate sum of squares using SIMD
+            for (; i <= dimensions - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<float>(vector, i);
+                sumSquares += Vector.Dot(v, v);
+            }
+
+            // Process remaining elements
+            for (; i < dimensions; i++)
             {
                 float value = vector[i];
                 sumSquares += value * value;
@@ -79,9 +90,18 @@ namespace SqlClrFunctions.Core
             if (mag > 0)
             {
                 var scale = 1.0f / mag;
+                i = 0;
 
-                // Scale the vector
-                for (int i = 0; i < dimensions; i++)
+                // Scale the vector using SIMD
+                var scaleVector = new Vector<float>(scale);
+                for (; i <= dimensions - vectorSize; i += vectorSize)
+                {
+                    var v = new Vector<float>(vector, i);
+                    (v * scaleVector).CopyTo(vector, i);
+                }
+
+                // Process remaining elements
+                for (; i < dimensions; i++)
                 {
                     vector[i] *= scale;
                 }
@@ -103,11 +123,20 @@ namespace SqlClrFunctions.Core
 
         private static void Normalize(float[] vector)
         {
+            float sumSquares = 0;
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
             int length = vector.Length;
 
-            // Calculate sum of squares
-            float sumSquares = 0;
-            for (int i = 0; i < length; i++)
+            // Calculate sum of squares using SIMD
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v = new Vector<float>(vector, i);
+                sumSquares += Vector.Dot(v, v);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
             {
                 float value = vector[i];
                 sumSquares += value * value;
@@ -117,9 +146,18 @@ namespace SqlClrFunctions.Core
             if (mag > 0)
             {
                 var scale = 1.0f / mag;
+                i = 0;
 
-                // Scale the vector
-                for (int i = 0; i < length; i++)
+                // Scale the vector using SIMD
+                var scaleVector = new Vector<float>(scale);
+                for (; i <= length - vectorSize; i += vectorSize)
+                {
+                    var v = new Vector<float>(vector, i);
+                    (v * scaleVector).CopyTo(vector, i);
+                }
+
+                // Process remaining elements
+                for (; i < length; i++)
                 {
                     vector[i] *= scale;
                 }

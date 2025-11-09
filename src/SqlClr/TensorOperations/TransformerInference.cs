@@ -116,10 +116,47 @@ namespace SqlClrFunctions.TensorOperations
 
         private Matrix<float> Softmax(Matrix<float> matrix)
         {
-            var max = matrix.RowMaximums().ToColumnMatrix();
-            var exp = (matrix - max).PointwiseExp();
-            var sum = exp.RowSums().ToColumnMatrix();
-            return exp.PointwiseDivide(sum);
+            // Compute row-wise maximum for numerical stability
+            var maxValues = new float[matrix.RowCount];
+            for (int row = 0; row < matrix.RowCount; row++)
+            {
+                float max = float.NegativeInfinity;
+                for (int col = 0; col < matrix.ColumnCount; col++)
+                {
+                    if (matrix[row, col] > max)
+                        max = matrix[row, col];
+                }
+                maxValues[row] = max;
+            }
+
+            // Compute exp(x - max) and row sums
+            var result = matrix.Clone();
+            var rowSums = new float[matrix.RowCount];
+            for (int row = 0; row < matrix.RowCount; row++)
+            {
+                float sum = 0;
+                for (int col = 0; col < matrix.ColumnCount; col++)
+                {
+                    float exp = (float)Math.Exp(matrix[row, col] - maxValues[row]);
+                    result[row, col] = exp;
+                    sum += exp;
+                }
+                rowSums[row] = sum;
+            }
+
+            // Normalize by row sums
+            for (int row = 0; row < matrix.RowCount; row++)
+            {
+                if (rowSums[row] > 0)
+                {
+                    for (int col = 0; col < matrix.ColumnCount; col++)
+                    {
+                        result[row, col] /= rowSums[row];
+                    }
+                }
+            }
+
+            return result;
         }
 
         private Matrix<float> MLP(Matrix<float> inputs, string layerPrefix, int embeddingDim)

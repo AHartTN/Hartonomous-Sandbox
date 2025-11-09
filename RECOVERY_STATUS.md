@@ -1,3 +1,42 @@
+# Recovery Status - 2025-11-08 (Updated)
+
+## CURRENT BLOCKER: NuGet Package Version Conflicts in SqlClr
+
+### The Problem
+SQL Server CLR requires EXACT assembly version matches. System.Memory.dll and System.Text.Json.dll reference DIFFERENT versions of System.Runtime.CompilerServices.Unsafe:
+
+- **System.Memory 4.5.5** compiled against → Unsafe 4.0.4.1
+- **System.Text.Json 8.0.5** requires → Unsafe 6.0.0.0
+- **System.Text.Encodings.Web 8.0.0** requires → Unsafe 6.0.0.0
+
+SQL Server does NOT support binding redirects or loading multiple versions of the same assembly.
+
+### Verified Facts from NuGet
+- System.Text.Json 4.7.2 requires Unsafe >= 4.7.1
+- System.Text.Json 5.0.2 requires Unsafe >= 5.0.0
+- System.Text.Json 6.0.0+ requires Unsafe >= 6.0.0
+- System.Memory 4.5.5 for .NET Framework 4.6.1 requires Unsafe >= 4.5.3
+
+### Solution Options
+1. **Downgrade System.Text.Json to 4.7.2** and use Unsafe 4.7.1
+2. **Upgrade System.Memory** to a version compatible with Unsafe 6.0.0 (if exists)
+3. **Remove System.Text.Json** and write custom JSON serialization
+
+### Current State
+- SIMD code restored in VectorMath.cs, LandmarkProjection.cs, TSNEProjection.cs, BehavioralAggregates.cs, TransformerInference.cs
+- System.Numerics.Vectors 4.5.0 added and building successfully
+- SqlClrFunctions.dll BUILDS with SIMD optimizations
+- Deployment script fixed for SQL Server 2025 (sys.assembly_types instead of sys.types)
+- Assembly dependency order fixed in deployment script
+
+### What Works
+- Code compiles with SIMD
+- All SIMD implementations restored
+- Build succeeds with warnings only
+
+### What's Broken
+- SQL Server deployment fails due to Unsafe version mismatch
+
 # Recovery Status - 2025-11-08
 
 ## What Was Done
