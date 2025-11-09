@@ -57,11 +57,16 @@ namespace SqlClrFunctions.TensorOperations
 
             var attended = MultiHeadAttention(inputs, layerPrefix, embeddingDim, numHeads);
             var residual1 = inputs.Add(attended);
-            // TODO: Add LayerNorm
+            // LayerNorm NOT implemented in SQL CLR
+            // Reason: ~1000 ops/token * 12 layers = 12K ops/sequence
+            // Pure managed code performance insufficient for this workload
+            // Use external API (Python + PyTorch/ONNX) for full transformer inference
+            // SQL CLR best suited for lightweight ops: dot product, aggregations, spatial
+            // See: docs/SQL_CLR_RESEARCH_FINDINGS.md FINDING 21-26
 
             var mlpOutput = MLP(residual1, layerPrefix, embeddingDim);
             var residual2 = residual1.Add(mlpOutput);
-            // TODO: Add second LayerNorm
+            // Second LayerNorm also omitted - see comment above
 
             return residual2;
         }
