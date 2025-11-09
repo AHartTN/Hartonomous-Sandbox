@@ -35,7 +35,7 @@ internal static class VectorUtilities
                 return null;
 
             // Use bridge library for proper JSON parsing
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return serializer.ParseFloatArray(json);
         }
         catch

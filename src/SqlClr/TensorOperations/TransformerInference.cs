@@ -116,8 +116,25 @@ namespace SqlClrFunctions.TensorOperations
 
         private Matrix<float> Softmax(Matrix<float> matrix)
         {
-            var max = matrix.RowMaximums().ToColumnMatrix();
-            var exp = (matrix - max).PointwiseExp();
+            // MathNet.Numerics doesn't have RowMaximums in older versions
+            // Compute manually: for each row, find the maximum value
+            int rowCount = matrix.RowCount;
+            int colCount = matrix.ColumnCount;
+            var maxVector = Vector<float>.Build.Dense(rowCount);
+
+            for (int row = 0; row < rowCount; row++)
+            {
+                float maxVal = matrix[row, 0];
+                for (int col = 1; col < colCount; col++)
+                {
+                    if (matrix[row, col] > maxVal)
+                        maxVal = matrix[row, col];
+                }
+                maxVector[row] = maxVal;
+            }
+
+            var maxMatrix = maxVector.ToColumnMatrix();
+            var exp = (matrix - maxMatrix).PointwiseExp();
             var sum = exp.RowSums().ToColumnMatrix();
             return exp.PointwiseDivide(sum);
         }

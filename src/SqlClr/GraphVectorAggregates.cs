@@ -90,7 +90,7 @@ namespace SqlClrFunctions
                 for (int i = 0; i < dim; i++)
                     centroid[i] /= vectors.Count;
 
-                var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+                var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
                 result.Append("\"centroid\":");
                 result.Append(serializer.SerializeFloatArray(centroid.Take(10).ToArray()));
                 result.Append(",");
@@ -428,7 +428,7 @@ namespace SqlClrFunctions
             // Velocity: drift per second
             double velocity = magnitude / timeDelta;
 
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             var result = new
             {
                 drift_magnitude = magnitude,

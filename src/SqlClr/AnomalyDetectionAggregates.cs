@@ -97,7 +97,7 @@ namespace SqlClrFunctions
             double maxDepth = vectors.Count * numTrees;
             var scores = avgPathLengths.Select(d => 1.0 - (d / maxDepth)).Select(s => (float)s).ToArray();
 
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.SerializeFloatArray(scores));
         }
 
@@ -226,7 +226,7 @@ namespace SqlClrFunctions
             }
 
             var scores = lofScores.Select(s => (float)s).ToArray();
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.SerializeFloatArray(scores));
         }
 
@@ -499,13 +499,13 @@ namespace SqlClrFunctions
             
             // Compute FULL covariance matrix (not diagonal approximation)
             var vectorArray = vectors.ToArray();
-            var covariance = Hartonomous.Sql.Bridge.MachineLearning.MahalanobisDistance.ComputeCovarianceMatrix(vectorArray);
+            var covariance = SqlClrFunctions.MachineLearning.MahalanobisDistance.ComputeCovarianceMatrix(vectorArray);
 
             // Compute Mahalanobis distance for each vector using full covariance
             double[] distances = new double[vectors.Count];
             for (int v = 0; v < vectors.Count; v++)
             {
-                distances[v] = Hartonomous.Sql.Bridge.MachineLearning.MahalanobisDistance.Compute(
+                distances[v] = SqlClrFunctions.MachineLearning.MahalanobisDistance.Compute(
                     vectors[v], 
                     referenceVector, 
                     covariance
@@ -513,7 +513,7 @@ namespace SqlClrFunctions
             }
 
             // Use bridge JSON serializer instead of manual concatenation
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             var json = serializer.SerializeFloatArray(distances.Select(d => (float)d).ToArray());
             return new SqlString(json);
         }

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using Hartonomous.Sql.Bridge.Contracts;
+using SqlClrFunctions.Contracts;
 using Microsoft.SqlServer.Types;
 
 namespace SqlClrFunctions.Core

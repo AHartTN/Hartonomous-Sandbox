@@ -312,7 +312,7 @@ namespace SqlClrFunctions
 
             // Use bridge library for PROPER t-SNE implementation
             // Replaces: "Simplified t-SNE" that was actually random projection
-            var tsne = new Hartonomous.Sql.Bridge.MachineLearning.TSNEProjection(seed: 42);
+            var tsne = new SqlClrFunctions.MachineLearning.TSNEProjection(seed: 42);
             
             // Convert List<float[]> to float[][]
             var vectorArray = vectors.ToArray();
@@ -331,7 +331,7 @@ namespace SqlClrFunctions
             );
 
             var result = new { projection };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 
@@ -484,7 +484,7 @@ namespace SqlClrFunctions
             }
 
             var result = new { projected_vectors = projected };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 

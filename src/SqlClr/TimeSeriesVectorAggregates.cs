@@ -253,7 +253,7 @@ namespace SqlClrFunctions
             }
 
             // Use bridge library for proper JSON serialization
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.SerializeFloatArray(forecast));
         }
 

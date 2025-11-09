@@ -27,17 +27,17 @@ if (!string.IsNullOrEmpty(appConfigEndpoint)
     && builder.Environment.IsProduction())
 {
     // Production: Use Azure Arc managed identity
-    var credential = new DefaultAzureCredential();
+    // var credential = new DefaultAzureCredential();
 
-    builder.Configuration.AddAzureAppConfiguration(options =>
-    {
-        options.Connect(new Uri(appConfigEndpoint), credential)
-            // Configure Key Vault integration for secret references
-            .ConfigureKeyVault(kv =>
-            {
-                kv.SetCredential(credential);
-            });
-    });
+    // builder.Configuration.AddAzureAppConfiguration(options =>
+    // {
+    //     options.Connect(new Uri(appConfigEndpoint), credential)
+    //         // Configure Key Vault integration for secret references
+    //         .ConfigureKeyVault(kv =>
+    //         {
+    //             kv.SetCredential(credential);
+    //         });
+    // });
 }
 
 var sqlConnectionString = Environment.GetEnvironmentVariable("HARTONOMOUS_SQL_CONNECTION")

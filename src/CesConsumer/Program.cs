@@ -35,17 +35,17 @@ class Program
                     && context.HostingEnvironment.IsProduction())
                 {
                     // Production: Use Azure Arc managed identity
-                    var credential = new DefaultAzureCredential();
+                    // var credential = new DefaultAzureCredential();
 
-                    config.AddAzureAppConfiguration(options =>
-                    {
-                        options.Connect(new Uri(appConfigEndpoint), credential)
-                            // Configure Key Vault integration for secret references
-                            .ConfigureKeyVault(kv =>
-                            {
-                                kv.SetCredential(credential);
-                            });
-                    });
+                    // config.AddAzureAppConfiguration(options =>
+                    // {
+                    //     options.Connect(new Uri(appConfigEndpoint), credential)
+                    //         // Configure Key Vault integration for secret references
+                    //         .ConfigureKeyVault(kv =>
+                    //         {
+                    //             kv.SetCredential(credential);
+                    //         });
+                    // });
                 }
             })
             .ConfigureServices((context, services) =>

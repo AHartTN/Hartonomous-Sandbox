@@ -119,7 +119,7 @@ namespace SqlClrFunctions
             }
 
             var result = new { mean, variance, stddev, count };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 
@@ -220,7 +220,7 @@ namespace SqlClrFunctions
                     return new SqlString($"POINT ({vectors[0][0]:G9} {vectors[0][1]:G9})");
                 else
                 {
-                    var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+                    var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
                     return new SqlString(serializer.SerializeFloatArray(vectors[0]));
                 }
             }
@@ -272,7 +272,7 @@ namespace SqlClrFunctions
                 return new SqlString($"POINT ({estimate[0]:G9} {estimate[1]:G9})");
             else
             {
-                var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+                var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
                 return new SqlString(serializer.SerializeFloatArray(estimate));
             }
         }
@@ -445,7 +445,7 @@ namespace SqlClrFunctions
                 avg_probabilities = avgProbs,
                 count = vectors.Count
             };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 

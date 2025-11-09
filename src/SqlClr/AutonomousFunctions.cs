@@ -4,8 +4,8 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
-using Hartonomous.Sql.Bridge.Contracts;
-using Hartonomous.Sql.Bridge.JsonProcessing;
+using SqlClrFunctions.Contracts;
+using SqlClrFunctions.JsonProcessing;
 
 namespace SqlClrFunctions
 {

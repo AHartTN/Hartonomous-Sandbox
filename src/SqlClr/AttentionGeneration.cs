@@ -602,7 +602,7 @@ ORDER BY ta.ElementCount DESC;
 
             using (var command = connection.CreateCommand())
             {
-                var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+                var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
                 var embeddingJson = serializer.SerializeFloatArray(attentionOutput);
 
                 command.CommandText = @"

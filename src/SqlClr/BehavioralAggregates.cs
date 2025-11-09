@@ -345,8 +345,7 @@ namespace SqlClrFunctions
                 {
                     if (kvp.Value.OutcomeVectors.Count > 0)
                     {
-                        var centroid = new float[dimension];
-                        VectorMath.ComputeCentroid(kvp.Value.OutcomeVectors.ToArray(), centroid);
+                        var centroid = VectorMath.ComputeCentroid(kvp.Value.OutcomeVectors.ToArray());
                         variantCentroids[kvp.Key] = centroid;
                     }
                 }

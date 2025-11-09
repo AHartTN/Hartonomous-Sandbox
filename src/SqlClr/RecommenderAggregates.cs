@@ -130,7 +130,7 @@ namespace SqlClrFunctions
 
             var recommendations = topItems.Select((vec, idx) => new { rank = idx + 1, vector = vec }).ToArray();
             var result = new { recommendations };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 
@@ -270,7 +270,7 @@ namespace SqlClrFunctions
                 preference_diversity = avgVariance,
                 num_items = items.Count
             };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 
@@ -399,7 +399,7 @@ namespace SqlClrFunctions
             var interactionArray = ratings.Select(r => (r.Item1, r.Item2, (float)r.Item3)).ToArray();
             
             // Run proper SGD matrix factorization with 100 iterations
-            var (userFactors, itemFactors) = Hartonomous.Sql.Bridge.MachineLearning.MatrixFactorization.Factorize(
+            var (userFactors, itemFactors) = SqlClrFunctions.MachineLearning.MatrixFactorization.Factorize(
                 interactionArray,
                 numUsers: numUsers,
                 numItems: numItems,
@@ -413,7 +413,7 @@ namespace SqlClrFunctions
             double sumSquaredError = 0;
             foreach (var (user, item, rating) in ratings)
             {
-                float prediction = Hartonomous.Sql.Bridge.MachineLearning.MatrixFactorization.PredictRating(
+                float prediction = SqlClrFunctions.MachineLearning.MatrixFactorization.PredictRating(
                     userFactors[user], 
                     itemFactors[item]
                 );
@@ -432,7 +432,7 @@ namespace SqlClrFunctions
                 num_ratings = ratings.Count
             };
             
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 

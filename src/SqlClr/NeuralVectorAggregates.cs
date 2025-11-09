@@ -162,7 +162,7 @@ namespace SqlClrFunctions
             }
 
             // Use bridge JSON serializer instead of manual concatenation
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.SerializeFloatArray(output));
         }
 
@@ -278,7 +278,7 @@ namespace SqlClrFunctions
             var vectorArray = vectors.ToArray();
             
             // Run proper SVD compression
-            var compressed = Hartonomous.Sql.Bridge.MachineLearning.SVDCompression.Compress(
+            var compressed = SqlClrFunctions.MachineLearning.SVDCompression.Compress(
                 vectorArray, 
                 targetDim
             );
@@ -298,7 +298,7 @@ namespace SqlClrFunctions
             }
 
             // Use bridge JSON serializer instead of manual concatenation
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.SerializeFloatArray(avgCompressed));
         }
 

@@ -592,7 +592,7 @@ namespace SqlClrFunctions
                 answer_diversity = diversity,
                 num_clusters = clusters.Count
             };
-            var serializer = new Hartonomous.Sql.Bridge.JsonProcessing.JsonSerializerImpl();
+            var serializer = new SqlClrFunctions.JsonProcessing.JsonSerializerImpl();
             return new SqlString(serializer.Serialize(result));
         }
 

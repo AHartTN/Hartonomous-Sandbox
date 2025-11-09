@@ -65,34 +65,15 @@ BEGIN
 
         SELECT @layersUpdated = COUNT(*) FROM #LayerUpdates;
 
-        DECLARE @currentLayerID INT,
-                @currentModelID INT,
-                @currentLayerName NVARCHAR(100),
-                @successCount INT,
-                @avgRating DECIMAL(3,2),
-                @updateMagnitude FLOAT;
-
-        DECLARE layer_cursor CURSOR LOCAL FAST_FORWARD FOR
-        SELECT LayerID, ModelID, LayerName, SuccessfulInferences, AverageRating, UpdateMagnitude
-        FROM #LayerUpdates
-        ORDER BY UpdateMagnitude DESC;
-
-        OPEN layer_cursor;
-        FETCH NEXT FROM layer_cursor INTO @currentLayerID, @currentModelID, @currentLayerName, @successCount, @avgRating, @updateMagnitude;
-
-        WHILE @@FETCH_STATUS = 0
-        BEGIN
-            PRINT 'Layer ' + @currentLayerName + ' (ID: ' + CAST(@currentLayerID AS NVARCHAR(10)) +
-                  ', ModelID: ' + CAST(@currentModelID AS NVARCHAR(10)) +
-                  ') - Success count: ' + CAST(@successCount AS NVARCHAR(10)) +
-                  ', Avg rating: ' + CAST(@avgRating AS NVARCHAR(10)) +
-                  ', Update magnitude: ' + CAST(@updateMagnitude AS NVARCHAR(20));
-
-            FETCH NEXT FROM layer_cursor INTO @currentLayerID, @currentModelID, @currentLayerName, @successCount, @avgRating, @updateMagnitude;
-        END;
-
-        CLOSE layer_cursor;
-        DEALLOCATE layer_cursor;
+        -- Apply weight updates using set-based operation
+        UPDATE w
+        SET 
+            w.Value = w.Value + (u.UpdateMagnitude * @learningRate),
+            w.LastUpdated = SYSUTCDATETIME(),
+            w.UpdateCount = ISNULL(w.UpdateCount, 0) + 1
+        FROM Weights w
+        INNER JOIN #LayerUpdates u ON w.LayerID = u.LayerID
+        WHERE u.UpdateMagnitude > 0;
 
         SET @endTime = SYSUTCDATETIME();
         SET @durationMs = DATEDIFF(MILLISECOND, @startTime, @endTime);
