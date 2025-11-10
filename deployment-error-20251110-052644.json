@@ -1,0 +1,46 @@
+{
+  "Log": [
+    {
+      "Level": "Info",
+      "Message": "=== PHASE 0: Environment Initialization ===",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Success",
+      "Message": "Connected to SQL Server  ()",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Info",
+      "Message": "Edition: ",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Success",
+      "Message": "FILESTREAM enabled (level: )",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Info",
+      "Message": "=== PHASE 1: Database Prerequisites ===",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Info",
+      "Message": "Creating database 'Hartonomous'...",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Error",
+      "Message": "ERROR: SQL execution failed: Exception calling \"ExecuteNonQuery\" with \"0\" argument(s): \"Database 'Hartonomous' already exists. Choose a different database name.\"",
+      "Timestamp": "2025-11-10 05:26:44"
+    },
+    {
+      "Level": "Error",
+      "Message": "Stack trace: at Invoke-SqlCommand, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 223\r\nat Deploy-DatabasePrerequisites, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 329\r\nat <ScriptBlock>, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 732\r\nat <ScriptBlock>, <No file>: line 1",
+      "Timestamp": "2025-11-10 05:26:44"
+    }
+  ],
+  "StackTrace": "at Invoke-SqlCommand, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 223\r\nat Deploy-DatabasePrerequisites, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 329\r\nat <ScriptBlock>, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 732\r\nat <ScriptBlock>, <No file>: line 1",
+  "Error": "SQL execution failed: Exception calling \"ExecuteNonQuery\" with \"0\" argument(s): \"Database 'Hartonomous' already exists. Choose a different database name.\""
+}

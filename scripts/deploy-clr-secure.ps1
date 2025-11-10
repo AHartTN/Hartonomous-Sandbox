@@ -33,10 +33,20 @@
 param(
     [string]$ServerName = ".",
     [string]$DatabaseName = "Hartonomous",
-    [string]$BinDirectory = "D:\Repositories\Hartonomous\src\SqlClr\bin\Release"
+    [string]$BinDirectory = $null,
+    [string]$DependenciesDirectory = $null,
+    [switch]$Rebuild
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $BinDirectory) {
+    $BinDirectory = Join-Path $PSScriptRoot "..\src\SqlClr\bin\Release"
+}
+
+if (-not $DependenciesDirectory) {
+    $DependenciesDirectory = Join-Path $PSScriptRoot "..\dependencies"
+}
 
 Write-Host "`n==========================================" -ForegroundColor Cyan
 Write-Host "SECURE SQL CLR MULTI-ASSEMBLY DEPLOYMENT" -ForegroundColor Cyan
@@ -44,15 +54,34 @@ Write-Host "==========================================" -ForegroundColor Cyan
 Write-Host "Server:       $ServerName"
 Write-Host "Database:     $DatabaseName"
 Write-Host "Bin Directory: $BinDirectory"
+Write-Host "Dependencies: $DependenciesDirectory"
 Write-Host "Security:     sys.sp_add_trusted_assembly (TRUSTWORTHY OFF)`n"
+
+if ($Rebuild) {
+    Write-Host "Rebuilding SqlClrFunctions (Release configuration)..." -ForegroundColor Cyan
+    $csproj = Join-Path $PSScriptRoot "..\src\SqlClr\SqlClrFunctions.csproj"
+    $build = & dotnet build $csproj -c Release 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host $build -ForegroundColor Red
+        throw "SqlClrFunctions rebuild failed"
+    }
+}
+
+if (-not (Test-Path $BinDirectory)) {
+    throw "Bin directory not found: $BinDirectory"
+}
+
+if (-not (Test-Path $DependenciesDirectory)) {
+    throw "Dependencies directory not found: $DependenciesDirectory"
+}
 
 # Define assemblies in dependency order (dependencies first)
 $assemblies = @(
-    @{ Name = "System.Runtime.CompilerServices.Unsafe"; Required = $true },
     @{ Name = "System.Numerics.Vectors"; Required = $true },
-    @{ Name = "System.Memory"; Required = $true },
-    @{ Name = "System.Text.Json"; Required = $true },
     @{ Name = "MathNet.Numerics"; Required = $true },
+    @{ Name = "Newtonsoft.Json"; Required = $true },
+    @{ Name = "System.Drawing"; Required = $true },
+    @{ Name = "Microsoft.SqlServer.Types"; Required = $true; SystemAssembly = $true },
     @{ Name = "SqlClrFunctions"; Required = $true }
 )
 
@@ -62,29 +91,45 @@ $assemblyData = @{}
 foreach ($assembly in $assemblies) {
     $dllPath = Join-Path $BinDirectory "$($assembly.Name).dll"
     if (-not (Test-Path $dllPath)) {
+        $altPath = Join-Path $DependenciesDirectory "$($assembly.Name).dll"
+        if (Test-Path $altPath) {
+            $dllPath = $altPath
+        }
+    }
+
+    if (-not (Test-Path $dllPath)) {
         if ($assembly.Required) {
-            throw "Required assembly not found: $dllPath"
+            throw "Required assembly not found: $($assembly.Name).dll in either $BinDirectory or $DependenciesDirectory"
         }
         Write-Host "⚠ Optional assembly not found: $($assembly.Name).dll" -ForegroundColor Yellow
         continue
     }
 
-    $assemblyBytes = [System.IO.File]::ReadAllBytes($dllPath)
-    $hexString = "0x" + [System.BitConverter]::ToString($assemblyBytes).Replace("-", "")
-    
-    # Calculate SHA-512 hash for sys.sp_add_trusted_assembly
-    $sha512 = [System.Security.Cryptography.SHA512]::Create()
-    $hashBytes = $sha512.ComputeHash($assemblyBytes)
-    $hashHex = "0x" + [System.BitConverter]::ToString($hashBytes).Replace("-", "")
-    
-    $assemblyData[$assembly.Name] = @{
+    $assemblyInfo = @{
         Path = $dllPath
-        HexBytes = $hexString
-        Hash = $hashHex
-        Size = $assemblyBytes.Length
+        SystemAssembly = ($assembly.SystemAssembly -eq $true)
     }
-    
-    Write-Host "✓ Found: $($assembly.Name).dll ($(($assemblyBytes.Length / 1KB).ToString('N0')) KB)" -ForegroundColor Green
+
+    if (-not $assemblyInfo.SystemAssembly) {
+        $assemblyBytes = [System.IO.File]::ReadAllBytes($dllPath)
+        $hexString = "0x" + [System.BitConverter]::ToString($assemblyBytes).Replace("-", "")
+
+        # Calculate SHA-512 hash for sys.sp_add_trusted_assembly
+        $sha512 = [System.Security.Cryptography.SHA512]::Create()
+        $hashBytes = $sha512.ComputeHash($assemblyBytes)
+        $hashHex = "0x" + [System.BitConverter]::ToString($hashBytes).Replace("-", "")
+
+        $assemblyInfo.HexBytes = $hexString
+        $assemblyInfo.Hash = $hashHex
+        $assemblyInfo.Size = $assemblyBytes.Length
+
+        Write-Host "✓ Found: $($assembly.Name).dll ($(($assemblyBytes.Length / 1KB).ToString('N0')) KB)" -ForegroundColor Green
+    }
+    else {
+        Write-Host "○ Using system assembly: $($assembly.Name)" -ForegroundColor Cyan
+    }
+
+    $assemblyData[$assembly.Name] = $assemblyInfo
 }
 
 # --- Start SQL Generation ---
@@ -145,17 +190,48 @@ GO
 "@
 
 # Generate DROP statements for all assemblies in reverse order
-$reversedAssemblies = $assemblies | ForEach-Object { $_.Name } | Sort-Object -Descending
+$reversedAssemblies = @()
+$assemblies | ForEach-Object { $reversedAssemblies += $_.Name }
+[Array]::Reverse($reversedAssemblies)
 foreach ($assemblyName in $reversedAssemblies) {
     if (-not $assemblyData.ContainsKey($assemblyName)) { continue }
-    
+
+    $info = $assemblyData[$assemblyName]
+
     $sql += "`n"
+    if ($info.SystemAssembly) {
+        $sql += @"
+IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName')
+BEGIN
+    IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName' AND is_user_defined = 1)
+    BEGIN
+        PRINT 'Dropping user assembly [$assemblyName]...';
+        DROP ASSEMBLY [$assemblyName];
+
+        DECLARE @hashUser BINARY(64);
+        SET @hashUser = (SELECT hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
+        IF @hashUser IS NOT NULL
+        BEGIN
+            EXEC sys.sp_drop_trusted_assembly @hashUser;
+            PRINT '  Removed from trusted assembly list';
+        END
+    END
+    ELSE
+    BEGIN
+        PRINT 'Skipping drop for system assembly [$assemblyName]';
+    END
+END;
+GO
+"@
+        continue
+    }
+
     $sql += @"
 IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName')
 BEGIN
     PRINT 'Dropping assembly [$assemblyName]...';
     DROP ASSEMBLY [$assemblyName];
-    
+
     -- Remove from trusted assembly list
     DECLARE @hash BINARY(64);
     SET @hash = (SELECT hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
@@ -178,9 +254,14 @@ GO
 
 foreach ($assemblyName in ($assemblies | ForEach-Object { $_.Name })) {
     if (-not $assemblyData.ContainsKey($assemblyName)) { continue }
-    
+
     $data = $assemblyData[$assemblyName]
-    
+
+    if ($data.SystemAssembly) {
+        $sql += "`nPRINT 'System assembly [$assemblyName] will be used without redeploy.';`nGO`n"
+        continue
+    }
+
     $sql += "`n"
     $sql += @"
 
@@ -220,13 +301,13 @@ LEFT JOIN sys.trusted_assemblies ta ON ta.description = a.name
 WHERE a.name IN ($((($assemblies | ForEach-Object { $_.Name }) | ForEach-Object { "'$_'" }) -join ", "))
 ORDER BY
     CASE a.name
-        WHEN 'System.Runtime.CompilerServices.Unsafe' THEN 1
-        WHEN 'System.Memory' THEN 2
-        WHEN 'System.Numerics.Vectors' THEN 3
-        WHEN 'System.Text.Json' THEN 4
-        WHEN 'MathNet.Numerics' THEN 5
-        WHEN 'SqlClrFunctions' THEN 6
-        ELSE 99
+    WHEN 'System.Numerics.Vectors' THEN 1
+    WHEN 'MathNet.Numerics' THEN 2
+    WHEN 'Newtonsoft.Json' THEN 3
+    WHEN 'System.Drawing' THEN 4
+    WHEN 'Microsoft.SqlServer.Types' THEN 5
+    WHEN 'SqlClrFunctions' THEN 6
+    ELSE 99
     END;
 GO
 
