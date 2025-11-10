@@ -39,11 +39,30 @@ BEGIN
         TotalCost,
         TimestampUtc
     );
-    
+
     PRINT '✓ Created columnstore index on BillingUsageLedger for analytics';
 END
 ELSE
     PRINT '○ Columnstore index already exists on BillingUsageLedger';
+GO
+
+-- TensorAtomCoefficients: CRITICAL for SVD query performance
+-- Analytical queries on tensor coefficients (SVD-as-GEOMETRY queries)
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'NCCI_TensorAtomCoefficients_SVD' AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients'))
+BEGIN
+    CREATE NONCLUSTERED COLUMNSTORE INDEX NCCI_TensorAtomCoefficients_SVD
+    ON dbo.TensorAtomCoefficients
+    (
+        ParentLayerId,
+        TensorAtomId,
+        Coefficient,
+        Rank
+    );
+
+    PRINT '✓ Created columnstore index on TensorAtomCoefficients for SVD queries (CRITICAL)';
+END
+ELSE
+    PRINT '○ Columnstore index already exists on TensorAtomCoefficients';
 GO
 
 -- AutonomousImprovementHistory: Analytical queries on improvement patterns

@@ -57,13 +57,62 @@ namespace SqlClrFunctions.TensorOperations
 
             var attended = MultiHeadAttention(inputs, layerPrefix, embeddingDim, numHeads);
             var residual1 = inputs.Add(attended);
-            // TODO: Add LayerNorm
+            var normalized1 = LayerNorm(residual1, layerPrefix + ".attention.norm");
 
-            var mlpOutput = MLP(residual1, layerPrefix, embeddingDim);
-            var residual2 = residual1.Add(mlpOutput);
-            // TODO: Add second LayerNorm
+            var mlpOutput = MLP(normalized1, layerPrefix, embeddingDim);
+            var residual2 = normalized1.Add(mlpOutput);
+            var normalized2 = LayerNorm(residual2, layerPrefix + ".mlp.norm");
 
-            return residual2;
+            return normalized2;
+        }
+
+        /// <summary>
+        /// Layer Normalization: Normalizes across features (columns) for each sample (row).
+        /// Stabilizes training and improves convergence.
+        /// Formula: (x - mean) / sqrt(variance + epsilon) * gamma + beta
+        /// </summary>
+        private Matrix<float> LayerNorm(Matrix<float> input, string layerPrefix, float epsilon = 1e-5f)
+        {
+            // Load learned parameters (gamma, beta) from weights
+            var gammaData = _tensorProvider.LoadWeights($"{layerPrefix}.gamma", input.ColumnCount);
+            var betaData = _tensorProvider.LoadWeights($"{layerPrefix}.beta", input.ColumnCount);
+
+            // If parameters don't exist, use identity normalization (gamma=1, beta=0)
+            float[] gamma = gammaData ?? Enumerable.Repeat(1.0f, input.ColumnCount).ToArray();
+            float[] beta = betaData ?? Enumerable.Repeat(0.0f, input.ColumnCount).ToArray();
+
+            var result = input.Clone();
+
+            // Apply LayerNorm row-wise (per sample/token)
+            for (int row = 0; row < result.RowCount; row++)
+            {
+                // Compute mean across features
+                float mean = 0;
+                for (int col = 0; col < result.ColumnCount; col++)
+                {
+                    mean += result[row, col];
+                }
+                mean /= result.ColumnCount;
+
+                // Compute variance across features
+                float variance = 0;
+                for (int col = 0; col < result.ColumnCount; col++)
+                {
+                    float diff = result[row, col] - mean;
+                    variance += diff * diff;
+                }
+                variance /= result.ColumnCount;
+
+                // Normalize and apply affine transformation
+                float stdDev = (float)Math.Sqrt(variance + epsilon);
+                for (int col = 0; col < result.ColumnCount; col++)
+                {
+                    float normalized = (result[row, col] - mean) / stdDev;
+                    result[row, col] = normalized * gamma[col] + beta[col];
+                }
+            }
+
+            return result;
         }
 
         private Matrix<float> MultiHeadAttention(Matrix<float> inputs, string layerPrefix, int embeddingDim, int numHeads)

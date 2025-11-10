@@ -283,6 +283,142 @@ END;
 GO
 
 -- ==========================================
+-- CodeAtom.Embedding (AST structural search)
+-- ==========================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_CodeAtom_Embedding'
+    AND object_id = OBJECT_ID('dbo.CodeAtom')
+)
+BEGIN
+    PRINT 'Creating IX_CodeAtom_Embedding on CodeAtom.Embedding...';
+
+    CREATE SPATIAL INDEX IX_CodeAtom_Embedding
+    ON dbo.CodeAtom (Embedding)
+    WITH (
+        BOUNDING_BOX = (-1000, -1000, 1000, 1000),
+        GRIDS = (
+            LEVEL_1 = MEDIUM,
+            LEVEL_2 = MEDIUM,
+            LEVEL_3 = MEDIUM,
+            LEVEL_4 = LOW
+        ),
+        CELLS_PER_OBJECT = 16,
+        PAD_INDEX = ON,
+        SORT_IN_TEMPDB = ON
+    );
+
+    PRINT '  ✓ IX_CodeAtom_Embedding created';
+END
+ELSE
+BEGIN
+    PRINT '  ✓ IX_CodeAtom_Embedding already exists';
+END;
+GO
+
+-- ==========================================
+-- AudioData.Spectrogram (Audio waveform search)
+-- ==========================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_AudioData_Spectrogram'
+    AND object_id = OBJECT_ID('dbo.AudioData')
+)
+BEGIN
+    PRINT 'Creating IX_AudioData_Spectrogram on AudioData.Spectrogram...';
+
+    CREATE SPATIAL INDEX IX_AudioData_Spectrogram
+    ON dbo.AudioData (Spectrogram)
+    WITH (
+        BOUNDING_BOX = (-500, -500, 500, 500),
+        GRIDS = (
+            LEVEL_1 = MEDIUM,
+            LEVEL_2 = MEDIUM,
+            LEVEL_3 = LOW,
+            LEVEL_4 = LOW
+        ),
+        CELLS_PER_OBJECT = 12,
+        PAD_INDEX = ON,
+        SORT_IN_TEMPDB = ON
+    );
+
+    PRINT '  ✓ IX_AudioData_Spectrogram created';
+END
+ELSE
+BEGIN
+    PRINT '  ✓ IX_AudioData_Spectrogram already exists';
+END;
+GO
+
+-- ==========================================
+-- VideoFrame.MotionVectors (Video motion analysis)
+-- ==========================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_VideoFrame_MotionVectors'
+    AND object_id = OBJECT_ID('dbo.VideoFrame')
+)
+BEGIN
+    PRINT 'Creating IX_VideoFrame_MotionVectors on VideoFrame.MotionVectors...';
+
+    CREATE SPATIAL INDEX IX_VideoFrame_MotionVectors
+    ON dbo.VideoFrame (MotionVectors)
+    WITH (
+        BOUNDING_BOX = (-1000, -1000, 1000, 1000),
+        GRIDS = (
+            LEVEL_1 = MEDIUM,
+            LEVEL_2 = MEDIUM,
+            LEVEL_3 = MEDIUM,
+            LEVEL_4 = LOW
+        ),
+        CELLS_PER_OBJECT = 16,
+        PAD_INDEX = ON,
+        SORT_IN_TEMPDB = ON
+    );
+
+    PRINT '  ✓ IX_VideoFrame_MotionVectors created';
+END
+ELSE
+BEGIN
+    PRINT '  ✓ IX_VideoFrame_MotionVectors already exists';
+END;
+GO
+
+-- ==========================================
+-- Image.ContentRegions (Image region search)
+-- ==========================================
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'IX_Image_ContentRegions'
+    AND object_id = OBJECT_ID('dbo.Image')
+)
+BEGIN
+    PRINT 'Creating IX_Image_ContentRegions on Image.ContentRegions...';
+
+    CREATE SPATIAL INDEX IX_Image_ContentRegions
+    ON dbo.Image (ContentRegions)
+    WITH (
+        BOUNDING_BOX = (-1000, -1000, 1000, 1000),
+        GRIDS = (
+            LEVEL_1 = HIGH,
+            LEVEL_2 = MEDIUM,
+            LEVEL_3 = MEDIUM,
+            LEVEL_4 = LOW
+        ),
+        CELLS_PER_OBJECT = 16,
+        PAD_INDEX = ON,
+        SORT_IN_TEMPDB = ON
+    );
+
+    PRINT '  ✓ IX_Image_ContentRegions created';
+END
+ELSE
+BEGIN
+    PRINT '  ✓ IX_Image_ContentRegions already exists';
+END;
+GO
+
+-- ==========================================
 -- VERIFY INDEX CREATION
 -- ==========================================
 PRINT '';
@@ -301,7 +437,7 @@ SELECT
     st.cells_per_object
 FROM sys.indexes i
 INNER JOIN sys.spatial_index_tessellations st ON i.object_id = st.object_id AND i.index_id = st.index_id
-WHERE OBJECT_NAME(i.object_id) IN ('AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo')
+WHERE OBJECT_NAME(i.object_id) IN ('AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo', 'CodeAtom', 'AudioData', 'VideoFrame', 'Image')
 ORDER BY OBJECT_NAME(i.object_id), i.name;
 GO
 
