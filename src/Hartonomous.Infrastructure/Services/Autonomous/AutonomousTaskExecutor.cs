@@ -8,86 +8,86 @@ using Hartonomous.Infrastructure.Services.ContentExtraction;
 using Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 using Hartonomous.Infrastructure.Services.Inference;
 
-namespace Hartonomous.Infrastructure.Services.Autonomous;
-
-/// <summary>
-/// Autonomous task executor that parses natural language prompts and executes workflows.
-/// Example: "Go fetch all of the NFL rosters" → API discovery → data extraction → ingestion.
-/// Uses YOUR ingested LLM models for reasoning (no external APIs).
-/// </summary>
-public sealed class AutonomousTaskExecutor
+namespace Hartonomous.Infrastructure.Services.Autonomous
 {
-    private readonly TensorAtomTextGenerator _textGenerator;
-    private readonly HtmlContentExtractor _htmlExtractor;
-    private readonly JsonApiContentExtractor _jsonExtractor;
-    private readonly string _connectionString;
-
-    public AutonomousTaskExecutor(
-        TensorAtomTextGenerator textGenerator,
-        string connectionString)
-    {
-        _textGenerator = textGenerator ?? throw new ArgumentNullException(nameof(textGenerator));
-        _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
-        _htmlExtractor = new HtmlContentExtractor();
-        _jsonExtractor = new JsonApiContentExtractor();
-    }
-
     /// <summary>
-    /// Executes a natural language task by decomposing into subtasks and running workflows.
+    /// Autonomous task executor that parses natural language prompts and executes workflows.
+    /// Example: "Go fetch all of the NFL rosters" → API discovery → data extraction → ingestion.
+    /// Uses YOUR ingested LLM models for reasoning (no external APIs).
     /// </summary>
-    public async Task<TaskExecutionResult> ExecuteAsync(
-        string naturalLanguagePrompt,
-        string reasoningModelIdentifier,
-        CancellationToken cancellationToken = default)
+    public sealed class AutonomousTaskExecutor
     {
-        var result = new TaskExecutionResult
-        {
-            OriginalPrompt = naturalLanguagePrompt,
-            StartTime = DateTime.UtcNow
-        };
+        private readonly TensorAtomTextGenerator _textGenerator;
+        private readonly HtmlContentExtractor _htmlExtractor;
+        private readonly JsonApiContentExtractor _jsonExtractor;
+        private readonly string _connectionString;
 
-        try
+        public AutonomousTaskExecutor(
+            TensorAtomTextGenerator textGenerator,
+            string connectionString)
         {
-            // Step 1: Decompose prompt into subtasks using YOUR LLM
-            var subtasks = await DecomposeIntoSubtasksAsync(naturalLanguagePrompt, reasoningModelIdentifier, cancellationToken);
-            result.Subtasks = subtasks;
+            _textGenerator = textGenerator ?? throw new ArgumentNullException(nameof(textGenerator));
+            _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
+            _htmlExtractor = new HtmlContentExtractor();
+            _jsonExtractor = new JsonApiContentExtractor();
+        }
 
-            // Step 2: Execute each subtask
-            foreach (var subtask in subtasks)
+        /// <summary>
+        /// Executes a natural language task by decomposing into subtasks and running workflows.
+        /// </summary>
+        public async Task<TaskExecutionResult> ExecuteAsync(
+            string naturalLanguagePrompt,
+            string reasoningModelIdentifier,
+            CancellationToken cancellationToken = default)
+        {
+            var result = new TaskExecutionResult
             {
-                cancellationToken.ThrowIfCancellationRequested();
+                OriginalPrompt = naturalLanguagePrompt,
+                StartTime = DateTime.UtcNow
+            };
 
-                var subtaskResult = await ExecuteSubtaskAsync(subtask, reasoningModelIdentifier, cancellationToken);
-                result.SubtaskResults.Add(subtaskResult);
+            try
+            {
+                // Step 1: Decompose prompt into subtasks using YOUR LLM
+                var subtasks = await DecomposeIntoSubtasksAsync(naturalLanguagePrompt, reasoningModelIdentifier, cancellationToken);
+                result.Subtasks = subtasks;
 
-                if (!subtaskResult.Success)
+                // Step 2: Execute each subtask
+                foreach (var subtask in subtasks)
                 {
-                    result.Success = false;
-                    result.ErrorMessage = $"Subtask '{subtask.Description}' failed: {subtaskResult.ErrorMessage}";
-                    break;
+                    cancellationToken.ThrowIfCancellationRequested();
+
+                    var subtaskResult = await ExecuteSubtaskAsync(subtask, reasoningModelIdentifier, cancellationToken);
+                    result.SubtaskResults.Add(subtaskResult);
+
+                    if (!subtaskResult.Success)
+                    {
+                        result.Success = false;
+                        result.ErrorMessage = $"Subtask '{subtask.Description}' failed: {subtaskResult.ErrorMessage}";
+                        break;
+                    }
                 }
+
+                result.Success = result.SubtaskResults.All(r => r.Success);
+                result.EndTime = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.ErrorMessage = ex.Message;
+                result.EndTime = DateTime.UtcNow;
             }
 
-            result.Success = result.SubtaskResults.All(r => r.Success);
-            result.EndTime = DateTime.UtcNow;
+            return result;
         }
-        catch (Exception ex)
+
+        private async Task<List<Subtask>> DecomposeIntoSubtasksAsync(
+            string prompt,
+            string modelIdentifier,
+            CancellationToken cancellationToken)
         {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            result.EndTime = DateTime.UtcNow;
-        }
-
-        return result;
-    }
-
-    private async Task<List<Subtask>> DecomposeIntoSubtasksAsync(
-        string prompt,
-        string modelIdentifier,
-        CancellationToken cancellationToken)
-    {
-        // Use YOUR LLM to break down the task
-        var decompositionPrompt = $@"Break down this task into actionable subtasks:
+            // Use YOUR LLM to break down the task
+            var decompositionPrompt = $ செய்யுங்கள்@"Break down this task into actionable subtasks:
 Task: {prompt}
 
 Return a numbered list of subtasks (max 10). Each subtask should have:
@@ -100,263 +100,225 @@ Format:
 2. [TYPE] Description | Parameters
 ...";
 
-        var generation = await _textGenerator.GenerateAsync(
-            decompositionPrompt,
-            modelIdentifier,
-            maxTokens: 512,
-            temperature: 0.3f, // Low temperature for structured output
-            cancellationToken: cancellationToken);
+            var generation = await _textGenerator.GenerateAsync(
+                decompositionPrompt,
+                modelIdentifier,
+                maxTokens: 512,
+                temperature: 0.3f, // Low temperature for structured output
+                cancellationToken: cancellationToken);
 
-        // Parse LLM output into subtasks
-        return ParseSubtasksFromText(generation.GeneratedText);
-    }
+            // Parse LLM output into subtasks
+            return ParseSubtasksFromText(generation.GeneratedText);
+        }
 
-    private List<Subtask> ParseSubtasksFromText(string text)
-    {
-        var subtasks = new List<Subtask>();
-        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-
-        foreach (var line in lines)
+        private List<Subtask> ParseSubtasksFromText(string text)
         {
-            // Match pattern: "1. [TYPE] Description | Parameters"
-            var match = System.Text.RegularExpressions.Regex.Match(
-                line,
-                @"^\d+\.\s*\[(\w+)\]\s*([^|]+)\s*\|\s*(.*)$");
+            var subtasks = new List<Subtask>();
+            var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
 
-            if (match.Success)
+            foreach (var line in lines)
             {
-                var type = Enum.TryParse<SubtaskType>(match.Groups[1].Value, ignoreCase: true, out var t)
-                    ? t
-                    : SubtaskType.DATA_TRANSFORM;
+                // Match pattern: "1. [TYPE] Description | Parameters"
+                var match = System.Text.RegularExpressions.Regex.Match(
+                    line,
+                    @"^\d+\.\s*\[(\w+)\]\s*([^|]+)\s*\|\s*(.*)$\);
 
-                subtasks.Add(new Subtask
+                if (match.Success)
                 {
-                    Type = type,
-                    Description = match.Groups[2].Value.Trim(),
-                    Parameters = match.Groups[3].Value.Trim()
-                });
+                    var type = Enum.TryParse<SubtaskType>(match.Groups[1].Value, ignoreCase: true, out var t)
+                        ? t
+                        : SubtaskType.DATA_TRANSFORM;
+
+                    subtasks.Add(new Subtask
+                    {
+                        Type = type,
+                        Description = match.Groups[2].Value.Trim(),
+                        Parameters = match.Groups[3].Value.Trim()
+                    });
+                }
             }
+
+            return subtasks;
         }
 
-        return subtasks;
-    }
-
-    private async Task<SubtaskResult> ExecuteSubtaskAsync(
-        Subtask subtask,
-        string modelIdentifier,
-        CancellationToken cancellationToken)
-    {
-        var result = new SubtaskResult
+        private async Task<SubtaskResult> ExecuteSubtaskAsync(
+            Subtask subtask,
+            string modelIdentifier,
+            CancellationToken cancellationToken)
         {
-            Subtask = subtask,
-            StartTime = DateTime.UtcNow
-        };
-
-        try
-        {
-            switch (subtask.Type)
+            var result = new SubtaskResult
             {
-                case SubtaskType.API_DISCOVERY:
-                    await ExecuteApiDiscoveryAsync(subtask, result, modelIdentifier, cancellationToken);
-                    break;
+                Subtask = subtask,
+                StartTime = DateTime.UtcNow
+            };
 
-                case SubtaskType.WEB_SCRAPE:
-                    await ExecuteWebScrapeAsync(subtask, result, cancellationToken);
-                    break;
+            try
+            {
+                switch (subtask.Type)
+                {
+                    case SubtaskType.API_DISCOVERY:
+                        await ExecuteApiDiscoveryAsync(subtask, result, modelIdentifier, cancellationToken);
+                        break;
 
-                case SubtaskType.API_CALL:
-                    await ExecuteApiCallAsync(subtask, result, cancellationToken);
-                    break;
+                    case SubtaskType.WEB_SCRAPE:
+                        await ExecuteWebScrapeAsync(subtask, result, cancellationToken);
+                        break;
 
-                case SubtaskType.DATA_TRANSFORM:
-                    await ExecuteDataTransformAsync(subtask, result, modelIdentifier, cancellationToken);
-                    break;
+                    case SubtaskType.API_CALL:
+                        await ExecuteApiCallAsync(subtask, result, cancellationToken);
+                        break;
 
-                case SubtaskType.STORE:
-                    await ExecuteStoreAsync(subtask, result, cancellationToken);
-                    break;
+                    case SubtaskType.DATA_TRANSFORM:
+                        await ExecuteDataTransformAsync(subtask, result, modelIdentifier, cancellationToken);
+                        break;
 
-                default:
-                    result.Success = false;
-                    result.ErrorMessage = $"Unknown subtask type: {subtask.Type}";
-                    break;
+                    case SubtaskType.STORE:
+                        await ExecuteStoreAsync(subtask, result, cancellationToken);
+                        break;
+
+                    default:
+                        result.Success = false;
+                        result.ErrorMessage = $"Unknown subtask type: {subtask.Type}";
+                        break;
+                }
+
+                result.EndTime = DateTime.UtcNow;
+            }
+            catch (Exception ex)
+            {
+                result.Success = false;
+                result.ErrorMessage = ex.Message;
+                result.EndTime = DateTime.UtcNow;
             }
 
-            result.EndTime = DateTime.UtcNow;
+            return result;
         }
-        catch (Exception ex)
+
+        private async Task ExecuteApiDiscoveryAsync(
+            Subtask subtask,
+            SubtaskResult result,
+            string modelIdentifier,
+            CancellationToken cancellationToken)
         {
-            result.Success = false;
-            result.ErrorMessage = ex.Message;
-            result.EndTime = DateTime.UtcNow;
-        }
-
-        return result;
-    }
-
-    private async Task ExecuteApiDiscoveryAsync(
-        Subtask subtask,
-        SubtaskResult result,
-        string modelIdentifier,
-        CancellationToken cancellationToken)
-    {
-        // Use YOUR LLM to discover API endpoints
-        var discoveryPrompt = $@"Find API endpoints for: {subtask.Parameters}
+            // Use YOUR LLM to discover API endpoints
+            var discoveryPrompt = $ செய்யுங்கள்@"Find API endpoints for: {subtask.Parameters}
 Return only the URL(s), one per line.";
 
-        var generation = await _textGenerator.GenerateAsync(
-            discoveryPrompt,
-            modelIdentifier,
-            maxTokens: 256,
-            temperature: 0.2f,
-            cancellationToken: cancellationToken);
+            var generation = await _textGenerator.GenerateAsync(
+                discoveryPrompt,
+                modelIdentifier,
+                maxTokens: 256,
+                temperature: 0.2f,
+                cancellationToken: cancellationToken);
 
-        var urls = generation.GeneratedText
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries)
-            .Where(line => Uri.IsWellFormedUriString(line.Trim(), UriKind.Absolute))
-            .ToList();
+            var urls = generation.GeneratedText
+                .Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Where(line => Uri.IsWellFormedUriString(line.Trim(), UriKind.Absolute))
+                .ToList();
 
-        result.OutputData = string.Join("\n", urls);
-        result.AtomsCreated = urls.Count;
-        result.Success = urls.Count > 0;
-    }
-
-    private async Task ExecuteWebScrapeAsync(Subtask subtask, SubtaskResult result, CancellationToken cancellationToken)
-    {
-        // Extract URL from parameters
-        var url = subtask.Parameters;
-        if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
-        {
-            result.Success = false;
-            result.ErrorMessage = "Invalid URL";
-            return;
+            result.OutputData = string.Join("\n", urls);
+            result.AtomsCreated = urls.Count;
+            result.Success = urls.Count > 0;
         }
 
-        // Download HTML and extract atoms
-        using var httpClient = new HttpClient();
-        var html = await httpClient.GetStringAsync(url, cancellationToken);
-
-        // Use HtmlContentExtractor to parse HTML into atoms
-        var htmlBytes = System.Text.Encoding.UTF8.GetBytes(html);
-        using var htmlStream = new System.IO.MemoryStream(htmlBytes);
-
-        var context = new ContentExtractionContext(
-            ContentSourceType.Http,
-            htmlStream,
-            "downloaded.html",
-            "text/html",
-            null,
-            null);
-
-        var extractionResult = await _htmlExtractor.ExtractAsync(context, cancellationToken);
-
-        result.OutputData = $"Extracted {extractionResult.AtomRequests.Count} atoms from HTML";
-        result.AtomsCreated = extractionResult.AtomRequests.Count;
-        result.Success = true;
-    }
-
-    private async Task ExecuteApiCallAsync(Subtask subtask, SubtaskResult result, CancellationToken cancellationToken)
-    {
-        var url = subtask.Parameters;
-        if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+        private async Task ExecuteWebScrapeAsync(Subtask subtask, SubtaskResult result, CancellationToken cancellationToken)
         {
-            result.Success = false;
-            result.ErrorMessage = "Invalid URL";
-            return;
+            // Extract URL from parameters
+            var url = subtask.Parameters;
+            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            {
+                result.Success = false;
+                result.ErrorMessage = "Invalid URL";
+                return;
+            }
+
+            // Download HTML and extract atoms
+            using var httpClient = new HttpClient();
+            var html = await httpClient.GetStringAsync(url, cancellationToken);
+
+            // Use HtmlContentExtractor to parse HTML into atoms
+            var htmlBytes = System.Text.Encoding.UTF8.GetBytes(html);
+            using var htmlStream = new System.IO.MemoryStream(htmlBytes);
+
+            var context = new ContentExtractionContext(
+                ContentSourceType.Http,
+                htmlStream,
+                "downloaded.html",
+                "text/html",
+                null,
+                null);
+
+            var extractionResult = await _htmlExtractor.ExtractAsync(context, cancellationToken);
+
+            result.OutputData = $"Extracted {extractionResult.AtomRequests.Count} atoms from HTML";
+            result.AtomsCreated = extractionResult.AtomRequests.Count;
+            result.Success = true;
         }
 
-        using var httpClient = new HttpClient();
-        var json = await httpClient.GetStringAsync(url, cancellationToken);
+        private async Task ExecuteApiCallAsync(Subtask subtask, SubtaskResult result, CancellationToken cancellationToken)
+        {
+            var url = subtask.Parameters;
+            if (!Uri.IsWellFormedUriString(url, UriKind.Absolute))
+            {
+                result.Success = false;
+                result.ErrorMessage = "Invalid URL";
+                return;
+            }
 
-        // Use JsonApiContentExtractor to parse JSON into atoms
-        var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
-        using var jsonStream = new System.IO.MemoryStream(jsonBytes);
+            using var httpClient = new HttpClient();
+            var json = await httpClient.GetStringAsync(url, cancellationToken);
 
-        var context = new ContentExtractionContext(
-            ContentSourceType.Http,
-            jsonStream,
-            "api-response.json",
-            "application/json",
-            null,
-            null);
+            // Use JsonApiContentExtractor to parse JSON into atoms
+            var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
+            using var jsonStream = new System.IO.MemoryStream(jsonBytes);
 
-        var extractionResult = await _jsonExtractor.ExtractAsync(context, cancellationToken);
+            var context = new ContentExtractionContext(
+                ContentSourceType.Http,
+                jsonStream,
+                "api-response.json",
+                "application/json",
+                null,
+                null);
 
-        result.OutputData = $"Extracted {extractionResult.AtomRequests.Count} atoms from JSON";
-        result.AtomsCreated = extractionResult.AtomRequests.Count;
-        result.Success = true;
-    }
+            var extractionResult = await _jsonExtractor.ExtractAsync(context, cancellationToken);
 
-    private async Task ExecuteDataTransformAsync(
-        Subtask subtask,
-        SubtaskResult result,
-        string modelIdentifier,
-        CancellationToken cancellationToken)
-    {
-        // Use YOUR LLM to transform data
-        var transformPrompt = $@"Transform this data: {subtask.Parameters}
+            result.OutputData = $"Extracted {extractionResult.AtomRequests.Count} atoms from JSON";
+            result.AtomsCreated = extractionResult.AtomRequests.Count;
+            result.Success = true;
+        }
+
+        private async Task ExecuteDataTransformAsync(
+            Subtask subtask,
+            SubtaskResult result,
+            string modelIdentifier,
+            CancellationToken cancellationToken)
+        {
+            // Use YOUR LLM to transform data
+            var transformPrompt = $ செய்யுங்கள்@"Transform this data: {subtask.Parameters}
 Operation: {subtask.Description}";
 
-        var generation = await _textGenerator.GenerateAsync(
-            transformPrompt,
-            modelIdentifier,
-            maxTokens: 512,
-            temperature: 0.5f,
-            cancellationToken: cancellationToken);
+            var generation = await _textGenerator.GenerateAsync(
+                transformPrompt,
+                modelIdentifier,
+                maxTokens: 512,
+                temperature: 0.5f,
+                cancellationToken: cancellationToken);
 
-        result.OutputData = generation.GeneratedText;
-        result.AtomsCreated = 1;
-        result.Success = true;
+            result.OutputData = generation.GeneratedText;
+            result.AtomsCreated = 1;
+            result.Success = true;
+        }
+
+        private async Task ExecuteStoreAsync(Subtask subtask, SubtaskResult result, CancellationToken cancellationToken)
+        {
+            // Store atoms in database using AtomIngestionPipeline
+            // Atoms are already created by extractors above, this step would persist them
+            // For now, extraction happens inline - no separate persist step needed
+            result.OutputData = "Atoms persisted via extractors";
+            result.AtomsCreated = 0;
+            result.Success = true;
+
+            await Task.CompletedTask;
+        }
     }
-
-    private async Task ExecuteStoreAsync(Subtask subtask, SubtaskResult result, CancellationToken cancellationToken)
-    {
-        // Store atoms in database using AtomIngestionPipeline
-        // Atoms are already created by extractors above, this step would persist them
-        // For now, extraction happens inline - no separate persist step needed
-        result.OutputData = "Atoms persisted via extractors";
-        result.AtomsCreated = 0;
-        result.Success = true;
-
-        await Task.CompletedTask;
-    }
-}
-
-public sealed class TaskExecutionResult
-{
-    public required string OriginalPrompt { get; init; }
-    public List<Subtask> Subtasks { get; set; } = new();
-    public List<SubtaskResult> SubtaskResults { get; } = new();
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-    public TimeSpan Duration => EndTime - StartTime;
-}
-
-public sealed class Subtask
-{
-    public required SubtaskType Type { get; init; }
-    public required string Description { get; init; }
-    public required string Parameters { get; init; }
-}
-
-public sealed class SubtaskResult
-{
-    public required Subtask Subtask { get; init; }
-    public bool Success { get; set; }
-    public string? ErrorMessage { get; set; }
-    public string? OutputData { get; set; }
-    public int AtomsCreated { get; set; }
-    public DateTime StartTime { get; set; }
-    public DateTime EndTime { get; set; }
-}
-
-public enum SubtaskType
-{
-    API_DISCOVERY,
-    WEB_SCRAPE,
-    API_CALL,
-    DATA_TRANSFORM,
-    STORE
 }
