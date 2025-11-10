@@ -77,6 +77,9 @@ if (-not (Test-Path $DependenciesDirectory)) {
 
 # Define assemblies in dependency order (dependencies first)
 $assemblies = @(
+    @{ Name = "System.ServiceModel.Internals"; Required = $true },
+    @{ Name = "SMDiagnostics"; Required = $true },
+    @{ Name = "System.Runtime.Serialization"; Required = $true },
     @{ Name = "System.Numerics.Vectors"; Required = $true },
     @{ Name = "MathNet.Numerics"; Required = $true },
     @{ Name = "Newtonsoft.Json"; Required = $true },
@@ -301,12 +304,15 @@ LEFT JOIN sys.trusted_assemblies ta ON ta.description = a.name
 WHERE a.name IN ($((($assemblies | ForEach-Object { $_.Name }) | ForEach-Object { "'$_'" }) -join ", "))
 ORDER BY
     CASE a.name
-    WHEN 'System.Numerics.Vectors' THEN 1
-    WHEN 'MathNet.Numerics' THEN 2
-    WHEN 'Newtonsoft.Json' THEN 3
-    WHEN 'System.Drawing' THEN 4
-    WHEN 'Microsoft.SqlServer.Types' THEN 5
-    WHEN 'SqlClrFunctions' THEN 6
+    WHEN 'System.ServiceModel.Internals' THEN 1
+    WHEN 'SMDiagnostics' THEN 2
+    WHEN 'System.Runtime.Serialization' THEN 3
+    WHEN 'System.Numerics.Vectors' THEN 4
+    WHEN 'MathNet.Numerics' THEN 5
+    WHEN 'Newtonsoft.Json' THEN 6
+    WHEN 'System.Drawing' THEN 7
+    WHEN 'Microsoft.SqlServer.Types' THEN 8
+    WHEN 'SqlClrFunctions' THEN 9
     ELSE 99
     END;
 GO

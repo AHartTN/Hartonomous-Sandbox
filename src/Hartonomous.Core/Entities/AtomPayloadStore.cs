@@ -13,7 +13,7 @@ public class AtomPayloadStore
     public long PayloadId { get; set; }
 
     [Required]
-    [DatabaseGenerated(DatabaseGeneratedOption.Computed)]
+    [Column(TypeName = "uniqueidentifier")]
     public Guid RowGuid { get; set; }
 
     [Required]

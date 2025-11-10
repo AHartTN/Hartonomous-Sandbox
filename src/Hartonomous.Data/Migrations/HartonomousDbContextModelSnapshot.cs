@@ -337,14 +337,17 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("VARBINARY(MAX) FILESTREAM");
 
                     b.Property<Guid>("RowGuid")
-                        .ValueGeneratedOnAddOrUpdate()
-                        .HasColumnType("uniqueidentifier")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier ROWGUIDCOL")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
 
                     b.HasKey("PayloadId");
+
+                    b.HasAlternateKey("RowGuid")
+                        .HasName("UX_AtomPayloadStore_RowGuid");
 
                     b.HasIndex("AtomId")
                         .HasDatabaseName("IX_AtomPayloadStore_AtomId");
@@ -353,15 +356,14 @@ namespace Hartonomous.Data.Migrations
                         .IsUnique()
                         .HasDatabaseName("UX_AtomPayloadStore_ContentHash");
 
-                    b.HasIndex("RowGuid")
-                        .HasDatabaseName("IX_AtomPayloadStore_RowGuid");
-
                     b.ToTable("AtomPayloadStore", null, t =>
                         {
                             t.HasCheckConstraint("CK_AtomPayloadStore_ContentType", "[ContentType] LIKE '%/%'");
 
                             t.HasCheckConstraint("CK_AtomPayloadStore_SizeBytes", "[SizeBytes] > 0");
                         });
+
+                    b.HasAnnotation("SqlServer:UseSqlOutputClause", false);
                 });
 
             modelBuilder.Entity("Hartonomous.Core.Entities.AtomRelation", b =>

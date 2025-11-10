@@ -111,7 +111,7 @@ RECONFIGURE;
 SELECT * FROM sys.assemblies WHERE name LIKE '%SqlClr%';
 
 -- Redeploy if missing
--- .\scripts\deploy-clr-final.ps1
+-- .\scripts\deploy-clr-secure.ps1 -ServerName "localhost" -DatabaseName "Hartonomous" -Rebuild
 ```
 
 ### Service Broker Not Configured

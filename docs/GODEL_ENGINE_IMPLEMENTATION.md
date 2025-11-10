@@ -269,7 +269,7 @@ sqlcmd -S localhost -d Hartonomous -i scripts/setup-service-broker.sql
 sqlcmd -S localhost -d Hartonomous -i sql/tables/dbo.AutonomousComputeJobs.sql
 
 # 4. Deploy CLR assemblies
-.\scripts\deploy-clr-final.ps1
+.\scripts\deploy-clr-secure.ps1 -ServerName "localhost" -DatabaseName "Hartonomous" -Rebuild
 
 # 5. Deploy OODA loop procedures
 sqlcmd -S localhost -d Hartonomous -i sql/procedures/dbo.sp_Analyze.sql
@@ -414,7 +414,7 @@ JOIN sys.assembly_files af ON a.assembly_id = af.assembly_id
 WHERE a.name LIKE '%SqlClr%';
 
 -- Redeploy if missing
-.\scripts\deploy-clr-final.ps1
+.\scripts\deploy-clr-secure.ps1 -ServerName "localhost" -DatabaseName "Hartonomous" -Rebuild
 ```
 
 ## References
