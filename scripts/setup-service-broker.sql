@@ -89,6 +89,24 @@ END
 GO
 
 -- Services
+-- Initiator Service: Used by sp_StartPrimeSearch and other entry points to trigger the autonomous loop
+IF NOT EXISTS (SELECT 1 FROM sys.service_queues WHERE name = 'InitiatorQueue')
+BEGIN
+    CREATE QUEUE InitiatorQueue WITH STATUS = ON;
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.services WHERE name = '//Hartonomous/Service/Initiator')
+BEGIN
+    CREATE SERVICE [//Hartonomous/Service/Initiator] ON QUEUE InitiatorQueue (
+        [//Hartonomous/AutonomousLoop/AnalyzeContract],
+        [//Hartonomous/AutonomousLoop/HypothesizeContract],
+        [//Hartonomous/AutonomousLoop/ActContract],
+        [//Hartonomous/AutonomousLoop/LearnContract]
+    );
+END
+GO
+
 IF NOT EXISTS (SELECT 1 FROM sys.services WHERE name = 'AnalyzeService')
 BEGIN
     CREATE SERVICE AnalyzeService ON QUEUE AnalyzeQueue (
@@ -129,6 +147,10 @@ SELECT
     sq.is_receive_enabled AS ReceiveEnabled
 FROM sys.services s
 JOIN sys.service_queues sq ON s.service_queue_id = sq.object_id
-WHERE s.name IN ('AnalyzeService', 'HypothesizeService', 'ActService', 'LearnService')
+WHERE s.name IN ('//Hartonomous/Service/Initiator', 'AnalyzeService', 'HypothesizeService', 'ActService', 'LearnService')
 ORDER BY s.name;
+GO
+
+PRINT 'Service Broker infrastructure created successfully.';
+PRINT 'GÖDEL ENGINE: Ready to process autonomous compute jobs.';
 GO

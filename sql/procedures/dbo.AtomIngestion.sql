@@ -90,6 +90,23 @@ BEGIN
                 -- EXEC dbo.sp_AtomizeText @AtomId = @AtomId, @TenantId = @TenantId;
                 PRINT 'Text atomization not yet implemented';
             END
+            ELSE IF @ContentType IN ('text/x-csharp', 'application/x-csharp', 'text/x-python', 'application/x-python', 
+                                      'text/javascript', 'application/javascript', 'text/x-java', 'application/x-java')
+            BEGIN
+                -- Atomize code into AST-as-GEOMETRY representation
+                DECLARE @detectedLanguage NVARCHAR(50) = CASE
+                    WHEN @ContentType LIKE '%csharp%' THEN 'csharp'
+                    WHEN @ContentType LIKE '%python%' THEN 'python'
+                    WHEN @ContentType LIKE '%javascript%' THEN 'javascript'
+                    WHEN @ContentType LIKE '%java' THEN 'java'
+                    ELSE 'csharp'  -- Default to C# for now
+                END;
+                
+                EXEC dbo.sp_AtomizeCode 
+                    @AtomId = @AtomId,
+                    @TenantId = @TenantId,
+                    @Language = @detectedLanguage;
+            END
         END TRY
         BEGIN CATCH
             -- Log atomization errors but don't fail the entire ingestion

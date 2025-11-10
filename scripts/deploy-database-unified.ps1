@@ -86,6 +86,7 @@ $script:SqlPaths = @{
         "sql\tables\dbo.TenantSecurityPolicy.sql"
         "sql\tables\dbo.PendingActions.sql"
         "sql\tables\dbo.AutonomousImprovementHistory.sql"
+        "sql\tables\dbo.AutonomousComputeJobs.sql"
         "sql\tables\dbo.TestResults.sql"
     )
     
@@ -123,9 +124,19 @@ $script:SqlPaths = @{
         "sql\procedures\dbo.sp_Learn.sql"
         "sql\procedures\Autonomy.SelfImprovement.sql"
         "sql\procedures\dbo.AtomIngestion.sql"
+        "sql\procedures\dbo.sp_AtomizeModel.sql"
+        "sql\procedures\dbo.sp_AtomizeCode.sql"
+        "sql\procedures\dbo.sp_ExtractStudentModel.sql"
         "sql\procedures\Search.SemanticSearch.sql"
         "sql\procedures\Generation.TextFromVector.sql"
         "sql\procedures\Inference.MultiModelEnsemble.sql"
+    )
+    
+    # Performance optimization scripts (columnstore, vector, spatial indexes)
+    Optimizations = @(
+        "sql\Optimize_ColumnstoreCompression.sql"
+        "sql\Setup_Vector_Indexes.sql"
+        "sql\procedures\Common.CreateSpatialIndexes.sql"
     )
 }
 
@@ -613,8 +624,37 @@ function Deploy-StoredProcedures {
     }
 }
 
+function Deploy-PerformanceOptimizations {
+    Write-DeploymentLog "=== PHASE 8: Performance Optimizations ===" -Level Info
+    
+    foreach ($optPath in $script:SqlPaths.Optimizations) {
+        $fullPath = Join-Path $script:RootPath $optPath
+        
+        if (-not (Test-Path $fullPath)) {
+            Write-DeploymentLog "Optimization script not found: $optPath" -Level Warning
+            continue
+        }
+        
+        $optName = [System.IO.Path]::GetFileNameWithoutExtension($optPath)
+        Write-DeploymentLog "Applying optimization: $optName" -Level Info
+        
+        $sql = Get-Content $fullPath -Raw
+        
+        try {
+            Invoke-SqlCommand -Query $sql -Database $Database -Timeout 600  # Longer timeout for index creation
+            Write-DeploymentLog "Optimization applied: $optName" -Level Success
+        }
+        catch {
+            Write-DeploymentLog "Failed to apply optimization $optName`: $_" -Level Error
+            if (-not $Force) {
+                throw
+            }
+        }
+    }
+}
+
 function Invoke-DeploymentVerification {
-    Write-DeploymentLog "=== PHASE 8: Verification ===" -Level Info
+    Write-DeploymentLog "=== PHASE 9: Verification ===" -Level Info
     
     # Count tables
     $tableCountSql = "SELECT COUNT(*) AS TableCount FROM sys.tables WHERE is_ms_shipped = 0"
@@ -690,6 +730,7 @@ try {
     Deploy-ServiceBroker
     Deploy-CLRBindingsAndFunctions
     Deploy-StoredProcedures
+    Deploy-PerformanceOptimizations
     Invoke-DeploymentVerification
     
     # Summary

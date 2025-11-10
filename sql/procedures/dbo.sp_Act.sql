@@ -92,6 +92,51 @@ BEGIN
         OPEN hypothesis_cursor;
         FETCH NEXT FROM hypothesis_cursor INTO @CurrentHypothesisId, @CurrentType, @CurrentPriority, @CurrentActions;
         
+        -- GÖDEL ENGINE: Check for compute job messages first
+        -- This is where the CLR compute function is invoked
+        DECLARE @PrimeSearchJobId UNIQUEIDENTIFIER = @MessageBody.value('(/Action/PrimeSearch/JobId)[1]', 'uniqueidentifier');
+        
+        IF @PrimeSearchJobId IS NOT NULL
+        BEGIN
+            DECLARE @Start BIGINT = @MessageBody.value('(/Action/PrimeSearch/RangeStart)[1]', 'bigint');
+            DECLARE @End BIGINT = @MessageBody.value('(/Action/PrimeSearch/RangeEnd)[1]', 'bigint');
+            
+            PRINT 'sp_Act: Executing prime search for range [' + CAST(@Start AS NVARCHAR(20)) + ', ' + CAST(@End AS NVARCHAR(20)) + ']';
+            
+            -- Call the CLR function to find primes in this chunk
+            DECLARE @ResultJson NVARCHAR(MAX);
+            SET @ResultJson = dbo.clr_FindPrimes(@Start, @End);
+            
+            PRINT 'sp_Act: Found primes: ' + @ResultJson;
+            
+            -- Send results to Learn phase
+            DECLARE @LearnPayload XML = (
+                SELECT 
+                    @PrimeSearchJobId AS JobId,
+                    @End AS LastChecked,
+                    @ResultJson AS PrimesFound
+                FOR XML PATH('PrimeResult'), ROOT('Learn')
+            );
+            
+            DECLARE @LearnHandle UNIQUEIDENTIFIER;
+            
+            BEGIN DIALOG CONVERSATION @LearnHandle
+                FROM SERVICE ActService
+                TO SERVICE 'LearnService'
+                ON CONTRACT [//Hartonomous/AutonomousLoop/LearnContract]
+                WITH ENCRYPTION = OFF;
+            
+            SEND ON CONVERSATION @LearnHandle
+                MESSAGE TYPE [//Hartonomous/AutonomousLoop/LearnMessage]
+                (@LearnPayload);
+            
+            END CONVERSATION @ConversationHandle;
+            
+            PRINT 'sp_Act: Compute job results sent to Learn phase.';
+            RETURN 0;
+        END
+        
+        -- REGULAR OODA LOOP: Process performance improvement hypotheses
         WHILE @@FETCH_STATUS = 0
         BEGIN
             SET @StartTime = SYSUTCDATETIME();
@@ -223,24 +268,6 @@ BEGIN
                     -- For now, just log the request
                     SET @ExecutedActionsList = JSON_OBJECT('status': 'QueuedForApproval', 'reason': 'ModelRetraining requires manual approval');
                     SET @ActionStatus = 'QueuedForApproval';
-                END
-
-                -- PRIME SEARCH: Execute a chunk of the long-running prime number search
-                ELSE IF @CurrentType = 'ProcessPrimeChunk'
-                BEGIN
-                    DECLARE @RangeStart BIGINT = JSON_VALUE(@CurrentActions, '$.rangeStart');
-                    DECLARE @RangeEnd BIGINT = JSON_VALUE(@CurrentActions, '$.rangeEnd');
-
-                    -- Call the CLR function to do the actual work
-                    DECLARE @PrimesFound NVARCHAR(MAX) = dbo.clr_FindPrimes(@RangeStart, @RangeEnd);
-
-                    SET @ExecutedActionsList = JSON_OBJECT(
-                        'status': 'ChunkProcessed', 
-                        'rangeStart': @RangeStart, 
-                        'rangeEnd': @RangeEnd,
-                        'primesFound': JSON_QUERY(@PrimesFound)
-                    );
-                    SET @ActionStatus = 'Executed';
                 END
                 
                 ELSE

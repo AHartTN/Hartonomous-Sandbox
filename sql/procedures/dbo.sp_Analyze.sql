@@ -18,6 +18,55 @@ BEGIN
     DECLARE @Patterns NVARCHAR(MAX);
     
     BEGIN TRY
+        -- GÖDEL ENGINE: Check for autonomous compute job messages (bypass performance analysis)
+        -- This allows the OODA loop to process abstract computational tasks (prime search, proofs, etc.)
+        DECLARE @ConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @MessageBody XML;
+        DECLARE @MessageTypeName NVARCHAR(256);
+        
+        -- Try to receive a message (non-blocking check)
+        RECEIVE TOP(1)
+            @ConversationHandle = conversation_handle,
+            @MessageBody = CAST(message_body AS XML),
+            @MessageTypeName = message_type_name
+        FROM AnalyzeQueue;
+        
+        -- If we received a compute job request, route it directly to Hypothesize
+        IF @MessageBody IS NOT NULL
+        BEGIN
+            DECLARE @JobId UNIQUEIDENTIFIER = @MessageBody.value('(/JobRequest/JobId)[1]', 'uniqueidentifier');
+            
+            IF @JobId IS NOT NULL
+            BEGIN
+                -- This is a compute job request, not a performance analysis trigger
+                PRINT 'sp_Analyze: Detected compute job request for JobId: ' + CAST(@JobId AS NVARCHAR(36));
+                
+                DECLARE @HypothesisPayload XML = (
+                    SELECT @JobId AS JobId 
+                    FOR XML PATH('ComputeJob'), ROOT('Hypothesis')
+                );
+                
+                DECLARE @HypothesizeHandle UNIQUEIDENTIFIER;
+                
+                BEGIN DIALOG CONVERSATION @HypothesizeHandle
+                    FROM SERVICE AnalyzeService
+                    TO SERVICE 'HypothesizeService'
+                    ON CONTRACT [//Hartonomous/AutonomousLoop/HypothesizeContract]
+                    WITH ENCRYPTION = OFF;
+                
+                SEND ON CONVERSATION @HypothesizeHandle
+                    MESSAGE TYPE [//Hartonomous/AutonomousLoop/HypothesizeMessage]
+                    (@HypothesisPayload);
+                
+                END CONVERSATION @ConversationHandle;
+                
+                PRINT 'sp_Analyze: Compute job routed to Hypothesize phase.';
+                RETURN 0;
+            END
+        END
+        END
+        
+        -- REGULAR OODA LOOP: Continue with standard performance analysis
         -- 1. QUERY RECENT INFERENCE ACTIVITY WITH EMBEDDINGS
         DECLARE @RecentInferences TABLE (
             InferenceRequestId BIGINT,
@@ -208,18 +257,18 @@ BEGIN
         );
         
         -- 5. SEND TO HYPOTHESIZE QUEUE
-        DECLARE @ConversationHandle UNIQUEIDENTIFIER;
-        DECLARE @MessageBody XML = CAST(@Observations AS XML);
+        DECLARE @AnalyzeConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @AnalyzeMessageBody XML = CAST(@Observations AS XML);
         
-        BEGIN DIALOG CONVERSATION @ConversationHandle
+        BEGIN DIALOG CONVERSATION @AnalyzeConversationHandle
             FROM SERVICE AnalyzeService
             TO SERVICE 'HypothesizeService'
             ON CONTRACT [//Hartonomous/AutonomousLoop/HypothesizeContract]
             WITH ENCRYPTION = OFF;
         
-        SEND ON CONVERSATION @ConversationHandle
+        SEND ON CONVERSATION @AnalyzeConversationHandle
             MESSAGE TYPE [//Hartonomous/AutonomousLoop/HypothesizeMessage]
-            (@MessageBody);
+            (@AnalyzeMessageBody);
         
         -- Don't end conversation - keep it open for reply
         

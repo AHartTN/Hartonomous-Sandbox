@@ -48,41 +48,97 @@ BEGIN
             RequiredActions NVARCHAR(MAX)
         );
 
-        -- Check for specific job types first
-        DECLARE @JobType NVARCHAR(100) = JSON_VALUE(@Observations, '$.jobType');
-
-        IF @JobType = 'LongRunningPrimeSearch'
+        -- GÖDEL ENGINE: Check for compute job messages first
+        -- This allows the OODA loop to plan the next chunk of a long-running computational task
+        DECLARE @ComputeJobId UNIQUEIDENTIFIER = @MessageBody.value('(/Hypothesis/ComputeJob/JobId)[1]', 'uniqueidentifier');
+        
+        IF @ComputeJobId IS NOT NULL
         BEGIN
-            DECLARE @NextChunkStart BIGINT = JSON_VALUE(@Observations, '$.nextChunkStart');
-            DECLARE @ChunkSize BIGINT = JSON_VALUE(@Observations, '$.chunkSize');
-            DECLARE @FullRangeEnd BIGINT = JSON_VALUE(@Observations, '$.fullRangeEnd');
-            DECLARE @ChunkEnd BIGINT = @NextChunkStart + @ChunkSize - 1;
-
-            IF @NextChunkStart > @FullRangeEnd
+            PRINT 'sp_Hypothesize: Processing compute job: ' + CAST(@ComputeJobId AS NVARCHAR(36));
+            
+            DECLARE @JobParams NVARCHAR(MAX);
+            DECLARE @CurrentState NVARCHAR(MAX);
+            DECLARE @JobType NVARCHAR(100);
+            
+            SELECT 
+                @JobParams = JobParameters,
+                @CurrentState = CurrentState,
+                @JobType = JobType
+            FROM dbo.AutonomousComputeJobs
+            WHERE JobId = @ComputeJobId AND Status = 'Running';
+            
+            IF @JobParams IS NULL
             BEGIN
-                -- Job is complete, no more hypotheses needed.
-                PRINT 'Prime search job complete.';
+                PRINT 'sp_Hypothesize: Job not found or already completed.';
+                END CONVERSATION @ConversationHandle;
+                RETURN 0;
             END
-            ELSE
+            
+            -- Job type: PrimeSearch
+            IF @JobType = 'PrimeSearch'
             BEGIN
-                IF @ChunkEnd > @FullRangeEnd
+                DECLARE @RangeEnd BIGINT = JSON_VALUE(@JobParams, '$.rangeEnd');
+                DECLARE @LastChecked BIGINT = ISNULL(JSON_VALUE(@CurrentState, '$.lastChecked'), JSON_VALUE(@JobParams, '$.rangeStart') - 1);
+                DECLARE @ChunkSize INT = 10000; -- Process 10k numbers per chunk
+                
+                IF @LastChecked >= @RangeEnd
                 BEGIN
-                    SET @ChunkEnd = @FullRangeEnd;
+                    -- Job complete
+                    UPDATE dbo.AutonomousComputeJobs
+                    SET Status = 'Completed',
+                        CompletedAt = SYSUTCDATETIME(),
+                        UpdatedAt = SYSUTCDATETIME()
+                    WHERE JobId = @ComputeJobId;
+                    
+                    PRINT 'sp_Hypothesize: Job completed.';
+                    END CONVERSATION @ConversationHandle;
+                    RETURN 0;
                 END
-
-                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
-                VALUES (
-                    'ProcessPrimeChunk',
-                    0, -- Highest priority to ensure it gets processed
-                    'Process a chunk of a long-running prime number search job.',
-                    JSON_OBJECT('progress': 'chunk processing'),
-                    JSON_OBJECT('rangeStart': @NextChunkStart, 'rangeEnd': @ChunkEnd)
+                
+                -- Plan next chunk
+                DECLARE @NextStart BIGINT = @LastChecked + 1;
+                DECLARE @NextEnd BIGINT = @LastChecked + @ChunkSize;
+                IF @NextEnd > @RangeEnd SET @NextEnd = @RangeEnd;
+                
+                DECLARE @ActPayload XML = (
+                    SELECT 
+                        @ComputeJobId AS JobId,
+                        @NextStart AS RangeStart,
+                        @NextEnd AS RangeEnd
+                    FOR XML PATH('PrimeSearch'), ROOT('Action')
                 );
+                
+                DECLARE @ActHandle UNIQUEIDENTIFIER;
+                
+                BEGIN DIALOG CONVERSATION @ActHandle
+                    FROM SERVICE HypothesizeService
+                    TO SERVICE 'ActService'
+                    ON CONTRACT [//Hartonomous/AutonomousLoop/ActContract]
+                    WITH ENCRYPTION = OFF;
+                
+                SEND ON CONVERSATION @ActHandle
+                    MESSAGE TYPE [//Hartonomous/AutonomousLoop/ActMessage]
+                    (@ActPayload);
+                
+                END CONVERSATION @ConversationHandle;
+                
+                PRINT 'sp_Hypothesize: Planned chunk [' + CAST(@NextStart AS NVARCHAR(20)) + ', ' + CAST(@NextEnd AS NVARCHAR(20)) + ']';
+                RETURN 0;
             END
         END
-        ELSE
+        
+        -- REGULAR OODA LOOP: Generate hypotheses based on performance observations
+        DECLARE @JobTypeOld NVARCHAR(100) = JSON_VALUE(@Observations, '$.jobType');
+
+        IF @JobTypeOld IS NOT NULL AND @JobTypeOld != ''
         BEGIN
-            -- HYPOTHESIS 1: If anomalies detected, suggest index optimization
+            -- Old-style job messages (for backward compatibility with sp_StartPrimeSearch)
+            -- These will be migrated to use AutonomousComputeJobs table
+            PRINT 'sp_Hypothesize: Received old-style job message. Consider migrating to AutonomousComputeJobs.';
+        END
+        
+        -- HYPOTHESIS GENERATION: Analyze system performance and suggest improvements
+        -- HYPOTHESIS 1: If anomalies detected, suggest index optimization
             IF @AnomalyCount > 5
             BEGIN
                 INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)

@@ -298,3 +298,145 @@ RETURNS TABLE (
 )
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageProcessing].DeconstructImageToPatches;
 GO
+
+-- ========================================
+-- Code Analysis Functions (AST-as-GEOMETRY)
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_GenerateCodeAstVector', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_GenerateCodeAstVector;
+GO
+CREATE FUNCTION dbo.clr_GenerateCodeAstVector(@sourceCode NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.CodeAnalysis].clr_GenerateCodeAstVector;
+GO
+
+-- ========================================
+-- SVD-as-GEOMETRY Pipeline Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_ParseModelLayer', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ParseModelLayer;
+GO
+CREATE FUNCTION dbo.clr_ParseModelLayer(
+    @modelBlob VARBINARY(MAX),
+    @tensorName NVARCHAR(256),
+    @modelFormatHint NVARCHAR(50)
+)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ModelParsing].clr_ParseModelLayer;
+GO
+
+IF OBJECT_ID('dbo.clr_SvdDecompose', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_SvdDecompose;
+GO
+CREATE FUNCTION dbo.clr_SvdDecompose(
+    @weightArrayJson NVARCHAR(MAX),
+    @rows INT,
+    @cols INT,
+    @maxRank INT
+)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SVDGeometryFunctions].clr_SvdDecompose;
+GO
+
+IF OBJECT_ID('dbo.clr_ProjectToPoint', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ProjectToPoint;
+GO
+CREATE FUNCTION dbo.clr_ProjectToPoint(@vectorJson NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SVDGeometryFunctions].clr_ProjectToPoint;
+GO
+
+IF OBJECT_ID('dbo.clr_CreateGeometryPointWithImportance', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_CreateGeometryPointWithImportance;
+GO
+CREATE FUNCTION dbo.clr_CreateGeometryPointWithImportance(
+    @x FLOAT,
+    @y FLOAT,
+    @z FLOAT,
+    @importance FLOAT
+)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SVDGeometryFunctions].clr_CreateGeometryPointWithImportance;
+GO
+
+IF OBJECT_ID('dbo.clr_ReconstructFromSVD', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ReconstructFromSVD;
+GO
+CREATE FUNCTION dbo.clr_ReconstructFromSVD(
+    @UJson NVARCHAR(MAX),
+    @SJson NVARCHAR(MAX),
+    @VTJson NVARCHAR(MAX)
+)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SVDGeometryFunctions].clr_ReconstructFromSVD;
+GO
+
+-- ========================================
+-- Tensor Data I/O Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_StoreTensorAtomPayload', 'P') IS NOT NULL DROP PROCEDURE dbo.clr_StoreTensorAtomPayload;
+GO
+CREATE PROCEDURE dbo.clr_StoreTensorAtomPayload
+    @tensorAtomId BIGINT,
+    @payload VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorDataIO].clr_StoreTensorAtomPayload;
+GO
+
+IF OBJECT_ID('dbo.clr_JsonFloatArrayToBytes', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_JsonFloatArrayToBytes;
+GO
+CREATE FUNCTION dbo.clr_JsonFloatArrayToBytes(@jsonFloatArray NVARCHAR(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorDataIO].clr_JsonFloatArrayToBytes;
+GO
+
+IF OBJECT_ID('dbo.clr_GetTensorAtomPayload', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_GetTensorAtomPayload;
+GO
+CREATE FUNCTION dbo.clr_GetTensorAtomPayload(@tensorAtomId BIGINT)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorDataIO].clr_GetTensorAtomPayload;
+GO
+
+-- ========================================
+-- Trajectory & Path Analysis Aggregates
+-- ========================================
+
+IF OBJECT_ID('dbo.agg_BuildPathFromAtoms', 'AF') IS NOT NULL DROP AGGREGATE dbo.agg_BuildPathFromAtoms;
+GO
+CREATE AGGREGATE dbo.agg_BuildPathFromAtoms(
+    @atomId BIGINT,
+    @timestamp DATETIME
+)
+RETURNS GEOMETRY
+EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.BuildPathFromAtoms];
+GO
+
+-- ========================================
+-- Shape-to-Content Generation Functions (Phase 4)
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_GenerateImageFromShapes', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_GenerateImageFromShapes;
+GO
+CREATE FUNCTION dbo.clr_GenerateImageFromShapes(
+    @shapes GEOMETRY,
+    @width INT,
+    @height INT
+)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ImageGeneration].GenerateImageFromShapes;
+GO
+
+IF OBJECT_ID('dbo.clr_GenerateAudioFromSpatialSignature', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_GenerateAudioFromSpatialSignature;
+GO
+CREATE FUNCTION dbo.clr_GenerateAudioFromSpatialSignature(@spatialSignature GEOMETRY)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].GenerateAudioFromSpatialSignature;
+GO
+
+IF OBJECT_ID('dbo.clr_SynthesizeModelLayer', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_SynthesizeModelLayer;
+GO
+CREATE FUNCTION dbo.clr_SynthesizeModelLayer(
+    @queryShape GEOMETRY,
+    @parentLayerId BIGINT
+)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorOperations.ModelSynthesis].clr_SynthesizeModelLayer;
+GO
+
+
