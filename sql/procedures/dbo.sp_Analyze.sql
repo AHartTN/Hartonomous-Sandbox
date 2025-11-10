@@ -93,10 +93,11 @@ BEGIN
         FROM @PerformanceMetrics;
         
         -- Parse scores and identify anomalies (scores > 0.7 for IsolationForest, > 1.5 for LOF)
-        DECLARE @AnomalyThreshold FLOAT = 0.7;
-        
+        DECLARE @IsolationThreshold FLOAT = 0.7;
+        DECLARE @LOFThreshold FLOAT = 1.5;
+
         WITH IsolationScores AS (
-            SELECT 
+            SELECT
                 pm.InferenceRequestId,
                 pm.ModelId,
                 pm.DurationMs,
@@ -104,28 +105,57 @@ BEGIN
                 TRY_CAST(value AS FLOAT) AS IsolationScore,
                 ROW_NUMBER() OVER (ORDER BY pm.InferenceRequestId) AS RowNum
             FROM @PerformanceMetrics pm
-            CROSS APPLY OPENJSON(@IsolationForestScores) 
+            CROSS APPLY OPENJSON(@IsolationForestScores)
+        ),
+        LOFScoresParsed AS (
+            SELECT
+                pm.InferenceRequestId,
+                TRY_CAST(value AS FLOAT) AS LOFScore,
+                ROW_NUMBER() OVER (ORDER BY pm.InferenceRequestId) AS RowNum
+            FROM @PerformanceMetrics pm
+            CROSS APPLY OPENJSON(@LOFScores)
+        ),
+        CombinedScores AS (
+            SELECT
+                iso.InferenceRequestId,
+                iso.ModelId,
+                iso.DurationMs,
+                iso.AvgDurationMs,
+                iso.IsolationScore,
+                lof.LOFScore
+            FROM IsolationScores iso
+            LEFT JOIN LOFScoresParsed lof ON iso.RowNum = lof.RowNum
         ),
         AnomalousInferences AS (
-            SELECT 
+            -- DUAL DETECTION: Anomaly detected by EITHER IsolationForest OR LOF
+            SELECT
                 InferenceRequestId,
                 ModelId,
                 DurationMs,
                 AvgDurationMs,
                 (DurationMs / NULLIF(AvgDurationMs, 0)) AS SlowdownFactor,
-                IsolationScore
-            FROM IsolationScores
-            WHERE IsolationScore > @AnomalyThreshold
+                IsolationScore,
+                LOFScore,
+                CASE
+                    WHEN IsolationScore > @IsolationThreshold AND LOFScore > @LOFThreshold THEN 'both'
+                    WHEN IsolationScore > @IsolationThreshold THEN 'isolation_forest'
+                    WHEN LOFScore > @LOFThreshold THEN 'lof'
+                    ELSE NULL
+                END AS DetectionMethod
+            FROM CombinedScores
+            WHERE IsolationScore > @IsolationThreshold
+               OR LOFScore > @LOFThreshold
         )
         SELECT @Anomalies = (
-            SELECT 
+            SELECT
                 InferenceRequestId,
                 ModelId,
                 DurationMs,
                 AvgDurationMs,
                 SlowdownFactor,
                 IsolationScore,
-                'isolation_forest' AS DetectionMethod
+                LOFScore,
+                DetectionMethod
             FROM AnomalousInferences
             FOR JSON PATH
         );
