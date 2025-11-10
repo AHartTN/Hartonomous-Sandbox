@@ -94,6 +94,14 @@ public static class PersistenceServiceExtensions
         services.AddScoped<Hartonomous.Data.Repositories.IVectorSearchRepository, VectorSearchRepository>();
         services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
 
+        // Atomic component repositories (deduplicated storage)
+        services.AddScoped<Core.Interfaces.IAtomicTextTokenRepository, Repositories.AtomicTextTokenRepository>();
+        services.AddScoped<Core.Interfaces.IAtomicPixelRepository, Repositories.AtomicPixelRepository>();
+        services.AddScoped<Core.Interfaces.IAtomicAudioSampleRepository, Repositories.AtomicAudioSampleRepository>();
+
+        // CDC checkpoint management
+        services.AddScoped<ICdcCheckpointManager, Services.CDC.SqlCdcCheckpointManager>();
+
         return services;
     }
 }

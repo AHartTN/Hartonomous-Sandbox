@@ -22,7 +22,7 @@ namespace SqlClrFunctions.TensorOperations
         /// Loads tensor weights by querying the database for the corresponding tensor atom
         /// and retrieving its payload from FILESTREAM storage.
         /// </summary>
-        public byte[] LoadWeights(string tensorName, int expectedSizeInBytes)
+        public float[] LoadWeights(string tensorName, int maxElements)
         {
             try
             {
@@ -71,7 +71,10 @@ namespace SqlClrFunctions.TensorOperations
                     return null;
                 }
 
-                return payload.Value;
+                byte[] bytes = payload.Value;
+                float[] floats = new float[bytes.Length / sizeof(float)];
+                Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
+                return floats;
             }
             catch (Exception)
             {

@@ -341,7 +341,7 @@ namespace SqlClrFunctions
 
             double x = spatialSignature.STX.IsNull ? 0.5 : spatialSignature.STX.Value;
             double y = spatialSignature.STY.IsNull ? 0.5 : spatialSignature.STY.Value;
-            double z = spatialSignature.STZ.IsNull ? 0.5 : spatialSignature.STZ.Value;
+            double z = spatialSignature.Z.IsNull ? 0.5 : spatialSignature.Z.Value;
             double m = spatialSignature.M.IsNull ? 0.5 : spatialSignature.M.Value;
 
             // Normalize and scale parameters for GenerateHarmonicTone

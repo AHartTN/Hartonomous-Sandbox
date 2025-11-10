@@ -40,6 +40,8 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Transactions" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Numerics" />
     <Reference Include="MathNet.Numerics">
@@ -82,6 +84,7 @@
     <Compile Include="Contracts\ITensorProvider.cs" />
     <Compile Include="Core\LandmarkProjection.cs" />
     <Compile Include="Core\SqlTensorProvider.cs" />
+    <Compile Include="Core\TensorMetadata.cs" />
     <Compile Include="Core\VectorMath.cs" />
     <Compile Include="Core\VectorUtilities.cs" />
   <Compile Include="Core\PooledList.cs" />
@@ -109,6 +112,9 @@
     <Compile Include="SpatialOperations.cs" />
     <Compile Include="SqlBytesInterop.cs" />
     <Compile Include="StreamOrchestrator.cs" />
+    <Compile Include="TensorDataIO.cs" />
+    <Compile Include="TensorOperations\ClrTensorProvider.cs" />
+    <Compile Include="TensorOperations\ModelSynthesis.cs" />
     <Compile Include="TensorOperations\TransformerInference.cs" />
     <Compile Include="TimeSeriesVectorAggregates.cs" />
     <Compile Include="VectorAggregates.cs" />

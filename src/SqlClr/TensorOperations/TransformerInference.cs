@@ -1,5 +1,7 @@
 using System;
+using System.Data.SqlTypes;
 using System.Linq;
+using Microsoft.SqlServer.Server;
 using SqlClrFunctions.Contracts;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Single;
