@@ -1,5 +1,4 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.IO;
@@ -219,18 +218,18 @@ namespace SqlClrFunctions
             if (dimension != other.dimension)
                 return;
 
-            vectors.AddRange(other.vectors.AsSpan());
+            vectors.AddRange(other.vectors.ToArray());
         }
 
         public SqlString Terminate()
         {
-            var vectorSpan = vectors.AsSpan();
-            if (vectorSpan.Length == 0 || dimension == 0)
+            var vectorArray = vectors.ToArray();
+            if (vectorArray.Length == 0 || dimension == 0)
                 return SqlString.Null;
 
-            if (vectorSpan.Length == 1)
+            if (vectorArray.Length == 1)
             {
-                var single = vectorSpan[0];
+                var single = vectorArray[0];
                 var result = dimension >= 3
                     ? new SqlString($"POINT ({single[0]:G9} {single[1]:G9} {single[2]:G9})")
                     : dimension == 2
@@ -244,7 +243,7 @@ namespace SqlClrFunctions
             // Initialize with component-wise median
             float[] estimate = new float[dimension];
             for (int d = 0; d < dimension; d++)
-                estimate[d] = ComponentMedian(vectorSpan, d);
+                estimate[d] = ComponentMedian(vectorArray, d);
 
             // Weiszfeld's iterative algorithm
             const int maxIterations = 100;
@@ -255,9 +254,9 @@ namespace SqlClrFunctions
                 float[] weightedSum = new float[dimension];
                 double sumWeights = 0;
 
-                for (int idx = 0; idx < vectorSpan.Length; idx++)
+                for (int idx = 0; idx < vectorArray.Length; idx++)
                 {
-                    var vec = vectorSpan[idx];
+                    var vec = vectorArray[idx];
                     double dist = EuclideanDistance(vec, estimate);
                     if (dist < 1e-10)
                         continue;
@@ -293,30 +292,22 @@ namespace SqlClrFunctions
             return terminated;
         }
 
-        private float ComponentMedian(ReadOnlySpan<float[]> vecs, int componentIndex)
+        private float ComponentMedian(float[][] vecs, int componentIndex)
         {
             int length = vecs.Length;
             if (length == 0)
                 return 0f;
 
-            var pool = ArrayPool<float>.Shared;
-            float[] scratch = pool.Rent(length);
-            try
-            {
-                for (int i = 0; i < length; i++)
-                    scratch[i] = vecs[i][componentIndex];
+            float[] scratch = new float[length];
+            for (int i = 0; i < length; i++)
+                scratch[i] = vecs[i][componentIndex];
 
-                Array.Sort(scratch, 0, length);
-                float median = (length & 1) == 0
-                    ? (scratch[length / 2 - 1] + scratch[length / 2]) * 0.5f
-                    : scratch[length / 2];
+            Array.Sort(scratch, 0, length);
+            float median = (length & 1) == 0
+                ? (scratch[length / 2 - 1] + scratch[length / 2]) * 0.5f
+                : scratch[length / 2];
 
-                return median;
-            }
-            finally
-            {
-                pool.Return(scratch, clearArray: false);
-            }
+            return median;
         }
 
         private double EuclideanDistance(float[] a, float[] b)
@@ -352,12 +343,12 @@ namespace SqlClrFunctions
 
         public void Write(BinaryWriter w)
         {
-            var span = vectors.AsSpan();
+            var arr = vectors.ToArray();
             w.Write(dimension);
-            w.Write(span.Length);
-            for (int i = 0; i < span.Length; i++)
+            w.Write(arr.Length);
+            for (int i = 0; i < arr.Length; i++)
             {
-                var vec = span[i];
+                var vec = arr[i];
                 for (int j = 0; j < dimension; j++)
                     w.Write(vec[j]);
             }

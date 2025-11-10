@@ -1,17 +1,16 @@
 using System;
-using System.Buffers;
 using System.Collections.Generic;
 
 namespace SqlClrFunctions.Core;
 
 /// <summary>
-/// Allocation-conscious list backed by <see cref="ArrayPool{T}"/> for SQL CLR aggregates.
-/// Allows high-frequency aggregates to buffer items without repeated <see cref="List{T}"/> growth.
+/// Allocation-conscious list for SQL CLR aggregates.
+/// Simple array-based list for .NET Framework 4.8.1 compatibility.
 /// </summary>
 internal struct PooledList<T>
 {
     private const int DefaultCapacity = 8;
-    private T[]? _items;
+    private T[] _items;
     private int _count;
 
     internal int Count => _count;
@@ -27,22 +26,27 @@ internal struct PooledList<T>
         }
     }
 
-    internal ReadOnlySpan<T> AsSpan() => _items == null ? ReadOnlySpan<T>.Empty : new ReadOnlySpan<T>(_items, 0, _count);
-    internal Span<T> AsSpanMutable() => _items == null ? Span<T>.Empty : new Span<T>(_items, 0, _count);
+    internal T[] ToArray()
+    {
+        if (_count == 0) return Array.Empty<T>();
+        var result = new T[_count];
+        Array.Copy(_items, result, _count);
+        return result;
+    }
 
     internal void Add(T item)
     {
-    EnsureCapacity(_count + 1);
-    _items[_count++] = item;
+        EnsureCapacity(_count + 1);
+        _items[_count++] = item;
     }
 
-    internal void AddRange(ReadOnlySpan<T> items)
+    internal void AddRange(T[] items)
     {
-        if (items.IsEmpty)
+        if (items == null || items.Length == 0)
             return;
 
         EnsureCapacity(_count + items.Length);
-    items.CopyTo(new Span<T>(_items, _count, items.Length));
+        Array.Copy(items, 0, _items, _count, items.Length);
         _count += items.Length;
     }
 
@@ -55,9 +59,9 @@ internal struct PooledList<T>
 
         _count--;
         if (index < _count)
-            Array.Copy(_items!, index + 1, _items!, index, _count - index);
+            Array.Copy(_items, index + 1, _items, index, _count - index);
 
-    _items[_count] = default(T);
+        _items[_count] = default(T);
     }
 
     internal void RemoveLast()
@@ -65,24 +69,21 @@ internal struct PooledList<T>
         if (_count == 0)
             return;
         _count--;
-    _items[_count] = default(T);
+        _items[_count] = default(T);
     }
 
     internal void Sort(Comparison<T> comparison)
     {
         if (_count <= 1)
             return;
-        Array.Sort(_items!, 0, _count, Comparer<T>.Create(comparison));
+        Array.Sort(_items, 0, _count, Comparer<T>.Create(comparison));
     }
 
     internal void Clear(bool clearItems = false)
     {
-        if (_items != null)
+        if (_items != null && clearItems)
         {
-            if (clearItems)
-                Array.Clear(_items, 0, _count);
-            ArrayPool<T>.Shared.Return(_items, clearArray: clearItems);
-            _items = null;
+            Array.Clear(_items, 0, _count);
         }
         _count = 0;
     }
@@ -92,7 +93,7 @@ internal struct PooledList<T>
         if (_items == null)
         {
             int capacity = Math.Max(DefaultCapacity, size);
-            _items = ArrayPool<T>.Shared.Rent(capacity);
+            _items = new T[capacity];
             return;
         }
 
@@ -103,9 +104,8 @@ internal struct PooledList<T>
         while (newCapacity < size)
             newCapacity *= 2;
 
-        var newArray = ArrayPool<T>.Shared.Rent(newCapacity);
+        var newArray = new T[newCapacity];
         Array.Copy(_items, 0, newArray, 0, _count);
-        ArrayPool<T>.Shared.Return(_items, clearArray: true);
         _items = newArray;
     }
 }

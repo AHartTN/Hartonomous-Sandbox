@@ -86,7 +86,7 @@ namespace SqlClrFunctions
             if (patternLength == 0)
                 patternLength = other.patternLength;
 
-            sequence.AddRange(other.sequence.AsSpan());
+            sequence.AddRange(other.sequence.ToArray());
         }
 
         public SqlString Terminate()
@@ -98,7 +98,7 @@ namespace SqlClrFunctions
             }
 
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-            var entries = sequence.AsSpan();
+            var entries = sequence.ToArray();
             int total = entries.Length;
 
             PooledList<PatternResult> patterns = default;
@@ -137,7 +137,7 @@ namespace SqlClrFunctions
                 }
             }
 
-            var patternSpan = patterns.AsSpan();
+            var patternSpan = patterns.ToArray();
             if (patternSpan.Length == 0)
             {
                 sequence.Clear(clearItems: true);
@@ -145,8 +145,7 @@ namespace SqlClrFunctions
                 return new SqlString("{\"patterns\":[]}");
             }
 
-            PatternResult[] ordered = new PatternResult[patternSpan.Length];
-            patternSpan.CopyTo(ordered);
+            PatternResult[] ordered = patternSpan;
             Array.Sort(ordered, (a, b) =>
             {
                 int cmp = b.Occurrences.CompareTo(a.Occurrences);
@@ -203,7 +202,7 @@ namespace SqlClrFunctions
 
         public void Write(BinaryWriter w)
         {
-            var entries = sequence.AsSpan();
+            var entries = sequence.ToArray();
             w.Write(patternLength);
             w.Write(dimension);
             w.Write(entries.Length);
@@ -280,7 +279,7 @@ namespace SqlClrFunctions
             if (order == 0)
                 order = other.order;
 
-            sequence.AddRange(other.sequence.AsSpan());
+            sequence.AddRange(other.sequence.ToArray());
         }
 
         public SqlString Terminate()
@@ -293,7 +292,7 @@ namespace SqlClrFunctions
 
             // Sort by timestamp
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-            var entries = sequence.AsSpan();
+            var entries = sequence.ToArray();
 
             // Simple AR model: weighted average of last N vectors
             float[] forecast = new float[dimension];
@@ -347,7 +346,7 @@ namespace SqlClrFunctions
         {
             w.Write(order);
             w.Write(dimension);
-            var entries = sequence.AsSpan();
+            var entries = sequence.ToArray();
             w.Write(entries.Length);
             for (int i = 0; i < entries.Length; i++)
             {
@@ -423,9 +422,9 @@ namespace SqlClrFunctions
         public void Merge(DTWDistance other)
         {
             if (other.sequence1.Count > 0)
-                sequence1.AddRange(other.sequence1.AsSpan());
+                sequence1.AddRange(other.sequence1.ToArray());
             if (other.sequence2.Count > 0)
-                sequence2.AddRange(other.sequence2.AsSpan());
+                sequence2.AddRange(other.sequence2.ToArray());
         }
 
         public SqlDouble Terminate()
@@ -499,7 +498,7 @@ namespace SqlClrFunctions
         public void Write(BinaryWriter w)
         {
             w.Write(dimension);
-            var span1 = sequence1.AsSpan();
+            var span1 = sequence1.ToArray();
             w.Write(span1.Length);
             for (int i = 0; i < span1.Length; i++)
             {
@@ -508,7 +507,7 @@ namespace SqlClrFunctions
                     w.Write(vec[j]);
             }
 
-            var span2 = sequence2.AsSpan();
+            var span2 = sequence2.ToArray();
             w.Write(span2.Length);
             for (int i = 0; i < span2.Length; i++)
             {
@@ -591,7 +590,7 @@ namespace SqlClrFunctions
             if (threshold == 0)
                 threshold = other.threshold;
 
-            sequence.AddRange(other.sequence.AsSpan());
+            sequence.AddRange(other.sequence.ToArray());
         }
 
         public SqlString Terminate()
@@ -604,7 +603,7 @@ namespace SqlClrFunctions
 
             // Sort by timestamp
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-            var entries = sequence.AsSpan();
+            var entries = sequence.ToArray();
 
             // CUSUM algorithm for change point detection
             PooledList<ChangePointRecord> changePoints = default;
@@ -663,7 +662,7 @@ namespace SqlClrFunctions
             }
 
             // Return top change points
-            var changeSpan = changePoints.AsSpan();
+            var changeSpan = changePoints.ToArray();
             if (changeSpan.Length == 0)
             {
                 sequence.Clear(clearItems: true);
@@ -671,8 +670,7 @@ namespace SqlClrFunctions
                 return new SqlString("{\"change_points\":[]}");
             }
 
-            ChangePointRecord[] ordered = new ChangePointRecord[changeSpan.Length];
-            changeSpan.CopyTo(ordered);
+            ChangePointRecord[] ordered = changeSpan;
             Array.Sort(ordered, (a, b) => b.Score.CompareTo(a.Score));
 
             int take = Math.Min(5, ordered.Length);
@@ -723,7 +721,7 @@ namespace SqlClrFunctions
         {
             w.Write(threshold);
             w.Write(dimension);
-            var entries = sequence.AsSpan();
+            var entries = sequence.ToArray();
             w.Write(entries.Length);
             for (int i = 0; i < entries.Length; i++)
             {
