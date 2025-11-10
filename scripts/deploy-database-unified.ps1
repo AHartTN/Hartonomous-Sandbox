@@ -137,7 +137,7 @@ $script:CLRAssemblies = @(
     @{ Name = "System.ServiceModel.Internals"; Path = "dependencies\System.ServiceModel.Internals.dll"; Hash = $null }
     @{ Name = "SMDiagnostics"; Path = "dependencies\SMDiagnostics.dll"; Hash = $null }
     @{ Name = "System.Runtime.Serialization"; Path = "dependencies\System.Runtime.Serialization.dll"; Hash = $null }
-    @{ Name = "SqlClrFunctions"; Path = "src\Hartonomous.SqlClr\bin\Release\net481\Hartonomous.SqlClr.dll"; Hash = $null }
+    @{ Name = "SqlClrFunctions"; Path = "src\SqlClr\bin\Release\SqlClrFunctions.dll"; Hash = $null }
 )
 
 # ===============================================

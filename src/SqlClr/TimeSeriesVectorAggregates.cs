@@ -1,8 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Data.SqlTypes;
+using System.Globalization;
 using System.IO;
-using System.Linq;
+using System.Text;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 using SqlClrFunctions.Core;
@@ -34,13 +34,20 @@ namespace SqlClrFunctions
         MaxByteSize = -1)]
     public struct VectorSequencePatterns : IBinarySerialize
     {
-        private List<(DateTime Timestamp, float[] Vector)> sequence;
+        private PooledList<TimestampedVector> sequence;
         private int patternLength;
         private int dimension;
 
+        private struct PatternResult
+        {
+            public int StartIndex;
+            public double AvgSimilarity;
+            public int Occurrences;
+        }
+
         public void Init()
         {
-            sequence = new List<(DateTime, float[])>();
+            sequence = default;
             patternLength = 0;
             dimension = 0;
         }
@@ -51,58 +58,68 @@ namespace SqlClrFunctions
                 return;
 
             if (patternLength == 0)
-                patternLength = windowSize.Value;
+                patternLength = Math.Max(1, windowSize.Value);
 
             var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
-            if (vec == null) return;
+            if (vec == null)
+                return;
 
             if (dimension == 0)
                 dimension = vec.Length;
             else if (vec.Length != dimension)
                 return;
 
-            sequence.Add((timestamp.Value, vec));
+            sequence.Add(new TimestampedVector(timestamp.Value, vec));
         }
 
         public void Merge(VectorSequencePatterns other)
         {
-            if (other.sequence != null)
-                sequence.AddRange(other.sequence);
+            if (other.sequence.Count == 0)
+                return;
+
+            if (dimension == 0)
+                dimension = other.dimension;
+
+            if (dimension != other.dimension)
+                return;
+
+            if (patternLength == 0)
+                patternLength = other.patternLength;
+
+            sequence.AddRange(other.sequence.AsSpan());
         }
 
         public SqlString Terminate()
         {
             if (sequence.Count < patternLength * 2 || dimension == 0)
-                return SqlString.Null;
-
-            // Sort by timestamp
-            sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-
-            // Find repeated subsequences using simple distance-based matching
-            var patterns = new List<(int StartIdx, double AvgSimilarity, int Occurrences)>();
-
-            for (int i = 0; i <= sequence.Count - patternLength; i++)
             {
-                // Extract pattern
-                var pattern = sequence.Skip(i).Take(patternLength).Select(s => s.Vector).ToArray();
+                sequence.Clear(clearItems: true);
+                return SqlString.Null;
+            }
 
-                // Look for similar subsequences
+            sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+            var entries = sequence.AsSpan();
+            int total = entries.Length;
+
+            PooledList<PatternResult> patterns = default;
+
+            for (int i = 0; i <= total - patternLength; i++)
+            {
                 int occurrences = 0;
                 double totalSimilarity = 0;
 
-                for (int j = i + patternLength; j <= sequence.Count - patternLength; j++)
+                for (int j = i + patternLength; j <= total - patternLength; j++)
                 {
-                    var candidate = sequence.Skip(j).Take(patternLength).Select(s => s.Vector).ToArray();
-                    
-                    // Compute average similarity across the window
                     double windowSim = 0;
                     for (int k = 0; k < patternLength; k++)
                     {
-                        windowSim += VectorUtilities.CosineSimilarity(pattern[k], candidate[k]);
+                        windowSim += VectorUtilities.CosineSimilarity(
+                            entries[i + k].Vector,
+                            entries[j + k].Vector);
                     }
                     windowSim /= patternLength;
 
-                    if (windowSim > 0.8) // High similarity threshold
+                    if (windowSim > 0.8)
                     {
                         occurrences++;
                         totalSimilarity += windowSim;
@@ -111,57 +128,91 @@ namespace SqlClrFunctions
 
                 if (occurrences > 0)
                 {
-                    patterns.Add((i, totalSimilarity / occurrences, occurrences + 1));
+                    patterns.Add(new PatternResult
+                    {
+                        StartIndex = i,
+                        AvgSimilarity = totalSimilarity / occurrences,
+                        Occurrences = occurrences + 1
+                    });
                 }
             }
 
-            // Return top 5 patterns
-            var topPatterns = patterns.OrderByDescending(p => p.Occurrences)
-                .ThenByDescending(p => p.AvgSimilarity)
-                .Take(5)
-                .ToList();
-
-            if (topPatterns.Count == 0)
+            var patternSpan = patterns.AsSpan();
+            if (patternSpan.Length == 0)
+            {
+                sequence.Clear(clearItems: true);
+                patterns.Clear();
                 return new SqlString("{\"patterns\":[]}");
+            }
 
-            var json = "{\"patterns\":[" +
-                string.Join(",",
-                    topPatterns.Select(p =>
-                        $"{{\"start_index\":{p.StartIdx}," +
-                        $"\"similarity\":{p.AvgSimilarity:G6}," +
-                        $"\"occurrences\":{p.Occurrences}}}"
-                    )
-                ) + "]}";
+            PatternResult[] ordered = new PatternResult[patternSpan.Length];
+            patternSpan.CopyTo(ordered);
+            Array.Sort(ordered, (a, b) =>
+            {
+                int cmp = b.Occurrences.CompareTo(a.Occurrences);
+                if (cmp != 0)
+                    return cmp;
+                return b.AvgSimilarity.CompareTo(a.AvgSimilarity);
+            });
 
-            return new SqlString(json);
+            int take = Math.Min(5, ordered.Length);
+            var builder = new StringBuilder();
+            builder.Append("{\"patterns\":[");
+            for (int idx = 0; idx < take; idx++)
+            {
+                if (idx > 0)
+                    builder.Append(',');
+
+                var item = ordered[idx];
+                builder.Append("{\"start_index\":");
+                builder.Append(item.StartIndex);
+                builder.Append(",\"similarity\":");
+                builder.Append(item.AvgSimilarity.ToString("G6", CultureInfo.InvariantCulture));
+                builder.Append(",\"occurrences\":");
+                builder.Append(item.Occurrences);
+                builder.Append('}');
+            }
+            builder.Append("]}");
+
+            sequence.Clear(clearItems: true);
+            patterns.Clear();
+            return new SqlString(builder.ToString());
         }
 
         public void Read(BinaryReader r)
         {
+            sequence.Clear(clearItems: true);
+
             patternLength = r.ReadInt32();
             dimension = r.ReadInt32();
             int count = r.ReadInt32();
-            sequence = new List<(DateTime, float[])>(count);
+
+            if (dimension <= 0 || count <= 0)
+                return;
+
+            sequence.Reserve(count);
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
                 float[] vec = new float[dimension];
                 for (int j = 0; j < dimension; j++)
                     vec[j] = r.ReadSingle();
-                sequence.Add((timestamp, vec));
+                sequence.Add(new TimestampedVector(timestamp, vec));
             }
         }
 
         public void Write(BinaryWriter w)
         {
+            var entries = sequence.AsSpan();
             w.Write(patternLength);
             w.Write(dimension);
-            w.Write(sequence.Count);
-            foreach (var (timestamp, vec) in sequence)
+            w.Write(entries.Length);
+            for (int i = 0; i < entries.Length; i++)
             {
-                w.Write(timestamp.ToBinary());
-                foreach (var val in vec)
-                    w.Write(val);
+                w.Write(entries[i].Timestamp.ToBinary());
+                var vec = entries[i].Vector;
+                for (int j = 0; j < dimension; j++)
+                    w.Write(vec[j]);
             }
         }
     }
@@ -185,13 +236,13 @@ namespace SqlClrFunctions
         MaxByteSize = -1)]
     public struct VectorARForecast : IBinarySerialize
     {
-        private List<(DateTime Timestamp, float[] Vector)> sequence;
+        private PooledList<TimestampedVector> sequence;
         private int order;
         private int dimension;
 
         public void Init()
         {
-            sequence = new List<(DateTime, float[])>();
+            sequence = default;
             order = 0;
             dimension = 0;
         }
@@ -212,22 +263,37 @@ namespace SqlClrFunctions
             else if (vec.Length != dimension)
                 return;
 
-            sequence.Add((timestamp.Value, vec));
+            sequence.Add(new TimestampedVector(timestamp.Value, vec));
         }
 
         public void Merge(VectorARForecast other)
         {
-            if (other.sequence != null)
-                sequence.AddRange(other.sequence);
+            if (other.sequence.Count == 0)
+                return;
+
+            if (dimension == 0)
+                dimension = other.dimension;
+
+            if (dimension != other.dimension)
+                return;
+
+            if (order == 0)
+                order = other.order;
+
+            sequence.AddRange(other.sequence.AsSpan());
         }
 
         public SqlString Terminate()
         {
             if (sequence.Count <= order || dimension == 0 || order == 0)
+            {
+                sequence.Clear(clearItems: true);
                 return SqlString.Null;
+            }
 
             // Sort by timestamp
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+            var entries = sequence.AsSpan();
 
             // Simple AR model: weighted average of last N vectors
             float[] forecast = new float[dimension];
@@ -246,13 +312,14 @@ namespace SqlClrFunctions
             // Compute forecast
             for (int i = 0; i < order; i++)
             {
-                var vec = sequence[sequence.Count - order + i].Vector;
+                var vec = entries[entries.Length - order + i].Vector;
                 for (int d = 0; d < dimension; d++)
                 {
                     forecast[d] += (float)(vec[d] * weights[i]);
                 }
             }
 
+            sequence.Clear(clearItems: true);
             return new SqlString(JsonConvert.SerializeObject(forecast));
         }
 
@@ -261,14 +328,18 @@ namespace SqlClrFunctions
             order = r.ReadInt32();
             dimension = r.ReadInt32();
             int count = r.ReadInt32();
-            sequence = new List<(DateTime, float[])>(count);
+            sequence.Clear(clearItems: true);
+            if (dimension <= 0 || count <= 0)
+                return;
+
+            sequence.Reserve(count);
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
                 float[] vec = new float[dimension];
                 for (int j = 0; j < dimension; j++)
                     vec[j] = r.ReadSingle();
-                sequence.Add((timestamp, vec));
+                sequence.Add(new TimestampedVector(timestamp, vec));
             }
         }
 
@@ -276,12 +347,14 @@ namespace SqlClrFunctions
         {
             w.Write(order);
             w.Write(dimension);
-            w.Write(sequence.Count);
-            foreach (var (timestamp, vec) in sequence)
+            var entries = sequence.AsSpan();
+            w.Write(entries.Length);
+            for (int i = 0; i < entries.Length; i++)
             {
-                w.Write(timestamp.ToBinary());
-                foreach (var val in vec)
-                    w.Write(val);
+                w.Write(entries[i].Timestamp.ToBinary());
+                var vec = entries[i].Vector;
+                for (int j = 0; j < dimension; j++)
+                    w.Write(vec[j]);
             }
         }
     }
@@ -307,16 +380,14 @@ namespace SqlClrFunctions
         MaxByteSize = -1)]
     public struct DTWDistance : IBinarySerialize
     {
-        private List<float[]> sequence1;
-        private List<float[]> sequence2;
-        private bool isSeq1;
+        private PooledList<float[]> sequence1;
+        private PooledList<float[]> sequence2;
         private int dimension;
 
         public void Init()
         {
-            sequence1 = new List<float[]>();
-            sequence2 = new List<float[]>();
-            isSeq1 = true;
+            sequence1 = default;
+            sequence2 = default;
             dimension = 0;
         }
 
@@ -351,10 +422,10 @@ namespace SqlClrFunctions
 
         public void Merge(DTWDistance other)
         {
-            if (other.sequence1 != null)
-                sequence1.AddRange(other.sequence1);
-            if (other.sequence2 != null)
-                sequence2.AddRange(other.sequence2);
+            if (other.sequence1.Count > 0)
+                sequence1.AddRange(other.sequence1.AsSpan());
+            if (other.sequence2.Count > 0)
+                sequence2.AddRange(other.sequence2.AsSpan());
         }
 
         public SqlDouble Terminate()
@@ -385,47 +456,66 @@ namespace SqlClrFunctions
                 }
             }
 
-            return new SqlDouble(dtw[n, m]);
+            var result = new SqlDouble(dtw[n, m]);
+
+            sequence1.Clear(clearItems: true);
+            sequence2.Clear(clearItems: true);
+            return result;
         }
 
         public void Read(BinaryReader r)
         {
             dimension = r.ReadInt32();
-            
+            sequence1.Clear(clearItems: true);
+            sequence2.Clear(clearItems: true);
+
             int count1 = r.ReadInt32();
-            sequence1 = new List<float[]>(count1);
-            for (int i = 0; i < count1; i++)
+            if (dimension > 0 && count1 > 0)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                sequence1.Add(vec);
+                sequence1.Reserve(count1);
+                for (int i = 0; i < count1; i++)
+                {
+                    float[] vec = new float[dimension];
+                    for (int j = 0; j < dimension; j++)
+                        vec[j] = r.ReadSingle();
+                    sequence1.Add(vec);
+                }
             }
 
             int count2 = r.ReadInt32();
-            sequence2 = new List<float[]>(count2);
-            for (int i = 0; i < count2; i++)
+            if (dimension > 0 && count2 > 0)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                sequence2.Add(vec);
+                sequence2.Reserve(count2);
+                for (int i = 0; i < count2; i++)
+                {
+                    float[] vec = new float[dimension];
+                    for (int j = 0; j < dimension; j++)
+                        vec[j] = r.ReadSingle();
+                    sequence2.Add(vec);
+                }
             }
         }
 
         public void Write(BinaryWriter w)
         {
             w.Write(dimension);
-            
-            w.Write(sequence1.Count);
-            foreach (var vec in sequence1)
-                foreach (var val in vec)
-                    w.Write(val);
+            var span1 = sequence1.AsSpan();
+            w.Write(span1.Length);
+            for (int i = 0; i < span1.Length; i++)
+            {
+                var vec = span1[i];
+                for (int j = 0; j < dimension; j++)
+                    w.Write(vec[j]);
+            }
 
-            w.Write(sequence2.Count);
-            foreach (var vec in sequence2)
-                foreach (var val in vec)
-                    w.Write(val);
+            var span2 = sequence2.AsSpan();
+            w.Write(span2.Length);
+            for (int i = 0; i < span2.Length; i++)
+            {
+                var vec = span2[i];
+                for (int j = 0; j < dimension; j++)
+                    w.Write(vec[j]);
+            }
         }
     }
 
@@ -450,13 +540,20 @@ namespace SqlClrFunctions
         MaxByteSize = -1)]
     public struct ChangePointDetection : IBinarySerialize
     {
-        private List<(DateTime Timestamp, float[] Vector)> sequence;
+        private PooledList<TimestampedVector> sequence;
         private double threshold;
         private int dimension;
 
+        private struct ChangePointRecord
+        {
+            public int Index;
+            public DateTime Timestamp;
+            public double Score;
+        }
+
         public void Init()
         {
-            sequence = new List<(DateTime, float[])>();
+            sequence = default;
             threshold = 0;
             dimension = 0;
         }
@@ -477,37 +574,55 @@ namespace SqlClrFunctions
             else if (vec.Length != dimension)
                 return;
 
-            sequence.Add((timestamp.Value, vec));
+            sequence.Add(new TimestampedVector(timestamp.Value, vec));
         }
 
         public void Merge(ChangePointDetection other)
         {
-            if (other.sequence != null)
-                sequence.AddRange(other.sequence);
+            if (other.sequence.Count == 0)
+                return;
+
+            if (dimension == 0)
+                dimension = other.dimension;
+
+            if (dimension != other.dimension)
+                return;
+
+            if (threshold == 0)
+                threshold = other.threshold;
+
+            sequence.AddRange(other.sequence.AsSpan());
         }
 
         public SqlString Terminate()
         {
             if (sequence.Count < 10 || dimension == 0)
+            {
+                sequence.Clear(clearItems: true);
                 return SqlString.Null;
+            }
 
             // Sort by timestamp
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+            var entries = sequence.AsSpan();
 
             // CUSUM algorithm for change point detection
-            var changePoints = new List<(int Index, DateTime Timestamp, double Score)>();
+            PooledList<ChangePointRecord> changePoints = default;
 
             // Compute cumulative deviation from mean
             float[] overallMean = new float[dimension];
-            foreach (var (_, vec) in sequence)
+            for (int idx = 0; idx < entries.Length; idx++)
+            {
+                var vec = entries[idx].Vector;
                 for (int i = 0; i < dimension; i++)
                     overallMean[i] += vec[i];
+            }
             for (int i = 0; i < dimension; i++)
-                overallMean[i] /= sequence.Count;
+                overallMean[i] /= entries.Length;
 
             // Sliding window approach
-            int windowSize = Math.Max(10, sequence.Count / 10);
-            for (int i = windowSize; i < sequence.Count - windowSize; i++)
+            int windowSize = Math.Max(10, entries.Length / 10);
+            for (int i = windowSize; i < entries.Length - windowSize; i++)
             {
                 // Compute means before and after
                 float[] meanBefore = new float[dimension];
@@ -515,11 +630,11 @@ namespace SqlClrFunctions
 
                 for (int j = i - windowSize; j < i; j++)
                     for (int d = 0; d < dimension; d++)
-                        meanBefore[d] += sequence[j].Vector[d];
+                        meanBefore[d] += entries[j].Vector[d];
                 
                 for (int j = i; j < i + windowSize; j++)
                     for (int d = 0; d < dimension; d++)
-                        meanAfter[d] += sequence[j].Vector[d];
+                        meanAfter[d] += entries[j].Vector[d];
 
                 for (int d = 0; d < dimension; d++)
                 {
@@ -538,26 +653,50 @@ namespace SqlClrFunctions
 
                 if (diff > threshold)
                 {
-                    changePoints.Add((i, sequence[i].Timestamp, diff));
+                    changePoints.Add(new ChangePointRecord
+                    {
+                        Index = i,
+                        Timestamp = entries[i].Timestamp,
+                        Score = diff
+                    });
                 }
             }
 
             // Return top change points
-            var topChanges = changePoints.OrderByDescending(cp => cp.Score).Take(5).ToList();
-
-            if (topChanges.Count == 0)
+            var changeSpan = changePoints.AsSpan();
+            if (changeSpan.Length == 0)
+            {
+                sequence.Clear(clearItems: true);
+                changePoints.Clear();
                 return new SqlString("{\"change_points\":[]}");
+            }
 
-            var json = "{\"change_points\":[" +
-                string.Join(",",
-                    topChanges.Select(cp =>
-                        $"{{\"index\":{cp.Index}," +
-                        $"\"timestamp\":\"{cp.Timestamp:O}\"," +
-                        $"\"score\":{cp.Score:G6}}}"
-                    )
-                ) + "]}";
+            ChangePointRecord[] ordered = new ChangePointRecord[changeSpan.Length];
+            changeSpan.CopyTo(ordered);
+            Array.Sort(ordered, (a, b) => b.Score.CompareTo(a.Score));
 
-            return new SqlString(json);
+            int take = Math.Min(5, ordered.Length);
+            var builder = new StringBuilder();
+            builder.Append("{\"change_points\":[");
+            for (int i = 0; i < take; i++)
+            {
+                if (i > 0)
+                    builder.Append(',');
+
+                var cp = ordered[i];
+                builder.Append("{\"index\":");
+                builder.Append(cp.Index);
+                builder.Append(",\"timestamp\":\"");
+                builder.Append(cp.Timestamp.ToString("O"));
+                builder.Append("\",\"score\":");
+                builder.Append(cp.Score.ToString("G6", CultureInfo.InvariantCulture));
+                builder.Append('}');
+            }
+            builder.Append("]}");
+
+            sequence.Clear(clearItems: true);
+            changePoints.Clear();
+            return new SqlString(builder.ToString());
         }
 
         public void Read(BinaryReader r)
@@ -565,14 +704,18 @@ namespace SqlClrFunctions
             threshold = r.ReadDouble();
             dimension = r.ReadInt32();
             int count = r.ReadInt32();
-            sequence = new List<(DateTime, float[])>(count);
+            sequence.Clear(clearItems: true);
+            if (dimension <= 0 || count <= 0)
+                return;
+
+            sequence.Reserve(count);
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
                 float[] vec = new float[dimension];
                 for (int j = 0; j < dimension; j++)
                     vec[j] = r.ReadSingle();
-                sequence.Add((timestamp, vec));
+                sequence.Add(new TimestampedVector(timestamp, vec));
             }
         }
 
@@ -580,12 +723,14 @@ namespace SqlClrFunctions
         {
             w.Write(threshold);
             w.Write(dimension);
-            w.Write(sequence.Count);
-            foreach (var (timestamp, vec) in sequence)
+            var entries = sequence.AsSpan();
+            w.Write(entries.Length);
+            for (int i = 0; i < entries.Length; i++)
             {
-                w.Write(timestamp.ToBinary());
-                foreach (var val in vec)
-                    w.Write(val);
+                w.Write(entries[i].Timestamp.ToBinary());
+                var vec = entries[i].Vector;
+                for (int j = 0; j < dimension; j++)
+                    w.Write(vec[j]);
             }
         }
     }

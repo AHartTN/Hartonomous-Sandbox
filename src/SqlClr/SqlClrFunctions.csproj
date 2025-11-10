@@ -82,6 +82,8 @@
     <Compile Include="Core\SqlTensorProvider.cs" />
     <Compile Include="Core\VectorMath.cs" />
     <Compile Include="Core\VectorUtilities.cs" />
+  <Compile Include="Core\PooledList.cs" />
+  <Compile Include="Core\TimestampedVector.cs" />
     <Compile Include="DimensionalityReductionAggregates.cs" />
     <Compile Include="EmbeddingFunctions.cs" />
     <Compile Include="FileSystemFunctions.cs" />

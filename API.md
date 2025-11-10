@@ -2,674 +2,264 @@
 
 ## Overview
 
-Hartonomous Web API provides REST endpoints for embedding generation, vector search, graph queries, and autonomous system management.
-
-**Base URL:** `https://api.hartonomous.com`
-
-**Authentication:** Bearer token (JWT)
-
-**Content-Type:** `application/json`
+- `Hartonomous.Api` (ASP.NET Core 8) exposes the public REST surface for embeddings, search, graph exploration, analytics, and operations.
+- All routes live under `/api/...`. In local development the default host is `https://localhost:5001`.
+- Swagger UI is available at `/swagger` when `ASPNETCORE_ENVIRONMENT=Development`.
+- Health probes: `/health/startup`, `/health/ready`, `/health/live` (GET).
 
 ## Authentication
 
-All API requests require a valid JWT bearer token.
+- The API is secured with Azure Active Directory via `AddMicrosoftIdentityWebApi`; there is no password-based token endpoint in this service.
+- Configure an Entra ID application with the Web API platform and expose the scope `api://{ClientId}/access_as_user`. Provide `AzureAd:Instance`, `TenantId`, `ClientId`, and `Audience` through configuration (environment variables or user-secrets).
+- Acquire tokens with MSAL or Azure CLI, e.g. `az account get-access-token --resource api://{ClientId}`. Send the token as `Authorization: Bearer {access_token}`.
+- For Swagger/OAuth flows, register `https://localhost:5001/signin-oidc` (or environment host) as the redirect URI.
 
-### Obtain Token
+## Response Envelope
 
-```http
-POST /api/auth/token
-Content-Type: application/json
+- Controllers inheriting `ApiControllerBase` return `Hartonomous.Shared.Contracts.Responses.ApiResponse<T>`:
 
-{
-  "username": "your-username",
-  "password": "your-password"
-}
-```
-
-**Response:**
-
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "expiresIn": 3600,
-  "tokenType": "Bearer"
-}
-```
-
-### Use Token
-
-Include in Authorization header:
-
-```http
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-## Embeddings API
-
-### Generate Embedding
-
-Create vector embedding from text.
-
-```http
-POST /api/embedding/generate
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "text": "The quick brown fox jumps over the lazy dog",
-  "modelIdentifier": "all-MiniLM-L6-v2",
-  "normalize": true
-}
-```
-
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| text | string | Yes | Input text to embed |
-| modelIdentifier | string | No | Model ID (default: all-MiniLM-L6-v2) |
-| normalize | boolean | No | L2 normalize vector (default: true) |
-
-**Response:**
-
-```json
-{
-  "embeddingId": 12345,
-  "dimensions": 384,
-  "vector": [0.123, -0.456, 0.789, ...],
-  "modelIdentifier": "all-MiniLM-L6-v2",
-  "timestamp": "2025-11-07T10:30:00Z",
-  "metadata": {
-    "textLength": 44,
-    "tokenCount": 9
+  ```json
+  {
+    "succeeded": true,
+    "data": {
+      "atomId": 1285,
+      "atomEmbeddingId": 9231,
+      "wasExisting": false
+    },
+    "errors": [],
+    "correlationId": "0HML8FVCPF9T2:00000002",
+    "metadata": {
+      "embeddingDimension": 1536
+    }
   }
-}
-```
+  ```
 
-**Status Codes:**
+- Legacy `/api/v1/...` controllers use `Hartonomous.Api.Common.ApiResponse<T>`:
 
-- `200 OK` - Success
-- `400 Bad Request` - Invalid input
-- `401 Unauthorized` - Missing/invalid token
-- `429 Too Many Requests` - Rate limit exceeded
-- `500 Internal Server Error` - Server error
-
-### Batch Generate Embeddings
-
-Generate embeddings for multiple texts in single request.
-
-```http
-POST /api/embedding/batch
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "texts": [
-    "First text to embed",
-    "Second text to embed",
-    "Third text to embed"
-  ],
-  "modelIdentifier": "all-MiniLM-L6-v2"
-}
-```
-
-**Response:**
-
-```json
-{
-  "embeddings": [
-    {
-      "embeddingId": 12345,
-      "dimensions": 384,
-      "vector": [...]
+  ```json
+  {
+    "success": true,
+    "data": {
+      "totalRequests": 4200
     },
-    {
-      "embeddingId": 12346,
-      "dimensions": 384,
-      "vector": [...]
-    },
-    {
-      "embeddingId": 12347,
-      "dimensions": 384,
-      "vector": [...]
+    "error": null,
+    "metadata": {
+      "totalCount": 12
     }
-  ],
-  "totalCount": 3,
-  "processingTime": "00:00:01.234"
-}
-```
-
-### Get Embedding
-
-Retrieve existing embedding by ID.
-
-```http
-GET /api/embedding/{id}
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "embeddingId": 12345,
-  "dimensions": 384,
-  "vector": [...],
-  "sourceText": "Original text that was embedded",
-  "modelIdentifier": "all-MiniLM-L6-v2",
-  "createdDate": "2025-11-07T10:30:00Z"
-}
-```
-
-## Vector Search API
-
-### Semantic Search
-
-Find similar vectors using spatial indexes.
-
-```http
-POST /api/search/vector
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "queryVector": [0.123, -0.456, 0.789, ...],
-  "topK": 10,
-  "threshold": 0.7,
-  "filters": {
-    "modelIdentifier": "all-MiniLM-L6-v2",
-    "createdAfter": "2025-11-01T00:00:00Z"
   }
-}
-```
+  ```
 
-**Parameters:**
-
-| Name | Type | Required | Description |
-|------|------|----------|-------------|
-| queryVector | number[] | Yes | Query embedding vector |
-| topK | integer | No | Number of results (default: 10, max: 100) |
-| threshold | number | No | Minimum similarity (0-1, default: 0.0) |
-| filters | object | No | Additional filters |
-
-**Response:**
-
-```json
-{
-  "results": [
-    {
-      "embeddingId": 67890,
-      "similarity": 0.95,
-      "distance": 0.05,
-      "sourceText": "Similar text content",
-      "metadata": {
-        "modelIdentifier": "all-MiniLM-L6-v2",
-        "createdDate": "2025-11-07T09:15:00Z"
-      }
-    },
-    {
-      "embeddingId": 67891,
-      "similarity": 0.89,
-      "distance": 0.11,
-      "sourceText": "Another similar text",
-      "metadata": {...}
-    }
-  ],
-  "totalResults": 10,
-  "searchDuration": "00:00:00.0089",
-  "spatialCandidates": 127,
-  "exactComparisons": 127
-}
-```
-
-### Hybrid Search
-
-Combined keyword and vector search.
-
-```http
-POST /api/search/hybrid
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "queryText": "machine learning embeddings",
-  "topK": 10,
-  "vectorWeight": 0.7,
-  "keywordWeight": 0.3
-}
-```
-
-**Response:**
-
-```json
-{
-  "results": [
-    {
-      "embeddingId": 12345,
-      "combinedScore": 0.92,
-      "vectorScore": 0.95,
-      "keywordScore": 0.85,
-      "sourceText": "...",
-      "highlights": ["machine <mark>learning</mark> <mark>embeddings</mark>"]
-    }
-  ],
-  "totalResults": 10,
-  "searchDuration": "00:00:00.0156"
-}
-```
-
-## Graph API
-
-### Query Graph Relationships
-
-Execute graph pattern queries.
-
-```http
-POST /api/graph/query
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "pattern": "MATCH (e:Embedding)-[:USED_IN]->(i:Inference) WHERE i.inferenceId = $id RETURN e",
-  "parameters": {
-    "id": 12345
-  },
-  "limit": 100
-}
-```
-
-**Response:**
-
-```json
-{
-  "nodes": [
-    {
-      "nodeId": 1,
-      "labels": ["Embedding"],
-      "properties": {
-        "embeddingId": 67890,
-        "dimensions": 384
-      }
-    }
-  ],
-  "relationships": [
-    {
-      "relationshipId": 1,
-      "type": "USED_IN",
-      "startNode": 1,
-      "endNode": 2,
-      "properties": {
-        "timestamp": "2025-11-07T10:30:00Z"
-      }
-    }
-  ],
-  "totalNodes": 1,
-  "totalRelationships": 1,
-  "executionTime": "00:00:00.0234"
-}
-```
-
-### Trace Provenance
-
-Get complete lineage for inference result.
-
-```http
-GET /api/graph/provenance/{inferenceId}
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "inferenceId": 12345,
-  "timestamp": "2025-11-07T10:30:00Z",
-  "sourceEmbeddings": [
-    {
-      "embeddingId": 67890,
-      "sourceText": "Original source text",
-      "contribution": 0.45
-    },
-    {
-      "embeddingId": 67891,
-      "sourceText": "Another source",
-      "contribution": 0.35
-    }
-  ],
-  "modelWeights": [
-    {
-      "layerName": "transformer.encoder.layer.0",
-      "weightCount": 147456,
-      "version": "1.0.0"
-    }
-  ],
-  "computationPath": [
-    "TokenizationStep",
-    "EmbeddingLookup",
-    "AttentionComputation",
-    "FinalProjection"
-  ],
-  "totalHops": 4
-}
-```
-
-## Autonomous System API
-
-### Get System Status
-
-Check autonomous system health and metrics.
-
-```http
-GET /api/autonomy/status
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "oodaLoopStatus": "Running",
-  "lastObservation": "2025-11-07T10:29:00Z",
-  "lastAction": "2025-11-07T10:28:00Z",
-  "activeHypotheses": 3,
-  "successfulActions": 127,
-  "failedActions": 5,
-  "metrics": {
-    "avgQueryLatency": 8.5,
-    "queriesPerSecond": 145.3,
-    "indexUtilization": 0.92
-  }
-}
-```
-
-### List Hypotheses
-
-Get current autonomous improvement hypotheses.
-
-```http
-GET /api/autonomy/hypotheses
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "hypotheses": [
-    {
-      "hypothesisId": 1,
-      "type": "IndexOptimization",
-      "description": "Create spatial index on Embeddings.EmbeddingGeometry for faster k-NN search",
-      "expectedImprovement": 0.75,
-      "status": "Testing",
-      "createdDate": "2025-11-07T09:00:00Z",
-      "testResults": {
-        "baselineLatency": 125.3,
-        "optimizedLatency": 12.1,
-        "improvement": 0.90
-      }
-    },
-    {
-      "hypothesisId": 2,
-      "type": "CachePrecomputation",
-      "description": "Pre-compute embeddings for frequently accessed documents",
-      "expectedImprovement": 0.50,
-      "status": "Pending",
-      "createdDate": "2025-11-07T09:15:00Z"
-    }
-  ],
-  "totalHypotheses": 2
-}
-```
-
-### Approve Hypothesis
-
-Manually approve autonomous action.
-
-```http
-POST /api/autonomy/hypotheses/{id}/approve
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "hypothesisId": 1,
-  "status": "Approved",
-  "deploymentScheduled": "2025-11-07T11:00:00Z"
-}
-```
-
-## Analytics API
-
-### Query Performance Metrics
-
-Get system performance analytics.
-
-```http
-GET /api/analytics/performance?startDate=2025-11-01&endDate=2025-11-07
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "period": {
-    "start": "2025-11-01T00:00:00Z",
-    "end": "2025-11-07T23:59:59Z"
-  },
-  "metrics": {
-    "totalQueries": 1250000,
-    "avgLatency": 8.5,
-    "p50Latency": 6.2,
-    "p95Latency": 18.7,
-    "p99Latency": 45.3,
-    "errorRate": 0.002,
-    "cacheHitRate": 0.85
-  },
-  "topQueries": [
-    {
-      "queryPattern": "SELECT TOP 10 ... WHERE VECTOR_DISTANCE(...)",
-      "executionCount": 45000,
-      "avgDuration": 7.2
-    }
-  ]
-}
-```
-
-### Usage Statistics
-
-Get API usage statistics for billing.
-
-```http
-GET /api/analytics/usage?month=2025-11
-Authorization: Bearer {token}
-```
-
-**Response:**
-
-```json
-{
-  "period": "2025-11",
-  "embeddingsGenerated": 125000,
-  "searchQueries": 450000,
-  "graphQueries": 15000,
-  "totalApiCalls": 590000,
-  "costs": {
-    "embeddings": 125.00,
-    "searches": 45.00,
-    "graphQueries": 15.00,
-    "total": 185.00,
-    "currency": "USD"
-  }
-}
-```
-
-## Error Responses
-
-All errors return consistent format:
-
-```json
-{
-  "error": {
-    "code": "INVALID_VECTOR_DIMENSIONS",
-    "message": "Vector dimensions (512) do not match model dimensions (384)",
-    "details": {
-      "expected": 384,
-      "received": 512
-    },
-    "timestamp": "2025-11-07T10:30:00Z",
-    "requestId": "req_abc123xyz"
-  }
-}
-```
-
-### Common Error Codes
-
-| Code | HTTP Status | Description |
-|------|-------------|-------------|
-| UNAUTHORIZED | 401 | Missing or invalid authentication token |
-| FORBIDDEN | 403 | Insufficient permissions |
-| INVALID_VECTOR_DIMENSIONS | 400 | Vector dimension mismatch |
-| MODEL_NOT_FOUND | 404 | Specified model does not exist |
-| RATE_LIMIT_EXCEEDED | 429 | Too many requests |
-| INFERENCE_TIMEOUT | 504 | Embedding generation timeout |
-| INTERNAL_ERROR | 500 | Server error |
+- Validation failures populate `errors`/`error` with `ErrorDetail` metadata; rate-limit rejections respond with HTTP 429 using the same envelope.
 
 ## Rate Limiting
 
-API requests are rate limited per account:
+- `app.MapControllers().RequireRateLimiting("api")` enforces a default fixed window of 100 requests/minute.
+- Sliding-window policies from `RateLimitOptions`:
+  - `authenticated`: 100 requests/minute.
+  - `anonymous`: 10 requests/minute.
+  - `premium`: 1000 requests/minute.
+- Specialized policies:
+  - `inference`: concurrency limit 10, plus token bucket (20 token capacity, replenishes 5/min). Used by generation endpoints via `[EnableRateLimiting("inference")]`.
+  - `embedding`: 50 requests/minute.
+  - `graph`: 30 requests/minute.
+  - `global`: 200 requests/minute per remote IP.
+- Tenant-tier-aware limiters (`tenant-api`, `tenant-inference`) are resolved through `TenantRateLimitPolicy` and applied where annotated.
 
-- **Free Tier:** 100 requests/minute
-- **Standard Tier:** 1000 requests/minute
-- **Enterprise Tier:** 10000 requests/minute
+## Endpoint Catalogue
 
-Rate limit headers included in every response:
+| Area | Base Route | Controller | Notes |
+|------|------------|------------|-------|
+| Embeddings | `/api/embeddings` | `EmbeddingsController` | Text and media embeddings with automatic atom ingestion. |
+| Search | `/api/search` | `SearchController` | Hybrid, cross-modal, spatial, and temporal search strategies. |
+| Generation | `/api/generation` | `GenerationController` | Multimodal generation backed by SQL stored procedures. |
+| Inference Jobs | `/api/inference` | `InferenceController` | Async job submission for text generation and ensembles. |
+| Bulk Ingestion | `/api/v1/bulk` | `BulkController` | Job-based ingestion pipeline helpers. |
+| Analytics | `/api/v1/analytics` | `AnalyticsController` | Usage, model, embedding, and storage analytics. |
+| Graph | `/api/v1/graph` | `GraphQueryController`, `GraphAnalyticsController`, `SqlGraphController` | Neo4j + SQL graph utilities. |
+| Provenance | `/api/v1/provenance` | `ProvenanceController` | Inference lineage and generation streams. |
+| Autonomy | `/api/autonomy` | `AutonomyController` | OODA loop orchestration and Service Broker controls. |
+| Models | `/api/models` | `ModelsController` | Model registry CRUD, stats, and distillation. |
+| Billing | `/api/billing` | `BillingController` | Usage capture, quota management, billing projections. |
+| Feedback | `/api/v1/feedback` | `FeedbackController` | Feedback submission and fine-tune triggers. |
+| Operations | `/api/v1/operations` | `OperationsController` | Health, diagnostics, cache/index management. |
+| Ingestion | `/api/v1/ingestion` | `IngestionController` | Single-item ingestion helper. |
+| Jobs | `/api/jobs` | `JobsController` | Background job status and scheduling. |
 
-```http
-X-RateLimit-Limit: 1000
-X-RateLimit-Remaining: 995
-X-RateLimit-Reset: 1699363200
-```
+### Embeddings (`/api/embeddings`)
 
-## Webhooks
+- `POST /api/embeddings/text` — `EmbeddingRequest` (`text`, optional `modelId`, `embeddingType`). Responds with `EmbeddingResponse` inside the shared envelope and metadata describing the resulting vector (dimension, model id).
+- `POST /api/embeddings/image` | `/audio` | `/video-frame` — `multipart/form-data` with `file` (≤64 MB), optional `sourceType`, `metadata` (JSON), `modelId`. Requests are wrapped in `MediaEmbeddingRequest` and deduplicate content via SHA256 hashes.
 
-Configure webhooks to receive event notifications.
-
-### Register Webhook
-
-```http
-POST /api/webhooks
-Authorization: Bearer {token}
-Content-Type: application/json
-
-{
-  "url": "https://your-app.com/webhooks/hartonomous",
-  "events": ["embedding.created", "hypothesis.deployed"],
-  "secret": "your-webhook-secret"
-}
-```
-
-### Webhook Events
-
-**embedding.created:**
+Example (text embedding):
 
 ```json
 {
-  "event": "embedding.created",
-  "timestamp": "2025-11-07T10:30:00Z",
+  "succeeded": true,
   "data": {
-    "embeddingId": 12345,
-    "dimensions": 384,
-    "modelIdentifier": "all-MiniLM-L6-v2"
+    "atomId": 1285,
+    "atomEmbeddingId": 9231,
+    "wasExisting": false,
+    "duplicateReason": null,
+    "semanticSimilarity": null
+  },
+  "errors": [],
+  "metadata": {
+    "embeddingDimension": 1536,
+    "modelId": 7
   }
 }
 ```
 
-**hypothesis.deployed:**
+### Search (`/api/search`)
+
+- `POST /api/search` — Hybrid search (`SearchRequest`) accepting `queryText`, `queryEmbedding`/`queryVector`, and optional filters (`topicFilter`, `minSentiment`, `maxAge`). Returns `SearchResponse` with scoring metadata.
+- `POST /api/search/cross-modal` — `CrossModalSearchRequest` combining optional text with target modality list. Generates embeddings on-demand when a vector is not provided.
+- `POST /api/search/spatial` — `SpatialSearchRequest` for geography-aware queries (lat/long, radius, optional modality/model filters).
+- `POST /api/search/temporal` — `TemporalSearchRequest` enabling time-boxed semantic search.
+
+Hybrid search response sample:
 
 ```json
 {
-  "event": "hypothesis.deployed",
-  "timestamp": "2025-11-07T11:00:00Z",
+  "succeeded": true,
   "data": {
-    "hypothesisId": 1,
-    "type": "IndexOptimization",
-    "measuredImprovement": 0.92
+    "results": [
+      {
+        "atomId": 512,
+        "atomEmbeddingId": 1048576,
+        "canonicalText": "Nearest neighbour result",
+        "modality": "text",
+        "similarityScore": 0.937,
+        "spatialDistance": null,
+        "contentHash": null
+      }
+    ],
+    "totalResults": 10,
+    "queryDuration": 47.3
+  },
+  "errors": [],
+  "metadata": {
+    "strategy": "hybrid",
+    "requestedTopK": 10,
+    "candidateCount": 200
   }
 }
 ```
 
-## SDK Examples
+### Generation (`/api/generation`)
 
-### C# / .NET
+All routes require authorization and opt into the `inference` rate-limit policy.
 
-```csharp
-using Hartonomous.Client;
+- `POST /api/generation/text` — `GenerateTextRequest`; executes `dbo.sp_GenerateText` and returns `GenerationResponse` with generated text and atom linkage.
+- `POST /api/generation/image` — `GenerateImageRequest`; responds with metadata (dimensions, format) and stored `AtomId` when successful.
+- `POST /api/generation/audio` — `GenerateAudioRequest`; returns reference metadata for generated audio.
+- `POST /api/generation/video` — `GenerateVideoRequest` for short clips.
 
-var client = new HartonomousClient("your-api-key");
+### Inference Jobs (`/api/inference`)
 
-// Generate embedding
-var embedding = await client.Embeddings.GenerateAsync(
-    text: "Sample text to embed",
-    modelIdentifier: "all-MiniLM-L6-v2"
-);
+- `POST /api/inference/generate/text` — Queues an asynchronous text generation job via `InferenceJobService`, returning `202 Accepted` and `JobSubmittedResponse`.
+- `POST /api/inference/ensemble` — Submits an ensemble inference request using multiple models.
 
-// Vector search
-var results = await client.Search.VectorSearchAsync(
-    queryVector: embedding.Vector,
-    topK: 10,
-    threshold: 0.7
-);
-```
+> `GetJobStatusAsync` presently lacks an `[HttpGet]` attribute, so job status is not publicly reachable until the route is decorated.
 
-### Python
+### Bulk Ingestion (`/api/v1/bulk`)
 
-```python
-from hartonomous import HartonomousClient
+Responses use `ApiResponse<T>` from `Hartonomous.Api.Common`.
 
-client = HartonomousClient(api_key="your-api-key")
+- `POST /ingest` — Creates a job from `BulkIngestRequest`, persisting records and optionally queueing Service Broker processing.
+- `GET /status/{jobId}` — Returns `BulkJobStatusResponse` with progress counts.
+- `POST /cancel` — Cancels a pending job.
+- `POST /upload` — Accepts CSV payloads for ingestion jobs.
+- `GET /jobs` — Lists jobs with paging metadata.
 
-# Generate embedding
-embedding = client.embeddings.generate(
-    text="Sample text to embed",
-    model_identifier="all-MiniLM-L6-v2"
-)
+### Analytics (`/api/v1/analytics`)
 
-# Vector search
-results = client.search.vector_search(
-    query_vector=embedding.vector,
-    top_k=10,
-    threshold=0.7
-)
-```
+- `POST /usage` — `UsageAnalyticsRequest` producing `UsageAnalyticsResponse` (time-series datapoints + summary).
+- `POST /models/performance` — Aggregates per-model metrics (`ModelPerformanceResponse`).
+- `POST /embeddings/stats` — Embedding type statistics.
+- `GET /storage` — Returns `StorageMetricsResponse` with size/deduplication breakdowns.
+- `POST /top-atoms` — Ranked list of frequently referenced atoms.
 
-### JavaScript / TypeScript
+### Graph (`/api/v1/graph`)
 
-```typescript
-import { HartonomousClient } from '@hartonomous/client';
+Neo4j query endpoints:
 
-const client = new HartonomousClient({ apiKey: 'your-api-key' });
+- `POST /query` — Executes arbitrary Cypher via `GraphQueryRequest`.
+- `POST /related` — Finds related atoms by traversing relationships.
+- `POST /traverse` — Guided traversal between nodes with depth/relationship filters.
+- `POST /explore` — Builds annotated exploration paths (see `GraphQueryController`).
+Analytics endpoints (`GraphAnalyticsController`):
 
-// Generate embedding
-const embedding = await client.embeddings.generate({
-  text: 'Sample text to embed',
-  modelIdentifier: 'all-MiniLM-L6-v2'
-});
+- `GET /stats` — Global node/edge counts, density, component metrics.
+- `POST /relationship-analysis` — Summaries of relationship types with optional modality filter.
+- `POST /centrality` — Centrality metrics through GDS procedures.
+- `POST /create-relationship` — Convenience method to append relationships.
+SQL Graph bridge (`SqlGraphController`):
 
-// Vector search
-const results = await client.search.vectorSearch({
-  queryVector: embedding.vector,
-  topK: 10,
-  threshold: 0.7
-});
-```
+- `POST /sql/nodes`, `/sql/edges`, `/sql/traverse`, `/sql/shortest-path` — Interact with SQL Server graph tables while reusing the common response envelope.
 
-## Support
+### Provenance (`/api/v1/provenance`)
 
-- API Status: https://status.hartonomous.com
-- GitHub Issues: https://github.com/AHartTN/Hartonomous-Sandbox/issues
-- Documentation: https://docs.hartonomous.com
-- Email: api-support@hartonomous.dev
+- `GET /streams/{streamId}` — Returns `GenerationStreamDetail` (scope, model, created time, persisted stream blob).
+- `GET /inference/{inferenceId}` — Fetches inference metadata (`InferenceDetail`).
+- `GET /inference/{inferenceId}/steps` — Lists `InferenceStepDetail` records with step order, duration, and metadata.
+
+### Autonomy (`/api/autonomy`)
+
+- `POST /ooda/analyze` — Executes `sp_Analyze` stored procedure and surfaces parsed observations (requires `Admin` policy).
+- `GET /queues/status` — Service Broker queue depth and conversation counts.
+- `GET /cycles/history` — Returns the current placeholder history shape (future persistence planned).
+- `POST /control/pause`, `/control/resume`, `/control/reset` — Enable/disable queues and cleanup conversations.
+
+### Models (`/api/models`)
+
+- `GET /` — Lists registered models with optional filtering.
+- `GET /{modelId:int}` — Retrieves detailed metadata.
+- `GET /stats` — Aggregated usage metrics.
+- `POST /` — Creates or updates model definitions.
+- `POST /{modelId:int}/distill` — Kicks off a distillation job.
+- `GET /{modelId:int}/layers` — Retrieves layer metrics from SQL (`ModelLayers`).
+
+### Billing (`/api/billing`)
+
+- `POST /usage/report` — Bulk usage ingestion.
+- `POST /calculate` — Produces billing projections.
+- `POST /usage/record` — Inserts a single usage event.
+- `GET /quota` — Returns tenant quota status.
+- `POST /quota` — Updates quota thresholds.
+
+### Feedback (`/api/v1/feedback`)
+
+- `POST /submit` — Accepts feedback entries tied to atoms/inferences.
+- `POST /importance/update` — Adjusts importance scores.
+- `POST /fine-tune/trigger` — Enqueues a fine-tuning job.
+- `POST /summary` — Generates aggregated feedback summaries.
+
+### Operations (`/api/v1/operations`)
+
+- `GET /health` — Performs database and Service Broker checks.
+- `POST /indexes/maintenance` — Launches index maintenance job.
+- `POST /cache/manage` — Warm/flush caches through background workers.
+- `POST /diagnostics` — Executes diagnostic stored procedures.
+- `GET /querystore/stats` — Summaries from SQL Query Store.
+- `POST /autonomous/trigger` — Triggers autonomous background workflows.
+- `GET /metrics` & `GET /metrics/{tenantId}` — Aggregated operational metrics.
+
+### Ingestion (`/api/v1/ingestion`)
+
+- `POST /content` — Wraps atom ingestion for a single payload (`IngestionRequest`) with deduplication support and queue handoff.
+
+### Jobs (`/api/jobs`)
+
+- `GET /{jobId:long}` — Retrieves job status (`JobStatusResponse`).
+- `GET /` — Lists jobs with filters/paging.
+- `POST /cleanup`, `/index-maintenance`, `/analytics` — Immediately submit background jobs.
+- `POST /{jobId:long}/cancel` — Cancels queue jobs when supported.
+- `GET /stats` — Job-level aggregation.
+- `POST /schedule/cleanup`, `/schedule/analytics` — Schedule future recurring jobs.
+
+### Supporting Endpoints & Configuration Notes
+
+- Health: `/health/startup`, `/health/ready`, `/health/live` (all `AllowAnonymous`).
+- Metrics: `/metrics` (enabled when OpenTelemetry exporters are configured).
+- Controllers require `HartonomousDb` and/or `DefaultConnection` connection strings; provide both for local testing. Neo4j connectivity relies on `Neo4j:Uri`, `Neo4j:Username`, `Neo4j:Password`. Azure Storage clients expect `AzureStorage:ConnectionString` or service endpoints.

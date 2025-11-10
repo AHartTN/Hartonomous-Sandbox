@@ -1,7 +1,8 @@
+using System.Collections.Immutable;
+using System.Text.Json;
+using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
-using Hartonomous.Data;
-using System.Text.Json;
 
 namespace Hartonomous.Infrastructure.Jobs.Processors;
 
@@ -35,6 +36,53 @@ public class AnalyticsJobPayload
     /// </summary>
     public Dictionary<string, object>? Parameters { get; set; }
 }
+
+/// <summary>
+/// Immutable representation of a tenant's daily usage measurements.
+/// </summary>
+public readonly record struct DailyUsageRow(
+    int TenantId,
+    DateTime UsageDate,
+    int RequestCount,
+    int SuccessfulRequests,
+    int FailedRequests,
+    int? AvgDurationMs);
+
+/// <summary>
+/// Immutable aggregate metrics per tenant.
+/// </summary>
+public readonly record struct TenantMetricsRow(
+    int TenantId,
+    string? TenantName,
+    int TotalAtoms,
+    int TotalEmbeddings,
+    int TotalInferences,
+    decimal TotalBillingAmount,
+    DateTime? LastActivityUtc);
+
+/// <summary>
+/// Immutable performance summary for a deployed model.
+/// </summary>
+public readonly record struct ModelPerformanceRow(
+    int ModelId,
+    string? ModelName,
+    int InferenceCount,
+    double? AvgConfidence,
+    int? AvgDurationMs,
+    int SuccessCount,
+    int FailureCount);
+
+/// <summary>
+/// Immutable inference statistics grouped by task and status.
+/// </summary>
+public readonly record struct InferenceStatsRow(
+    string? InferenceTask,
+    string? Status,
+    int RequestCount,
+    double? AvgConfidence,
+    int? AvgDurationMs,
+    DateTime? FirstRequestUtc,
+    DateTime? LastRequestUtc);
 
 /// <summary>
 /// Result from analytics job execution.
@@ -140,24 +188,22 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
             await connection.OpenAsync(cancellationToken);
         }
 
-        var usage = new List<Dictionary<string, object>>();
+        var usageBuilder = ImmutableArray.CreateBuilder<DailyUsageRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            usage.Add(new Dictionary<string, object>
-            {
-                ["TenantId"] = reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
-                ["UsageDate"] = reader.GetDateTime(1),
-                ["RequestCount"] = reader.GetInt32(2),
-                ["SuccessfulRequests"] = reader.GetInt32(3),
-                ["FailedRequests"] = reader.GetInt32(4),
-                ["AvgDurationMs"] = reader.IsDBNull(5) ? (int?)null : reader.GetInt32(5)
-            });
+            usageBuilder.Add(new DailyUsageRow(
+                TenantId: reader.IsDBNull(0) ? 0 : reader.GetInt32(0),
+                UsageDate: reader.GetDateTime(1),
+                RequestCount: reader.GetInt32(2),
+                SuccessfulRequests: reader.GetInt32(3),
+                FailedRequests: reader.GetInt32(4),
+                AvgDurationMs: reader.IsDBNull(5) ? null : reader.GetInt32(5)));
         }
 
-        rowCounts["DailyUsage"] = usage.Count;
-        return usage;
+        rowCounts["DailyUsage"] = usageBuilder.Count;
+        return usageBuilder.MoveToImmutable();
     }
 
     private async Task<object> GenerateTenantMetricsReportAsync(
@@ -206,25 +252,23 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
             await connection.OpenAsync(cancellationToken);
         }
 
-        var metrics = new List<Dictionary<string, object>>();
+        var metricsBuilder = ImmutableArray.CreateBuilder<TenantMetricsRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            metrics.Add(new Dictionary<string, object>
-            {
-                ["TenantId"] = reader.GetInt32(0),
-                ["TenantName"] = reader.IsDBNull(1) ? null : reader.GetString(1),
-                ["TotalAtoms"] = reader.GetInt32(2),
-                ["TotalEmbeddings"] = reader.GetInt32(3),
-                ["TotalInferences"] = reader.GetInt32(4),
-                ["TotalBillingAmount"] = reader.IsDBNull(5) ? 0 : reader.GetDecimal(5),
-                ["LastActivityUtc"] = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6)
-            });
+            metricsBuilder.Add(new TenantMetricsRow(
+                TenantId: reader.GetInt32(0),
+                TenantName: reader.IsDBNull(1) ? null : reader.GetString(1),
+                TotalAtoms: reader.GetInt32(2),
+                TotalEmbeddings: reader.GetInt32(3),
+                TotalInferences: reader.GetInt32(4),
+                TotalBillingAmount: reader.IsDBNull(5) ? 0 : reader.GetDecimal(5),
+                LastActivityUtc: reader.IsDBNull(6) ? null : reader.GetDateTime(6)));
         }
 
-        rowCounts["TenantMetrics"] = metrics.Count;
-        return metrics;
+        rowCounts["TenantMetrics"] = metricsBuilder.Count;
+        return metricsBuilder.MoveToImmutable();
     }
 
     private async Task<object> GenerateModelPerformanceReportAsync(
@@ -269,25 +313,23 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
             await connection.OpenAsync(cancellationToken);
         }
 
-        var performance = new List<Dictionary<string, object>>();
+        var performanceBuilder = ImmutableArray.CreateBuilder<ModelPerformanceRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            performance.Add(new Dictionary<string, object>
-            {
-                ["ModelId"] = reader.GetInt32(0),
-                ["ModelName"] = reader.IsDBNull(1) ? null : reader.GetString(1),
-                ["InferenceCount"] = reader.GetInt32(2),
-                ["AvgConfidence"] = reader.IsDBNull(3) ? (double?)null : reader.GetDouble(3),
-                ["AvgDurationMs"] = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
-                ["SuccessCount"] = reader.GetInt32(5),
-                ["FailureCount"] = reader.GetInt32(6)
-            });
+            performanceBuilder.Add(new ModelPerformanceRow(
+                ModelId: reader.GetInt32(0),
+                ModelName: reader.IsDBNull(1) ? null : reader.GetString(1),
+                InferenceCount: reader.GetInt32(2),
+                AvgConfidence: reader.IsDBNull(3) ? null : reader.GetDouble(3),
+                AvgDurationMs: reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                SuccessCount: reader.GetInt32(5),
+                FailureCount: reader.GetInt32(6)));
         }
 
-        rowCounts["ModelPerformance"] = performance.Count;
-        return performance;
+        rowCounts["ModelPerformance"] = performanceBuilder.Count;
+        return performanceBuilder.MoveToImmutable();
     }
 
     private async Task<object> GenerateInferenceStatsReportAsync(
@@ -331,24 +373,22 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
             await connection.OpenAsync(cancellationToken);
         }
 
-        var stats = new List<Dictionary<string, object>>();
+        var statsBuilder = ImmutableArray.CreateBuilder<InferenceStatsRow>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
 
         while (await reader.ReadAsync(cancellationToken))
         {
-            stats.Add(new Dictionary<string, object>
-            {
-                ["InferenceTask"] = reader.IsDBNull(0) ? null : reader.GetString(0),
-                ["Status"] = reader.IsDBNull(1) ? null : reader.GetString(1),
-                ["RequestCount"] = reader.GetInt32(2),
-                ["AvgConfidence"] = reader.IsDBNull(3) ? (double?)null : reader.GetDouble(3),
-                ["AvgDurationMs"] = reader.IsDBNull(4) ? (int?)null : reader.GetInt32(4),
-                ["FirstRequestUtc"] = reader.IsDBNull(5) ? (DateTime?)null : reader.GetDateTime(5),
-                ["LastRequestUtc"] = reader.IsDBNull(6) ? (DateTime?)null : reader.GetDateTime(6)
-            });
+            statsBuilder.Add(new InferenceStatsRow(
+                InferenceTask: reader.IsDBNull(0) ? null : reader.GetString(0),
+                Status: reader.IsDBNull(1) ? null : reader.GetString(1),
+                RequestCount: reader.GetInt32(2),
+                AvgConfidence: reader.IsDBNull(3) ? null : reader.GetDouble(3),
+                AvgDurationMs: reader.IsDBNull(4) ? null : reader.GetInt32(4),
+                FirstRequestUtc: reader.IsDBNull(5) ? null : reader.GetDateTime(5),
+                LastRequestUtc: reader.IsDBNull(6) ? null : reader.GetDateTime(6)));
         }
 
-        rowCounts["InferenceStats"] = stats.Count;
-        return stats;
+        rowCounts["InferenceStats"] = statsBuilder.Count;
+        return statsBuilder.MoveToImmutable();
     }
 }

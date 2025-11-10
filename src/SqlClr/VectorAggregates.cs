@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.IO;
@@ -181,12 +182,12 @@ namespace SqlClrFunctions
         MaxByteSize = -1)]
     public struct GeometricMedian : IBinarySerialize
     {
-        private List<float[]> vectors;
+        private PooledList<float[]> vectors;
         private int dimension;
 
         public void Init()
         {
-            vectors = new List<float[]>();
+            vectors = default;
             dimension = 0;
         }
 
@@ -209,31 +210,41 @@ namespace SqlClrFunctions
 
         public void Merge(GeometricMedian other)
         {
-            if (other.vectors != null)
-                vectors.AddRange(other.vectors);
+            if (other.dimension == 0 || other.vectors.Count == 0)
+                return;
+
+            if (dimension == 0)
+                dimension = other.dimension;
+
+            if (dimension != other.dimension)
+                return;
+
+            vectors.AddRange(other.vectors.AsSpan());
         }
 
         public SqlString Terminate()
         {
-            if (vectors.Count == 0 || dimension == 0)
+            var vectorSpan = vectors.AsSpan();
+            if (vectorSpan.Length == 0 || dimension == 0)
                 return SqlString.Null;
 
-            if (vectors.Count == 1)
+            if (vectorSpan.Length == 1)
             {
-                if (dimension >= 3)
-                    return new SqlString($"POINT ({vectors[0][0]:G9} {vectors[0][1]:G9} {vectors[0][2]:G9})");
-                else if (dimension == 2)
-                    return new SqlString($"POINT ({vectors[0][0]:G9} {vectors[0][1]:G9})");
-                else
-                {
-                    return new SqlString(JsonConvert.SerializeObject(vectors[0]));
-                }
+                var single = vectorSpan[0];
+                var result = dimension >= 3
+                    ? new SqlString($"POINT ({single[0]:G9} {single[1]:G9} {single[2]:G9})")
+                    : dimension == 2
+                        ? new SqlString($"POINT ({single[0]:G9} {single[1]:G9})")
+                        : new SqlString(JsonConvert.SerializeObject(single));
+
+                vectors.Clear(clearItems: true);
+                return result;
             }
 
             // Initialize with component-wise median
             float[] estimate = new float[dimension];
             for (int d = 0; d < dimension; d++)
-                estimate[d] = ComponentMedian(vectors, d);
+                estimate[d] = ComponentMedian(vectorSpan, d);
 
             // Weiszfeld's iterative algorithm
             const int maxIterations = 100;
@@ -244,8 +255,9 @@ namespace SqlClrFunctions
                 float[] weightedSum = new float[dimension];
                 double sumWeights = 0;
 
-                foreach (var vec in vectors)
+                for (int idx = 0; idx < vectorSpan.Length; idx++)
                 {
+                    var vec = vectorSpan[idx];
                     double dist = EuclideanDistance(vec, estimate);
                     if (dist < 1e-10)
                         continue;
@@ -271,24 +283,40 @@ namespace SqlClrFunctions
             }
 
             // Return appropriate format based on dimension
-            if (dimension >= 3)
-                return new SqlString($"POINT ({estimate[0]:G9} {estimate[1]:G9} {estimate[2]:G9})");
-            else if (dimension == 2)
-                return new SqlString($"POINT ({estimate[0]:G9} {estimate[1]:G9})");
-            else
-            {
-                return new SqlString(JsonConvert.SerializeObject(estimate));
-            }
+            var terminated = dimension >= 3
+                ? new SqlString($"POINT ({estimate[0]:G9} {estimate[1]:G9} {estimate[2]:G9})")
+                : dimension == 2
+                    ? new SqlString($"POINT ({estimate[0]:G9} {estimate[1]:G9})")
+                    : new SqlString(JsonConvert.SerializeObject(estimate));
+
+            vectors.Clear(clearItems: true);
+            return terminated;
         }
 
-        private float ComponentMedian(List<float[]> vecs, int componentIndex)
+        private float ComponentMedian(ReadOnlySpan<float[]> vecs, int componentIndex)
         {
-            var values = vecs.Select(v => v[componentIndex]).OrderBy(x => x).ToList();
-            int n = values.Count;
-            if (n % 2 == 0)
-                return (values[n / 2 - 1] + values[n / 2]) / 2.0f;
-            else
-                return values[n / 2];
+            int length = vecs.Length;
+            if (length == 0)
+                return 0f;
+
+            var pool = ArrayPool<float>.Shared;
+            float[] scratch = pool.Rent(length);
+            try
+            {
+                for (int i = 0; i < length; i++)
+                    scratch[i] = vecs[i][componentIndex];
+
+                Array.Sort(scratch, 0, length);
+                float median = (length & 1) == 0
+                    ? (scratch[length / 2 - 1] + scratch[length / 2]) * 0.5f
+                    : scratch[length / 2];
+
+                return median;
+            }
+            finally
+            {
+                pool.Return(scratch, clearArray: false);
+            }
         }
 
         private double EuclideanDistance(float[] a, float[] b)
@@ -304,9 +332,15 @@ namespace SqlClrFunctions
 
         public void Read(BinaryReader r)
         {
+            vectors.Clear(clearItems: true);
+
             dimension = r.ReadInt32();
             int count = r.ReadInt32();
-            vectors = new List<float[]>(count);
+
+            if (dimension <= 0 || count <= 0)
+                return;
+
+            vectors.Reserve(count);
             for (int i = 0; i < count; i++)
             {
                 float[] vec = new float[dimension];
@@ -318,11 +352,15 @@ namespace SqlClrFunctions
 
         public void Write(BinaryWriter w)
         {
+            var span = vectors.AsSpan();
             w.Write(dimension);
-            w.Write(vectors.Count);
-            foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+            w.Write(span.Length);
+            for (int i = 0; i < span.Length; i++)
+            {
+                var vec = span[i];
+                for (int j = 0; j < dimension; j++)
+                    w.Write(vec[j]);
+            }
         }
     }
 
@@ -344,13 +382,15 @@ namespace SqlClrFunctions
     {
         private int dimension;
         private float[] maxValues;  // Max per component
-        private List<float[]> vectors;
+        private double[] sumExp;    // Sum of exp(x - max)
+        private int count;
 
         public void Init()
         {
             dimension = 0;
             maxValues = null;
-            vectors = new List<float[]>();
+            sumExp = null;
+            count = 0;
         }
 
         public void Accumulate(SqlString vectorJson)
@@ -366,127 +406,145 @@ namespace SqlClrFunctions
             {
                 dimension = vec.Length;
                 maxValues = new float[dimension];
+                sumExp = new double[dimension];
                 for (int i = 0; i < dimension; i++)
-                    maxValues[i] = float.NegativeInfinity;
+                {
+                    maxValues[i] = vec[i];
+                    sumExp[i] = 1.0d;
+                }
+                count = 1;
+                return;
             }
 
             if (vec.Length != dimension)
                 throw new ArgumentException($"Vector dimension mismatch: expected {dimension}, got {vec.Length}");
 
-            // Update max per component
             for (int i = 0; i < dimension; i++)
             {
-                if (vec[i] > maxValues[i])
-                    maxValues[i] = vec[i];
+                float currentMax = maxValues[i];
+                float value = vec[i];
+
+                if (value > currentMax)
+                {
+                    double scale = Math.Exp(currentMax - value);
+                    sumExp[i] = sumExp[i] * scale + 1.0d;
+                    maxValues[i] = value;
+                }
+                else
+                {
+                    sumExp[i] += Math.Exp(value - currentMax);
+                }
             }
 
-            vectors.Add(vec);
+            count++;
         }
 
         public void Merge(StreamingSoftmax other)
         {
-            if (other.vectors.Count == 0)
+            if (other.dimension == 0 || other.count == 0)
                 return;
 
             if (dimension == 0)
             {
                 dimension = other.dimension;
                 maxValues = (float[])other.maxValues.Clone();
-                vectors = new List<float[]>(other.vectors);
+                sumExp = (double[])other.sumExp.Clone();
+                count = other.count;
+                return;
             }
-            else
+
+            if (other.dimension != dimension)
+                throw new ArgumentException($"Dimension mismatch in merge: {dimension} vs {other.dimension}");
+
+            for (int i = 0; i < dimension; i++)
             {
-                if (other.dimension != dimension)
-                    throw new ArgumentException($"Dimension mismatch in merge: {dimension} vs {other.dimension}");
+                float currentMax = maxValues[i];
+                float otherMax = other.maxValues[i];
+                float finalMax = currentMax >= otherMax ? currentMax : otherMax;
 
-                // Update max per component
-                for (int i = 0; i < dimension; i++)
-                {
-                    if (other.maxValues[i] > maxValues[i])
-                        maxValues[i] = other.maxValues[i];
-                }
+                double adjustedCurrent = sumExp[i] * Math.Exp(currentMax - finalMax);
+                double adjustedOther = other.sumExp[i] * Math.Exp(otherMax - finalMax);
 
-                vectors.AddRange(other.vectors);
+                sumExp[i] = adjustedCurrent + adjustedOther;
+                maxValues[i] = finalMax;
             }
+
+            count += other.count;
         }
 
         public SqlString Terminate()
         {
-            if (vectors.Count == 0 || dimension == 0)
+            if (dimension == 0 || count == 0 || maxValues == null || sumExp == null)
                 return SqlString.Null;
 
-            // Component-wise log-sum-exp: log(sum(exp(x_i - max_i))) + max_i per component
             float[] logSumExp = new float[dimension];
-            float[] sumExp = new float[dimension];
-            
-            // Pass 1: Compute sum(exp(x - max)) per component
-            for (int i = 0; i < dimension; i++)
-            {
-                sumExp[i] = 0;
-                foreach (var vec in vectors)
-                {
-                    sumExp[i] += (float)Math.Exp(vec[i] - maxValues[i]);
-                }
-                logSumExp[i] = (float)Math.Log(sumExp[i]) + maxValues[i];
-            }
-
-            // Pass 2: Compute average normalized probabilities per component
             float[] avgProbs = new float[dimension];
+
             for (int i = 0; i < dimension; i++)
             {
-                double probSum = 0;
-                foreach (var vec in vectors)
+                double componentSum = sumExp[i];
+                if (componentSum <= 0)
                 {
-                    probSum += Math.Exp(vec[i] - maxValues[i]) / sumExp[i];
+                    logSumExp[i] = float.NegativeInfinity;
+                    avgProbs[i] = 0f;
+                    continue;
                 }
-                avgProbs[i] = (float)(probSum / vectors.Count);
+
+                logSumExp[i] = (float)(Math.Log(componentSum) + maxValues[i]);
+                avgProbs[i] = count > 0 ? (float)(1.0d / count) : 0f;
             }
 
             var result = new
             {
                 log_sum_exp = logSumExp,
                 avg_probabilities = avgProbs,
-                count = vectors.Count
+                count
             };
+
+            // reset state to allow reuse in pooled scenarios
+            maxValues = null;
+            sumExp = null;
+            count = 0;
+            dimension = 0;
+
             return new SqlString(JsonConvert.SerializeObject(result));
         }
 
         public void Read(BinaryReader r)
         {
             dimension = r.ReadInt32();
-            if (dimension > 0)
+            count = r.ReadInt32();
+
+            if (dimension <= 0 || count <= 0)
             {
-                maxValues = new float[dimension];
-                for (int i = 0; i < dimension; i++)
-                    maxValues[i] = r.ReadSingle();
+                maxValues = null;
+                sumExp = null;
+                return;
             }
 
-            int count = r.ReadInt32();
-            vectors = new List<float[]>(count);
-            for (int i = 0; i < count; i++)
-            {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
-            }
+            maxValues = new float[dimension];
+            sumExp = new double[dimension];
+
+            for (int i = 0; i < dimension; i++)
+                maxValues[i] = r.ReadSingle();
+
+            for (int i = 0; i < dimension; i++)
+                sumExp[i] = r.ReadDouble();
         }
 
         public void Write(BinaryWriter w)
         {
             w.Write(dimension);
-            if (dimension > 0)
-            {
-                foreach (var val in maxValues)
-                    w.Write(val);
-            }
+            w.Write(count);
 
-            w.Write(vectors.Count);
-            foreach (var vec in vectors)
-            {
-                foreach (var val in vec)
-                    w.Write(val);
-            }
+            if (dimension <= 0 || maxValues == null || sumExp == null)
+                return;
+
+            for (int i = 0; i < dimension; i++)
+                w.Write(maxValues[i]);
+
+            for (int i = 0; i < dimension; i++)
+                w.Write(sumExp[i]);
         }
     }
 }

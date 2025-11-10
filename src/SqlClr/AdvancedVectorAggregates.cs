@@ -31,13 +31,15 @@ namespace SqlClrFunctions
         MaxByteSize = -1)]  // Unlimited for large vector collections
     public struct VectorCentroid : IBinarySerialize
     {
-        private List<float[]> vectors;
+        private long count;
         private int dimension;
+        private float[] sum;
 
         public void Init()
         {
-            vectors = new List<float[]>();
+            count = 0;
             dimension = 0;
+            sum = null;
         }
 
         /// <summary>
@@ -51,17 +53,39 @@ namespace SqlClrFunctions
             if (vec == null) return;
 
             if (dimension == 0)
+            {
                 dimension = vec.Length;
+                sum = new float[dimension];
+            }
             else if (vec.Length != dimension)
                 return; // Skip mismatched dimensions
 
-            vectors.Add(vec);
+            for (int i = 0; i < dimension; i++)
+                sum[i] += vec[i];
+
+            count++;
         }
 
         public void Merge(VectorCentroid other)
         {
-            if (other.vectors != null)
-                vectors.AddRange(other.vectors);
+            if (other.count == 0 || other.dimension == 0)
+                return;
+
+            if (dimension == 0)
+            {
+                dimension = other.dimension;
+                sum = other.sum == null ? null : (float[])other.sum.Clone();
+                count = other.count;
+                return;
+            }
+
+            if (other.dimension != dimension || sum == null || other.sum == null)
+                return;
+
+            for (int i = 0; i < dimension; i++)
+                sum[i] += other.sum[i];
+
+            count += other.count;
         }
 
         /// <summary>
@@ -69,18 +93,17 @@ namespace SqlClrFunctions
         /// </summary>
         public SqlString Terminate()
         {
-            if (vectors.Count == 0 || dimension == 0)
+            if (count == 0 || dimension == 0 || sum == null)
                 return SqlString.Null;
 
             float[] centroid = new float[dimension];
-            foreach (var vec in vectors)
-            {
-                for (int i = 0; i < dimension; i++)
-                    centroid[i] += vec[i];
-            }
-
             for (int i = 0; i < dimension; i++)
-                centroid[i] /= vectors.Count;
+                centroid[i] = sum[i] / count;
+
+            // Reset state to release references eagerly
+            sum = null;
+            count = 0;
+            dimension = 0;
 
             return new SqlString(JsonConvert.SerializeObject(centroid));
         }
@@ -88,25 +111,28 @@ namespace SqlClrFunctions
         public void Read(BinaryReader r)
         {
             dimension = r.ReadInt32();
-            int count = r.ReadInt32();
-            vectors = new List<float[]>(count);
-            for (int i = 0; i < count; i++)
+            count = r.ReadInt64();
+
+            if (dimension > 0 && count > 0)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                sum = new float[dimension];
+                for (int i = 0; i < dimension; i++)
+                    sum[i] = r.ReadSingle();
+            }
+            else
+            {
+                sum = null;
             }
         }
 
         public void Write(BinaryWriter w)
         {
             w.Write(dimension);
-            w.Write(vectors.Count);
-            foreach (var vec in vectors)
+            w.Write(count);
+            if (dimension > 0 && sum != null)
             {
-                foreach (var val in vec)
-                    w.Write(val);
+                for (int i = 0; i < dimension; i++)
+                    w.Write(sum[i]);
             }
         }
     }

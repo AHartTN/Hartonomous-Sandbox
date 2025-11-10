@@ -1,8 +1,95 @@
-# Architecture Overview
+﻿# Hartonomous Architecture
 
-## System Design Philosophy
+Hartonomous runs the entire autonomous AI loop inside SQL Server 2025 and extends the database with a dedicated CLR assembly compiled against .NET Framework 4.8.1. The .NET 10 solution in `Hartonomous.sln` provides API, administration, and worker processes that orchestrate ingestion, inference, provenance, and closed-loop learning.
 
-Hartonomous treats SQL Server as a first-class AI runtime, not just a data store. The core insight: **tensors are geometry, inference is spatial query, provenance is graph traversal.**
+## Platform Summary
+
+- **Database-first runtime**: Core entities (`src/Hartonomous.Core/Entities`) map to SQL tables under `sql/tables`. Geometry columns (`Atom.SpatialKey`, `TensorAtom.SpatialSignature`) and temporal columns (`TensorAtomCoefficients`) are configured in `src/Hartonomous.Data/Configurations/*`.
+- **CLR intelligence**: The `SqlClrFunctions` assembly in `src/SqlClr` exposes SIMD vector analytics, anomaly detection, multimodal generation, and stream management called from stored procedures under `sql/procedures`.
+- **Service layer**: `src/Hartonomous.Api`, `src/Hartonomous.Admin`, and workers in `src/Hartonomous.Workers.*` share the registrations in `src/Hartonomous.Infrastructure/DependencyInjection.cs` for database access, Service Broker messaging, billing, and resilience.
+- **Automation**: PowerShell scripts in `scripts/` provision SQL prerequisites, deploy CLR binaries, configure Service Broker, and verify the installation (`scripts/deploy-database-unified.ps1`).
+
+## Database Substrate
+
+### Unified Atom Store (Validated)
+
+- `sql/tables/dbo.Atoms.sql` defines the canonical record with modality metadata, JSON payload descriptors, `SpatialKey geometry`, and temporal columns.
+- EF mapping in `src/Hartonomous.Data/Configurations/AtomConfiguration.cs` enforces the geometry column, JSON typing, and relationships to embeddings and tensor atoms.
+- Embeddings are persisted in `sql/tables/dbo.AtomEmbeddings.sql` with `VECTOR(1998)` plus `SpatialGeometry`/`SpatialCoarse` projections. Spatial indexes are built by `sql/procedures/Common.CreateSpatialIndexes.sql` and consumed by CLR vector routines.
+
+### Model Decomposition (Validated)
+
+- `sql/tables/dbo.ModelStructure.sql` creates `Models` and `ModelLayers` which feed the tensor factorization pipeline.
+- `src/Hartonomous.Core/Entities/TensorAtom.cs` and `TensorAtomCoefficient.cs` map to `sql/tables/TensorAtomCoefficients_Temporal.sql`, capturing each reusable tensor slice and its coefficients with geometry footprints and temporal history.
+- EF configurations (`src/Hartonomous.Data/Configurations/TensorAtomConfiguration.cs`, `TensorAtomCoefficientConfiguration.cs`, `LayerTensorSegmentConfiguration.cs`) wire the `Model -> ModelLayer -> TensorAtom -> TensorAtomCoefficient` relationships referenced by the ingestion and inference services.
+
+### Dual-Ledger Provenance (Validated)
+
+- Temporal history is handled inside SQL Server via `sql/tables/TensorAtomCoefficients_Temporal.sql`, `dbo.Weights.sql`, and other system-versioned tables to recover historical model states.
+- Graph lineage is synchronized to Neo4j using `neo4j/schemas/CoreSchema.cypher` and the `ProvenanceGraphBuilder` service in `src/Hartonomous.Workers.Neo4jSync/Services/ProvenanceGraphBuilder.cs`.
+- Service Broker activation procedures (`sql/procedures/Provenance.Neo4jSyncActivation.sql`) and the worker `ServiceBrokerMessagePump` consume weight-update events and mirror them into the graph store, giving the "dual ledger" of SQL temporal history plus Neo4j graph provenance.
+
+## Autonomous Loop Execution
+
+### Stored Procedure Pipeline (Analyze → Hypothesize → Act → Learn)
+
+- `sql/procedures/dbo.sp_Analyze.sql` receives observations, aggregates telemetry with CLR helpers (`src/SqlClr/Analysis/QueryStoreAnalyzer.cs`, `AnomalyDetectionAggregates.cs`), and posts `AnalyzeMessage` events to Service Broker.
+- `sql/procedures/dbo.sp_Hypothesize.sql` consumes those events, evaluates anomaly counts and pattern data, and publishes structured hypotheses to `ActQueue`.
+- `sql/procedures/dbo.sp_Act.sql` executes the recommended actions, including weight adjustments (`Feedback.ModelWeightUpdates.sql`), index maintenance, or cache priming.
+- `sql/procedures/dbo.sp_Learn.sql` evaluates the results, records them in `dbo.AutonomousImprovementHistory`, and loops new observations back into the queue system.
+- Service Broker infrastructure is declared in `scripts/setup-service-broker.sql` with message types, contracts, services, and queues (`AnalyzeQueue`, `HypothesizeQueue`, `ActQueue`, `LearnQueue`).
+
+### Event Handlers and Workers
+
+- `src/Hartonomous.Infrastructure/Messaging/Handlers/OodaEventHandlers.cs` log and route OODA events from the in-memory event bus while long-running execution happens via SQL stored procedures.
+- `src/Hartonomous.Workers.Neo4jSync` listens on Service Broker through `ServiceBrokerMessagePump` to process provenance events.
+- `src/Hartonomous.Workers.CesConsumer` ingests SQL Server 2025 Change Event Stream (CES) data and emits domain events that feed the ingestion pipeline.
+
+## Application Services
+
+### Web API (`src/Hartonomous.Api`)
+
+- `Program.cs` configures Azure AD JWT auth, role hierarchy policies, tenant-aware authorization handlers, and rate limiting strategies defined in `Hartonomous.Infrastructure.RateLimiting`.
+- Controllers under `src/Hartonomous.Api/Controllers` expose ingestion, inference, search, provenance, and operations endpoints, using services from the Infrastructure project.
+- OpenTelemetry tracing and metrics are wired with `AddOpenTelemetry()` to capture pipeline spans (`Hartonomous.Pipelines` activity source) and export via OTLP when configured.
+
+### Administration Portal (`src/Hartonomous.Admin`)
+
+- Blazor Server application using SignalR hubs (`Hubs/TelemetryHub.cs`) to stream telemetry.
+- Shares infrastructure registrations and health checks (`AddHartonomousHealthChecks`) with the API and exposes Prometheus metrics through `AddPrometheusExporter()`.
+
+### Background Workers
+
+- **CES Consumer**: `CesConsumerService` processes CDC payloads, maps them via `CdcEventMapper`, and persists ingestion progress through `FileCdcCheckpointManager`.
+- **Neo4j Sync**: `ServiceBrokerMessagePump` coordinates Service Broker message handling with retry/circuit breaker policies defined in `Hartonomous.Infrastructure.Resilience` and projects results into Neo4j via `ProvenanceGraphBuilder`.
+- **Infrastructure Hosted Services**: `Hartonomous.Infrastructure` registers `AtomIngestionWorker`, `InferenceJobWorker`, and the event-bus hosted service to keep ingestion and inference pipelines active.
+
+## CLR Intelligence Layer
+
+The `SqlClrFunctions` project (`src/SqlClr/SqlClrFunctions.csproj`) compiles to the assembly deployed with `scripts/deploy-database-unified.ps1`. Key components include:
+
+- **Vector analytics**: `VectorAggregates.cs`, `AdvancedVectorAggregates.cs`, and `TimeSeriesVectorAggregates.cs` deliver SIMD-accelerated aggregates invoked by `sql/procedures/Functions.*` and `Inference.VectorSearchSuite.sql`.
+- **Transformer helpers**: `TensorOperations/TransformerInference.cs`, `AttentionGeneration.cs`, and `NeuralVectorAggregates.cs` support attention-weight calculations used in inference pipelines.
+- **Anomaly detection reflexes**: `AnomalyDetectionAggregates.cs` computes thresholded anomaly scores that feed reflex governance (see `docs/AUTONOMOUS_GOVERNANCE.md`).
+- **Spatial utilities**: `SpatialOperations.cs` and `Core/LandmarkProjection.cs` construct geometry representations aligned with the NetTopologySuite columns configured in EF.
+- **Event streams**: `AtomicStream.cs`, `ComponentStream.cs`, and `StreamOrchestrator.cs` serialize domain events into SQL CLR UDTs consumed by `provenance.AtomicStreamFactory.sql` and `Stream.StreamOrchestration.sql`.
+
+## Deployment and Verification
+
+- **Database provisioning**: `scripts/deploy-database-unified.ps1` executes schema scripts from `sql/`, deploys CLR assemblies (via `scripts/deploy/deploy-clr.ps1` helpers), enables Service Broker, and verifies installation.
+- **CLR deployment specifics**: Documented in `docs/CLR_DEPLOYMENT.md`, aligning with `scripts/deploy-clr-unsafe.sql` and trusted assembly registration.
+- **Performance audits**: `docs/PERFORMANCE_ARCHITECTURE_AUDIT.md` references `sql/Inference.VectorSearchSuite.sql` benchmarks, `src/Hartonomous.Core.Performance` harnesses, and `sql/Optimize_ColumnstoreCompression.sql` tuning scripts.
+- **Testing**: Solution-wide tests run with `dotnet test Hartonomous.Tests.sln`. Database verification scripts like `sql/procedures/Common.Helpers.sql` and `sql/verification/*` validate schema assumptions during deployment.
+
+## Reference Map
+
+- **Source code**: `src/` (.NET 10 services, infrastructure, domain, CLR packaging)
+- **Database scripts**: `sql/` (tables, procedures, functions, verification)
+- **Automation**: `scripts/` (PowerShell deployment, CLR refresh, dependency analysis)
+- **Graph schema**: `neo4j/schemas/CoreSchema.cypher`
+- **Documentation**: `docs/` (deployment, performance, CLR strategy, governance, refactor roadmap)
+
+All architectural claims above are traceable to the referenced source files and SQL scripts, ensuring the documentation reflects the current repository state.
 
 ## Layer Architecture
 
@@ -24,7 +111,7 @@ CREATE TABLE TensorAtoms (
 CREATE SPATIAL INDEX IX_TensorAtoms_Spatial 
 ON TensorAtoms(TensorData)
 WITH (GRIDS = (LEVEL_1 = MEDIUM, LEVEL_2 = MEDIUM, LEVEL_3 = MEDIUM, LEVEL_4 = MEDIUM));
-```
+```text
 
 **Why GEOMETRY?** SQL Server's `VECTOR` type is limited to 1998 dimensions. Many modern models (CLIP, GPT embeddings) use higher dimensions. GEOMETRY supports arbitrary dimensions via trilateration projection.
 
@@ -60,7 +147,7 @@ SELECT i.InferenceId, e.EmbeddingVector
 FROM Inference AS i, UsesEmbedding, Embedding AS e
 WHERE MATCH(i-(UsesEmbedding)->e)
   AND i.InferenceId = @TargetInference;
-```
+```text
 
 #### Temporal Tables
 
@@ -79,7 +166,7 @@ ALTER TABLE Embeddings SET (SYSTEM_VERSIONING = ON (HISTORY_TABLE = dbo.Embeddin
 SELECT * 
 FROM Embeddings FOR SYSTEM_TIME AS OF '2025-01-01'
 WHERE EmbeddingId = 42;
-```
+```text
 
 #### FILESTREAM for Large Models
 
@@ -91,7 +178,7 @@ CREATE TABLE ModelWeights (
     WeightData VARBINARY(MAX) FILESTREAM NOT NULL,
     WeightGuid UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT NEWSEQUENTIALID()
 );
-```
+```text
 
 C# code can map FILESTREAM directly to GPU memory via `SqlFileStream`:
 
@@ -101,7 +188,7 @@ using (var stream = new SqlFileStream(path, token, FileAccess.Read))
     var gpuBuffer = cuda.MapMemory(stream.SafeFileHandle);
     // Direct GPU access to SQL Server data
 }
-```
+```text
 
 ### 2. Computation Layer
 
@@ -110,6 +197,7 @@ using (var stream = new SqlFileStream(path, token, FileAccess.Read))
 CLR integration provides performance-critical operations:
 
 **Scalar Functions:**
+
 ```csharp
 [SqlFunction(IsDeterministic = true, IsPrecise = false)]
 public static SqlDouble VectorDotProduct(SqlBytes vector1, SqlBytes vector2)
@@ -120,9 +208,10 @@ public static SqlDouble VectorDotProduct(SqlBytes vector1, SqlBytes vector2)
     // AVX2 SIMD acceleration
     return DotProductSIMD(a, b);
 }
-```
+```text
 
 **Aggregate Functions:**
+
 ```csharp
 [SqlUserDefinedAggregate(
     Format.UserDefined,
@@ -149,6 +238,7 @@ public class VectorMeanAggregate : IBinarySerialize
 ```
 
 **User-Defined Types (UDTs):**
+
 ```csharp
 [SqlUserDefinedType(Format.UserDefined, MaxByteSize = -1)]
 public struct SparseVector : IBinarySerialize
@@ -169,6 +259,7 @@ public struct SparseVector : IBinarySerialize
 Modern .NET features unavailable in CLR 4.8.1:
 
 **BPE Tokenization:**
+
 ```csharp
 public class BpeTokenizer
 {
@@ -193,6 +284,7 @@ public class BpeTokenizer
 ```
 
 **JSON Serialization:**
+
 ```csharp
 public class JsonSerializerImpl : IJsonSerializer
 {
@@ -209,6 +301,7 @@ public class JsonSerializerImpl : IJsonSerializer
 ```
 
 **Advanced Algorithms:**
+
 ```csharp
 // t-SNE dimensionality reduction
 public class TSNEProjection
@@ -513,7 +606,7 @@ WITH ACTIVATION (
 
 ### Embedding Generation Flow
 
-```
+```text
 User Query → REST API → T-SQL Procedure
                            ↓
                     CLR: TokenizeText()
@@ -535,7 +628,7 @@ User Query → REST API → T-SQL Procedure
 
 ### Semantic Search Flow
 
-```
+```text
 Query Vector → Spatial Bounding Box Query
                      ↓
               R-tree Index (filter to ~100 candidates)
@@ -551,7 +644,7 @@ Query Vector → Spatial Bounding Box Query
 
 ### Autonomous Optimization Flow
 
-```
+```text
 Query Execution → DMV Observation (slow query)
                         ↓
                   Service Broker: Observe message
