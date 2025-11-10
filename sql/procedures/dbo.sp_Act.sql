@@ -137,6 +137,55 @@ BEGIN
                     SET @ActionStatus = 'Executed';
                 END
                 
+                -- QUERY REGRESSION FIX: Force last good execution plan via Query Store
+                ELSE IF @CurrentType = 'QueryRegression'
+                BEGIN
+                    -- Parse query regression recommendations from sp_Analyze observations
+                    DECLARE @RecommendationsJson NVARCHAR(MAX) = JSON_QUERY(@CurrentActions, '$.queryStoreRecommendations');
+                    DECLARE @ForcedPlansCount INT = 0;
+                    
+                    IF @RecommendationsJson IS NOT NULL
+                    BEGIN
+                        DECLARE @QueryId BIGINT;
+                        DECLARE @RecommendedPlanId BIGINT;
+                        DECLARE @ForceScript NVARCHAR(MAX);
+                        
+                        DECLARE plan_cursor CURSOR FOR
+                        SELECT 
+                            TRY_CAST(JSON_VALUE(value, '$.QueryId') AS BIGINT),
+                            TRY_CAST(JSON_VALUE(value, '$.RecommendedPlanId') AS BIGINT),
+                            JSON_VALUE(value, '$.ForceScript')
+                        FROM OPENJSON(@RecommendationsJson);
+                        
+                        OPEN plan_cursor;
+                        FETCH NEXT FROM plan_cursor INTO @QueryId, @RecommendedPlanId, @ForceScript;
+                        
+                        WHILE @@FETCH_STATUS = 0
+                        BEGIN
+                            BEGIN TRY
+                                -- Force recommended plan via sp_query_store_force_plan
+                                IF @QueryId IS NOT NULL AND @RecommendedPlanId IS NOT NULL
+                                BEGIN
+                                    EXEC sp_query_store_force_plan @QueryId, @RecommendedPlanId;
+                                    SET @ForcedPlansCount = @ForcedPlansCount + 1;
+                                END
+                            END TRY
+                            BEGIN CATCH
+                                -- Log error but continue processing other plans
+                                PRINT 'Failed to force plan ' + CAST(@RecommendedPlanId AS NVARCHAR(20)) + ' for query ' + CAST(@QueryId AS NVARCHAR(20)) + ': ' + ERROR_MESSAGE();
+                            END CATCH
+                            
+                            FETCH NEXT FROM plan_cursor INTO @QueryId, @RecommendedPlanId, @ForceScript;
+                        END
+                        
+                        CLOSE plan_cursor;
+                        DEALLOCATE plan_cursor;
+                    END
+                    
+                    SET @ExecutedActionsList = JSON_OBJECT('forcedPlans': @ForcedPlansCount);
+                    SET @ActionStatus = 'Executed';
+                END
+                
                 -- CACHE WARMING: Safe, auto-approve
                 ELSE IF @CurrentType = 'CacheWarming'
                 BEGIN

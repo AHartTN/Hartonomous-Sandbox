@@ -130,7 +130,25 @@ BEGIN
             FOR JSON PATH
         );
         
-        -- 3. IDENTIFY EMBEDDING PATTERNS
+        -- 3. QUERY STORE: CHECK FOR QUERY REGRESSION RECOMMENDATIONS
+        DECLARE @QueryStoreRecommendations NVARCHAR(MAX);
+        
+        SELECT @QueryStoreRecommendations = (
+            SELECT 
+                reason AS RecommendationType,
+                score AS ImpactScore,
+                state_desc AS RecommendationState,
+                JSON_VALUE(details, '$.planForceDetails.queryId') AS QueryId,
+                JSON_VALUE(details, '$.planForceDetails.regressedPlanId') AS RegressedPlanId,
+                JSON_VALUE(details, '$.planForceDetails.recommendedPlanId') AS RecommendedPlanId,
+                JSON_VALUE(details, '$.implementationDetails.script') AS ForceScript
+            FROM sys.dm_db_tuning_recommendations
+            WHERE is_executable_action = 1
+                AND state_desc = 'Active'
+            FOR JSON PATH
+        );
+        
+        -- 4. IDENTIFY EMBEDDING PATTERNS
         -- Find clusters of similar embeddings (potential concept emergence)
         SELECT @Patterns = (
             SELECT TOP 10
@@ -154,6 +172,7 @@ BEGIN
             'avgDurationMs': @AvgDurationMs,
             'anomalyCount': (SELECT COUNT(*) FROM OPENJSON(@Anomalies)),
             'anomalies': JSON_QUERY(@Anomalies),
+            'queryStoreRecommendations': JSON_QUERY(@QueryStoreRecommendations),
             'patterns': JSON_QUERY(@Patterns),
             'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
         );
