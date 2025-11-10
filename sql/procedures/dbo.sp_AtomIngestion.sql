@@ -71,6 +71,23 @@ BEGIN
         END
 
         -- =============================================
+        -- PHASE 1.5: MODALITY-SPECIFIC EMBEDDING GENERATION
+        -- =============================================
+        -- If no embedding is provided, attempt to generate one for supported modalities.
+        IF @Embedding IS NULL AND @Modality = 'code' AND @CanonicalText IS NOT NULL
+        BEGIN
+            -- For the 'code' modality, generate a structural vector from the AST.
+            DECLARE @AstVectorJson NVARCHAR(MAX) = dbo.clr_GenerateCodeAstVector(@CanonicalText);
+
+            -- The clr_GenerateCodeAstVector returns a JSON array, convert it to the VECTOR type
+            IF @AstVectorJson IS NOT NULL AND JSON_VALUE(@AstVectorJson, '$.error') IS NULL
+            BEGIN
+                SET @Embedding = CAST(@AstVectorJson AS VECTOR(1998));
+                SET @EmbeddingType = 'ast_structural'; -- Set a specific type for this embedding
+            END
+        END
+
+        -- =============================================
         -- PHASE 2: SEMANTIC DEDUPLICATION (if embedding provided)
         -- =============================================
 

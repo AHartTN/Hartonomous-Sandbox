@@ -1,203 +1,154 @@
--- sp_AtomizeModel: Deep atomization for ML model content
--- Parses GGUF/safetensors and creates TensorAtom entries with GEOMETRY representations
--- This is Phase 2 of the atomization pipeline for application/gguf and model/* content types
+USE Hartonomous;
+GO
+
+-- Drop the procedure if it already exists to ensure a clean slate.
+IF OBJECT_ID('dbo.sp_AtomizeModel', 'P') IS NOT NULL
+    DROP PROCEDURE dbo.sp_AtomizeModel;
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_AtomizeModel
-    @AtomId BIGINT,
-    @TenantId INT = 0,
-    @MaxTensorsPerBatch INT = 100, -- Process tensors in batches to avoid memory issues
-    @GeometryPointLimit INT = 10000 -- Max points per GEOMETRY (for very large tensors)
+    @model_blob VARBINARY(MAX),
+    @model_format_hint NVARCHAR(50),
+    @layer_name NVARCHAR(256),
+    @parent_layer_id INT,
+    @max_rank INT = 200,
+    @debug BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
-    
+    SET XACT_ABORT ON;
+
     BEGIN TRY
-        BEGIN TRANSACTION;
-        
-        -- Retrieve the parent model atom
-        DECLARE @ContentType NVARCHAR(100);
-        DECLARE @Metadata NVARCHAR(MAX);
-        DECLARE @PayloadId UNIQUEIDENTIFIER;
-        
-        SELECT 
-            @ContentType = ContentType,
-            @Metadata = Metadata
-        FROM dbo.Atoms
-        WHERE AtomId = @AtomId AND TenantId = @TenantId;
-        
-        IF @ContentType IS NULL
+        -- ==========================================================================================
+        -- Phase 1: Extract Layer Weights & Perform SVD
+        -- ==========================================================================================
+        DECLARE @layer_weights_json NVARCHAR(MAX);
+        SET @layer_weights_json = dbo.clr_ParseModelLayer(@model_blob, @layer_name, @model_format_hint);
+
+        IF @layer_weights_json IS NULL OR JSON_VALUE(@layer_weights_json, '$.error') IS NOT NULL
         BEGIN
-            RAISERROR('Model atom not found', 16, 1);
-            RETURN -1;
+            DECLARE @parseError NVARCHAR(MAX) = ISNULL(JSON_VALUE(@layer_weights_json, '$.error'), 'Parsing returned null.');
+            RAISERROR('Failed to parse model layer: %s', 16, 1, @parseError);
+            RETURN;
         END
-        
-        -- Validate it's actually a model content type
-        IF @ContentType NOT IN ('application/gguf', 'application/safetensors', 'application/octet-stream')
+
+        DECLARE @rows INT, @cols INT;
+        SELECT @rows = NeuronCount, @cols = NeuronCount -- Assuming square matrix for now
+        FROM dbo.ModelLayers
+        WHERE LayerId = @parent_layer_id;
+
+        IF @rows IS NULL OR @cols IS NULL
         BEGIN
-            RAISERROR('Atom is not a model content type', 16, 1);
-            RETURN -1;
+            RAISERROR('Could not determine layer dimensions from dbo.ModelLayers for LayerId: %d', 16, 1, @parent_layer_id);
+            RETURN;
         END
-        
-        -- Retrieve the FILESTREAM payload location
-        SELECT @PayloadId = PayloadId
-        FROM dbo.AtomPayloadStore
-        WHERE AtomId = @AtomId;
-        
-        IF @PayloadId IS NULL
+
+        DECLARE @svd_result_json NVARCHAR(MAX);
+        SET @svd_result_json = dbo.clr_SvdDecompose(@layer_weights_json, @rows, @cols, @max_rank);
+
+        IF @svd_result_json IS NULL OR JSON_VALUE(@svd_result_json, '$.error') IS NOT NULL
         BEGIN
-            RAISERROR('Model payload not found in FILESTREAM storage', 16, 1);
-            RETURN -1;
+            DECLARE @svdError NVARCHAR(MAX) = ISNULL(JSON_VALUE(@svd_result_json, '$.error'), 'SVD returned null.');
+            RAISERROR('SVD decomposition failed: %s', 16, 1, @svdError);
+            RETURN;
         END
-        
-        -- Extract model metadata
-        DECLARE @ModelFormat NVARCHAR(50) = JSON_VALUE(@Metadata, '$.format');
-        DECLARE @ModelArchitecture NVARCHAR(100) = JSON_VALUE(@Metadata, '$.architecture');
-        DECLARE @ParameterCount BIGINT = JSON_VALUE(@Metadata, '$.parameterCount');
-        
-        -- Use the CLR GGUF parser to extract tensor metadata
-        -- This returns a table with (TensorName, DataType, Shape, Offset, Size)
-        DECLARE @TensorMetadata TABLE (
-            TensorName NVARCHAR(500),
-            DataType NVARCHAR(50),
-            Shape NVARCHAR(500),
-            ShapeRank INT,
-            ElementCount BIGINT,
-            ByteOffset BIGINT,
-            ByteSize BIGINT
+
+        -- ==========================================================================================
+        -- Phase 2: Shred SVD results, Project to 3D Space, and Fuse Importance
+        -- ==========================================================================================
+        DECLARE @AtomComponents TABLE (
+            ComponentIndex INT PRIMARY KEY,
+            U_Vector NVARCHAR(MAX),
+            S_Value FLOAT,
+            VT_Vector_Json NVARCHAR(MAX),
+            SpatialSignature GEOMETRY
         );
-        
-        -- Call CLR function to parse GGUF header and return tensor catalog
-        INSERT INTO @TensorMetadata
-        EXEC dbo.clr_ParseGGUFTensorCatalog @PayloadId;
-        
-        DECLARE @TotalTensors INT = (SELECT COUNT(*) FROM @TensorMetadata);
-        
-        IF @TotalTensors = 0
-        BEGIN
-            RAISERROR('No tensors found in model file', 16, 1);
-            RETURN -1;
-        END
-        
-        -- Process each tensor and convert to GEOMETRY
-        DECLARE @TensorsCursor CURSOR;
-        DECLARE @TensorName NVARCHAR(500);
-        DECLARE @DataType NVARCHAR(50);
-        DECLARE @Shape NVARCHAR(500);
-        DECLARE @ElementCount BIGINT;
-        DECLARE @ByteOffset BIGINT;
-        DECLARE @ByteSize BIGINT;
-        DECLARE @TensorWeights VARBINARY(MAX);
-        DECLARE @WeightsGeometry GEOMETRY;
-        DECLARE @TensorsProcessed INT = 0;
-        
-        SET @TensorsCursor = CURSOR FOR
-            SELECT TensorName, DataType, Shape, ElementCount, ByteOffset, ByteSize
-            FROM @TensorMetadata
-            ORDER BY ByteOffset;
-        
-        OPEN @TensorsCursor;
-        FETCH NEXT FROM @TensorsCursor INTO @TensorName, @DataType, @Shape, @ElementCount, @ByteOffset, @ByteSize;
-        
+
+        INSERT INTO @AtomComponents (ComponentIndex, U_Vector, S_Value, VT_Vector_Json)
+        SELECT
+            CAST(u.[key] AS INT),
+            u.value,
+            CAST(s.value AS FLOAT),
+            vt.value
+        FROM OPENJSON(@svd_result_json, '$.U') AS u
+        JOIN OPENJSON(@svd_result_json, '$.S') AS s ON u.[key] = s.[key]
+        JOIN OPENJSON(@svd_result_json, '$.VT') AS vt ON u.[key] = vt.[key];
+
+        UPDATE @AtomComponents
+        SET SpatialSignature = geometry::STPointFromText(
+                dbo.clr_CreateGeometryPointWithImportance(
+                    JSON_VALUE(dbo.clr_ProjectToPoint(U_Vector), '$.X'),
+                    JSON_VALUE(dbo.clr_ProjectToPoint(U_Vector), '$.Y'),
+                    JSON_VALUE(dbo.clr_ProjectToPoint(U_Vector), '$.Z'),
+                    S_Value
+                ), 4326
+            );
+
+        -- ==========================================================================================
+        -- Phase 3: Store Atoms and Payloads
+        -- ==========================================================================================
+        DECLARE @NewTensorAtoms TABLE (
+            TensorAtomId BIGINT,
+            ComponentIndex INT
+        );
+
+        -- Insert the new TensorAtoms with their spatial signatures.
+        INSERT INTO dbo.TensorAtom (SpatialSignature, AtomType)
+        OUTPUT inserted.TensorAtomId, ac.ComponentIndex INTO @NewTensorAtoms
+        SELECT ac.SpatialSignature, 'SVD_Component'
+        FROM @AtomComponents ac;
+
+        -- Store the corresponding V-vectors as FILESTREAM payloads.
+        DECLARE @CurrentAtomId BIGINT, @CurrentComponentIndex INT;
+        DECLARE atom_cursor CURSOR FOR
+            SELECT TensorAtomId, ComponentIndex FROM @NewTensorAtoms;
+
+        OPEN atom_cursor;
+        FETCH NEXT FROM atom_cursor INTO @CurrentAtomId, @CurrentComponentIndex;
+
         WHILE @@FETCH_STATUS = 0
         BEGIN
-            BEGIN TRY
-                -- Read the raw tensor weights from FILESTREAM using offset/size
-                SET @TensorWeights = dbo.clr_ReadFilestreamChunk(@PayloadId, @ByteOffset, @ByteSize);
-                
-                IF @TensorWeights IS NOT NULL
-                BEGIN
-                    -- Convert the tensor weights to GEOMETRY using the existing CLR function
-                    -- Limit to @GeometryPointLimit points to avoid SQL Server GEOMETRY size limits
-                    DECLARE @ActualPointLimit INT = CASE 
-                        WHEN @ElementCount > @GeometryPointLimit THEN @GeometryPointLimit 
-                        ELSE @ElementCount 
-                    END;
-                    
-                    SET @WeightsGeometry = dbo.clr_CreateMultiLineStringFromWeights(
-                        @TensorWeights, 
-                        @DataType, 
-                        @ActualPointLimit
-                    );
-                    
-                    -- Insert into TensorAtoms
-                    INSERT INTO dbo.TensorAtoms (
-                        ModelAtomId,
-                        TensorName,
-                        TensorShape,
-                        DataType,
-                        ElementCount,
-                        WeightsGeometry,
-                        ByteOffset,
-                        ByteSize,
-                        TenantId
-                    )
-                    VALUES (
-                        @AtomId,
-                        @TensorName,
-                        @Shape,
-                        @DataType,
-                        @ElementCount,
-                        @WeightsGeometry,
-                        @ByteOffset,
-                        @ByteSize,
-                        @TenantId
-                    );
-                    
-                    SET @TensorsProcessed = @TensorsProcessed + 1;
-                    
-                    -- Commit in batches to avoid long-running transactions
-                    IF @TensorsProcessed % @MaxTensorsPerBatch = 0
-                    BEGIN
-                        COMMIT TRANSACTION;
-                        BEGIN TRANSACTION;
-                    END
-                END
-            END TRY
-            BEGIN CATCH
-                -- Log tensor processing failure but continue with remaining tensors
-                PRINT 'Failed to process tensor [' + @TensorName + ']: ' + ERROR_MESSAGE();
-            END CATCH
-            
-            FETCH NEXT FROM @TensorsCursor INTO @TensorName, @DataType, @Shape, @ElementCount, @ByteOffset, @ByteSize;
+            DECLARE @vt_vector_json NVARCHAR(MAX);
+            SELECT @vt_vector_json = VT_Vector_Json
+            FROM @AtomComponents
+            WHERE ComponentIndex = @CurrentComponentIndex;
+
+            -- Convert the JSON array of floats to VARBINARY for storage.
+            DECLARE @payload VARBINARY(MAX) = dbo.clr_JsonFloatArrayToBytes(@vt_vector_json);
+
+            -- Call the CLR procedure to store the payload.
+            EXEC dbo.clr_StoreTensorAtomPayload @CurrentAtomId, @payload;
+
+            FETCH NEXT FROM atom_cursor INTO @CurrentAtomId, @CurrentComponentIndex;
+        END;
+
+        CLOSE atom_cursor;
+        DEALLOCATE atom_cursor;
+
+        -- ==========================================================================================
+        -- Phase 4: Link Atoms to Parent Layer
+        -- ==========================================================================================
+        INSERT INTO dbo.TensorAtomCoefficient (ParentLayerId, TensorAtomId, Coefficient)
+        SELECT
+            @parent_layer_id,
+            nta.TensorAtomId,
+            ac.S_Value
+        FROM @NewTensorAtoms nta
+        JOIN @AtomComponents ac ON nta.ComponentIndex = ac.ComponentIndex;
+
+        IF @debug = 1
+        BEGIN
+            PRINT 'Successfully atomized model layer ' + CAST(@parent_layer_id AS NVARCHAR(10)) +
+                  ' into ' + CAST(@@ROWCOUNT AS NVARCHAR(10)) + ' tensor atoms.';
         END
-        
-        CLOSE @TensorsCursor;
-        DEALLOCATE @TensorsCursor;
-        
-        -- Update the parent atom's metadata with atomization results
-        UPDATE dbo.Atoms
-        SET Metadata = JSON_MODIFY(
-            ISNULL(Metadata, '{}'),
-            '$.atomization',
-            JSON_QUERY(JSON_OBJECT(
-                'type': 'model',
-                'tensorsProcessed': @TensorsProcessed,
-                'totalTensors': @TotalTensors,
-                'format': @ModelFormat,
-                'architecture': @ModelArchitecture,
-                'atomizedUtc': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
-            ))
-        )
-        WHERE AtomId = @AtomId AND TenantId = @TenantId;
-        
-        COMMIT TRANSACTION;
-        
-        SELECT 
-            @AtomId AS ParentAtomId,
-            @TensorsProcessed AS TensorsProcessed,
-            @TotalTensors AS TotalTensors,
-            @ModelArchitecture AS Architecture,
-            'ModelAtomization' AS Status;
-        
-        RETURN 0;
+
     END TRY
     BEGIN CATCH
-        IF @@TRANCOUNT > 0
-            ROLLBACK TRANSACTION;
-        
-        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
-        RAISERROR(@ErrorMessage, 16, 1);
-        RETURN -1;
-    END CATCH
+        -- Rethrow the error to be caught by the caller.
+        THROW;
+    END CATCH;
 END;
+GO
+
+PRINT 'Successfully created procedure dbo.sp_AtomizeModel.';
 GO

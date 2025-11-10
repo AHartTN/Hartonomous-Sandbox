@@ -5,6 +5,10 @@ using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
 
+using System.IO;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+
 namespace SqlClrFunctions
 {
     /// <summary>
@@ -12,6 +16,136 @@ namespace SqlClrFunctions
     /// </summary>
     public static class ImageGeneration
     {
+        /// <summary>
+        /// Rasterizes a SqlGeometry object containing shapes (Polygons, LineStrings) into a PNG image.
+        /// This is a "shape-to-content" function for the visual modality.
+        /// Color is derived from the Z-coordinate.
+        /// Opacity is derived from the M-coordinate.
+        /// </summary>
+        [SqlFunction(IsDeterministic = true, DataAccess = DataAccessKind.None)]
+        public static SqlBytes GenerateImageFromShapes(SqlGeometry shapes, SqlInt32 width, SqlInt32 height)
+        {
+            if (shapes.IsNull) return SqlBytes.Null;
+
+            int w = width.IsNull || width.Value <= 0 ? 256 : width.Value;
+            int h = height.IsNull || height.Value <= 0 ? 256 : height.Value;
+
+            try
+            {
+                using (var bmp = new Bitmap(w, h))
+                using (var g = Graphics.FromImage(bmp))
+                using (var ms = new MemoryStream())
+                {
+                    g.SmoothingMode = SmoothingMode.AntiAlias;
+                    g.Clear(Color.Transparent);
+
+                    // Iterate through each geometry in the collection if it's a collection
+                    if (shapes.STNumGeometries() > 1)
+                    {
+                        for (int i = 1; i <= shapes.STNumGeometries(); i++)
+                        {
+                            DrawGeometry(g, shapes.STGeometryN(i), w, h);
+                        }
+                    }
+                    else
+                    {
+                        DrawGeometry(g, shapes, w, h);
+                    }
+
+                    bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                    return new SqlBytes(ms.ToArray());
+                }
+            }
+            catch (Exception)
+            {
+                // Could log the error, but for now, just return null on failure.
+                return SqlBytes.Null;
+            }
+        }
+
+        private static void DrawGeometry(Graphics g, SqlGeometry geom, int width, int height)
+        {
+            if (geom.IsNull) return;
+
+            string geomType = geom.STGeometryType().Value;
+
+            if (geomType == "Polygon")
+            {
+                var points = new PointF[geom.STNumPoints().Value];
+                for (int i = 0; i < points.Length; i++)
+                {
+                    var p = geom.STPointN(i + 1);
+                    points[i] = new PointF((float)p.STX.Value * width, (float)p.STY.Value * height);
+                }
+
+                if (points.Length > 2)
+                {
+                    // Use the Z and M of the first point to define the brush
+                    var firstPoint = geom.STPointN(1);
+                    Color color = ColorFromZ(firstPoint.Z.Value);
+                    int alpha = AlphaFromM(firstPoint.M.Value);
+                    using (var brush = new SolidBrush(Color.FromArgb(alpha, color)))
+                    {
+                        g.FillPolygon(brush, points);
+                    }
+                }
+            }
+            else if (geomType == "LineString")
+            {
+                var points = new PointF[geom.STNumPoints().Value];
+                for (int i = 0; i < points.Length; i++)
+                {
+                    var p = geom.STPointN(i + 1);
+                    points[i] = new PointF((float)p.STX.Value * width, (float)p.STY.Value * height);
+                }
+
+                if (points.Length > 1)
+                {
+                    var firstPoint = geom.STPointN(1);
+                    Color color = ColorFromZ(firstPoint.Z.Value);
+                    int alpha = AlphaFromM(firstPoint.M.Value);
+                    using (var pen = new Pen(Color.FromArgb(alpha, color), 2))
+                    {
+                        g.DrawLines(pen, points);
+                    }
+                }
+            }
+        }
+
+        // Helper to map a Z-coordinate (double, typically -1 to 1) to a color.
+        private static Color ColorFromZ(double z)
+        {
+            // Simple HSV to RGB mapping: Z maps to Hue
+            double hue = (z + 1) / 2.0 * 360; // Map -1..1 to 0..360
+            return HsvToRgb(hue, 0.8, 0.9);
+        }
+
+        // Helper to map an M-coordinate (double, typically 0 to 1) to an alpha value.
+        private static int AlphaFromM(double m)
+        {
+            return (int)Math.Max(0, Math.Min(255, m * 255));
+        }
+
+        // Standard HSV to RGB color conversion.
+        private static Color HsvToRgb(double h, double S, double V)
+        {
+            int hi = Convert.ToInt32(Math.Floor(h / 60)) % 6;
+            double f = h / 60 - Math.Floor(h / 60);
+
+            V = V * 255;
+            int v = Convert.ToInt32(V);
+            int p = Convert.ToInt32(V * (1 - S));
+            int q = Convert.ToInt32(V * (1 - f * S));
+            int t = Convert.ToInt32(V * (1 - (1 - f) * S));
+
+            if (hi == 0) return Color.FromArgb(255, v, t, p);
+            if (hi == 1) return Color.FromArgb(255, q, v, p);
+            if (hi == 2) return Color.FromArgb(255, p, v, t);
+            if (hi == 3) return Color.FromArgb(255, p, q, v);
+            if (hi == 4) return Color.FromArgb(255, t, p, v);
+            return Color.FromArgb(255, v, p, q);
+        }
+
         private sealed class Patch
         {
             public Patch(int x, int y, double spatialX, double spatialY, double spatialZ, SqlGeometry geometry)

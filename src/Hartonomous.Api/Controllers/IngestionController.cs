@@ -113,4 +113,63 @@ public class IngestionController : ControllerBase
             return StatusCode(500, ApiResponse<object>.Fail("INGESTION_FAILED", "An unexpected error occurred during ingestion", ex.Message));
         }
     }
+
+    [HttpPost("file")]
+    [Consumes("multipart/form-data")]
+    [ProducesResponseType(typeof(ApiResponse<IngestContentResponse>), 200)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 400)]
+    [ProducesResponseType(typeof(ApiResponse<object>), 500)]
+    public async Task<IActionResult> IngestFile(
+        [FromForm] IngestFileRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request.File == null || request.File.Length == 0)
+        {
+            return BadRequest(ApiResponse<object>.Fail("INVALID_REQUEST", "File is required."));
+        }
+
+        try
+        {
+            _logger.LogInformation("Ingesting file {FileName} ({Size} bytes) with modality {Modality}", 
+                request.File.FileName, request.File.Length, request.Modality);
+
+            using var memoryStream = new MemoryStream();
+            await request.File.CopyToAsync(memoryStream, cancellationToken);
+            var fileBytes = memoryStream.ToArray();
+
+            // Calculate content hash
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var contentHash = sha256.ComputeHash(fileBytes);
+            var contentHashString = Convert.ToBase64String(contentHash);
+
+            var ingestionRequest = new AtomIngestionRequest
+            {
+                Modality = request.Modality,
+                Subtype = request.Subtype,
+                HashInput = contentHashString,
+                SourceUri = request.SourceUri ?? $"file://{request.File.FileName}",
+                SourceType = "file-upload",
+                CanonicalText = request.CanonicalText, // Can be null if content is in file
+                Payload = fileBytes, // Pass the raw file bytes
+                DeduplicationPolicy = request.DeduplicationPolicy ?? "hash_then_semantic"
+            };
+
+            var result = await _ingestionService.IngestAsync(ingestionRequest, cancellationToken);
+
+            var response = new IngestContentResponse
+            {
+                AtomId = result.Atom.AtomId,
+                WasDuplicate = result.WasDuplicate,
+                DuplicateReason = result.DuplicateReason,
+                SemanticSimilarity = result.SemanticSimilarity
+            };
+
+            return Ok(ApiResponse<IngestContentResponse>.Ok(response));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during file ingestion for {FileName}", request.File.FileName);
+            return StatusCode(500, ApiResponse<object>.Fail("INGESTION_FAILED", "An unexpected error occurred during file ingestion.", ex.Message));
+        }
+    }
 }

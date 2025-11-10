@@ -317,5 +317,55 @@ namespace SqlClrFunctions
 
             return value;
         }
+
+        /// <summary>
+        /// Generates a synthesized audio tone from a spatial signature GEOMETRY point.
+        /// This is a core "shape-to-content" function, translating an abstract spatial
+        /// representation into an audible output.
+        /// It maps geometric properties to audio synthesis parameters.
+        /// </summary>
+        [SqlFunction(IsDeterministic = false, IsPrecise = false)]
+        public static SqlBytes GenerateAudioFromSpatialSignature(SqlGeometry spatialSignature)
+        {
+            if (spatialSignature.IsNull || !spatialSignature.STGeometryType().Value.Equals("Point", StringComparison.OrdinalIgnoreCase))
+            {
+                return SqlBytes.Null;
+            }
+
+            // Map geometric properties to synthesis parameters.
+            // This mapping is conceptual and can be evolved.
+            // X -> Second Harmonic Level (structural complexity)
+            // Y -> Third Harmonic Level (timbral complexity)
+            // Z -> Fundamental Frequency (pitch)
+            // M -> Amplitude (importance/energy)
+
+            double x = spatialSignature.STX.IsNull ? 0.5 : spatialSignature.STX.Value;
+            double y = spatialSignature.STY.IsNull ? 0.5 : spatialSignature.STY.Value;
+            double z = spatialSignature.STZ.IsNull ? 0.5 : spatialSignature.STZ.Value;
+            double m = spatialSignature.M.IsNull ? 0.5 : spatialSignature.M.Value;
+
+            // Normalize and scale parameters for GenerateHarmonicTone
+            // Clamp values to be within a sensible range.
+            var fundamentalHz = new SqlDouble(Clamp(z * 800 + 100, 50, 1200)); // Map Z to a frequency range (e.g., 100Hz to 900Hz)
+            var amplitude = new SqlDouble(Clamp(m, 0.1, 1.0)); // Map M directly to amplitude
+            var secondHarmonic = new SqlDouble(Clamp(x, 0.0, 1.0)); // Map X to second harmonic level
+            var thirdHarmonic = new SqlDouble(Clamp(y, 0.0, 1.0)); // Map Y to third harmonic level
+
+            // Standard audio parameters
+            var durationMs = new SqlInt32(1500); // 1.5 seconds
+            var sampleRate = new SqlInt32(44100);
+            var channelCount = new SqlInt32(1); // Mono
+
+            // Call the existing synthesizer with the derived parameters.
+            return GenerateHarmonicTone(
+                fundamentalHz,
+                durationMs,
+                sampleRate,
+                channelCount,
+                amplitude,
+                secondHarmonic,
+                thirdHarmonic
+            );
+        }
     }
 }

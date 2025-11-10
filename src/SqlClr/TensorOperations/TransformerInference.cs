@@ -257,6 +257,41 @@ namespace SqlClrFunctions.TensorOperations
             var result = x.PointwiseMultiply(ones + tanh).Multiply(0.5f);
             return result;
         }
+
+        /// <summary>
+        /// SQL CLR entry point for running the full in-database inference.
+        /// </summary>
+        [SqlFunction(DataAccess = DataAccessKind.Read)]
+        public static SqlString clr_RunInference(SqlInt32 modelId, SqlString tokenIdsJson)
+        {
+            if (modelId.IsNull || tokenIdsJson.IsNull)
+            {
+                return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(new { error = "Model ID and token IDs cannot be null." }));
+            }
+
+            try
+            {
+                // 1. Instantiate the tensor provider for the specified model.
+                var tensorProvider = new ClrTensorProvider(modelId.Value);
+
+                // 2. Instantiate the inference engine with the provider.
+                var inferenceEngine = new TransformerInference(tensorProvider);
+
+                // 3. Deserialize the input token IDs.
+                var tokenIds = Newtonsoft.Json.JsonConvert.DeserializeObject<int[]>(tokenIdsJson.Value);
+
+                // 4. Run the inference process.
+                // Parameters like embeddingDim, numHeads, etc., could be loaded from model metadata.
+                var resultEmbedding = inferenceEngine.GenerateEmbedding(tokenIds);
+
+                // 5. Serialize the result and return it.
+                return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(resultEmbedding));
+            }
+            catch (Exception ex)
+            {
+                return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(new { error = ex.Message, stack_trace = ex.StackTrace }));
+            }
+        }
     }
 }
 
