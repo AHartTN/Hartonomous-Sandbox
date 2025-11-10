@@ -8,6 +8,11 @@ namespace Hartonomous.Infrastructure.RateLimiting;
 public static class RateLimitPolicies
 {
     /// <summary>
+    /// General API rate limit for administrative operations (50 req/min).
+    /// </summary>
+    public const string Api = "api";
+
+    /// <summary>
     /// Standard rate limit for authenticated users (100 req/min).
     /// </summary>
     public const string Authenticated = "authenticated";

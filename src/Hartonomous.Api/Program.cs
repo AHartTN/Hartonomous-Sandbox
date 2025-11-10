@@ -234,6 +234,15 @@ builder.Services.AddRateLimiter(options =>
         opt.QueueLimit = rateLimitOptions.QueueLimit;
     });
 
+    // API operations (administrative endpoints) - fixed window
+    options.AddFixedWindowLimiter(RateLimitPolicies.Api, opt =>
+    {
+        opt.PermitLimit = 50;
+        opt.Window = TimeSpan.FromSeconds(60);
+        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
+        opt.QueueLimit = rateLimitOptions.QueueLimit;
+    });
+
     // Global rate limiter per IP address
     options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, System.Net.IPAddress>(httpContext =>
     {
@@ -534,7 +543,9 @@ app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers().RequireRateLimiting("api");
+// Note: Individual controllers use [EnableRateLimiting] attributes for granular control
+// InMemoryThrottleEvaluator provides tenant-aware rate limiting via IThrottleEvaluator
+app.MapControllers();
 
 // Health check endpoints for Kubernetes probes
 // Startup probe: Checks if application has completed initialization
