@@ -14,21 +14,69 @@ namespace Hartonomous.Api.Controllers;
 public sealed class InferenceController : ApiControllerBase
 {
     private readonly InferenceJobService _jobService;
+    private readonly InferenceExecutionService _executionService;
     private readonly ILogger<InferenceController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="InferenceController"/> class.
     /// </summary>
     /// <param name="jobService">Service for managing inference jobs via T-SQL procedures.</param>
+    /// <param name="executionService">Service for direct, synchronous execution of inference.</param>
     /// <param name="logger">Logger for tracking submission and retrieval operations.</param>
     /// <exception cref="ArgumentNullException">Thrown when any parameter is null.</exception>
     public InferenceController(
         InferenceJobService jobService,
+        InferenceExecutionService executionService,
         ILogger<InferenceController> logger)
     {
         _jobService = jobService ?? throw new ArgumentNullException(nameof(jobService));
+        _executionService = executionService ?? throw new ArgumentNullException(nameof(executionService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
+
+    /// <summary>
+    /// Runs a synchronous inference job and returns the result immediately.
+    /// </summary>
+    /// <param name="request">Request containing model ID and input token IDs.</param>
+    /// <param name="cancellationToken">Cancellation token for async operation.</param>
+    /// <returns>OK (200) with the resulting embedding if successful; BadRequest (400) for validation errors; InternalServerError (500) for infrastructure failures.</returns>
+    [HttpPost("run")]
+    [ProducesResponseType(typeof(ApiResponse<RunInferenceResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<RunInferenceResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<RunInferenceResponse>), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<RunInferenceResponse>>> RunInferenceAsync(
+        [FromBody] RunInferenceRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (request is null)
+        {
+            return BadRequest(Failure<RunInferenceResponse>(new[] { ValidationError("Request body is required.") }));
+        }
+
+        try
+        {
+            var response = await _executionService.RunInferenceAsync(request, cancellationToken);
+            if (response == null)
+            {
+                return NotFound(Failure<RunInferenceResponse>(new[] { ErrorDetailFactory.NotFound("inference_result", $"ModelId: {request.ModelId}") }));
+            }
+
+            return Ok(Success(response));
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "Synchronous inference failed for ModelId {ModelId}", request.ModelId);
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.OperationFailed, "Inference execution failed", ex.Message);
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<RunInferenceResponse>(new[] { error }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error during synchronous inference for ModelId {ModelId}", request.ModelId);
+            var error = ErrorDetailFactory.Create(ErrorCodes.System.Unhandled, "An unexpected error occurred");
+            return StatusCode(StatusCodes.Status500InternalServerError, Failure<RunInferenceResponse>(new[] { error }));
+        }
+    }
+
 
     /// <summary>
     /// Submits an asynchronous text generation job with specified prompt, max tokens, and temperature.

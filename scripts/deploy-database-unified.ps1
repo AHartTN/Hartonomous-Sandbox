@@ -419,62 +419,23 @@ function Deploy-CLRAssemblies {
         Write-DeploymentLog "Skipping CLR assemblies (--SkipCLR)" -Level Warning
         return
     }
-    
-    # Enable CLR integration
-    $enableCLRSql = @"
-EXEC sp_configure 'show advanced options', 1;
-RECONFIGURE;
-EXEC sp_configure 'clr enabled', 1;
-RECONFIGURE;
-EXEC sp_configure 'clr strict security', 0;
-RECONFIGURE;
-"@
-    
-    Invoke-SqlCommand -Query $enableCLRSql -Database "master"
-    Write-DeploymentLog "CLR integration enabled" -Level Success
-    
-    # Deploy assemblies in dependency order
-    foreach ($assembly in $script:CLRAssemblies) {
-        $assemblyPath = Join-Path $script:RootPath $assembly.Path
+
+    $secureDeployScript = Join-Path $PSScriptRoot "deploy-clr-secure.ps1"
+    if (-not (Test-Path $secureDeployScript)) {
+        throw "Secure CLR deployment script not found at: $secureDeployScript"
+    }
+
+    Write-DeploymentLog "Executing secure, multi-assembly CLR deployment script..." -Level Info
+
+    try {
+        # Call the correct, secure script, passing through the relevant parameters.
+        & $secureDeployScript -ServerName $Server -DatabaseName $Database -BinDirectory (Join-Path $script:RootPath "src\SqlClr\bin\Release")
         
-        if (-not (Test-Path $assemblyPath)) {
-            Write-DeploymentLog "Assembly not found: $assemblyPath" -Level Warning
-            if ($assembly.Name -eq "SqlClrFunctions") {
-                Write-DeploymentLog "Build Hartonomous.SqlClr project first: dotnet build src\Hartonomous.SqlClr\Hartonomous.SqlClr.csproj -c Release" -Level Error
-                throw "Primary CLR assembly missing"
-            }
-            continue
-        }
-        
-        # Read assembly bytes
-        $assemblyBytes = [System.IO.File]::ReadAllBytes($assemblyPath)
-        $assemblyHex = [System.BitConverter]::ToString($assemblyBytes).Replace('-', '')
-        $assembly.Hash = $assemblyHex
-        
-        # Drop existing assembly
-        $dropAssemblySql = "DROP ASSEMBLY IF EXISTS [$($assembly.Name)];"
-        Invoke-SqlCommand -Query $dropAssemblySql -Database $Database
-        
-        # Create assembly (UNSAFE for vector operations)
-        $createAssemblySql = @"
-CREATE ASSEMBLY [$($assembly.Name)]
-FROM 0x$assemblyHex
-WITH PERMISSION_SET = UNSAFE;
-"@
-        
-        if ($DryRun) {
-            Write-DeploymentLog "DRY RUN: Would deploy assembly $($assembly.Name) ($(($assemblyBytes.Length / 1KB).ToString('F2')) KB)" -Level Info
-        }
-        else {
-            try {
-                Invoke-SqlCommand -Query $createAssemblySql -Database $Database -Timeout 600
-                Write-DeploymentLog "Deployed assembly: $($assembly.Name)" -Level Success
-            }
-            catch {
-                Write-DeploymentLog "Failed to deploy $($assembly.Name): $_" -Level Error
-                throw
-            }
-        }
+        Write-DeploymentLog "Secure CLR deployment script completed successfully." -Level Success
+    }
+    catch {
+        Write-DeploymentLog "The secure CLR deployment script failed: $_" -Level Error
+        throw
     }
 }
 

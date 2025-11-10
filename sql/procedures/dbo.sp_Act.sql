@@ -224,6 +224,24 @@ BEGIN
                     SET @ExecutedActionsList = JSON_OBJECT('status': 'QueuedForApproval', 'reason': 'ModelRetraining requires manual approval');
                     SET @ActionStatus = 'QueuedForApproval';
                 END
+
+                -- PRIME SEARCH: Execute a chunk of the long-running prime number search
+                ELSE IF @CurrentType = 'ProcessPrimeChunk'
+                BEGIN
+                    DECLARE @RangeStart BIGINT = JSON_VALUE(@CurrentActions, '$.rangeStart');
+                    DECLARE @RangeEnd BIGINT = JSON_VALUE(@CurrentActions, '$.rangeEnd');
+
+                    -- Call the CLR function to do the actual work
+                    DECLARE @PrimesFound NVARCHAR(MAX) = dbo.clr_FindPrimes(@RangeStart, @RangeEnd);
+
+                    SET @ExecutedActionsList = JSON_OBJECT(
+                        'status': 'ChunkProcessed', 
+                        'rangeStart': @RangeStart, 
+                        'rangeEnd': @RangeEnd,
+                        'primesFound': JSON_QUERY(@PrimesFound)
+                    );
+                    SET @ActionStatus = 'Executed';
+                END
                 
                 ELSE
                 BEGIN
@@ -264,6 +282,7 @@ BEGIN
         
         DECLARE @ActPayload NVARCHAR(MAX) = JSON_OBJECT(
             'analysisId': @AnalysisId,
+            'originalHypothesisPayload': JSON_QUERY(@HypothesesJson),
             'executedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed'),
             'queuedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'QueuedForApproval'),
             'failedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Failed'),

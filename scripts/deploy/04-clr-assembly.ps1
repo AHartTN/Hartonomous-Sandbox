@@ -47,7 +47,10 @@ param(
     [string]$SqlUser,
     
     [Parameter(Mandatory=$false)]
-    [SecureString]$SqlPassword
+    [SecureString]$SqlPassword,
+    
+    [Parameter(Mandatory=$false)]
+    [string[]]$DependencyPaths
 )
 
 $ErrorActionPreference = "Stop"

@@ -477,6 +477,8 @@ builder.Services.AddHartonomousHealthChecks(builder.Configuration);
 builder.Services.AddHartonomousPiiRedaction(builder.Configuration);
 builder.Services.AddScoped<IModelIngestionService, ApiModelIngestionService>();
 builder.Services.AddScoped<InferenceJobService>();
+builder.Services.AddScoped<InferenceExecutionService>();
+builder.Services.AddScoped<TokenizerService>();
 
 // Legacy inference job processor (still supported)
 builder.Services.AddHostedService<Hartonomous.Infrastructure.Services.Jobs.InferenceJobWorker>();

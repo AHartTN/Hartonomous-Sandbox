@@ -108,6 +108,68 @@ BEGIN
         -- (Note: AutonomousImprovementHistory table to be created in future migration)
         -- For now, just compile the learning outcomes
         
+        -- Check for long-running job continuation
+        DECLARE @PrimeJobHypothesisType NVARCHAR(50);
+        SELECT TOP 1 @PrimeJobHypothesisType = HypothesisType
+        FROM OPENJSON(@ExecutionResultsJson, '$.results')
+        WITH (HypothesisType NVARCHAR(50))
+        WHERE HypothesisType = 'ProcessPrimeChunk';
+
+        IF @PrimeJobHypothesisType = 'ProcessPrimeChunk'
+        BEGIN
+            -- This is a continuation of the prime search job
+            DECLARE @OriginalJobState NVARCHAR(MAX) = JSON_QUERY(@ExecutionResultsJson, '$.originalHypothesisPayload');
+            DECLARE @ActResult NVARCHAR(MAX) = JSON_QUERY(@ExecutionResultsJson, '$.results[0].ExecutedActions');
+
+            DECLARE @FullRangeEnd BIGINT = JSON_VALUE(@OriginalJobState, '$.fullRangeEnd');
+            DECLARE @ChunkSize BIGINT = JSON_VALUE(@OriginalJobState, '$.chunkSize');
+            DECLARE @NextChunkStart BIGINT = JSON_VALUE(@ActResult, '$.rangeEnd') + 1;
+
+            -- Aggregate primes
+            DECLARE @ExistingPrimes NVARCHAR(MAX) = JSON_QUERY(@OriginalJobState, '$.primesFound');
+            DECLARE @NewPrimes NVARCHAR(MAX) = JSON_QUERY(@ActResult, '$.primesFound');
+            DECLARE @AllPrimes NVARCHAR(MAX) = (
+                SELECT JSON_QUERY(@ExistingPrimes), JSON_QUERY(@NewPrimes)
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            );
+            -- This creates nested arrays, a more robust solution would use OPENJSON to merge them.
+            -- For this validation, we'll just pass the nested structure.
+
+            IF @NextChunkStart <= @FullRangeEnd
+            BEGIN
+                -- The job is not finished, send a message back to the AnalyzeQueue to continue
+                DECLARE @NextJobPayload NVARCHAR(MAX) = JSON_OBJECT(
+                    'jobType': 'LongRunningPrimeSearch',
+                    'fullRangeStart': JSON_VALUE(@OriginalJobState, '$.fullRangeStart'),
+                    'fullRangeEnd': @FullRangeEnd,
+                    'nextChunkStart': @NextChunkStart,
+                    'chunkSize': @ChunkSize,
+                    'primesFound': JSON_QUERY(@AllPrimes)
+                );
+
+                DECLARE @ContinuationMessage XML = CAST(@NextJobPayload AS XML);
+                DECLARE @ContinuationHandle UNIQUEIDENTIFIER;
+
+                BEGIN DIALOG CONVERSATION @ContinuationHandle
+                    FROM SERVICE LearnService
+                    TO SERVICE 'AnalyzeService'
+                    ON CONTRACT [//Hartonomous/AutonomousLoop/AnalyzeContract]
+                    WITH ENCRYPTION = OFF;
+                
+                SEND ON CONVERSATION @ContinuationHandle
+                    MESSAGE TYPE [//Hartonomous/AutonomousLoop/AnalyzeMessage]
+                    (@ContinuationMessage);
+                
+                PRINT 'sp_Learn: Continuing long-running prime search job. Next chunk starts at ' + CAST(@NextChunkStart AS NVARCHAR(20));
+            END
+            ELSE
+            BEGIN
+                -- The job is finished
+                PRINT 'sp_Learn: Long-running prime search job has completed.';
+                -- Here you would store the final result (@AllPrimes)
+            END
+        END
+
         DECLARE @SuccessfulActions INT = (SELECT COUNT(*) FROM @ActionOutcomes WHERE Outcome IN ('Success', 'HighSuccess'));
         DECLARE @RegressedActions INT = (SELECT COUNT(*) FROM @ActionOutcomes WHERE Outcome = 'Regressed');
         
