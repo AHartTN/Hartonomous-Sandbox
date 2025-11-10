@@ -39,6 +39,7 @@ BEGIN
         -- =============================================
 
         -- Compute content hash for exact deduplication
+        DECLARE @ContentHash BINARY(32) = HASHBYTES('SHA2_256', @HashInput);
 
         -- Check for exact hash match (fastest deduplication)
         SELECT TOP 1
@@ -76,6 +77,7 @@ BEGIN
         IF @Embedding IS NULL AND @Modality = 'code' AND @CanonicalText IS NOT NULL
         BEGIN
             -- For the 'code' modality, generate a structural vector from the AST.
+            DECLARE @AstVectorJson NVARCHAR(MAX) = dbo.clr_GenerateCodeAstVector(@CanonicalText);
 
             -- The clr_GenerateCodeAstVector returns a JSON array, convert it to the VECTOR type
             IF @AstVectorJson IS NOT NULL AND JSON_VALUE(@AstVectorJson, '$.error') IS NULL
@@ -92,7 +94,8 @@ BEGIN
         IF @Embedding IS NOT NULL
         BEGIN
             -- Load deduplication policy
-
+            DECLARE @SimilarityThreshold FLOAT = 0.95; -- Default high threshold
+            DECLARE @MaxCandidates INT = 10;
 
             SELECT TOP 1
                 @SimilarityThreshold = p.SimilarityThreshold,
@@ -103,7 +106,7 @@ BEGIN
               AND p.TenantId = @TenantId;
 
             -- Define a table variable to match the output of sp_HybridSearch
-
+            DECLARE @CandidateDuplicates TABLE (
                 AtomEmbeddingId BIGINT,
                 AtomId BIGINT,
                 Modality NVARCHAR(128),
@@ -117,12 +120,23 @@ BEGIN
             );
 
             -- First, project the incoming embedding to its 3D spatial key
+            DECLARE @QuerySpatialKey GEOMETRY = dbo.fn_ProjectTo3D(@Embedding);
 
             -- Now, execute the hybrid search to get the top candidates efficiently
-            
+            INSERT INTO @CandidateDuplicates
+            EXEC dbo.sp_HybridSearch
+                @query_vector = @Embedding,
+                @query_dimension = 1998, -- Assuming the standard dimension
+                @query_spatial_x = @QuerySpatialKey.STX,
+                @query_spatial_y = @QuerySpatialKey.STY,
+                @query_spatial_z = @QuerySpatialKey.STZ,
+                @spatial_candidates = 100, -- Widen the search for deduplication
+                @final_top_k = @MaxCandidates,
+                @embedding_type = @EmbeddingType,
+                @ModelId = @ModelId;
 
             -- Check if we found a semantic duplicate from the candidates
-
+            DECLARE @BestSimilarity FLOAT;
             SELECT TOP 1
                 @AtomId = cd.AtomId,
                 @BestSimilarity = (1.0 - cd.exact_distance),
@@ -162,7 +176,34 @@ BEGIN
         SET @SemanticSimilarity = NULL;
 
         -- Insert new atom
-        
+        INSERT INTO dbo.Atoms (
+            ContentHash,
+            Modality,
+            Subtype,
+            SourceUri,
+            SourceType,
+            CanonicalText,
+            Metadata,
+            PayloadLocator,
+            ReferenceCount,
+            TenantId,
+            CreatedAt,
+            UpdatedAt
+        )
+        VALUES (
+            @ContentHash,
+            @Modality,
+            @Subtype,
+            @SourceUri,
+            @SourceType,
+            @CanonicalText,
+            @Metadata,
+            @PayloadLocator,
+            1, -- Initial reference count
+            @TenantId,
+            SYSUTCDATETIME(),
+            SYSUTCDATETIME()
+        );
 
         SET @AtomId = SCOPE_IDENTITY();
 
@@ -173,8 +214,9 @@ BEGIN
         IF @Embedding IS NOT NULL
         BEGIN
             -- Compute spatial projections for fast approximate search
-
-
+            DECLARE @SpatialGeometry GEOMETRY;
+            DECLARE @SpatialCoarse GEOGRAPHY;
+            DECLARE @Dimension INT = 1998; -- SQL Server 2025 VECTOR dimension
 
             -- Project the high-dimensional vector to a 3D point using the landmark-based CLR function.
             SET @SpatialGeometry = dbo.fn_ProjectTo3D(@Embedding);
@@ -183,7 +225,36 @@ BEGIN
             SET @SpatialCoarse = GEOGRAPHY::Point(@SpatialGeometry.STX * 111319.444, @SpatialGeometry.STY * 111319.444, 4326); -- Convert to meters
 
             -- Store embedding with spatial projections
-            
+            INSERT INTO dbo.AtomEmbeddings (
+                AtomId,
+                EmbeddingVector,
+                EmbeddingType,
+                ModelId,
+                Dimension,
+                SpatialGeometry,
+                SpatialCoarse,
+                SpatialBucketX,
+                SpatialBucketY,
+                SpatialBucketZ,
+                Metadata,
+                TenantId,
+                CreatedAt
+            )
+            VALUES (
+                @AtomId,
+                @Embedding,
+                @EmbeddingType,
+                @ModelId,
+                @Dimension,
+                @SpatialGeometry,
+                @SpatialCoarse,
+                CAST(@SpatialGeometry.STX * 1000 AS INT), -- Bucket coordinates from the new geometry
+                CAST(@SpatialGeometry.STY * 1000 AS INT),
+                CAST(@SpatialGeometry.STZ * 1000 AS INT),
+                @Metadata,
+                @TenantId,
+                SYSUTCDATETIME()
+            );
 
             SET @AtomEmbeddingId = SCOPE_IDENTITY();
         END
@@ -199,13 +270,39 @@ BEGIN
 
     END TRY
     BEGIN CATCH
-
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
 
         -- Log error details for debugging
-        
+        INSERT INTO dbo.IngestionErrors (
+            ProcedureName,
+            ErrorMessage,
+            ErrorSeverity,
+            ErrorState,
+            HashInput,
+            Modality,
+            EmbeddingType,
+            TenantId,
+            CreatedAt
+        )
+        VALUES (
+            'sp_AtomIngestion',
+            @ErrorMessage,
+            @ErrorSeverity,
+            @ErrorState,
+            LEFT(@HashInput, 1000), -- Truncate for storage
+            @Modality,
+            @EmbeddingType,
+            @TenantId,
+            SYSUTCDATETIME()
+        );
 
         -- Re-throw the error
         THROW;
     END CATCH
 END;
+GO
+
+PRINT 'Created intelligent sp_AtomIngestion procedure with autonomous deduplication';
+GO

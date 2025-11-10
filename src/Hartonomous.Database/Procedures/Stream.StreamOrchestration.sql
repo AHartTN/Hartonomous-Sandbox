@@ -14,6 +14,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @ComponentStream VARBINARY(MAX);
 
     IF @Debug = 1
         PRINT 'Starting sensor stream orchestration for ' + @SensorType + ' from ' + CAST(@TimeWindowStart AS NVARCHAR(30)) + ' to ' + CAST(@TimeWindowEnd AS NVARCHAR(30));
@@ -26,7 +28,7 @@ BEGIN
     END
 
     -- Build dynamic query for time-bucketed aggregation
-
+    DECLARE @Query NVARCHAR(MAX) = N'
     SELECT
         ComponentStream = dbo.clr_StreamOrchestrator(AtomId, Timestamp, Weight)
     FROM (
@@ -43,7 +45,7 @@ BEGIN
     ';
 
     -- Execute the aggregation query
-
+    DECLARE @Params NVARCHAR(MAX) = N'@SensorType NVARCHAR(100), @TimeWindowStart DATETIME2, @TimeWindowEnd DATETIME2, @MaxComponents INT';
     EXEC sp_executesql @Query, @Params,
         @SensorType = @SensorType,
         @TimeWindowStart = @TimeWindowStart,
@@ -54,7 +56,26 @@ BEGIN
     -- For now, we'll simulate getting the ComponentStream
 
     -- Store orchestration result
-    
+    INSERT INTO dbo.StreamOrchestrationResults (
+        SensorType,
+        TimeWindowStart,
+        TimeWindowEnd,
+        AggregationLevel,
+        ComponentStream,
+        ComponentCount,
+        DurationMs,
+        CreatedAt
+    )
+    VALUES (
+        @SensorType,
+        @TimeWindowStart,
+        @TimeWindowEnd,
+        @AggregationLevel,
+        @ComponentStream,
+        dbo.fn_GetComponentCount(@ComponentStream),
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
 
     -- Return orchestration metadata
     SELECT
@@ -67,7 +88,9 @@ BEGIN
         DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()) AS DurationMs;
 
     IF @Debug = 1
-        END;
+        PRINT 'Sensor stream orchestration completed';
+END;
+GO
 
 -- sp_FuseMultiModalStreams: Combine multiple sensor streams
 CREATE OR ALTER PROCEDURE dbo.sp_FuseMultiModalStreams
@@ -79,6 +102,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @FusedStream VARBINARY(MAX);
 
     IF @Debug = 1
         PRINT 'Starting multi-modal stream fusion for streams: ' + @StreamIds;
@@ -86,7 +111,14 @@ BEGIN
     -- Parse stream IDs
     CREATE TABLE #StreamList (StreamId INT, Weight FLOAT);
 
-    
+    INSERT INTO #StreamList (StreamId, Weight)
+    SELECT
+        CAST(value AS INT) AS StreamId,
+        CASE
+            WHEN @Weights IS NOT NULL THEN JSON_VALUE(@Weights, CONCAT('$[', ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1, ']'))
+            ELSE 1.0
+        END AS Weight
+    FROM STRING_SPLIT(@StreamIds, ',');
 
     -- Validate streams exist
     IF NOT EXISTS (SELECT 1 FROM #StreamList sl INNER JOIN dbo.StreamOrchestrationResults sor ON sl.StreamId = sor.Id)
@@ -126,15 +158,15 @@ BEGIN
     ELSE IF @FusionType = 'attention_fusion'
     BEGIN
         -- Attention-based fusion (using attention generation)
-
+        DECLARE @AttentionInput NVARCHAR(MAX);
         SELECT @AttentionInput = STRING_AGG(CAST(dc.AtomId AS NVARCHAR(20)), ',')
         FROM #StreamList sl
         CROSS APPLY dbo.fn_DecompressComponents(sor.ComponentStream) dc
         INNER JOIN dbo.StreamOrchestrationResults sor ON sl.StreamId = sor.Id;
 
         -- Use attention mechanism for fusion
-
-
+        DECLARE @FusionContextJson NVARCHAR(MAX) = CONCAT('{"fusion_type":"attention","streams":"', @StreamIds, '"}');
+        DECLARE @FusionStreamId BIGINT;
         EXEC dbo.sp_GenerateWithAttention
             @ModelId = 1,
             @InputAtomIds = @AttentionInput,
@@ -153,7 +185,24 @@ BEGIN
     END
 
     -- Store fusion result
-    
+    INSERT INTO dbo.StreamFusionResults (
+        StreamIds,
+        FusionType,
+        Weights,
+        FusedStream,
+        ComponentCount,
+        DurationMs,
+        CreatedAt
+    )
+    VALUES (
+        @StreamIds,
+        @FusionType,
+        @Weights,
+        @FusedStream,
+        dbo.fn_GetComponentCount(@FusedStream),
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
 
     -- Return fusion metadata
     SELECT
@@ -168,7 +217,9 @@ BEGIN
     DROP TABLE #StreamList;
 
     IF @Debug = 1
-        END;
+        PRINT 'Multi-modal stream fusion completed';
+END;
+GO
 
 -- sp_GenerateEventsFromStream: Create event atoms from orchestrated streams
 CREATE OR ALTER PROCEDURE dbo.sp_GenerateEventsFromStream
@@ -180,3 +231,133 @@ CREATE OR ALTER PROCEDURE dbo.sp_GenerateEventsFromStream
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @EventAtoms TABLE (AtomId BIGINT, Weight FLOAT, ClusterId INT);
+
+    IF @Debug = 1
+        PRINT 'Generating events from stream ' + CAST(@StreamId AS NVARCHAR(10)) + ' with threshold ' + CAST(@Threshold AS NVARCHAR(10));
+
+    -- Validate stream exists
+    IF NOT EXISTS (SELECT 1 FROM dbo.StreamOrchestrationResults WHERE Id = @StreamId)
+    BEGIN
+        RAISERROR('Stream ID not found', 16, 1);
+        RETURN;
+    END
+
+    -- Get stream data
+    DECLARE @ComponentStream VARBINARY(MAX);
+    SELECT @ComponentStream = ComponentStream
+    FROM dbo.StreamOrchestrationResults
+    WHERE Id = @StreamId;
+
+    -- Decompress and filter components
+    INSERT INTO @EventAtoms (AtomId, Weight)
+    SELECT dc.AtomId, dc.Weight
+    FROM dbo.fn_DecompressComponents(@ComponentStream) dc
+    WHERE dc.Weight >= @Threshold;
+
+    -- Apply clustering to identify event patterns
+    IF @Clustering = 'dbscan'
+    BEGIN
+        -- Use DBSCAN clustering from concept discovery
+        UPDATE @EventAtoms
+        SET ClusterId = dbo.fn_DiscoverConcepts(AtomId, Weight, 0.3, 3); -- eps=0.3, minPts=3
+    END
+    ELSE IF @Clustering = 'kmeans'
+    BEGIN
+        -- Simplified k-means (would need full implementation)
+        UPDATE @EventAtoms
+        SET ClusterId = ABS(AtomId) % 5; -- Simple hash-based clustering
+    END
+
+    -- Generate event atoms for each cluster
+    DECLARE @EventCount INT = 0;
+    DECLARE @ClusterId INT;
+
+    DECLARE cluster_cursor CURSOR LOCAL FAST_FORWARD FOR
+    SELECT DISTINCT ClusterId FROM @EventAtoms WHERE ClusterId IS NOT NULL;
+
+    OPEN cluster_cursor;
+    FETCH NEXT FROM cluster_cursor INTO @ClusterId;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        -- Calculate cluster centroid
+        DECLARE @CentroidAtomId BIGINT;
+        DECLARE @AvgWeight FLOAT;
+        DECLARE @ClusterSize INT;
+
+        SELECT
+            @CentroidAtomId = AVG(AtomId),
+            @AvgWeight = AVG(Weight),
+            @ClusterSize = COUNT(*)
+        FROM @EventAtoms
+        WHERE ClusterId = @ClusterId;
+
+        -- Create event atom (simplified - would integrate with atom creation)
+        INSERT INTO dbo.EventAtoms (
+            StreamId,
+            EventType,
+            CentroidAtomId,
+            AverageWeight,
+            ClusterSize,
+            ClusterId,
+            CreatedAt
+        )
+        VALUES (
+            @StreamId,
+            @EventType,
+            @CentroidAtomId,
+            @AvgWeight,
+            @ClusterSize,
+            @ClusterId,
+            SYSUTCDATETIME()
+        );
+
+        SET @EventCount = @EventCount + 1;
+        FETCH NEXT FROM cluster_cursor INTO @ClusterId;
+    END
+
+    CLOSE cluster_cursor;
+    DEALLOCATE cluster_cursor;
+
+    -- Store event generation result
+    INSERT INTO dbo.EventGenerationResults (
+        StreamId,
+        EventType,
+        Threshold,
+        ClusteringMethod,
+        EventsGenerated,
+        DurationMs,
+        CreatedAt
+    )
+    VALUES (
+        @StreamId,
+        @EventType,
+        @Threshold,
+        @Clustering,
+        @EventCount,
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
+
+    -- Return event generation summary
+    SELECT
+        @StreamId AS StreamId,
+        @EventType AS EventType,
+        @Threshold AS Threshold,
+        @Clustering AS ClusteringMethod,
+        @EventCount AS EventsGenerated,
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()) AS DurationMs;
+
+    IF @Debug = 1
+        PRINT 'Event generation completed, created ' + CAST(@EventCount AS NVARCHAR(10)) + ' events';
+END;
+GO
+
+PRINT 'Stream orchestration procedures created successfully';
+PRINT 'sp_OrchestrateSensorStream: Real-time sensor fusion';
+PRINT 'sp_FuseMultiModalStreams: Multi-modal stream fusion';
+PRINT 'sp_GenerateEventsFromStream: Event atom generation';
+GO

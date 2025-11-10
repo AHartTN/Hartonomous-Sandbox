@@ -8,6 +8,12 @@ SET ANSI_WARNINGS ON;
 SET CONCAT_NULL_YIELDS_NULL ON;
 SET ARITHABORT ON;
 SET NUMERIC_ROUNDABORT OFF;
+GO
+
+PRINT '============================================================';
+PRINT 'CREATING SPATIAL INDEXES';
+PRINT '============================================================';
+GO
 
 -- ==========================================
 -- AtomEmbeddings.SpatialGeometry (Fine-grained)
@@ -18,6 +24,7 @@ IF EXISTS (
       AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
 )
 BEGIN
+    PRINT 'Dropping legacy idx_spatial_fine on AtomEmbeddings.SpatialGeometry...';
     DROP INDEX idx_spatial_fine ON dbo.AtomEmbeddings;
 END;
 
@@ -27,6 +34,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
 )
 BEGIN
+    PRINT 'Creating IX_AtomEmbeddings_SpatialGeometry on AtomEmbeddings.SpatialGeometry...';
+    
     CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialGeometry
     ON dbo.AtomEmbeddings (SpatialGeometry)
     WITH (
@@ -42,10 +51,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    END
+    PRINT '  ✓ IX_AtomEmbeddings_SpatialGeometry created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_AtomEmbeddings_SpatialGeometry already exists';
+END;
+GO
 
 -- ==========================================
 -- AtomEmbeddings.SpatialCoarse (Fast filter)
@@ -56,6 +68,7 @@ IF EXISTS (
       AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
 )
 BEGIN
+    PRINT 'Dropping legacy idx_spatial_coarse on AtomEmbeddings.SpatialCoarse...';
     DROP INDEX idx_spatial_coarse ON dbo.AtomEmbeddings;
 END;
 
@@ -65,6 +78,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
 )
 BEGIN
+    PRINT 'Creating IX_AtomEmbeddings_SpatialCoarse on AtomEmbeddings.SpatialCoarse...';
+    
     CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialCoarse
     ON dbo.AtomEmbeddings (SpatialCoarse)
     WITH (
@@ -80,10 +95,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    END
+    PRINT '  ✓ IX_AtomEmbeddings_SpatialCoarse created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_AtomEmbeddings_SpatialCoarse already exists';
+END;
+GO
 
 -- ==========================================
 -- TensorAtoms.SpatialSignature (Weight signatures)
@@ -94,6 +112,7 @@ IF EXISTS (
       AND object_id = OBJECT_ID('dbo.TensorAtoms')
 )
 BEGIN
+    PRINT 'Dropping legacy idx_spatial_signature on TensorAtoms.SpatialSignature...';
     DROP INDEX idx_spatial_signature ON dbo.TensorAtoms;
 END;
 
@@ -103,6 +122,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.TensorAtoms')
 )
 BEGIN
+    PRINT 'Creating IX_TensorAtoms_SpatialSignature on TensorAtoms.SpatialSignature...';
+    
     CREATE SPATIAL INDEX IX_TensorAtoms_SpatialSignature
     ON dbo.TensorAtoms (SpatialSignature)
     WITH (
@@ -118,10 +139,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    END
+    PRINT '  ✓ IX_TensorAtoms_SpatialSignature created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_TensorAtoms_SpatialSignature already exists';
+END;
+GO
 
 -- ==========================================
 -- TensorAtoms.GeometryFootprint (Weight topology)
@@ -132,6 +156,7 @@ IF EXISTS (
       AND object_id = OBJECT_ID('dbo.TensorAtoms')
 )
 BEGIN
+    PRINT 'Dropping legacy idx_geometry_footprint on TensorAtoms.GeometryFootprint...';
     DROP INDEX idx_geometry_footprint ON dbo.TensorAtoms;
 END;
 
@@ -141,6 +166,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.TensorAtoms')
 )
 BEGIN
+    PRINT 'Creating IX_TensorAtoms_GeometryFootprint on TensorAtoms.GeometryFootprint...';
+    
     CREATE SPATIAL INDEX IX_TensorAtoms_GeometryFootprint
     ON dbo.TensorAtoms (GeometryFootprint)
     WITH (
@@ -156,10 +183,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    END
+    PRINT '  ✓ IX_TensorAtoms_GeometryFootprint created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_TensorAtoms_GeometryFootprint already exists';
+END;
+GO
 
 -- ==========================================
 -- Atoms.SpatialKey (Optional - if used)
@@ -170,6 +200,7 @@ IF EXISTS (
       AND object_id = OBJECT_ID('dbo.Atoms')
 )
 BEGIN
+    PRINT 'Dropping legacy idx_atom_spatial_key on Atoms.SpatialKey...';
     DROP INDEX idx_atom_spatial_key ON dbo.Atoms;
 END;
 
@@ -179,6 +210,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.Atoms')
 )
 BEGIN
+    PRINT 'Creating IX_Atoms_SpatialKey on Atoms.SpatialKey...';
+    
     CREATE SPATIAL INDEX IX_Atoms_SpatialKey
     ON dbo.Atoms (SpatialKey)
     WITH (
@@ -194,10 +227,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    END
+    PRINT '  ✓ IX_Atoms_SpatialKey created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_Atoms_SpatialKey already exists';
+END;
+GO
 
 IF OBJECT_ID('dbo.TokenEmbeddingsGeo', 'U') IS NOT NULL
 BEGIN
@@ -207,6 +243,7 @@ BEGIN
           AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo')
     )
     BEGIN
+        PRINT 'Dropping legacy idx_spatial_embedding on TokenEmbeddingsGeo.SpatialProjection...';
         DROP INDEX idx_spatial_embedding ON dbo.TokenEmbeddingsGeo;
     END;
 
@@ -216,6 +253,8 @@ BEGIN
         AND object_id = OBJECT_ID('dbo.TokenEmbeddingsGeo')
     )
     BEGIN
+        PRINT 'Creating IX_TokenEmbeddingsGeo_SpatialProjection on TokenEmbeddingsGeo.SpatialProjection...';
+        
         CREATE SPATIAL INDEX IX_TokenEmbeddingsGeo_SpatialProjection
         ON dbo.TokenEmbeddingsGeo(SpatialProjection)
         USING GEOMETRY_GRID
@@ -230,14 +269,18 @@ BEGIN
             CELLS_PER_OBJECT = 16
         );
         
-        END
+        PRINT '  ✓ IX_TokenEmbeddingsGeo_SpatialProjection created';
+    END
     ELSE
     BEGIN
-        END;
+        PRINT '  ✓ IX_TokenEmbeddingsGeo_SpatialProjection already exists';
+    END;
 END
 ELSE
 BEGIN
-    END;
+    PRINT '  WARNING: TokenEmbeddingsGeo table not found; skipping spatial projection index.';
+END;
+GO
 
 -- ==========================================
 -- CodeAtom.Embedding (AST structural search)
@@ -248,6 +291,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.CodeAtom')
 )
 BEGIN
+    PRINT 'Creating IX_CodeAtom_Embedding on CodeAtom.Embedding...';
+
     CREATE SPATIAL INDEX IX_CodeAtom_Embedding
     ON dbo.CodeAtom (Embedding)
     WITH (
@@ -263,10 +308,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    END
+    PRINT '  ✓ IX_CodeAtom_Embedding created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_CodeAtom_Embedding already exists';
+END;
+GO
 
 -- ==========================================
 -- AudioData.Spectrogram (Audio waveform search)
@@ -277,6 +325,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.AudioData')
 )
 BEGIN
+    PRINT 'Creating IX_AudioData_Spectrogram on AudioData.Spectrogram...';
+
     CREATE SPATIAL INDEX IX_AudioData_Spectrogram
     ON dbo.AudioData (Spectrogram)
     WITH (
@@ -292,10 +342,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    END
+    PRINT '  ✓ IX_AudioData_Spectrogram created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_AudioData_Spectrogram already exists';
+END;
+GO
 
 -- ==========================================
 -- VideoFrame.MotionVectors (Video motion analysis)
@@ -306,6 +359,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.VideoFrame')
 )
 BEGIN
+    PRINT 'Creating IX_VideoFrame_MotionVectors on VideoFrame.MotionVectors...';
+
     CREATE SPATIAL INDEX IX_VideoFrame_MotionVectors
     ON dbo.VideoFrame (MotionVectors)
     WITH (
@@ -321,10 +376,13 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    END
+    PRINT '  ✓ IX_VideoFrame_MotionVectors created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_VideoFrame_MotionVectors already exists';
+END;
+GO
 
 -- ==========================================
 -- Image.ContentRegions (Image region search)
@@ -335,6 +393,8 @@ IF NOT EXISTS (
     AND object_id = OBJECT_ID('dbo.Image')
 )
 BEGIN
+    PRINT 'Creating IX_Image_ContentRegions on Image.ContentRegions...';
+
     CREATE SPATIAL INDEX IX_Image_ContentRegions
     ON dbo.Image (ContentRegions)
     WITH (
@@ -350,14 +410,20 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    END
+    PRINT '  ✓ IX_Image_ContentRegions created';
+END
 ELSE
 BEGIN
-    END;
+    PRINT '  ✓ IX_Image_ContentRegions already exists';
+END;
+GO
 
 -- ==========================================
 -- VERIFY INDEX CREATION
 -- ==========================================
+PRINT '';
+PRINT 'Spatial Index Summary:';
+GO
 
 SELECT
     OBJECT_NAME(i.object_id) AS TableName,
@@ -373,3 +439,10 @@ FROM sys.indexes i
 INNER JOIN sys.spatial_index_tessellations st ON i.object_id = st.object_id AND i.index_id = st.index_id
 WHERE OBJECT_NAME(i.object_id) IN ('AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo', 'CodeAtom', 'AudioData', 'VideoFrame', 'Image')
 ORDER BY OBJECT_NAME(i.object_id), i.name;
+GO
+
+PRINT '';
+PRINT '============================================================';
+PRINT 'SPATIAL INDEXES CREATED';
+PRINT '============================================================';
+GO

@@ -1,5 +1,6 @@
 IF OBJECT_ID('provenance.clr_AtomicStreamSegments', 'TF') IS NOT NULL
     DROP FUNCTION provenance.clr_AtomicStreamSegments;
+GO
 
 CREATE FUNCTION provenance.clr_AtomicStreamSegments(@stream provenance.AtomicStream)
 RETURNS TABLE
@@ -12,3 +13,4 @@ RETURNS TABLE
     payload VARBINARY(MAX)
 )
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AtomicStreamFunctions].EnumerateSegments;
+GO

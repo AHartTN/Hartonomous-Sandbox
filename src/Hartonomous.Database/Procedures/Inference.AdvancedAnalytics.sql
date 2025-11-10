@@ -1,3 +1,7 @@
+PRINT '============================================================';
+PRINT 'ADVANCED INFERENCE & COGNITIVE QUERY OPERATIONS';
+PRINT '============================================================';
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_MultiResolutionSearch
     @query_x FLOAT,
@@ -10,6 +14,56 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    PRINT 'MULTI-RESOLUTION SEARCH: Coarse → Fine → Exact';
+    PRINT '  Strategy: 3-stage funnel for billion-scale performance';
+
+    DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT (', @query_x, ' ', @query_y, ' ', @query_z, ')');
+    DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
+
+    DECLARE @coarse_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
+
+    INSERT INTO @coarse_results (AtomEmbeddingId)
+    SELECT TOP (@coarse_candidates) ae.AtomEmbeddingId
+    FROM dbo.AtomEmbeddings AS ae
+    WHERE ae.SpatialCoarse IS NOT NULL
+    ORDER BY ae.SpatialCoarse.STDistance(@query_pt);
+
+    DECLARE @coarse_count INT = @@ROWCOUNT;
+    PRINT '  Stage 1: ' + CAST(@coarse_count AS NVARCHAR(10)) + ' coarse candidates';
+
+    DECLARE @fine_results TABLE (AtomEmbeddingId BIGINT PRIMARY KEY);
+
+    INSERT INTO @fine_results (AtomEmbeddingId)
+    SELECT TOP (@fine_candidates) ae.AtomEmbeddingId
+    FROM dbo.AtomEmbeddings AS ae
+    INNER JOIN @coarse_results AS cr ON cr.AtomEmbeddingId = ae.AtomEmbeddingId
+    WHERE ae.SpatialGeometry IS NOT NULL
+    ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
+
+    DECLARE @fine_count INT = @@ROWCOUNT;
+    PRINT '  Stage 2: ' + CAST(@fine_count AS NVARCHAR(10)) + ' fine candidates';
+
+    SELECT TOP (@final_top_k)
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        a.Modality,
+        a.Subtype,
+        a.SourceType,
+        a.SourceUri,
+        a.CanonicalText,
+        ae.EmbeddingType,
+        ae.ModelId,
+        ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance,
+        ae.SpatialCoarse.STDistance(@query_pt) AS CoarseDistance
+    FROM dbo.AtomEmbeddings AS ae
+    INNER JOIN @fine_results AS fr ON fr.AtomEmbeddingId = ae.AtomEmbeddingId
+    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    ORDER BY SpatialDistance ASC;
+
+    PRINT '  Stage 3: Top ' + CAST(@final_top_k AS NVARCHAR(10)) + ' results';
+    PRINT '✓ Multi-resolution search complete';
+END
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_CognitiveActivation
     @query_embedding VECTOR(1998),
@@ -29,15 +83,77 @@ BEGIN
         ;THROW 50011, 'Activation threshold must be within (-1, 1].', 1;
     END;
 
+    DECLARE @start_time DATETIME2 = SYSUTCDATETIME();
+    DECLARE @max_distance FLOAT = 1.0 - @activation_threshold;
 
     IF @max_distance <= 0
     BEGIN
         ;THROW 50012, 'Activation threshold too high for cosine similarity search.', 1;
     END;
 
+    PRINT 'COGNITIVE ACTIVATION: Atom embeddings firing based on cosine similarity';
     PRINT '  Threshold: ' + CAST(@activation_threshold AS NVARCHAR(10)) + ' | Max candidates: ' + CAST(@max_activated AS NVARCHAR(10));
 
-    
+    DECLARE @activated TABLE (
+        AtomEmbeddingId BIGINT PRIMARY KEY,
+        AtomId BIGINT NOT NULL,
+        ActivationStrength FLOAT NOT NULL
+    );
+
+    INSERT INTO @activated (AtomEmbeddingId, AtomId, ActivationStrength)
+    SELECT TOP (@max_activated)
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS ActivationStrength
+    FROM dbo.AtomEmbeddings AS ae
+    WHERE ae.EmbeddingVector IS NOT NULL
+      AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) <= @max_distance
+    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) ASC;
+
+    DECLARE @activated_count INT = @@ROWCOUNT;
+    PRINT '  Activated nodes: ' + CAST(@activated_count AS NVARCHAR(10));
+
+    SELECT
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        a.Modality,
+        a.Subtype,
+        a.SourceType,
+        a.SourceUri,
+        a.CanonicalText,
+        act.ActivationStrength,
+        CASE
+            WHEN act.ActivationStrength >= 0.95 THEN 'VERY_HIGH'
+            WHEN act.ActivationStrength >= 0.90 THEN 'HIGH'
+            WHEN act.ActivationStrength >= 0.85 THEN 'MEDIUM'
+            ELSE 'LOW'
+        END AS ActivationLevel
+    FROM @activated AS act
+    INNER JOIN dbo.AtomEmbeddings AS ae ON ae.AtomEmbeddingId = act.AtomEmbeddingId
+    INNER JOIN dbo.Atoms AS a ON a.AtomId = act.AtomId
+    ORDER BY act.ActivationStrength DESC;
+
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
+    DECLARE @input_json JSON = CAST(JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated) AS JSON);
+    DECLARE @output_json JSON = CAST(JSON_OBJECT('activatedCount': @activated_count) AS JSON);
+    DECLARE @output_metadata JSON = CAST(JSON_OBJECT('status': 'completed', 'durationMs': @DurationMs) AS JSON);
+    DECLARE @InferenceId BIGINT;
+
+    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
+    VALUES (
+        'cognitive_activation',
+        @input_json,
+        'atom_embeddings',
+        'cognitive_activation',
+        @output_json,
+        @output_metadata,
+        @DurationMs
+    );
+
+    SET @InferenceId = SCOPE_IDENTITY();
+    PRINT '✓ Cognitive activation complete - Inference ID: ' + CAST(@InferenceId AS NVARCHAR(20));
+END
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_DynamicStudentExtraction
     @ParentModelId INT,
@@ -52,6 +168,7 @@ BEGIN
         ;THROW 50020, 'Target size ratio must be within (0, 1].', 1;
     END;
 
+    DECLARE @parent_exists INT = (
         SELECT COUNT(*)
         FROM dbo.Models
         WHERE ModelId = @ParentModelId
@@ -62,13 +179,15 @@ BEGIN
         ;THROW 50021, 'Parent model does not exist.', 1;
     END;
 
+    DECLARE @ratio_percent INT = CEILING(@target_size_ratio * 100);
     IF @ratio_percent < 1 SET @ratio_percent = 1;
-
-
+    DECLARE @NewModelName NVARCHAR(200) = CONCAT('Student_', @ParentModelId, '_', @selection_strategy, '_', @ratio_percent, 'pct');
+    DECLARE @layer_subset NVARCHAR(MAX) = NULL;
+    DECLARE @importance_threshold FLOAT = NULL;
 
     IF @selection_strategy = 'layer'
     BEGIN
-
+        DECLARE @total_layers INT = (
             SELECT COUNT(*)
             FROM dbo.ModelLayers
             WHERE ModelId = @ParentModelId
@@ -79,6 +198,7 @@ BEGIN
             ;THROW 50022, 'Parent model has no layers to extract.', 1;
         END;
 
+        DECLARE @layers_to_take INT = CEILING(@total_layers * @target_size_ratio);
         IF @layers_to_take < 1 SET @layers_to_take = 1;
 
         SELECT @layer_subset = STRING_AGG(CAST(LayerIdx AS NVARCHAR(10)), ',') WITHIN GROUP (ORDER BY LayerIdx)
@@ -93,7 +213,7 @@ BEGIN
     END
     ELSE IF @selection_strategy = 'random'
     BEGIN
-
+        DECLARE @total_layers_random INT = (
             SELECT COUNT(*)
             FROM dbo.ModelLayers
             WHERE ModelId = @ParentModelId
@@ -104,6 +224,7 @@ BEGIN
             ;THROW 50023, 'Parent model has no layers to extract.', 1;
         END;
 
+        DECLARE @random_take INT = CEILING(@total_layers_random * @target_size_ratio);
         IF @random_take < 1 SET @random_take = 1;
 
         SELECT @layer_subset = STRING_AGG(CAST(LayerIdx AS NVARCHAR(10)), ',')
@@ -118,7 +239,7 @@ BEGIN
     END
     ELSE
     BEGIN
-
+        DECLARE @total_atoms INT = (
             SELECT COUNT(*)
             FROM dbo.TensorAtoms
             WHERE ModelId = @ParentModelId
@@ -126,11 +247,12 @@ BEGIN
 
         IF @total_atoms = 0
         BEGIN
+            PRINT 'Parent model has no tensor atoms; falling back to full copy.';
             SET @importance_threshold = NULL;
         END
         ELSE
         BEGIN
-
+            DECLARE @atoms_to_take INT = CEILING(@total_atoms * @target_size_ratio);
             IF @atoms_to_take < 1 SET @atoms_to_take = 1;
 
             SELECT @importance_threshold = MIN(ImportanceScore)
@@ -144,7 +266,8 @@ BEGIN
 
             IF @importance_threshold IS NULL
             BEGIN
-                END;
+                PRINT 'Importance scores missing; no threshold applied.';
+            END;
         END;
 
         PRINT 'DYNAMIC EXTRACTION → Importance threshold: ' + COALESCE(CAST(@importance_threshold AS NVARCHAR(32)), 'none');
@@ -156,6 +279,7 @@ BEGIN
         @importance_threshold = @importance_threshold,
         @NewModelName = @NewModelName;
 END
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_CrossModalQuery
     @text_query NVARCHAR(MAX) = NULL,
@@ -168,13 +292,15 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    PRINT 'CROSS-MODAL INFERENCE';
     PRINT '  Text filter: ' + ISNULL(@text_query, '(none)');
     PRINT '  Target modality: ' + ISNULL(@modality_filter, 'all');
 
     IF @spatial_query_x IS NOT NULL AND @spatial_query_y IS NOT NULL
     BEGIN
-
-
+        DECLARE @z FLOAT = ISNULL(@spatial_query_z, 0);
+        DECLARE @query_wkt NVARCHAR(200) = CONCAT('POINT (', @spatial_query_x, ' ', @spatial_query_y, ' ', @z, ')');
+        DECLARE @query_pt GEOMETRY = geometry::STGeomFromText(@query_wkt, 0);
 
         SELECT TOP (@top_k)
             ae.AtomEmbeddingId,
@@ -213,7 +339,9 @@ BEGIN
         ORDER BY NEWID();
     END;
 
-    END
+    PRINT '✓ Cross-modal results returned';
+END
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_CompareModelKnowledge
     @ModelAId INT,
@@ -287,7 +415,9 @@ BEGIN
     ) AS stats
     ORDER BY stats.model_id;
 
-    END
+    PRINT '✓ Knowledge comparison complete';
+END
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_InferenceHistory
     @time_window_hours INT = 24,
@@ -296,7 +426,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    PRINT 'INFERENCE HISTORY ANALYSIS';
     PRINT '  Time window: Last ' + CAST(@time_window_hours AS VARCHAR(10)) + ' hours';
+
+    DECLARE @cutoff_time DATETIME2 = DATEADD(HOUR, -@time_window_hours, SYSUTCDATETIME());
 
     SELECT
         TaskType,
@@ -313,4 +446,20 @@ BEGIN
     GROUP BY TaskType
     ORDER BY request_count DESC;
 
-    END
+    PRINT '✓ Inference history analysis complete';
+END
+GO
+
+PRINT '';
+PRINT '============================================================';
+PRINT 'ADVANCED PROCEDURES CREATED';
+PRINT '============================================================';
+PRINT 'Available procedures:';
+PRINT '  1. sp_MultiResolutionSearch     - 3-stage funnel search';
+PRINT '  2. sp_CognitiveActivation        - Neural activation pattern';
+PRINT '  3. sp_DynamicStudentExtraction   - Flexible model distillation';
+PRINT '  4. sp_CrossModalQuery            - Query across modalities';
+PRINT '  5. sp_CompareModelKnowledge      - Compare model weights';
+PRINT '  6. sp_InferenceHistory           - Temporal analysis';
+PRINT '============================================================';
+GO

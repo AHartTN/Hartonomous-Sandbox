@@ -17,6 +17,8 @@ BEGIN
         THROW 50031, 'Threshold must be between -1.0 and 1.0.', 1;
     END
 
+    DECLARE @max_distance FLOAT = 2.0 * (1.0 - @threshold);
+
     IF @max_distance <= 0
     BEGIN
         THROW 50032, 'Threshold is too high for cosine similarity search.', 1;
@@ -51,3 +53,7 @@ BEGIN
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
     ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
 END
+GO
+
+PRINT 'Created sp_CheckSimilarityAboveThreshold for semantic deduplication';
+GO

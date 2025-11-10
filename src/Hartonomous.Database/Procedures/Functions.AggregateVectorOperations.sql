@@ -90,6 +90,7 @@ IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SpatialConvex
     DROP AGGREGATE dbo.SpatialConvexHull;
 IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SpatialDensityGrid')
     DROP AGGREGATE dbo.SpatialDensityGrid;
+GO
 
 -- =============================================
 -- VECTOR AGGREGATES (Basic Statistics)
@@ -98,26 +99,32 @@ IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SpatialDensit
 CREATE AGGREGATE dbo.VectorMeanVariance(@vector NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorMeanVariance];
+GO
 
 CREATE AGGREGATE dbo.GeometricMedian(@vector NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.GeometricMedian];
+GO
 
 CREATE AGGREGATE dbo.StreamingSoftmax(@vector NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.StreamingSoftmax];
+GO
 
 CREATE AGGREGATE dbo.VectorCentroid(@vector NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorCentroid];
+GO
 
 CREATE AGGREGATE dbo.VectorCovariance(@vector NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorCovariance];
+GO
 
 CREATE AGGREGATE dbo.VectorKMeansCluster(@vector NVARCHAR(MAX), @k INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorKMeansCluster];
+GO
 
 -- =============================================
 -- NEURAL NETWORK AGGREGATES
@@ -130,18 +137,22 @@ CREATE AGGREGATE dbo.VectorAttentionAggregate(
     @numHeads INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorAttentionAggregate];
+GO
 
 CREATE AGGREGATE dbo.AutoencoderCompression(@input NVARCHAR(MAX), @latentDim INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.AutoencoderCompression];
+GO
 
 CREATE AGGREGATE dbo.GradientStatistics(@gradient NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.GradientStatistics];
+GO
 
 CREATE AGGREGATE dbo.CosineAnnealingSchedule(@iteration INT, @maxIterations INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.CosineAnnealingSchedule];
+GO
 
 -- =============================================
 -- REASONING FRAMEWORK AGGREGATES
@@ -150,18 +161,22 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.CosineAnnealingSchedule];
 CREATE AGGREGATE dbo.TreeOfThought(@hypothesis NVARCHAR(MAX), @score FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.TreeOfThought];
+GO
 
 CREATE AGGREGATE dbo.ReflexionAggregate(@trajectory NVARCHAR(MAX), @feedback NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ReflexionAggregate];
+GO
 
 CREATE AGGREGATE dbo.SelfConsistency(@reasoning NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SelfConsistency];
+GO
 
 CREATE AGGREGATE dbo.ChainOfThoughtCoherence(@step NVARCHAR(MAX), @stepNumber INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChainOfThoughtCoherence];
+GO
 
 -- =============================================
 -- GRAPH VECTOR AGGREGATES
@@ -170,14 +185,17 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChainOfThoughtCoherence];
 CREATE AGGREGATE dbo.GraphPathVectorSummary(@nodeVector NVARCHAR(MAX), @pathDepth INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.GraphPathVectorSummary];
+GO
 
 CREATE AGGREGATE dbo.EdgeWeightedByVectorSimilarity(@sourceVector NVARCHAR(MAX), @targetVector NVARCHAR(MAX))
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.EdgeWeightedByVectorSimilarity];
+GO
 
 CREATE AGGREGATE dbo.VectorDriftOverTime(@vector NVARCHAR(MAX), @timestamp DATETIME2)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorDriftOverTime];
+GO
 
 -- =============================================
 -- TIME SERIES VECTOR AGGREGATES
@@ -186,18 +204,22 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorDriftOverTime];
 CREATE AGGREGATE dbo.VectorSequencePatterns(@vector NVARCHAR(MAX), @sequenceIndex INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorSequencePatterns];
+GO
 
 CREATE AGGREGATE dbo.VectorARForecast(@vector NVARCHAR(MAX), @lag INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.VectorARForecast];
+GO
 
 CREATE AGGREGATE dbo.DTWDistance(@series1 NVARCHAR(MAX), @series2 NVARCHAR(MAX))
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DTWDistance];
+GO
 
 CREATE AGGREGATE dbo.ChangePointDetection(@value FLOAT, @timestamp DATETIME2)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChangePointDetection];
+GO
 
 -- =============================================
 -- ANOMALY DETECTION AGGREGATES
@@ -206,18 +228,22 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChangePointDetection];
 CREATE AGGREGATE dbo.IsolationForestScore(@vector NVARCHAR(MAX), @numTrees INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.IsolationForestScore];
+GO
 
 CREATE AGGREGATE dbo.LocalOutlierFactor(@vector NVARCHAR(MAX), @k INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.LocalOutlierFactor];
+GO
 
 CREATE AGGREGATE dbo.DBSCANCluster(@vector NVARCHAR(MAX), @eps FLOAT, @minPts INT)
 RETURNS INT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DBSCANCluster];
+GO
 
 CREATE AGGREGATE dbo.MahalanobisDistance(@vector NVARCHAR(MAX))
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.MahalanobisDistance];
+GO
 
 -- =============================================
 -- RECOMMENDER SYSTEM AGGREGATES
@@ -226,18 +252,22 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.MahalanobisDistance];
 CREATE AGGREGATE dbo.CollaborativeFilter(@userId INT, @itemVector NVARCHAR(MAX), @rating FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.CollaborativeFilter];
+GO
 
 CREATE AGGREGATE dbo.ContentBasedFilter(@itemFeatures NVARCHAR(MAX), @userPreferences NVARCHAR(MAX))
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ContentBasedFilter];
+GO
 
 CREATE AGGREGATE dbo.MatrixFactorization(@userVector NVARCHAR(MAX), @itemVector NVARCHAR(MAX), @latentFactors INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.MatrixFactorization];
+GO
 
 CREATE AGGREGATE dbo.DiversityRecommendation(@itemVector NVARCHAR(MAX), @diversityWeight FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DiversityRecommendation];
+GO
 
 -- =============================================
 -- DIMENSIONALITY REDUCTION AGGREGATES
@@ -246,14 +276,17 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DiversityRecommendation];
 CREATE AGGREGATE dbo.PrincipalComponentAnalysis(@vector NVARCHAR(MAX), @numComponents INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.PrincipalComponentAnalysis];
+GO
 
 CREATE AGGREGATE dbo.TSNEProjection(@vector NVARCHAR(MAX), @perplexity FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.TSNEProjection];
+GO
 
 CREATE AGGREGATE dbo.RandomProjection(@vector NVARCHAR(MAX), @targetDim INT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.RandomProjection];
+GO
 
 -- =============================================
 -- RESEARCH TOOL AGGREGATES
@@ -262,10 +295,12 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.RandomProjection];
 CREATE AGGREGATE dbo.ResearchWorkflow(@actionTaken NVARCHAR(MAX), @resultQuality FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ResearchWorkflow];
+GO
 
 CREATE AGGREGATE dbo.ToolExecutionChain(@toolName NVARCHAR(MAX), @executionTime INT, @success BIT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ToolExecutionChain];
+GO
 
 -- =============================================
 -- BEHAVIORAL ANALYTICS AGGREGATES
@@ -274,14 +309,17 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ToolExecutionChain];
 CREATE AGGREGATE dbo.UserJourney(@eventType NVARCHAR(MAX), @timestamp DATETIME2, @sessionId UNIQUEIDENTIFIER)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.UserJourney];
+GO
 
 CREATE AGGREGATE dbo.ABTestAnalysis(@variant NVARCHAR(MAX), @metric FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ABTestAnalysis];
+GO
 
 CREATE AGGREGATE dbo.ChurnPrediction(@featureVector NVARCHAR(MAX), @daysSinceLastActivity INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChurnPrediction];
+GO
 
 -- =============================================
 -- SPATIAL AGGREGATES
@@ -290,10 +328,12 @@ EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChurnPrediction];
 CREATE AGGREGATE dbo.SpatialConvexHull(@point GEOMETRY)
 RETURNS GEOMETRY
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SpatialConvexHull];
+GO
 
 CREATE AGGREGATE dbo.SpatialDensityGrid(@point GEOMETRY, @gridSize FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SpatialDensityGrid];
+GO
 
 -- =============================================
 -- VERIFICATION
@@ -307,8 +347,10 @@ SELECT
 FROM sys.objects
 WHERE type = 'AF'
 ORDER BY name;
+GO
 
 -- Expected count: 39 aggregates
 SELECT COUNT(*) AS TotalAggregates
 FROM sys.objects
 WHERE type = 'AF';
+GO

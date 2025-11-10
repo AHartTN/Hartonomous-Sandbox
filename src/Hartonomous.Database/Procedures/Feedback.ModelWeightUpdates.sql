@@ -7,10 +7,12 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
-
-
-
+    DECLARE @layersUpdated INT = 0;
+    DECLARE @eligibleLayers INT = 0;
+    DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @endTime DATETIME2;
+    DECLARE @durationMs INT;
+    DECLARE @startedTransaction BIT = 0;
 
     IF @@TRANCOUNT = 0
     BEGIN
@@ -33,7 +35,21 @@ BEGIN
             UpdateMagnitude FLOAT
         );
 
-        
+        INSERT INTO #LayerUpdates (LayerID, ModelID, LayerName, SuccessfulInferences, AverageRating)
+        SELECT
+            ml.LayerId,
+            ml.ModelId,
+            ml.LayerName,
+            COUNT(DISTINCT ir.InferenceId) AS SuccessfulInferences,
+            AVG(CAST(ir.UserRating AS DECIMAL(3,2))) AS AverageRating
+        FROM dbo.ModelLayers AS ml
+        INNER JOIN dbo.InferenceSteps AS ist ON ml.LayerId = ist.LayerId
+        INNER JOIN dbo.InferenceRequests AS ir ON ist.InferenceId = ir.InferenceId
+        WHERE ir.UserRating >= 4
+            AND ir.UserRating <= @maxRating
+            AND (@ModelId IS NULL OR ml.ModelId = @ModelId)
+        GROUP BY ml.LayerId, ml.ModelId, ml.LayerName
+        HAVING COUNT(DISTINCT ir.InferenceId) >= @minRatings;
 
         SET @eligibleLayers = @@ROWCOUNT;
 
@@ -111,3 +127,4 @@ BEGIN
 
     RETURN @layersUpdated;
 END
+GO

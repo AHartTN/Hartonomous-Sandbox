@@ -27,13 +27,35 @@ BEGIN
             IF @CostPerUnit IS NULL
                 SET @CostPerUnit = 0.0; -- Default to free if no pricing found
         END
-
-        -- Insert usage record
         
+        DECLARE @TotalCost DECIMAL(18, 8) = @Quantity * @CostPerUnit;
+        
+        -- Insert usage record
+        INSERT INTO billing.UsageLedger (
+            TenantId,
+            UsageType,
+            Quantity,
+            UnitType,
+            CostPerUnit,
+            TotalCost,
+            Metadata,
+            RecordedUtc
+        )
+        VALUES (
+            @TenantId,
+            @UsageType,
+            @Quantity,
+            @UnitType,
+            @CostPerUnit,
+            @TotalCost,
+            @Metadata,
+            SYSUTCDATETIME()
+        );
         
         -- Check quota limits
-
-
+        DECLARE @QuotaLimit BIGINT;
+        DECLARE @CurrentUsage BIGINT;
+        
         SELECT @QuotaLimit = QuotaLimit
         FROM billing.TenantQuotas
         WHERE TenantId = @TenantId 
@@ -51,7 +73,20 @@ BEGIN
             IF @CurrentUsage > @QuotaLimit
             BEGIN
                 -- Log quota violation
-                
+                INSERT INTO billing.QuotaViolations (
+                    TenantId,
+                    UsageType,
+                    QuotaLimit,
+                    CurrentUsage,
+                    ViolatedUtc
+                )
+                VALUES (
+                    @TenantId,
+                    @UsageType,
+                    @QuotaLimit,
+                    @CurrentUsage,
+                    SYSUTCDATETIME()
+                );
                 
                 RAISERROR('Quota exceeded for usage type: %s', 16, 1, @UsageType);
             END
@@ -60,11 +95,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_CalculateBill: Aggregate usage and generate invoice
 -- Applies pricing tiers and discounts
@@ -87,17 +123,28 @@ BEGIN
             SET @BillingPeriodEnd = DATEADD(MONTH, 1, @BillingPeriodStart);
         
         -- Aggregate usage by type
-
+        DECLARE @UsageSummary TABLE (
             UsageType NVARCHAR(50),
             TotalQuantity BIGINT,
             TotalCost DECIMAL(18, 2)
         );
         
+        INSERT INTO @UsageSummary
+        SELECT 
+            UsageType,
+            SUM(Quantity) AS TotalQuantity,
+            SUM(TotalCost) AS TotalCost
+        FROM billing.UsageLedger
+        WHERE TenantId = @TenantId
+              AND RecordedUtc >= @BillingPeriodStart
+              AND RecordedUtc < @BillingPeriodEnd
+        GROUP BY UsageType;
         
-
-
-
-
+        DECLARE @Subtotal DECIMAL(18, 2) = (SELECT SUM(TotalCost) FROM @UsageSummary);
+        DECLARE @DiscountPercent DECIMAL(5, 2) = 0.0;
+        DECLARE @Tax DECIMAL(18, 2) = 0.0;
+        DECLARE @Total DECIMAL(18, 2);
+        
         -- Apply volume discounts
         IF @Subtotal > 10000
             SET @DiscountPercent = 15.0;
@@ -105,14 +152,38 @@ BEGIN
             SET @DiscountPercent = 10.0;
         ELSE IF @Subtotal > 1000
             SET @DiscountPercent = 5.0;
-
+        
+        DECLARE @Discount DECIMAL(18, 2) = @Subtotal * (@DiscountPercent / 100.0);
         SET @Tax = (@Subtotal - @Discount) * 0.08; -- 8% tax
         SET @Total = @Subtotal - @Discount + @Tax;
         
         -- Generate invoice if requested
         IF @GenerateInvoice = 1
         BEGIN
-            
+            INSERT INTO billing.Invoices (
+                TenantId,
+                InvoiceNumber,
+                BillingPeriodStart,
+                BillingPeriodEnd,
+                Subtotal,
+                Discount,
+                Tax,
+                Total,
+                Status,
+                GeneratedUtc
+            )
+            VALUES (
+                @TenantId,
+                'INV-' + FORMAT(@TenantId, '00000') + '-' + FORMAT(SYSUTCDATETIME(), 'yyyyMMdd'),
+                @BillingPeriodStart,
+                @BillingPeriodEnd,
+                @Subtotal,
+                @Discount,
+                @Tax,
+                @Total,
+                'Pending',
+                SYSUTCDATETIME()
+            );
         END
         
         -- Return summary
@@ -130,11 +201,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_GenerateUsageReport: Tenant dashboard query
 -- Real-time usage metrics with trend analysis
@@ -148,7 +220,8 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-
+        DECLARE @StartDate DATETIME2;
+        
         -- Determine time range
         IF @TimeRange = 'Day'
             SET @StartDate = DATEADD(DAY, -1, SYSUTCDATETIME());
@@ -216,8 +289,9 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO

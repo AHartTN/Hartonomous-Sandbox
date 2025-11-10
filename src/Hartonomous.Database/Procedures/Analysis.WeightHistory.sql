@@ -7,11 +7,15 @@
 -- Reference: docs/audit/03-TEMPORAL-TABLES.md
 -- ===============================================
 
+USE Hartonomous;
+GO
+
 -- ===============================================
 -- View: Current Weights Summary
 -- ===============================================
 IF OBJECT_ID('dbo.vw_CurrentWeights', 'V') IS NOT NULL
     DROP VIEW dbo.vw_CurrentWeights;
+GO
 
 CREATE VIEW dbo.vw_CurrentWeights
 AS
@@ -33,12 +37,17 @@ SELECT
 FROM 
     dbo.TensorAtomCoefficients tac
     INNER JOIN dbo.TensorAtoms ta ON tac.TensorAtomId = ta.TensorAtomId;
+GO
+
+PRINT '✓ Created view: vw_CurrentWeights';
+GO
 
 -- ===============================================
 -- View: Weight Change History
 -- ===============================================
 IF OBJECT_ID('dbo.vw_WeightChangeHistory', 'V') IS NOT NULL
     DROP VIEW dbo.vw_WeightChangeHistory;
+GO
 
 CREATE VIEW dbo.vw_WeightChangeHistory
 AS
@@ -63,12 +72,17 @@ SELECT
     ) AS CoefficientDelta
 FROM 
     dbo.TensorAtomCoefficients FOR SYSTEM_TIME ALL tac;
+GO
+
+PRINT '✓ Created view: vw_WeightChangeHistory';
+GO
 
 -- ===============================================
 -- Procedure: Get Weight Evolution for Atom
 -- ===============================================
 IF OBJECT_ID('dbo.sp_GetWeightEvolution', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_GetWeightEvolution;
+GO
 
 CREATE PROCEDURE dbo.sp_GetWeightEvolution
     @TensorAtomId BIGINT,
@@ -127,12 +141,17 @@ BEGIN
         tac.TensorAtomCoefficientId,
         tac.ValidFrom;
 END;
+GO
+
+PRINT '✓ Created procedure: sp_GetWeightEvolution';
+GO
 
 -- ===============================================
 -- Procedure: Compare Weights at Two Points in Time
 -- ===============================================
 IF OBJECT_ID('dbo.sp_CompareWeightsAtTimes', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_CompareWeightsAtTimes;
+GO
 
 CREATE PROCEDURE dbo.sp_CompareWeightsAtTimes
     @Time1 DATETIME2(7),
@@ -186,12 +205,17 @@ BEGIN
     ORDER BY 
         ABS(ISNULL(w2.Coefficient2, w1.Coefficient1) - w1.Coefficient1) DESC;
 END;
+GO
+
+PRINT '✓ Created procedure: sp_CompareWeightsAtTimes';
+GO
 
 -- ===============================================
 -- Procedure: Get Most Recently Changed Weights
 -- ===============================================
 IF OBJECT_ID('dbo.sp_GetRecentWeightChanges', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_GetRecentWeightChanges;
+GO
 
 CREATE PROCEDURE dbo.sp_GetRecentWeightChanges
     @TopN INT = 100,
@@ -228,4 +252,21 @@ BEGIN
     ORDER BY 
         tac.ValidFrom DESC;
 END;
+GO
 
+PRINT '✓ Created procedure: sp_GetRecentWeightChanges';
+GO
+
+PRINT '';
+PRINT '============================================';
+PRINT 'Weight History Analysis Tools Deployed';
+PRINT '============================================';
+PRINT 'Views:';
+PRINT '  • vw_CurrentWeights - Current weight snapshot';
+PRINT '  • vw_WeightChangeHistory - Full change history';
+PRINT '';
+PRINT 'Procedures:';
+PRINT '  • sp_GetWeightEvolution - Track weight changes for specific atom';
+PRINT '  • sp_CompareWeightsAtTimes - Compare weights between two timestamps';
+PRINT '  • sp_GetRecentWeightChanges - Find most recently updated weights';
+GO

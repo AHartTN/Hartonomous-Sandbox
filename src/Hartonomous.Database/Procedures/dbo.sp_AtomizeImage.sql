@@ -16,9 +16,10 @@ BEGIN
         BEGIN TRANSACTION;
         
         -- Retrieve the parent image atom metadata and its payload
-
-
-
+        DECLARE @Content VARBINARY(MAX);
+        DECLARE @ContentType NVARCHAR(100);
+        DECLARE @Metadata NVARCHAR(MAX);
+        
         SELECT 
             @Metadata = a.Metadata,
             @Content = p.PayloadData,
@@ -41,9 +42,10 @@ BEGIN
         END
         
         -- Extract image dimensions from metadata (required)
-
-
-
+        DECLARE @ImageWidth INT = JSON_VALUE(@Metadata, '$.width');
+        DECLARE @ImageHeight INT = JSON_VALUE(@Metadata, '$.height');
+        DECLARE @ColorDepth INT = ISNULL(JSON_VALUE(@Metadata, '$.colorDepth'), 24);
+        
         IF @ImageWidth IS NULL OR @ImageHeight IS NULL
         BEGIN
             RAISERROR('Image metadata must include width and height', 16, 1);
@@ -51,12 +53,13 @@ BEGIN
         END
         
         -- Calculate patch grid dimensions
-
-
-
+        DECLARE @PatchesX INT = CEILING((@ImageWidth - @PatchSize) * 1.0 / @StrideSize) + 1;
+        DECLARE @PatchesY INT = CEILING((@ImageHeight - @PatchSize) * 1.0 / @StrideSize) + 1;
+        DECLARE @TotalPatches INT = @PatchesX * @PatchesY;
+        
         -- Create spatial representation of the full image
         -- Use GEOMETRY POLYGON where corners are at (0,0) and (width, height)
-
+        DECLARE @ImageBoundary GEOMETRY;
         SET @ImageBoundary = GEOMETRY::STGeomFromText(
             'POLYGON((0 0, ' + CAST(@ImageWidth AS NVARCHAR(20)) + ' 0, ' + 
             CAST(@ImageWidth AS NVARCHAR(20)) + ' ' + CAST(@ImageHeight AS NVARCHAR(20)) + ', ' +
@@ -65,8 +68,42 @@ BEGIN
         );
         
         -- Process all patches in a single, set-based operation using the high-performance CLR function
+        DECLARE @PatchesCreated INT;
 
-        
+        INSERT INTO dbo.ImagePatches (
+            ParentAtomId,
+            PatchIndex,
+            RowIndex,
+            ColIndex,
+            PatchGeometry,
+            PatchX,
+            PatchY,
+            PatchWidth,
+            PatchHeight,
+            MeanR,
+            MeanG,
+            MeanB,
+            Variance,
+            DominantColor,
+            TenantId
+        )
+        SELECT
+            @AtomId,
+            patches.PatchIndex,
+            patches.RowIndex,
+            patches.ColIndex,
+            patches.PatchGeometry,
+            patches.PatchX,
+            patches.PatchY,
+            patches.PatchWidth,
+            patches.PatchHeight,
+            patches.MeanR,
+            patches.MeanG,
+            patches.MeanB,
+            patches.Variance,
+            NULL, -- DominantColor (future enhancement)
+            @TenantId
+        FROM dbo.clr_DeconstructImageToPatches(@Content, @ImageWidth, @ImageHeight, @PatchSize, @StrideSize) AS patches;
 
         SET @PatchesCreated = @@ROWCOUNT;
 
@@ -105,8 +142,10 @@ BEGIN
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO

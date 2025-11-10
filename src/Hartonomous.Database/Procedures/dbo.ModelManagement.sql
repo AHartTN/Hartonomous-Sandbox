@@ -33,7 +33,24 @@ BEGIN
         END
         
         -- Create model record
-        
+        INSERT INTO dbo.Models (
+            ModelName,
+            ModelType,
+            Architecture,
+            Config,
+            ParameterCount,
+            TenantId,
+            IsActive
+        )
+        VALUES (
+            @ModelName,
+            @ModelType,
+            @Architecture,
+            @ConfigJson,
+            @ParameterCount,
+            @TenantId,
+            1
+        );
         
         SET @ModelId = SCOPE_IDENTITY();
         
@@ -48,7 +65,8 @@ BEGIN
         ELSE IF @FileStreamPath IS NOT NULL
         BEGIN
             -- Large model: Store in FILESTREAM
-
+            DECLARE @FileStreamToken VARBINARY(MAX);
+            
             -- Get FILESTREAM path for model
             SELECT @FileStreamToken = SerializedModel.PathName()
             FROM dbo.Models
@@ -71,7 +89,18 @@ BEGIN
         END
         
         -- Log model ingestion
-        
+        INSERT INTO provenance.ModelVersionHistory (
+            ModelId,
+            VersionTag,
+            ChangeDescription,
+            TenantId
+        )
+        VALUES (
+            @ModelId,
+            '1.0',
+            'Initial model ingestion via sp_IngestModel',
+            @TenantId
+        );
         
         COMMIT TRANSACTION;
         
@@ -89,14 +118,17 @@ BEGIN
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-
-
-
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
         PRINT 'sp_IngestModel ERROR: ' + @ErrorMessage;
         RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_OptimizeEmbeddings: Recompute outdated embeddings
 -- Batch processing for efficiency
@@ -109,21 +141,36 @@ CREATE OR ALTER PROCEDURE dbo.sp_OptimizeEmbeddings
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
+    
+    DECLARE @ProcessedCount INT = 0;
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    
     BEGIN TRY
         -- Find atoms with outdated or missing embeddings
-
+        DECLARE @AtomsToProcess TABLE (
             AtomId BIGINT PRIMARY KEY,
             Content NVARCHAR(MAX)
         );
         
-        
+        INSERT INTO @AtomsToProcess
+        SELECT TOP (@BatchSize)
+            a.AtomId,
+            CAST(a.Content AS NVARCHAR(MAX)) AS Content
+        FROM dbo.Atoms a
+        LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId AND ae.ModelId = @ModelId
+        WHERE a.TenantId = @TenantId
+              AND a.IsDeleted = 0
+              AND (
+                  ae.AtomEmbeddingId IS NULL -- Missing embedding
+                  OR ae.LastComputedUtc < DATEADD(HOUR, -@MaxAgeHours, SYSUTCDATETIME()) -- Outdated
+              )
+        ORDER BY a.AtomId;
         
         -- Process each atom
-
-
-
+        DECLARE @CurrentAtomId BIGINT;
+        DECLARE @CurrentContent NVARCHAR(MAX);
+        DECLARE @NewEmbedding VARBINARY(MAX);
+        
         DECLARE atom_cursor CURSOR LOCAL FAST_FORWARD FOR
         SELECT AtomId, Content FROM @AtomsToProcess;
         
@@ -169,14 +216,16 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
-
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
         PRINT 'sp_OptimizeEmbeddings ERROR: ' + @ErrorMessage;
         RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_ScoreWithModel: Real-time inference using PREDICT
 -- Uses SQL Server ML Services or ONNX runtime
@@ -192,4 +241,58 @@ BEGIN
     
     BEGIN TRY
         -- Parse input atoms
+        DECLARE @InputAtoms TABLE (AtomId BIGINT);
+        INSERT INTO @InputAtoms
+        SELECT CAST(value AS BIGINT)
+        FROM STRING_SPLIT(@InputAtomIds, ',');
         
+        -- Load model
+        DECLARE @ModelBytes VARBINARY(MAX);
+        DECLARE @ModelType NVARCHAR(50);
+        
+        SELECT 
+            @ModelBytes = SerializedModel,
+            @ModelType = ModelType
+        FROM dbo.Models
+        WHERE ModelId = @ModelId AND TenantId = @TenantId;
+        
+        IF @ModelBytes IS NULL
+        BEGIN
+            RAISERROR('Model not found or not loaded', 16, 1);
+            RETURN -1;
+        END
+        
+        -- Prepare input features
+        DECLARE @InputFeatures TABLE (
+            AtomId BIGINT,
+            EmbeddingVector VARBINARY(MAX)
+        );
+        
+        INSERT INTO @InputFeatures
+        SELECT 
+            ae.AtomId,
+            ae.EmbeddingVector
+        FROM dbo.AtomEmbeddings ae
+        INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId
+        WHERE ae.TenantId = @TenantId;
+        
+        -- Execute PREDICT (placeholder - actual syntax depends on ML Services setup)
+        -- SELECT * FROM PREDICT(MODEL = @ModelBytes, DATA = @InputFeatures);
+        
+        -- For now, return mock predictions
+        SELECT 
+            AtomId,
+            0.95 AS Score,
+            'ClassA' AS PredictedLabel
+        FROM @InputFeatures
+        FOR JSON PATH;
+        
+        RETURN 0;
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN -1;
+    END CATCH
+END;
+GO

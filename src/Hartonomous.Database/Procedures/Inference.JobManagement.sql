@@ -15,10 +15,11 @@ BEGIN
     END;
 
     -- Parse input data to extract parameters for autonomous calculations
-
-
-
-
+    DECLARE @tokenCount INT = JSON_VALUE(@inputData, '$.token_count');
+    DECLARE @requiresMultiModal BIT = JSON_VALUE(@inputData, '$.requires_multimodal');
+    DECLARE @requiresToolUse BIT = JSON_VALUE(@inputData, '$.requires_tools');
+    DECLARE @priority NVARCHAR(50) = JSON_VALUE(@inputData, '$.priority');
+    DECLARE @modelName NVARCHAR(255) = JSON_VALUE(@inputData, '$.model_name');
 
     -- Set defaults if not provided
     SET @tokenCount = ISNULL(@tokenCount, 1000);
@@ -28,13 +29,16 @@ BEGIN
     SET @modelName = ISNULL(@modelName, '');
 
     -- Calculate complexity using SQL CLR function
+    DECLARE @complexity INT = dbo.fn_CalculateComplexity(@tokenCount, @requiresMultiModal, @requiresToolUse);
 
     -- Determine SLA using SQL CLR function
+    DECLARE @sla NVARCHAR(20) = dbo.fn_DetermineSla(@priority, @complexity);
 
     -- Estimate response time using SQL CLR function
+    DECLARE @estimatedResponseTimeMs INT = dbo.fn_EstimateResponseTime(@modelName, @complexity);
 
     -- Store enriched metadata
-
+    DECLARE @metadataJson NVARCHAR(MAX) = JSON_MODIFY(
         JSON_MODIFY(
             JSON_MODIFY(
                 JSON_MODIFY(@inputData, '$.complexity', @complexity),
@@ -49,7 +53,26 @@ BEGIN
     );
 
     -- Insert inference request
-    
+    INSERT INTO dbo.InferenceRequests (
+        TaskType,
+        InputData,
+        Status,
+        CorrelationId,
+        RequestTimestamp,
+        Complexity,
+        SlaTier,
+        EstimatedResponseTimeMs
+    )
+    VALUES (
+        @taskType,
+        @metadataJson,
+        'Queued', -- Changed from 'Pending' to 'Queued'
+        @correlationId,
+        SYSUTCDATETIME(),
+        @complexity,
+        @sla,
+        @estimatedResponseTimeMs
+    );
 
     SET @inferenceId = SCOPE_IDENTITY();
 
@@ -62,7 +85,7 @@ BEGIN
         WITH ENCRYPTION = OFF;
     
     -- Construct XML message
-
+    DECLARE @MessageXml XML = (
         SELECT 
             @inferenceId AS InferenceId,
             @taskType AS TaskType,
@@ -87,6 +110,7 @@ BEGIN
         @sla AS SlaTier,
         @estimatedResponseTimeMs AS EstimatedResponseTimeMs;
 END;
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_GetInferenceJobStatus
     @inferenceId BIGINT
@@ -107,6 +131,7 @@ BEGIN
     FROM dbo.InferenceRequests
     WHERE InferenceId = @inferenceId;
 END;
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_UpdateInferenceJobStatus
     @inferenceId BIGINT,
@@ -127,3 +152,4 @@ BEGIN
         CompletionTimestamp = ISNULL(@completionTimestamp, CASE WHEN @status IN ('Completed', 'Failed') THEN SYSUTCDATETIME() ELSE CompletionTimestamp END)
     WHERE InferenceId = @inferenceId;
 END;
+GO

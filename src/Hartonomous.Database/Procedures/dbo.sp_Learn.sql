@@ -9,11 +9,13 @@ CREATE OR ALTER PROCEDURE dbo.sp_Learn
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
-
-
-
+    
+    DECLARE @ConversationHandle UNIQUEIDENTIFIER;
+    DECLARE @MessageBody XML;
+    DECLARE @MessageTypeName NVARCHAR(256);
+    DECLARE @ExecutionResultsJson NVARCHAR(MAX);
+    DECLARE @LearningOutcomes NVARCHAR(MAX);
+    
     BEGIN TRY
         -- 1. RECEIVE MESSAGE FROM ACT PHASE
         WAITFOR (
@@ -26,19 +28,23 @@ BEGIN
         
         IF @ConversationHandle IS NULL
         BEGIN
+            PRINT 'sp_Learn: No messages received';
             RETURN 0;
         END
         
         -- 2. PARSE EXECUTION RESULTS
         SET @ExecutionResultsJson = CAST(@MessageBody AS NVARCHAR(MAX));
-
-
-
-
+        
+        DECLARE @AnalysisId UNIQUEIDENTIFIER = JSON_VALUE(@ExecutionResultsJson, '$.analysisId');
+        DECLARE @ExecutedActions INT = JSON_VALUE(@ExecutionResultsJson, '$.executedActions');
+        DECLARE @QueuedActions INT = JSON_VALUE(@ExecutionResultsJson, '$.queuedActions');
+        DECLARE @FailedActions INT = JSON_VALUE(@ExecutionResultsJson, '$.failedActions');
+        
         -- 3. MEASURE PERFORMANCE DELTA
         -- Baseline metrics (from before actions)
-
-
+        DECLARE @BaselineAvgDurationMs FLOAT;
+        DECLARE @BaselineThroughput INT;
+        
         SELECT 
             @BaselineAvgDurationMs = AVG(DurationMs),
             @BaselineThroughput = COUNT(*)
@@ -47,8 +53,9 @@ BEGIN
               AND RequestedAt < DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Baseline: 24 hours ago to 5 minutes ago
         
         -- Current metrics (after actions)
-
-
+        DECLARE @CurrentAvgDurationMs FLOAT;
+        DECLARE @CurrentThroughput INT;
+        
         SELECT 
             @CurrentAvgDurationMs = AVG(DurationMs),
             @CurrentThroughput = COUNT(*)
@@ -56,19 +63,20 @@ BEGIN
         WHERE RequestedAt >= DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Recent: last 5 minutes
         
         -- Calculate deltas
-
+        DECLARE @LatencyImprovement FLOAT = 
             CASE WHEN @BaselineAvgDurationMs > 0 
                  THEN ((@BaselineAvgDurationMs - @CurrentAvgDurationMs) / @BaselineAvgDurationMs) * 100
                  ELSE 0 
             END;
-
+        
+        DECLARE @ThroughputChange FLOAT = 
             CASE WHEN @BaselineThroughput > 0 
                  THEN ((@CurrentThroughput - @BaselineThroughput) / CAST(@BaselineThroughput AS FLOAT)) * 100
                  ELSE 0 
             END;
         
         -- 4. ANALYZE ACTION OUTCOMES
-
+        DECLARE @ActionOutcomes TABLE (
             HypothesisId UNIQUEIDENTIFIER,
             HypothesisType NVARCHAR(50),
             ActionStatus NVARCHAR(50),
@@ -76,15 +84,35 @@ BEGIN
             ImpactScore FLOAT
         );
         
-        
+        INSERT INTO @ActionOutcomes
+        SELECT 
+            HypothesisId,
+            HypothesisType,
+            ActionStatus,
+            CASE 
+                WHEN ActionStatus = 'Executed' AND @LatencyImprovement > 10 THEN 'HighSuccess'
+                WHEN ActionStatus = 'Executed' AND @LatencyImprovement > 0 THEN 'Success'
+                WHEN ActionStatus = 'Executed' AND @LatencyImprovement < 0 THEN 'Regressed'
+                WHEN ActionStatus = 'Failed' THEN 'Failed'
+                ELSE 'Neutral'
+            END AS Outcome,
+            @LatencyImprovement AS ImpactScore
+        FROM OPENJSON(@ExecutionResultsJson, '$.results')
+        WITH (
+            HypothesisId UNIQUEIDENTIFIER,
+            HypothesisType NVARCHAR(50),
+            ActionStatus NVARCHAR(50)
+        );
         
         -- GÖDEL ENGINE: Check for compute job result messages first
         -- This is where we update job state and loop back to continue the computation
-
+        DECLARE @PrimeResultJobId UNIQUEIDENTIFIER = @MessageBody.value('(/Learn/PrimeResult/JobId)[1]', 'uniqueidentifier');
+        
         IF @PrimeResultJobId IS NOT NULL
         BEGIN
-
-
+            DECLARE @LastCheckedValue BIGINT = @MessageBody.value('(/Learn/PrimeResult/LastChecked)[1]', 'bigint');
+            DECLARE @ResultData NVARCHAR(MAX) = @MessageBody.value('(/Learn/PrimeResult/PrimesFound)[1]', 'nvarchar(max)');
+            
             PRINT 'sp_Learn: Processing prime search results for JobId: ' + CAST(@PrimeResultJobId AS NVARCHAR(36));
             PRINT 'sp_Learn: Last checked: ' + CAST(@LastCheckedValue AS NVARCHAR(20));
             PRINT 'sp_Learn: Primes found: ' + @ResultData;
@@ -112,11 +140,13 @@ BEGIN
             WHERE JobId = @PrimeResultJobId;
             
             -- Send message back to Analyze to continue the loop
-
+            DECLARE @AnalyzePayload XML = (
                 SELECT @PrimeResultJobId AS JobId
                 FOR XML PATH('JobRequest'), ROOT('Analysis')
             );
-
+            
+            DECLARE @ContinueHandle UNIQUEIDENTIFIER;
+            
             BEGIN DIALOG CONVERSATION @ContinueHandle
                 FROM SERVICE LearnService
                 TO SERVICE 'AnalyzeService'
@@ -129,6 +159,7 @@ BEGIN
             
             END CONVERSATION @ConversationHandle;
             
+            PRINT 'sp_Learn: Job state updated, continuing OODA loop.';
             RETURN 0;
         END
         
@@ -136,8 +167,10 @@ BEGIN
         -- 5. STORE IMPROVEMENT HISTORY
         -- (Note: AutonomousImprovementHistory table to be created in future migration)
         -- For now, just compile the learning outcomes
-
-
+        
+        DECLARE @SuccessfulActions INT = (SELECT COUNT(*) FROM @ActionOutcomes WHERE Outcome IN ('Success', 'HighSuccess'));
+        DECLARE @RegressedActions INT = (SELECT COUNT(*) FROM @ActionOutcomes WHERE Outcome = 'Regressed');
+        
         SELECT @LearningOutcomes = (
             SELECT 
                 HypothesisId,
@@ -160,10 +193,11 @@ BEGIN
         )
         BEGIN
             -- Trigger model weight updates for successful code generations
-
-
-
-
+            DECLARE @ImprovementCursor CURSOR;
+            DECLARE @ImprovementId UNIQUEIDENTIFIER;
+            DECLARE @GeneratedCode NVARCHAR(MAX);
+            DECLARE @SuccessScore DECIMAL(5,4);
+            
             SET @ImprovementCursor = CURSOR FOR
                 SELECT ImprovementId, GeneratedCode, SuccessScore
                 FROM dbo.AutonomousImprovementHistory
@@ -200,7 +234,8 @@ BEGIN
             CLOSE @ImprovementCursor;
             DEALLOCATE @ImprovementCursor;
         END
-
+        
+        DECLARE @LearningPayload NVARCHAR(MAX) = JSON_OBJECT(
             'analysisId': @AnalysisId,
             'learningCycleComplete': 1,
             'performanceMetrics': JSON_OBJECT(
@@ -221,7 +256,7 @@ BEGIN
         -- 6. DETERMINE NEXT ACTION
         -- If significant improvement, restart cycle immediately
         -- If regression, wait longer before next cycle
-
+        DECLARE @NextCycleDelayMinutes INT = 
             CASE 
                 WHEN @LatencyImprovement > 20 THEN 5  -- High success: check again soon
                 WHEN @LatencyImprovement > 0 THEN 15  -- Success: normal interval
@@ -230,16 +265,19 @@ BEGIN
             END;
         
         -- 7. RESTART OODA LOOP (send back to Analyze)
-
+        DECLARE @AnalyzeConversationHandle UNIQUEIDENTIFIER;
+        
         -- Build analysis trigger message
-
+        DECLARE @AnalyseTrigger NVARCHAR(MAX) = JSON_OBJECT(
             'triggerReason': 'LearningCycleComplete',
             'previousAnalysisId': @AnalysisId,
             'latencyImprovement': @LatencyImprovement,
             'delayMinutes': @NextCycleDelayMinutes,
             'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
         );
-
+        
+        DECLARE @AnalyzeMessageBody XML = CAST(@AnalyseTrigger AS XML);
+        
         -- Only restart if we have meaningful data
         IF @ExecutedActions > 0
         BEGIN
@@ -269,9 +307,10 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
-
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
         IF @ConversationHandle IS NOT NULL
         BEGIN
             END CONVERSATION @ConversationHandle WITH ERROR = 1 DESCRIPTION = @ErrorMessage;
@@ -282,3 +321,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO

@@ -5,18 +5,23 @@
 -- This is the "all-in-SQL, no-polling" architecture
 -- =============================================
 
+USE Hartonomous;
+GO
+
 -- Create message types for inference jobs
 IF NOT EXISTS (SELECT 1 FROM sys.service_message_types WHERE name = 'InferenceJobRequest')
 BEGIN
     CREATE MESSAGE TYPE [InferenceJobRequest]
     VALIDATION = WELL_FORMED_XML;
 END;
+GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.service_message_types WHERE name = 'InferenceJobResponse')
 BEGIN
     CREATE MESSAGE TYPE [InferenceJobResponse]
     VALIDATION = WELL_FORMED_XML;
 END;
+GO
 
 -- Create contract for inference jobs
 IF NOT EXISTS (SELECT 1 FROM sys.service_contracts WHERE name = 'InferenceJobContract')
@@ -27,6 +32,7 @@ BEGIN
         [InferenceJobResponse] SENT BY TARGET
     );
 END;
+GO
 
 -- Create queue for inference jobs
 IF NOT EXISTS (SELECT 1 FROM sys.service_queues WHERE name = 'InferenceQueue')
@@ -35,14 +41,17 @@ BEGIN
     WITH STATUS = ON,
          RETENTION = OFF;
 END;
+GO
 
 -- Create service for inference jobs
 IF EXISTS (SELECT 1 FROM sys.services WHERE name = 'InferenceService')
     DROP SERVICE [InferenceService];
+GO
 
 CREATE SERVICE [InferenceService]
 ON QUEUE [InferenceQueue]
 ([InferenceJobContract]);
+GO
 
 -- =============================================
 -- ACTIVATED PROCEDURE: Execute Inference
@@ -55,9 +64,11 @@ CREATE OR ALTER PROCEDURE dbo.sp_ExecuteInference_Activated
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
-
+    
+    DECLARE @conversation_handle UNIQUEIDENTIFIER;
+    DECLARE @message_body NVARCHAR(MAX);
+    DECLARE @message_type_name NVARCHAR(256);
+    
     -- Process messages in a loop until queue is empty
     WHILE (1=1)
     BEGIN
@@ -84,26 +95,29 @@ BEGIN
         BEGIN
             BEGIN TRY
                 -- Parse the job request XML
-
-
-
-
-
-
+                DECLARE @JobXml XML = CAST(@message_body AS XML);
+                DECLARE @InferenceId BIGINT = @JobXml.value('(/InferenceJob/InferenceId)[1]', 'BIGINT');
+                DECLARE @TaskType NVARCHAR(50) = @JobXml.value('(/InferenceJob/TaskType)[1]', 'NVARCHAR(50)');
+                DECLARE @InputData NVARCHAR(MAX) = @JobXml.value('(/InferenceJob/InputData)[1]', 'NVARCHAR(MAX)');
+                DECLARE @ModelId INT = @JobXml.value('(/InferenceJob/ModelId)[1]', 'INT');
+                DECLARE @TenantId INT = @JobXml.value('(/InferenceJob/TenantId)[1]', 'INT');
+                
                 -- Execute the inference job
-
-
-
-
+                DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+                DECLARE @OutputData NVARCHAR(MAX);
+                DECLARE @Confidence DECIMAL(5,4);
+                DECLARE @GenerationStreamId BIGINT;
+                
                 -- Call the appropriate inference procedure based on task type
                 IF @TaskType = 'text-generation'
                 BEGIN
                     -- Use attention-based generation
-
-
-
-
-
+                    DECLARE @InputAtomIds NVARCHAR(MAX) = JSON_VALUE(@InputData, '$.inputAtomIds');
+                    DECLARE @MaxTokens INT = JSON_VALUE(@InputData, '$.maxTokens');
+                    DECLARE @Temperature FLOAT = JSON_VALUE(@InputData, '$.temperature');
+                    DECLARE @TopK INT = JSON_VALUE(@InputData, '$.topK');
+                    DECLARE @TopP FLOAT = JSON_VALUE(@InputData, '$.topP');
+                    
                     SET @GenerationStreamId = dbo.fn_GenerateWithAttention(
                         @ModelId,
                         @InputAtomIds,
@@ -153,7 +167,9 @@ BEGIN
                     SET @OutputData = JSON_OBJECT('error': 'Unknown task type: ' + @TaskType);
                     SET @Confidence = 0.0;
                 END
-
+                
+                DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
+                
                 -- Update the inference request with results
                 UPDATE dbo.InferenceRequests
                 SET Status = 'Completed',
@@ -164,7 +180,7 @@ BEGIN
                 WHERE InferenceId = @InferenceId;
                 
                 -- Send response back
-
+                DECLARE @ResponseXml XML = (
                     SELECT @InferenceId AS InferenceId,
                            'Completed' AS Status,
                            @OutputData AS OutputData,
@@ -183,7 +199,8 @@ BEGIN
             END TRY
             BEGIN CATCH
                 -- Handle errors
-
+                DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+                
                 UPDATE dbo.InferenceRequests
                 SET Status = 'Failed',
                     OutputData = JSON_OBJECT('error': @ErrorMessage),
@@ -191,7 +208,7 @@ BEGIN
                 WHERE InferenceId = @InferenceId;
                 
                 -- Send error response
-
+                DECLARE @ErrorXml XML = (
                     SELECT @InferenceId AS InferenceId,
                            'Failed' AS Status,
                            @ErrorMessage AS Error
@@ -219,6 +236,7 @@ BEGIN
         COMMIT TRANSACTION;
     END
 END;
+GO
 
 -- =============================================
 -- Enable queue activation
@@ -230,3 +248,10 @@ WITH ACTIVATION (
     MAX_QUEUE_READERS = 5, -- Parallel processing with up to 5 concurrent activations
     EXECUTE AS OWNER
 );
+GO
+
+PRINT 'Service Broker inference queue activated successfully';
+PRINT 'Queue: InferenceQueue';
+PRINT 'Activation Procedure: sp_ExecuteInference_Activated';
+PRINT 'Max Concurrent Readers: 5';
+GO

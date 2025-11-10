@@ -78,11 +78,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_FindImpactedAtoms: Impact analysis for data deletion
 -- Returns all downstream atoms that would be affected
@@ -127,11 +128,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_ExportProvenance: Export lineage as JSON
 -- Compliance/audit export format
@@ -202,11 +204,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_VerifyIntegrity: Tamper detection via checksum validation
 -- Compares stored checksums with recomputed values
@@ -219,9 +222,10 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-
+        DECLARE @CorruptedCount INT = 0;
+        
         -- Create temp table for integrity check results
-
+        DECLARE @IntegrityResults TABLE (
             AtomId BIGINT,
             StoredChecksum NVARCHAR(64),
             ComputedChecksum NVARCHAR(64),
@@ -230,7 +234,19 @@ BEGIN
         );
         
         -- Check specific atom or all atoms
-        
+        INSERT INTO @IntegrityResults (AtomId, StoredChecksum, ComputedChecksum, IsCorrupted)
+        SELECT 
+            a.AtomId,
+            a.ContentHash AS StoredChecksum,
+            CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256', a.Content), 2) AS ComputedChecksum,
+            CASE 
+                WHEN a.ContentHash = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256', a.Content), 2) THEN 0
+                ELSE 1
+            END AS IsCorrupted
+        FROM dbo.Atoms a
+        WHERE a.TenantId = @TenantId
+              AND a.IsDeleted = 0
+              AND (@AtomId IS NULL OR a.AtomId = @AtomId);
         
         SET @CorruptedCount = (SELECT COUNT(*) FROM @IntegrityResults WHERE IsCorrupted = 1);
         
@@ -251,13 +267,15 @@ BEGIN
         END
         ELSE
         BEGIN
-            END
+            PRINT 'Integrity check passed: All checksums valid';
+        END
         
         RETURN @CorruptedCount;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO

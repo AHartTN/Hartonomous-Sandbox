@@ -1,4 +1,5 @@
 -- Spatial attention and generation routines for Hartonomous atoms.
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_SpatialAttention
     @QueryAtomId BIGINT,
@@ -7,6 +8,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @query_spatial GEOMETRY;
     SELECT @query_spatial = SpatialGeometry
     FROM dbo.AtomEmbeddings
     WHERE AtomId = @QueryAtomId
@@ -48,6 +50,7 @@ BEGIN
     INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
     ORDER BY fn.SpatialDistance ASC;
 END;
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_SpatialNextToken
     @context_atom_ids NVARCHAR(MAX),
@@ -57,6 +60,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @context_centroid GEOMETRY;
+    DECLARE @atom_count INT;
 
     SELECT
         @context_centroid = ContextCentroid,
@@ -69,8 +74,10 @@ BEGIN
         RETURN;
     END;
 
+    DECLARE @resolved_top_k INT = CASE WHEN @top_k IS NULL OR @top_k <= 0 THEN 3 ELSE @top_k END;
+    DECLARE @candidate_pool INT = @resolved_top_k * 4;
 
-
+    DECLARE @candidates TABLE
     (
         AtomId BIGINT,
         AtomText NVARCHAR(100),
@@ -79,17 +86,32 @@ BEGIN
         ProbabilityScore FLOAT
     );
 
-    
+    INSERT INTO @candidates (AtomId, AtomText, SpatialDistance, Logit, ProbabilityScore)
+    SELECT TOP (@resolved_top_k)
+        ae.AtomId,
+    CAST(a.CanonicalText AS NVARCHAR(100)) AS AtomText,
+        nn.SpatialDistance,
+        -1.0 * nn.SpatialDistance AS Logit,
+        0.0
+    FROM dbo.fn_SpatialKNN(@context_centroid, @candidate_pool, N'AtomEmbeddings') AS nn
+    INNER JOIN dbo.AtomEmbeddings ae ON ae.AtomEmbeddingId = nn.AtomEmbeddingId
+    INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
+    WHERE ae.AtomId NOT IN (SELECT CAST(value AS BIGINT) FROM STRING_SPLIT(@context_atom_ids, ','))
+    ORDER BY nn.SpatialDistance ASC;
 
     IF NOT EXISTS (SELECT 1 FROM @candidates)
     BEGIN
         RETURN;
     END;
 
+    DECLARE @maxLogit FLOAT = (SELECT MAX(Logit) FROM @candidates);
+    DECLARE @temperatureSafe FLOAT = CASE WHEN @temperature IS NULL OR @temperature <= 0 THEN 1.0 ELSE @temperature END;
 
     UPDATE c
     SET ProbabilityScore = dbo.fn_SoftmaxTemperature(Logit, @maxLogit, @temperatureSafe)
     FROM @candidates AS c;
+
+    DECLARE @totalWeight FLOAT = (SELECT SUM(ProbabilityScore) FROM @candidates);
 
     SELECT
         AtomId AS TokenId,
@@ -102,6 +124,7 @@ BEGIN
     FROM @candidates
     ORDER BY ProbabilityScore DESC, SpatialDistance ASC;
 END;
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_GenerateTextSpatial
     @prompt NVARCHAR(MAX),
@@ -111,12 +134,19 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @context TABLE (AtomId BIGINT PRIMARY KEY, AtomText NVARCHAR(100));
+    DECLARE @generated_text NVARCHAR(MAX) = @prompt;
+    DECLARE @iteration INT = 0;
+    DECLARE @context_ids NVARCHAR(MAX);
+    DECLARE @NextAtomId BIGINT;
+    DECLARE @NextAtomText NVARCHAR(100);
 
-
-
-
-
-    
+    INSERT INTO @context (AtomId, AtomText)
+    SELECT a.AtomId, CAST(a.CanonicalText AS NVARCHAR(100))
+    FROM dbo.Atoms a
+    WHERE CAST(a.CanonicalText AS NVARCHAR(100)) IN (
+        SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@prompt, ' ')
+    );
 
     WHILE @iteration < @max_tokens
     BEGIN
@@ -128,7 +158,13 @@ BEGIN
             BREAK;
         END;
 
-        
+        DECLARE @next TABLE (TokenId BIGINT, TokenText NVARCHAR(100), SpatialDistance FLOAT, ProbabilityScore FLOAT);
+
+        INSERT INTO @next
+        EXEC dbo.sp_SpatialNextToken
+            @context_atom_ids = @context_ids,
+            @temperature = @temperature,
+            @top_k = 1;
 
         SELECT TOP 1
             @NextAtomId = TokenId,
@@ -141,7 +177,7 @@ BEGIN
             BREAK;
         END;
 
-        
+        INSERT INTO @context (AtomId, AtomText) VALUES (@NextAtomId, @NextAtomText);
         SET @generated_text = @generated_text + N' ' + @NextAtomText;
         SET @iteration = @iteration + 1;
     END;
@@ -152,3 +188,4 @@ BEGIN
         @iteration AS TokensGenerated,
         'SPATIAL_GEOMETRY_R_TREE' AS Method;
 END;
+GO

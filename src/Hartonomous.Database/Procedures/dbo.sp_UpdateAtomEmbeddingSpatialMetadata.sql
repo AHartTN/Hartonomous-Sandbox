@@ -4,7 +4,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
+    DECLARE @NoZBucket INT = -2147483648;
+    DECLARE
+        @bucketX INT,
         @bucketY INT,
         @bucketZ INT,
         @hasSpatial BIT,
@@ -100,3 +102,4 @@ BEGIN
          AND target.HasZ = @hasZ
         THEN DELETE;
 END;
+GO

@@ -10,17 +10,20 @@ CREATE OR ALTER PROCEDURE dbo.sp_Analyze
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
-
-
-
+    
+    DECLARE @AnalysisId UNIQUEIDENTIFIER = NEWID();
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @Observations NVARCHAR(MAX);
+    DECLARE @Anomalies NVARCHAR(MAX);
+    DECLARE @Patterns NVARCHAR(MAX);
+    
     BEGIN TRY
         -- GÖDEL ENGINE: Check for autonomous compute job messages (bypass performance analysis)
         -- This allows the OODA loop to process abstract computational tasks (prime search, proofs, etc.)
-
-
-
+        DECLARE @ConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @MessageBody XML;
+        DECLARE @MessageTypeName NVARCHAR(256);
+        
         -- Try to receive a message (non-blocking check)
         RECEIVE TOP(1)
             @ConversationHandle = conversation_handle,
@@ -31,16 +34,20 @@ BEGIN
         -- If we received a compute job request, route it directly to Hypothesize
         IF @MessageBody IS NOT NULL
         BEGIN
-
+            DECLARE @JobId UNIQUEIDENTIFIER = @MessageBody.value('(/JobRequest/JobId)[1]', 'uniqueidentifier');
+            
             IF @JobId IS NOT NULL
             BEGIN
                 -- This is a compute job request, not a performance analysis trigger
                 PRINT 'sp_Analyze: Detected compute job request for JobId: ' + CAST(@JobId AS NVARCHAR(36));
-
+                
+                DECLARE @HypothesisPayload XML = (
                     SELECT @JobId AS JobId 
                     FOR XML PATH('ComputeJob'), ROOT('Hypothesis')
                 );
-
+                
+                DECLARE @HypothesizeHandle UNIQUEIDENTIFIER;
+                
                 BEGIN DIALOG CONVERSATION @HypothesizeHandle
                     FROM SERVICE AnalyzeService
                     TO SERVICE 'HypothesizeService'
@@ -53,6 +60,7 @@ BEGIN
                 
                 END CONVERSATION @ConversationHandle;
                 
+                PRINT 'sp_Analyze: Compute job routed to Hypothesize phase.';
                 RETURN 0;
             END
         END
@@ -60,7 +68,7 @@ BEGIN
         
         -- REGULAR OODA LOOP: Continue with standard performance analysis
         -- 1. QUERY RECENT INFERENCE ACTIVITY WITH EMBEDDINGS
-
+        DECLARE @RecentInferences TABLE (
             InferenceRequestId BIGINT,
             ModelId INT,
             RequestedAt DATETIME2,
@@ -70,26 +78,54 @@ BEGIN
             PerformanceVector VECTOR(1998)
         );
         
-        
+        INSERT INTO @RecentInferences
+        SELECT TOP 1000
+            ir.InferenceId AS InferenceRequestId,
+            CAST(JSON_VALUE(ir.ModelsUsed, '$[0].ModelId') AS INT) AS ModelId,
+            ir.RequestTimestamp AS RequestedAt,
+            DATEADD(MILLISECOND, ISNULL(ir.TotalDurationMs, 0), ir.RequestTimestamp) AS CompletedAt,
+            ISNULL(ir.TotalDurationMs, 0) AS DurationMs,
+            -- Estimate token count: ~4 chars per token for English text
+            (LEN(ISNULL(ir.InputData, '')) + LEN(ISNULL(ir.OutputData, ''))) / 4 AS TokenCount,
+            -- Create performance vector for anomaly detection
+            -- [duration_normalized, tokens_normalized, hour_of_day, day_of_week, ...]
+            CAST(NULL AS VECTOR(1998)) -- Placeholder, would compute actual vector
+        FROM dbo.InferenceRequests ir
+        WHERE ir.RequestTimestamp >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
+            AND ir.Status IN ('Completed', 'Failed')
+        ORDER BY ir.RequestTimestamp DESC;
         
         -- 2. PARADIGM-COMPLIANT: DETECT PERFORMANCE ANOMALIES USING ISOLATION FOREST
         -- Replace simple AVG() comparison with advanced CLR aggregate
-
-
-
+        DECLARE @AvgDurationMs FLOAT;
+        DECLARE @IsolationForestScores NVARCHAR(MAX);
+        DECLARE @LOFScores NVARCHAR(MAX);
+        
         SELECT @AvgDurationMs = AVG(CAST(DurationMs AS FLOAT))
         FROM @RecentInferences
         WHERE DurationMs > 0;
         
         -- Build performance metrics as JSON vectors for anomaly detection
-
+        DECLARE @PerformanceMetrics TABLE (
             InferenceRequestId BIGINT,
             ModelId INT,
             DurationMs INT,
             MetricVector NVARCHAR(MAX) -- JSON array of normalized metrics
         );
         
-        
+        INSERT INTO @PerformanceMetrics
+        SELECT 
+            InferenceRequestId,
+            ModelId,
+            DurationMs,
+            -- Create metric vector: [duration_norm, tokens_norm, time_features...]
+            '[' + 
+            CAST((DurationMs / NULLIF(@AvgDurationMs, 0)) AS NVARCHAR(20)) + ',' +
+            CAST((TokenCount / 1000.0) AS NVARCHAR(20)) + ',' +
+            CAST(DATEPART(HOUR, RequestedAt) / 24.0 AS NVARCHAR(20)) + ',' +
+            CAST(DATEPART(WEEKDAY, RequestedAt) / 7.0 AS NVARCHAR(20)) +
+            ']' AS MetricVector
+        FROM @RecentInferences;
         
         -- PARADIGM-COMPLIANT: Use IsolationForestScore aggregate instead of simple threshold
         SELECT @IsolationForestScores = dbo.IsolationForestScore(
@@ -106,7 +142,8 @@ BEGIN
         FROM @PerformanceMetrics;
         
         -- Parse scores and identify anomalies (scores > 0.7 for IsolationForest, > 1.5 for LOF)
-
+        DECLARE @IsolationThreshold FLOAT = 0.7;
+        DECLARE @LOFThreshold FLOAT = 1.5;
 
         WITH IsolationScores AS (
             SELECT
@@ -173,7 +210,8 @@ BEGIN
         );
         
         -- 3. QUERY STORE: CHECK FOR QUERY REGRESSION RECOMMENDATIONS
-
+        DECLARE @QueryStoreRecommendations NVARCHAR(MAX);
+        
         SELECT @QueryStoreRecommendations = (
             SELECT 
                 reason AS RecommendationType,
@@ -219,8 +257,9 @@ BEGIN
         );
         
         -- 5. SEND TO HYPOTHESIZE QUEUE
-
-
+        DECLARE @AnalyzeConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @AnalyzeMessageBody XML = CAST(@Observations AS XML);
+        
         BEGIN DIALOG CONVERSATION @AnalyzeConversationHandle
             FROM SERVICE AnalyzeService
             TO SERVICE 'HypothesizeService'
@@ -240,11 +279,13 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
-
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
         PRINT 'sp_Analyze ERROR: ' + @ErrorMessage;
         RAISERROR(@ErrorMessage, @ErrorSeverity, @ErrorState);
         RETURN -1;
     END CATCH
 END;
+GO

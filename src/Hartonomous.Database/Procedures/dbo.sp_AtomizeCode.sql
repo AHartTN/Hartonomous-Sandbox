@@ -1,8 +1,12 @@
 -- sp_AtomizeCode: AST-as-GEOMETRY pipeline for source code ingestion
 -- Parses source code using Roslyn, generates structural vector, projects to GEOMETRY, stores in CodeAtom table
 
+USE Hartonomous;
+GO
+
 IF OBJECT_ID('dbo.sp_AtomizeCode', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_AtomizeCode;
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_AtomizeCode
     @AtomId BIGINT,
@@ -18,8 +22,9 @@ BEGIN
         -- ==========================================================================================
         -- Phase 1: Retrieve source code from Atom
         -- ==========================================================================================
-
-
+        DECLARE @SourceCode NVARCHAR(MAX);
+        DECLARE @ContentType NVARCHAR(100);
+        
         SELECT 
             @SourceCode = CAST(Content AS NVARCHAR(MAX)),
             @ContentType = ContentType
@@ -35,12 +40,12 @@ BEGIN
         -- ==========================================================================================
         -- Phase 2: Generate AST structural vector using Roslyn CLR function
         -- ==========================================================================================
-
+        DECLARE @AstVectorJson NVARCHAR(MAX);
         SET @AstVectorJson = dbo.clr_GenerateCodeAstVector(@SourceCode);
 
         IF @AstVectorJson IS NULL OR JSON_VALUE(@AstVectorJson, '$.error') IS NOT NULL
         BEGIN
-
+            DECLARE @parseError NVARCHAR(MAX) = ISNULL(JSON_VALUE(@AstVectorJson, '$.error'), 'AST parsing returned null.');
             RAISERROR('Failed to generate AST vector: %s', 16, 1, @parseError);
             RETURN;
         END
@@ -48,22 +53,24 @@ BEGIN
         -- ==========================================================================================
         -- Phase 3: Project 512-dimensional AST vector to 3D GEOMETRY using landmark projection
         -- ==========================================================================================
-
+        DECLARE @ProjectedPoint NVARCHAR(MAX);
         SET @ProjectedPoint = dbo.clr_ProjectToPoint(@AstVectorJson);
 
         IF @ProjectedPoint IS NULL OR JSON_VALUE(@ProjectedPoint, '$.error') IS NOT NULL
         BEGIN
-
+            DECLARE @projectionError NVARCHAR(MAX) = ISNULL(JSON_VALUE(@ProjectedPoint, '$.error'), 'Projection returned null.');
             RAISERROR('Failed to project AST vector to 3D: %s', 16, 1, @projectionError);
             RETURN;
         END
 
-
+        DECLARE @X FLOAT = CAST(JSON_VALUE(@ProjectedPoint, '$.X') AS FLOAT);
+        DECLARE @Y FLOAT = CAST(JSON_VALUE(@ProjectedPoint, '$.Y') AS FLOAT);
+        DECLARE @Z FLOAT = CAST(JSON_VALUE(@ProjectedPoint, '$.Z') AS FLOAT);
 
         -- ==========================================================================================
         -- Phase 4: Store AST representation in CodeAtom table
         -- ==========================================================================================
-
+        DECLARE @EmbeddingGeometry GEOMETRY;
         SET @EmbeddingGeometry = geometry::STPointFromText(
             'POINT(' + CAST(@X AS NVARCHAR(50)) + ' ' + CAST(@Y AS NVARCHAR(50)) + ' ' + CAST(@Z AS NVARCHAR(50)) + ')',
             4326
@@ -87,7 +94,22 @@ BEGIN
         ELSE
         BEGIN
             -- Insert new CodeAtom
-            
+            INSERT INTO dbo.CodeAtom (
+                AtomId,
+                Embedding,
+                AstVector,
+                Language,
+                CreatedAt,
+                UpdatedAt
+            )
+            VALUES (
+                @AtomId,
+                @EmbeddingGeometry,
+                @AstVectorJson,
+                @Language,
+                GETUTCDATE(),
+                GETUTCDATE()
+            );
 
             IF @Debug = 1
                 PRINT 'Created CodeAtom for AtomId ' + CAST(@AtomId AS NVARCHAR(20));
@@ -106,3 +128,7 @@ BEGIN
         THROW;
     END CATCH;
 END;
+GO
+
+PRINT 'Successfully created procedure dbo.sp_AtomizeCode.';
+GO

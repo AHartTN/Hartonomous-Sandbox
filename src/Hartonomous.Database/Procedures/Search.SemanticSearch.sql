@@ -1,4 +1,5 @@
 -- Hybrid spatial + vector semantic search pipeline.
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_SemanticSearch
     @query_text NVARCHAR(MAX) = NULL,
@@ -11,7 +12,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @InferenceId BIGINT;
+    DECLARE @ResultCount INT = 0;
 
     IF @query_embedding IS NULL
     BEGIN
@@ -25,19 +28,37 @@ BEGIN
         RETURN;
     END;
 
+    DECLARE @input_data JSON = CASE
         WHEN @query_text IS NULL THEN NULL
         ELSE CAST(JSON_OBJECT('queryText': @query_text) AS JSON)
     END;
 
+    DECLARE @input_hash BINARY(32) = CASE
         WHEN @query_text IS NULL THEN NULL
         ELSE HASHBYTES('SHA2_256', CONVERT(VARBINARY(MAX), @query_text))
     END;
 
+    DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
+    DECLARE @models_used_json JSON = CAST(JSON_OBJECT('searchMethod': @search_method) AS JSON);
 
-    
+    INSERT INTO dbo.InferenceRequests (
+        TaskType,
+        InputData,
+        InputHash,
+        ModelsUsed,
+        EnsembleStrategy
+    )
+    VALUES (
+        'semantic_search',
+        @input_data,
+        @input_hash,
+        @models_used_json,
+        'spatial_filter_vector_rerank'
+    );
 
     SET @InferenceId = SCOPE_IDENTITY();
 
+    DECLARE @Results TABLE
     (
         AtomEmbeddingId BIGINT NOT NULL,
         AtomId BIGINT NOT NULL,
@@ -56,9 +77,10 @@ BEGIN
 
     IF @use_hybrid = 1
     BEGIN
-
-
-
+        DECLARE @spatial_x FLOAT = 0.0;
+        DECLARE @spatial_y FLOAT = 0.0;
+        DECLARE @spatial_z FLOAT = 0.0;
+        DECLARE @spatial_candidates INT = CASE WHEN @top_k IS NULL OR @top_k <= 0 THEN 10 ELSE @top_k * 10 END;
 
         EXEC dbo.sp_ComputeSpatialProjection
             @input_vector = @query_embedding,
@@ -67,6 +89,7 @@ BEGIN
             @output_y = @spatial_y OUTPUT,
             @output_z = @spatial_z OUTPUT;
 
+        DECLARE @Hybrid TABLE
         (
             AtomEmbeddingId BIGINT,
             AtomId BIGINT,
@@ -80,17 +103,96 @@ BEGIN
             spatial_distance FLOAT
         );
 
-        
+        INSERT INTO @Hybrid
+        EXEC dbo.sp_HybridSearch
+            @query_vector = @query_embedding,
+            @query_dimension = @query_dimension,
+            @query_spatial_x = @spatial_x,
+            @query_spatial_y = @spatial_y,
+            @query_spatial_z = @spatial_z,
+            @spatial_candidates = @spatial_candidates,
+            @final_top_k = @top_k;
 
-        
+        INSERT INTO @Results
+        (
+            AtomEmbeddingId,
+            AtomId,
+            Modality,
+            Subtype,
+            SourceType,
+            SourceUri,
+            CanonicalText,
+            EmbeddingType,
+            ModelId,
+            ExactDistance,
+            SimilarityScore,
+            SpatialDistance,
+            SearchMethod
+        )
+        SELECT
+            h.AtomEmbeddingId,
+            h.AtomId,
+            h.Modality,
+            h.Subtype,
+            h.SourceType,
+            h.SourceUri,
+            a.CanonicalText,
+            h.EmbeddingType,
+            h.ModelId,
+            h.exact_distance,
+            CASE WHEN h.exact_distance IS NULL THEN NULL ELSE 1.0 - h.exact_distance END,
+            h.spatial_distance,
+            'HYBRID_SPATIAL_VECTOR'
+        FROM @Hybrid AS h
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = h.AtomId
+        WHERE @category IS NULL
+           OR a.SourceType = @category
+           OR a.Subtype = @category;
     END
     ELSE
     BEGIN
-        
+        INSERT INTO @Results
+        (
+            AtomEmbeddingId,
+            AtomId,
+            Modality,
+            Subtype,
+            SourceType,
+            SourceUri,
+            CanonicalText,
+            EmbeddingType,
+            ModelId,
+            ExactDistance,
+            SimilarityScore,
+            SpatialDistance,
+            SearchMethod
+        )
+        SELECT TOP (@top_k)
+            ae.AtomEmbeddingId,
+            ae.AtomId,
+            a.Modality,
+            a.Subtype,
+            a.SourceType,
+            a.SourceUri,
+            a.CanonicalText,
+            ae.EmbeddingType,
+            ae.ModelId,
+            VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS distance,
+            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS similarity,
+            NULL,
+            'VECTOR_ONLY'
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE ae.EmbeddingVector IS NOT NULL
+          AND ae.Dimension = @query_dimension
+          AND (@category IS NULL OR a.SourceType = @category OR a.Subtype = @category)
+        ORDER BY distance ASC;
     END;
 
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
     SET @ResultCount = (SELECT COUNT(*) FROM @Results);
 
+    DECLARE @OutputMetadata JSON = CAST(JSON_OBJECT(
         'status': 'completed',
         'results_count': @ResultCount,
         'search_method': @search_method,
@@ -124,3 +226,8 @@ BEGIN
 
     SELECT @InferenceId AS InferenceId, @DurationMs AS DurationMs, @ResultCount AS ResultsCount;
 END;
+GO
+
+PRINT 'Hartonomous semantic search procedure with spatial optimization implemented.';
+PRINT 'Novel approach: Spatial O(log n) filter + Vector exact rerank';
+GO

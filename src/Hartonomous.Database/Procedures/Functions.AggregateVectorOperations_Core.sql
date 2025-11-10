@@ -22,22 +22,27 @@ IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'SelfConsisten
     DROP AGGREGATE dbo.SelfConsistency;
 IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'ChainOfThoughtCoherence')
     DROP AGGREGATE dbo.ChainOfThoughtCoherence;
+GO
 
 CREATE AGGREGATE dbo.TreeOfThought(@hypothesis NVARCHAR(MAX), @score FLOAT)
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.TreeOfThought];
+GO
 
 CREATE AGGREGATE dbo.ReflexionAggregate(@trajectory NVARCHAR(MAX), @feedback NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ReflexionAggregate];
+GO
 
 CREATE AGGREGATE dbo.SelfConsistency(@reasoning NVARCHAR(MAX))
 RETURNS NVARCHAR(MAX)
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.SelfConsistency];
+GO
 
 CREATE AGGREGATE dbo.ChainOfThoughtCoherence(@step NVARCHAR(MAX), @stepNumber INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.ChainOfThoughtCoherence];
+GO
 
 -- =============================================
 -- ANOMALY DETECTION AGGREGATES (CRITICAL)
@@ -51,26 +56,33 @@ IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'DBSCANCluster
     DROP AGGREGATE dbo.DBSCANCluster;
 IF EXISTS (SELECT * FROM sys.objects WHERE type = 'AF' AND name = 'MahalanobisDistance')
     DROP AGGREGATE dbo.MahalanobisDistance;
+GO
 
 CREATE AGGREGATE dbo.IsolationForestScore(@vector NVARCHAR(MAX), @numTrees INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.IsolationForestScore];
+GO
 
 CREATE AGGREGATE dbo.LocalOutlierFactor(@vector NVARCHAR(MAX), @k INT)
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.LocalOutlierFactor];
+GO
 
 CREATE AGGREGATE dbo.DBSCANCluster(@vector NVARCHAR(MAX), @eps FLOAT, @minPts INT)
 RETURNS INT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.DBSCANCluster];
+GO
 
 CREATE AGGREGATE dbo.MahalanobisDistance(@vector NVARCHAR(MAX))
 RETURNS FLOAT
 EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.MahalanobisDistance];
+GO
 
 -- =============================================
 -- VERIFICATION
 -- =============================================
+
+PRINT '=== Core CLR Aggregates Deployed ===';
 
 SELECT
     OBJECT_NAME(object_id) AS AggregateName,
@@ -89,7 +101,9 @@ WHERE type = 'AF'
     'MahalanobisDistance'
   )
 ORDER BY name;
+GO
 
+PRINT 'Expected: 8 core aggregates';
 SELECT COUNT(*) AS CoreAggregatesCreated
 FROM sys.objects
 WHERE type = 'AF'
@@ -103,3 +117,4 @@ WHERE type = 'AF'
     'DBSCANCluster',
     'MahalanobisDistance'
   );
+GO

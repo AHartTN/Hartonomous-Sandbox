@@ -33,6 +33,7 @@ RETURN
     INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
     WHERE @dimension IS NULL OR ae.Dimension = @dimension
 );
+GO
 
 -- ==========================================
 -- Scalar Function: Vector Cosine Similarity
@@ -50,6 +51,7 @@ BEGIN
 
     RETURN 1.0 - VECTOR_DISTANCE('cosine', @vec1, @vec2);
 END;
+GO
 
 -- ==========================================
 -- Scalar Function: Create Spatial Point WKT
@@ -63,6 +65,7 @@ CREATE OR ALTER FUNCTION dbo.fn_CreateSpatialPoint(
 RETURNS GEOMETRY
 AS
 BEGIN
+    DECLARE @result GEOMETRY;
 
     IF @z IS NULL
         SET @result = geometry::STGeomFromText('POINT(' + CAST(@x AS NVARCHAR(50)) + ' ' + CAST(@y AS NVARCHAR(50)) + ')', 0);
@@ -71,6 +74,7 @@ BEGIN
 
     RETURN @result;
 END;
+GO
 
 -- ==========================================
 -- Table-Valued Function: Get Context Centroid
@@ -92,6 +96,7 @@ RETURN
     WHERE ae.AtomId IN (SELECT CAST(value AS BIGINT) FROM STRING_SPLIT(@atom_ids, ','))
       AND ae.SpatialGeometry IS NOT NULL
 );
+GO
 
 -- ==========================================
 -- Scalar Function: Normalize JSON for hashing
@@ -104,6 +109,8 @@ BEGIN
     IF @json IS NULL OR ISJSON(@json) = 0
         RETURN @json;
 
+    DECLARE @normalized NVARCHAR(MAX);
+
     SELECT @normalized = (
         SELECT [key], value
         FROM OPENJSON(@json)
@@ -113,6 +120,7 @@ BEGIN
 
     RETURN @normalized;
 END;
+GO
 
 -- ==========================================
 -- Table-Valued Function: Spatial Nearest Neighbors
@@ -138,6 +146,7 @@ RETURN
       AND ae.SpatialGeometry.STDistance(@query_point) IS NOT NULL
     ORDER BY ae.SpatialGeometry.STDistance(@query_point) ASC
 );
+GO
 
 -- ==========================================
 -- Scalar Function: Softmax Temperature Scaling
@@ -152,6 +161,22 @@ AS
 BEGIN
     RETURN EXP((@logit - @max_logit) / @temperature);
 END;
+GO
+
+PRINT '============================================================';
+PRINT 'COMMON HELPER FUNCTIONS CREATED';
+PRINT '============================================================';
+PRINT '✓ fn_GetAtomEmbeddingsWithAtoms - Eliminates JOIN duplication';
+PRINT '✓ fn_VectorCosineSimilarity - Wraps VECTOR_DISTANCE';
+PRINT '✓ fn_CreateSpatialPoint - Standardizes POINT WKT construction';
+PRINT '✓ fn_GetContextCentroid - Computes spatial centroid from atom IDs';
+PRINT '✓ fn_NormalizeJSON - JSON key ordering for hashing';
+PRINT '✓ fn_SpatialKNN - Generic k-NN spatial search';
+PRINT '✓ fn_SoftmaxTemperature - Numerically stable softmax scaling';
+PRINT '✓ fn_SelectModelsForTask - Centralized model selection & weighting';
+PRINT '✓ fn_EnsembleAtomScores - Shared ensemble candidate scoring';
+PRINT '============================================================';
+GO
 
 -- ==========================================
 -- Table-Valued Function: Select Models For Task/Modality
@@ -173,13 +198,22 @@ RETURNS @models TABLE
 )
 AS
 BEGIN
-
-
-
+    DECLARE @trimmedIds NVARCHAR(MAX) = NULLIF(LTRIM(RTRIM(@model_ids)), '');
+    DECLARE @normalizedTask NVARCHAR(50) = NULLIF(LTRIM(RTRIM(@task_type)), '');
+    DECLARE @normalizedModality NVARCHAR(50) = NULL;
+    DECLARE @explicit BIT = 0;
 
     IF @trimmedIds IS NOT NULL
     BEGIN
-        
+        INSERT INTO @models (ModelId, Weight, ModelName)
+        SELECT DISTINCT
+            m.ModelId,
+            1.0,
+            m.ModelName
+        FROM STRING_SPLIT(@trimmedIds, ',') vals
+        CROSS APPLY (SELECT TRY_CAST(LTRIM(RTRIM(vals.value)) AS INT) AS ParsedId) parsed
+        INNER JOIN dbo.Models m ON m.ModelId = parsed.ParsedId
+        WHERE parsed.ParsedId IS NOT NULL;
 
         IF EXISTS (SELECT 1 FROM @models)
         BEGIN
@@ -187,7 +221,11 @@ BEGIN
         END;
     END;
 
-    
+    DECLARE @modalities TABLE (Modality NVARCHAR(100) PRIMARY KEY);
+    INSERT INTO @modalities (Modality)
+    SELECT DISTINCT NULLIF(LTRIM(RTRIM(value)), '')
+    FROM STRING_SPLIT(COALESCE(@required_modalities, ''), ',')
+    WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL;
 
     IF EXISTS (SELECT 1 FROM @modalities)
     BEGIN
@@ -196,14 +234,55 @@ BEGIN
 
     IF @explicit = 0
     BEGIN
+        DECLARE @additionalTypes TABLE (ModelType NVARCHAR(100) PRIMARY KEY);
+        INSERT INTO @additionalTypes (ModelType)
+        SELECT DISTINCT NULLIF(LTRIM(RTRIM(value)), '')
+        FROM STRING_SPLIT(COALESCE(@additional_model_types, ''), ',')
+        WHERE NULLIF(LTRIM(RTRIM(value)), '') IS NOT NULL;
 
-        
-
-        
+        INSERT INTO @models (ModelId, Weight, ModelName)
+        SELECT DISTINCT
+            m.ModelId,
+            COALESCE(
+                CASE
+                    WHEN @normalizedTask IS NOT NULL
+                        THEN TRY_CAST(JSON_VALUE(m.Config, CONCAT('$.weights.', @normalizedTask)) AS FLOAT)
+                    ELSE NULL
+                END,
+                1.0
+            ) AS Weight,
+            m.ModelName
+        FROM dbo.Models m
+        LEFT JOIN dbo.ModelMetadata md ON md.ModelId = m.ModelId
+        LEFT JOIN @additionalTypes at ON at.ModelType = m.ModelType
+        WHERE
+            m.ModelType IN ('multimodal', 'general')
+            OR (@normalizedTask IS NOT NULL AND m.ModelType = @normalizedTask)
+            OR at.ModelType IS NOT NULL
+            OR (
+                @normalizedTask IS NOT NULL
+                AND md.SupportedTasks IS NOT NULL
+                AND ISJSON(md.SupportedTasks) = 1
+                AND EXISTS (
+                    SELECT 1 FROM OPENJSON(md.SupportedTasks) WHERE value = @normalizedTask
+                )
+            )
+            OR (
+                EXISTS (SELECT 1 FROM @modalities)
+                AND md.SupportedModalities IS NOT NULL
+                AND ISJSON(md.SupportedModalities) = 1
+                AND EXISTS (
+                    SELECT 1
+                    FROM OPENJSON(md.SupportedModalities)
+                    WHERE value IN (SELECT Modality FROM @modalities)
+                )
+            );
     END;
 
     IF NOT EXISTS (SELECT 1 FROM @models)
         RETURN;
+
+    DECLARE @weights NVARCHAR(MAX) = NULLIF(@weights_json, 'null');
 
     IF @weights IS NOT NULL AND ISJSON(@weights) = 1
     BEGIN
@@ -220,6 +299,8 @@ BEGIN
         INNER JOIN WeightOverrides w ON w.ModelId = m.ModelId;
     END;
 
+    DECLARE @total FLOAT = (SELECT SUM(Weight) FROM @models);
+
     IF @total IS NULL OR @total = 0
     BEGIN
         UPDATE @models SET Weight = 1.0;
@@ -230,6 +311,7 @@ BEGIN
 
     RETURN;
 END;
+GO
 
 -- ==========================================
 -- Table-Valued Function: Ensemble Atom Scores
@@ -299,3 +381,4 @@ RETURN
     FROM RankedCandidates
     WHERE RankWithinModel <= CASE WHEN @top_per_model IS NULL OR @top_per_model <= 0 THEN 10 ELSE @top_per_model END
 );
+GO

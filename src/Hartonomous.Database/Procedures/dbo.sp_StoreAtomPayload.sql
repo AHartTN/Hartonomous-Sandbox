@@ -14,8 +14,9 @@ BEGIN
     SET NOCOUNT ON;
     
     -- Calculate content hash for deduplication
-
-
+    DECLARE @ContentHash BINARY(32) = HASHBYTES('SHA2_256', @PayloadData);
+    DECLARE @SizeBytes BIGINT = DATALENGTH(@PayloadData);
+    
     -- Check if identical payload already exists (deduplication)
     SELECT TOP 1 
         @RowGuid = RowGuid,
@@ -30,7 +31,22 @@ BEGIN
     END
     
     -- Insert new payload
-    
+    INSERT INTO dbo.AtomPayloadStore (
+        AtomId,
+        ContentType,
+        ContentHash,
+        SizeBytes,
+        PayloadData,
+        CreatedBy
+    )
+    VALUES (
+        @AtomId,
+        @ContentType,
+        @ContentHash,
+        @SizeBytes,
+        @PayloadData,
+        @CreatedBy
+    );
     
     -- Return RowGuid and PayloadId
     SELECT 
@@ -41,3 +57,4 @@ BEGIN
     
     RETURN 0;
 END;
+GO

@@ -1,4 +1,5 @@
 -- Video generation pipeline combining retrieval and synthetic keyframe expansion.
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_GenerateVideo
     @prompt NVARCHAR(MAX),
@@ -19,27 +20,44 @@ BEGIN
     IF @targetFps IS NULL OR @targetFps <= 0
         SET @targetFps = 24;
 
-
+    DECLARE @promptEmbedding VECTOR(1998);
+    DECLARE @embeddingDim INT;
     EXEC dbo.sp_TextToEmbedding @text = @prompt, @ModelName = NULL, @embedding = @promptEmbedding OUTPUT, @dimension = @embeddingDim OUTPUT;
 
-    
+    DECLARE @models TABLE (ModelId INT PRIMARY KEY, Weight FLOAT NOT NULL, ModelName NVARCHAR(200));
+
+    INSERT INTO @models (ModelId, Weight, ModelName)
+    SELECT ModelId, Weight, ModelName
+    FROM dbo.fn_SelectModelsForTask('video_generation', @ModelIds, NULL, 'video,vision', 'video_generation');
 
     IF NOT EXISTS (SELECT 1 FROM @models)
         THROW 50121, 'No video-capable models are configured for generation.', 1;
 
+    DECLARE @modelsJson NVARCHAR(MAX) = (
         SELECT ModelId, Weight, ModelName FROM @models FOR JSON PATH
     );
 
+    DECLARE @requestJson NVARCHAR(MAX) = JSON_OBJECT(
         'prompt': @prompt,
         'targetDurationMs': @targetDurationMs,
         'targetFps': @targetFps,
         'top_k': @top_k
     );
 
-    
+    DECLARE @inferenceId BIGINT;
+    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    VALUES (
+        'video_generation',
+        TRY_CAST(@requestJson AS JSON),
+        TRY_CAST(@modelsJson AS JSON),
+        'temporal_recombination',
+        JSON_OBJECT('status': 'running')
+    );
     SET @inferenceId = SCOPE_IDENTITY();
 
+    DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
+    DECLARE @videoCandidates TABLE (
         VideoId BIGINT,
         SourcePath NVARCHAR(500),
         DurationMs BIGINT,
@@ -65,10 +83,24 @@ BEGIN
             FROM dbo.Videos vid
             WHERE vid.GlobalEmbedding IS NOT NULL
         )
-        
+        INSERT INTO @videoCandidates (VideoId, SourcePath, DurationMs, Fps, Width, Height, Score, Distance, Rank)
+        SELECT TOP (@top_k)
+            VideoId,
+            SourcePath,
+            DurationMs,
+            Fps,
+            ResolutionWidth,
+            ResolutionHeight,
+            1.0 - Distance,
+            Distance,
+            ROW_NUMBER() OVER (ORDER BY Distance, VideoId)
+        FROM VideoBase
+        ORDER BY Distance, VideoId;
     END;
 
+    DECLARE @frameCount INT = CEILING(@targetDurationMs / (1000.0 / @targetFps));
 
+    DECLARE @frames TABLE (
         FrameIndex INT,
         VideoId BIGINT,
         SourceFrameId BIGINT,
@@ -81,7 +113,19 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM @videoCandidates)
     BEGIN
-        
+        INSERT INTO @frames (FrameIndex, VideoId, SourceFrameId, TimestampMs, PixelCloud, ObjectRegions, MotionVectors, FrameEmbedding)
+        SELECT TOP (@frameCount)
+            ROW_NUMBER() OVER (ORDER BY c.Rank, vf.TimestampMs) - 1 AS FrameIndex,
+            vf.VideoId,
+            vf.FrameId,
+            vf.TimestampMs,
+            vf.PixelCloud,
+            vf.ObjectRegions,
+            vf.MotionVectors,
+            vf.FrameEmbedding
+        FROM dbo.VideoFrames vf
+        INNER JOIN @videoCandidates c ON c.VideoId = vf.VideoId
+        ORDER BY c.Rank, vf.TimestampMs;
     END;
 
     IF NOT EXISTS (SELECT 1 FROM @frames)
@@ -90,10 +134,24 @@ BEGIN
             SELECT TOP (@frameCount) ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS idx
             FROM sys.all_objects
         )
-        
+        INSERT INTO @frames (FrameIndex, VideoId, SourceFrameId, TimestampMs, PixelCloud, ObjectRegions, MotionVectors, FrameEmbedding)
+        SELECT
+            idx,
+            NULL,
+            NULL,
+            idx * (1000 / @targetFps),
+            geometry::STGeomFromText(
+                'POINT(' + CAST(COS(idx * 0.25) AS NVARCHAR(40)) + ' ' + CAST(SIN(idx * 0.25) AS NVARCHAR(40)) + ')',
+                0
+            ),
+            NULL,
+            NULL,
+            NULL
+        FROM Numbers;
     END;
 
-
+    DECLARE @durationMs INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
+    DECLARE @framesJson NVARCHAR(MAX) = (
         SELECT FrameIndex, VideoId, SourceFrameId, TimestampMs,
                CASE WHEN PixelCloud IS NULL THEN NULL ELSE PixelCloud.STAsText() END AS PixelCloudWkt,
                CASE WHEN ObjectRegions IS NULL THEN NULL ELSE ObjectRegions.STAsText() END AS ObjectRegionsWkt,
@@ -103,6 +161,7 @@ BEGIN
         FOR JSON PATH
     );
 
+    DECLARE @candidatesJson NVARCHAR(MAX) = NULL;
     IF EXISTS (SELECT 1 FROM @videoCandidates)
     BEGIN
         SET @candidatesJson = (
@@ -113,6 +172,7 @@ BEGIN
         );
     END;
 
+    DECLARE @outputJson NVARCHAR(MAX) = JSON_OBJECT(
         'frames': JSON_QUERY(@framesJson),
         'candidates': JSON_QUERY(@candidatesJson),
         'targetFps': @targetFps
@@ -128,7 +188,8 @@ BEGIN
         )
     WHERE InferenceId = @inferenceId;
 
-    
+    INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)
+    VALUES (@inferenceId, 1, 'video_candidate_search', @durationMs, ISNULL((SELECT COUNT(*) FROM @videoCandidates), 0));
 
     SELECT
         @inferenceId AS InferenceId,
@@ -151,3 +212,4 @@ BEGIN
         @durationMs AS DurationMs,
         JSON_QUERY(@candidatesJson) AS CandidateVideos;
 END;
+GO

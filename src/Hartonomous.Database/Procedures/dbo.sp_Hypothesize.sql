@@ -8,11 +8,13 @@ CREATE OR ALTER PROCEDURE dbo.sp_Hypothesize
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
-
-
-
+    
+    DECLARE @ConversationHandle UNIQUEIDENTIFIER;
+    DECLARE @MessageBody XML;
+    DECLARE @MessageTypeName NVARCHAR(256);
+    DECLARE @Observations NVARCHAR(MAX);
+    DECLARE @Hypotheses NVARCHAR(MAX);
+    
     BEGIN TRY
         -- 1. RECEIVE MESSAGE FROM ANALYZE PHASE
         WAITFOR (
@@ -25,16 +27,19 @@ BEGIN
         
         IF @ConversationHandle IS NULL
         BEGIN
+            PRINT 'sp_Hypothesize: No messages received';
             RETURN 0;
         END
         
         -- 2. PARSE OBSERVATIONS
         SET @Observations = CAST(@MessageBody AS NVARCHAR(MAX));
-
-
-
+        
+        DECLARE @AnalysisId UNIQUEIDENTIFIER = JSON_VALUE(@Observations, '$.analysisId');
+        DECLARE @AnomalyCount INT = JSON_VALUE(@Observations, '$.anomalyCount');
+        DECLARE @AvgDurationMs FLOAT = JSON_VALUE(@Observations, '$.avgDurationMs');
+        
         -- 3. GENERATE HYPOTHESES BASED ON OBSERVATIONS
-
+        DECLARE @HypothesisList TABLE (
             HypothesisId UNIQUEIDENTIFIER PRIMARY KEY DEFAULT NEWID(),
             HypothesisType NVARCHAR(50),
             Priority INT,
@@ -45,13 +50,16 @@ BEGIN
 
         -- GÖDEL ENGINE: Check for compute job messages first
         -- This allows the OODA loop to plan the next chunk of a long-running computational task
-
+        DECLARE @ComputeJobId UNIQUEIDENTIFIER = @MessageBody.value('(/Hypothesis/ComputeJob/JobId)[1]', 'uniqueidentifier');
+        
         IF @ComputeJobId IS NOT NULL
         BEGIN
             PRINT 'sp_Hypothesize: Processing compute job: ' + CAST(@ComputeJobId AS NVARCHAR(36));
-
-
-
+            
+            DECLARE @JobParams NVARCHAR(MAX);
+            DECLARE @CurrentState NVARCHAR(MAX);
+            DECLARE @JobType NVARCHAR(100);
+            
             SELECT 
                 @JobParams = JobParameters,
                 @CurrentState = CurrentState,
@@ -61,6 +69,7 @@ BEGIN
             
             IF @JobParams IS NULL
             BEGIN
+                PRINT 'sp_Hypothesize: Job not found or already completed.';
                 END CONVERSATION @ConversationHandle;
                 RETURN 0;
             END
@@ -68,9 +77,10 @@ BEGIN
             -- Job type: PrimeSearch
             IF @JobType = 'PrimeSearch'
             BEGIN
-
-
-
+                DECLARE @RangeEnd BIGINT = JSON_VALUE(@JobParams, '$.rangeEnd');
+                DECLARE @LastChecked BIGINT = ISNULL(JSON_VALUE(@CurrentState, '$.lastChecked'), JSON_VALUE(@JobParams, '$.rangeStart') - 1);
+                DECLARE @ChunkSize INT = 10000; -- Process 10k numbers per chunk
+                
                 IF @LastChecked >= @RangeEnd
                 BEGIN
                     -- Job complete
@@ -80,22 +90,26 @@ BEGIN
                         UpdatedAt = SYSUTCDATETIME()
                     WHERE JobId = @ComputeJobId;
                     
+                    PRINT 'sp_Hypothesize: Job completed.';
                     END CONVERSATION @ConversationHandle;
                     RETURN 0;
                 END
                 
                 -- Plan next chunk
-
-
+                DECLARE @NextStart BIGINT = @LastChecked + 1;
+                DECLARE @NextEnd BIGINT = @LastChecked + @ChunkSize;
                 IF @NextEnd > @RangeEnd SET @NextEnd = @RangeEnd;
-
+                
+                DECLARE @ActPayload XML = (
                     SELECT 
                         @ComputeJobId AS JobId,
                         @NextStart AS RangeStart,
                         @NextEnd AS RangeEnd
                     FOR XML PATH('PrimeSearch'), ROOT('Action')
                 );
-
+                
+                DECLARE @ActHandle UNIQUEIDENTIFIER;
+                
                 BEGIN DIALOG CONVERSATION @ActHandle
                     FROM SERVICE HypothesizeService
                     TO SERVICE 'ActService'
@@ -114,47 +128,77 @@ BEGIN
         END
         
         -- REGULAR OODA LOOP: Generate hypotheses based on performance observations
+        DECLARE @JobTypeOld NVARCHAR(100) = JSON_VALUE(@Observations, '$.jobType');
 
         IF @JobTypeOld IS NOT NULL AND @JobTypeOld != ''
         BEGIN
             -- Old-style job messages (for backward compatibility with sp_StartPrimeSearch)
             -- These will be migrated to use AutonomousComputeJobs table
-            END
+            PRINT 'sp_Hypothesize: Received old-style job message. Consider migrating to AutonomousComputeJobs.';
+        END
         
         -- HYPOTHESIS GENERATION: Analyze system performance and suggest improvements
         -- HYPOTHESIS 1: If anomalies detected, suggest index optimization
             IF @AnomalyCount > 5
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'IndexOptimization',
+                    1,
+                    'High number of performance anomalies detected. Missing indexes may be causing slow queries.',
+                    JSON_OBJECT('latencyReduction': '50-70%', 'throughputIncrease': '30-50%'),
+                    JSON_ARRAY('AnalyzeMissingIndexes', 'CreateRecommendedIndexes', 'UpdateStatistics')
+                );
             END
         
             -- HYPOTHESIS 2: If average duration increasing, suggest cache warming
             IF @AvgDurationMs > 1000
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'CacheWarming',
+                    2,
+                    'Average inference duration exceeds 1 second. Cache warming could reduce cold-start latency.',
+                    JSON_OBJECT('latencyReduction': '30-40%', 'cacheHitRate': '60-80%'),
+                    JSON_ARRAY('PreloadFrequentEmbeddings', 'EnableInMemoryOLTP', 'OptimizeBufferPool')
+                );
             END
         
             -- HYPOTHESIS 3: If embedding clusters detected, suggest concept discovery
-
+            DECLARE @PatternCount INT = (
                 SELECT COUNT(*) 
                 FROM OPENJSON(@Observations, '$.patterns')
             );
         
             IF @PatternCount > 3
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'ConceptDiscovery',
+                    3,
+                    'Embedding clustering patterns detected. Unsupervised concept learning may reveal emergent semantics.',
+                    JSON_OBJECT('newConceptsExpected': @PatternCount, 'accuracyImprovement': '5-15%'),
+                    JSON_ARRAY('RunClusterAnalysis', 'ExtractConceptEmbeddings', 'BindConceptsToAtoms')
+                );
             END
         
             -- HYPOTHESIS 4: Model retraining if drift detected
-
+            DECLARE @InferenceCount INT = JSON_VALUE(@Observations, '$.totalInferences');
             IF @InferenceCount > 10000
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'ModelRetraining',
+                    4,
+                    'High inference volume detected. Incremental model retraining may capture recent patterns.',
+                    JSON_OBJECT('accuracyImprovement': '3-8%', 'recentDataCoverage': '95%'),
+                    JSON_ARRAY('CollectRecentFeedback', 'IncrementalRetrain', 'ValidateModelDrift')
+                );
             END
 
             -- HYPOTHESIS 5: Prune model based on low-importance tensor atoms
-
-
+            DECLARE @PruneThreshold FLOAT = 0.01; -- Define a threshold for low importance
+            DECLARE @PruneableAtoms NVARCHAR(MAX) = (
                 SELECT ta.TensorAtomId, tac.Coefficient
                 FROM dbo.TensorAtom ta
                 JOIN dbo.TensorAtomCoefficient tac ON ta.TensorAtomId = tac.TensorAtomId
@@ -164,11 +208,18 @@ BEGIN
 
             IF @PruneableAtoms IS NOT NULL AND @PruneableAtoms <> '[]'
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'PruneModel',
+                    5,
+                    'Identified tensor atoms with low importance coefficients. Pruning these may reduce model size and improve performance.',
+                    JSON_OBJECT('modelSizeReduction': '5-10%', 'inferenceSpeedup': '3-5%'),
+                    JSON_QUERY(@PruneableAtoms)
+                );
             END
 
             -- HYPOTHESIS 6: Refactor code based on duplicate AST signatures
-
+            DECLARE @DuplicateCodeAtoms NVARCHAR(MAX) = (
                 SELECT TOP 10 SpatialSignature.ToString() AS Signature, COUNT(*) AS DuplicateCount
                 FROM dbo.CodeAtom
                 GROUP BY SpatialSignature.ToString()
@@ -179,13 +230,20 @@ BEGIN
 
             IF @DuplicateCodeAtoms IS NOT NULL AND @DuplicateCodeAtoms <> '[]'
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'RefactorCode',
+                    6,
+                    'Detected multiple code blocks with identical abstract syntax tree (AST) signatures, indicating duplicated logic.',
+                    JSON_OBJECT('codebaseReduction': '1-2%', 'maintainabilityIncrease': 'medium'),
+                    JSON_QUERY(@DuplicateCodeAtoms)
+                );
             END
 
             -- HYPOTHESIS 7: Fix UX based on sessions ending in an error state
             -- This assumes an @ErrorRegion GEOMETRY variable is defined, representing error states.
-
-
+            DECLARE @ErrorRegion GEOMETRY = geometry::Point(0, 0, 0).STBuffer(10); -- Placeholder for error region
+            DECLARE @FailingSessions NVARCHAR(MAX) = (
                 SELECT TOP 10 SessionId, Path.STEndPoint().ToString() AS EndPoint
                 FROM dbo.SessionPaths
                 WHERE Path.STEndPoint().STIntersects(@ErrorRegion) = 1
@@ -194,7 +252,14 @@ BEGIN
 
             IF @FailingSessions IS NOT NULL AND @FailingSessions <> '[]'
             BEGIN
-                
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'FixUX',
+                    7,
+                    'Detected user sessions terminating in a known error region of the state space.',
+                    JSON_OBJECT('userErrorRateReduction': '10-20%', 'sessionCompletionIncrease': '5%'),
+                    JSON_QUERY(@FailingSessions)
+                );
             END
         END
         
@@ -211,7 +276,8 @@ BEGIN
             ORDER BY Priority
             FOR JSON PATH
         );
-
+        
+        DECLARE @HypothesisPayload NVARCHAR(MAX) = JSON_OBJECT(
             'analysisId': @AnalysisId,
             'hypothesesGenerated': (SELECT COUNT(*) FROM @HypothesisList),
             'hypotheses': JSON_QUERY(@Hypotheses),
@@ -219,8 +285,9 @@ BEGIN
         );
         
         -- 5. SEND TO ACT QUEUE
-
-
+        DECLARE @ActConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @ActMessageBody XML = CAST(@HypothesisPayload AS XML);
+        
         BEGIN DIALOG CONVERSATION @ActConversationHandle
             FROM SERVICE HypothesizeService
             TO SERVICE 'ActService'
@@ -240,9 +307,10 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
-
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
         IF @ConversationHandle IS NOT NULL
         BEGIN
             END CONVERSATION @ConversationHandle WITH ERROR = 1 DESCRIPTION = @ErrorMessage;
@@ -253,3 +321,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO

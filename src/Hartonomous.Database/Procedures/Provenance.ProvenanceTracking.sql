@@ -14,7 +14,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @ValidationResult TABLE (
         CheckName NVARCHAR(100),
         Status NVARCHAR(20), -- 'PASS', 'FAIL', 'WARN'
         Details NVARCHAR(MAX)
@@ -24,83 +25,85 @@ BEGIN
         PRINT 'Validating operation provenance for ' + CAST(@OperationId AS NVARCHAR(36));
 
     -- Get operation provenance stream
-
+    DECLARE @ProvenanceStream NVARCHAR(MAX);
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
     WHERE OperationId = @OperationId;
 
     IF @ProvenanceStream IS NULL
     BEGIN
-        
+        INSERT INTO @ValidationResult VALUES ('Stream Existence', 'FAIL', 'No provenance stream found for operation');
         GOTO ValidationComplete;
     END
 
     -- Parse AtomicStream
+    DECLARE @Stream AtomicStream = AtomicStream::Parse(@ProvenanceStream);
 
     IF @Stream.IsNull = 1
     BEGIN
-        
+        INSERT INTO @ValidationResult VALUES ('Stream Parsing', 'FAIL', 'Failed to parse provenance stream');
         GOTO ValidationComplete;
     END
 
     -- Validate stream metadata
-    
+    INSERT INTO @ValidationResult VALUES ('Stream Existence', 'PASS', 'Provenance stream exists');
 
     -- Check scope
     IF @ExpectedScope IS NOT NULL
     BEGIN
         IF @Stream.Scope = @ExpectedScope
-            
+            INSERT INTO @ValidationResult VALUES ('Scope Validation', 'PASS', 'Scope matches expected value: ' + @ExpectedScope);
         ELSE
-            
+            INSERT INTO @ValidationResult VALUES ('Scope Validation', 'FAIL', 'Scope mismatch. Expected: ' + @ExpectedScope + ', Actual: ' + CAST(@Stream.Scope AS NVARCHAR(MAX)));
     END
 
     -- Check model
     IF @ExpectedModel IS NOT NULL
     BEGIN
         IF @Stream.Model = @ExpectedModel
-            
+            INSERT INTO @ValidationResult VALUES ('Model Validation', 'PASS', 'Model matches expected value: ' + @ExpectedModel);
         ELSE
-            
+            INSERT INTO @ValidationResult VALUES ('Model Validation', 'FAIL', 'Model mismatch. Expected: ' + @ExpectedModel + ', Actual: ' + CAST(@Stream.Model AS NVARCHAR(MAX)));
     END
 
     -- Check segment count
-
+    DECLARE @SegmentCount INT = @Stream.SegmentCount;
     IF @SegmentCount >= @MinSegments
-        
+        INSERT INTO @ValidationResult VALUES ('Segment Count', 'PASS', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') meets minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
     ELSE
-        
+        INSERT INTO @ValidationResult VALUES ('Segment Count', 'FAIL', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') below minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
 
     -- Check stream age
-
+    DECLARE @StreamAgeHours FLOAT = DATEDIFF(HOUR, @Stream.CreatedUtc, SYSUTCDATETIME());
     IF @StreamAgeHours <= @MaxAgeHours
-        
+        INSERT INTO @ValidationResult VALUES ('Stream Age', 'PASS', 'Stream age (' + CAST(@StreamAgeHours AS NVARCHAR(10)) + ' hours) within limit (' + CAST(@MaxAgeHours AS NVARCHAR(10)) + ' hours)');
     ELSE
-        
+        INSERT INTO @ValidationResult VALUES ('Stream Age', 'WARN', 'Stream age (' + CAST(@StreamAgeHours AS NVARCHAR(10)) + ' hours) exceeds limit (' + CAST(@MaxAgeHours AS NVARCHAR(10)) + ' hours)');
 
     -- Validate segment sequence and content
-
+    DECLARE @SegmentIndex INT = 0;
     WHILE @SegmentIndex < @SegmentCount
     BEGIN
-
-
+        DECLARE @SegmentKind NVARCHAR(50) = @Stream.GetSegmentKind(@SegmentIndex);
+        DECLARE @SegmentTimestamp DATETIME2 = @Stream.GetSegmentTimestamp(@SegmentIndex);
+        DECLARE @ContentType NVARCHAR(100) = @Stream.GetSegmentContentType(@SegmentIndex);
 
         -- Check for required segment types
         IF @SegmentKind = 'Input' AND @SegmentIndex = 0
-            
+            INSERT INTO @ValidationResult VALUES ('Input Segment', 'PASS', 'Valid input segment at position 0');
         ELSE IF @SegmentKind = 'Output' AND @SegmentIndex > 0
-            
+            INSERT INTO @ValidationResult VALUES ('Output Segment', 'PASS', 'Valid output segment at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
         ELSE IF @SegmentKind NOT IN ('Input', 'Output', 'Embedding', 'Moderation', 'Artifact', 'Telemetry', 'Control')
-            
+            INSERT INTO @ValidationResult VALUES ('Segment Kind', 'WARN', 'Unknown segment kind: ' + @SegmentKind + ' at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
 
         -- Check timestamp ordering
         IF @SegmentIndex > 0
         BEGIN
-
+            DECLARE @PrevTimestamp DATETIME2 = @Stream.GetSegmentTimestamp(@SegmentIndex - 1);
             IF @SegmentTimestamp >= @PrevTimestamp
-                
+                INSERT INTO @ValidationResult VALUES ('Timestamp Ordering', 'PASS', 'Timestamps properly ordered at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
             ELSE
-                
+                INSERT INTO @ValidationResult VALUES ('Timestamp Ordering', 'FAIL', 'Timestamp out of order at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
         END
 
         SET @SegmentIndex = @SegmentIndex + 1;
@@ -108,7 +111,22 @@ BEGIN
 
     ValidationComplete:
     -- Store validation result
-    
+    INSERT INTO dbo.ProvenanceValidationResults (
+        OperationId,
+        ValidationResults,
+        OverallStatus,
+        ValidationDurationMs,
+        ValidatedAt
+    )
+    VALUES (
+        @OperationId,
+        (SELECT * FROM @ValidationResult FOR JSON PATH),
+        CASE WHEN EXISTS (SELECT 1 FROM @ValidationResult WHERE Status = 'FAIL') THEN 'FAIL'
+             WHEN EXISTS (SELECT 1 FROM @ValidationResult WHERE Status = 'WARN') THEN 'WARN'
+             ELSE 'PASS' END,
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
 
     -- Return validation results
     SELECT
@@ -120,7 +138,9 @@ BEGIN
     ORDER BY CASE Status WHEN 'FAIL' THEN 1 WHEN 'WARN' THEN 2 WHEN 'PASS' THEN 3 END, CheckName;
 
     IF @Debug = 1
-        END;
+        PRINT 'Provenance validation completed';
+END;
+GO
 
 -- sp_AuditProvenanceChain: Comprehensive audit of provenance chains
 CREATE OR ALTER PROCEDURE dbo.sp_AuditProvenanceChain
@@ -133,6 +153,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+
     IF @StartDate IS NULL SET @StartDate = DATEADD(DAY, -7, SYSUTCDATETIME());
     IF @EndDate IS NULL SET @EndDate = SYSUTCDATETIME();
 
@@ -140,7 +162,7 @@ BEGIN
         PRINT 'Auditing provenance chains from ' + CAST(@StartDate AS NVARCHAR(30)) + ' to ' + CAST(@EndDate AS NVARCHAR(30));
 
     -- Get operations in date range
-
+    DECLARE @Operations TABLE (
         OperationId UNIQUEIDENTIFIER,
         Scope NVARCHAR(100),
         Model NVARCHAR(100),
@@ -150,33 +172,80 @@ BEGIN
         ValidationScore FLOAT
     );
 
-    
+    INSERT INTO @Operations
+    SELECT
+        op.OperationId,
+        AtomicStream::Parse(op.ProvenanceStream).Scope,
+        AtomicStream::Parse(op.ProvenanceStream).Model,
+        op.CreatedAt,
+        AtomicStream::Parse(op.ProvenanceStream).SegmentCount,
+        pvr.OverallStatus,
+        CASE pvr.OverallStatus
+            WHEN 'PASS' THEN 1.0
+            WHEN 'WARN' THEN 0.7
+            WHEN 'FAIL' THEN 0.0
+            ELSE 0.5
+        END
+    FROM dbo.OperationProvenance op
+    LEFT JOIN dbo.ProvenanceValidationResults pvr ON op.OperationId = pvr.OperationId
+    WHERE op.CreatedAt BETWEEN @StartDate AND @EndDate
+    AND (@Scope IS NULL OR AtomicStream::Parse(op.ProvenanceStream).Scope = @Scope);
 
     -- Calculate audit metrics
-
-
-
-
-
+    DECLARE @TotalOperations INT = (SELECT COUNT(*) FROM @Operations);
+    DECLARE @ValidOperations INT = (SELECT COUNT(*) FROM @Operations WHERE ValidationStatus = 'PASS');
+    DECLARE @WarningOperations INT = (SELECT COUNT(*) FROM @Operations WHERE ValidationStatus = 'WARN');
+    DECLARE @FailedOperations INT = (SELECT COUNT(*) FROM @Operations WHERE ValidationStatus = 'FAIL');
+    DECLARE @AverageValidationScore FLOAT = (SELECT AVG(ValidationScore) FROM @Operations);
+    DECLARE @AverageSegmentCount FLOAT = (SELECT AVG(SegmentCount) FROM @Operations);
 
     -- Check for anomalies
+    DECLARE @Anomalies TABLE (AnomalyType NVARCHAR(100), Details NVARCHAR(MAX));
 
     -- Operations with no provenance
     IF EXISTS (SELECT 1 FROM dbo.OperationProvenance WHERE CreatedAt BETWEEN @StartDate AND @EndDate AND ProvenanceStream IS NULL)
-        
+        INSERT INTO @Anomalies VALUES ('Missing Provenance', 'Operations found without provenance streams');
 
     -- Operations failing validation
     IF @FailedOperations > 0
-        
+        INSERT INTO @Anomalies VALUES ('Validation Failures', CAST(@FailedOperations AS NVARCHAR(10)) + ' operations failed validation');
 
     -- Operations with unusual segment counts
-
+    DECLARE @AvgSegments FLOAT = (SELECT AVG(SegmentCount) FROM @Operations);
+    DECLARE @StdDevSegments FLOAT = (SELECT STDEV(SegmentCount) FROM @Operations);
 
     IF EXISTS (SELECT 1 FROM @Operations WHERE ABS(SegmentCount - @AvgSegments) > 2 * @StdDevSegments)
-        
+        INSERT INTO @Anomalies VALUES ('Segment Count Anomalies', 'Operations with unusual number of provenance segments detected');
 
     -- Store audit result
-    
+    INSERT INTO dbo.ProvenanceAuditResults (
+        AuditPeriodStart,
+        AuditPeriodEnd,
+        Scope,
+        TotalOperations,
+        ValidOperations,
+        WarningOperations,
+        FailedOperations,
+        AverageValidationScore,
+        AverageSegmentCount,
+        Anomalies,
+        AuditDurationMs,
+        AuditedAt
+    )
+    VALUES (
+        @StartDate,
+        @EndDate,
+        @Scope,
+        @TotalOperations,
+        @ValidOperations,
+        @WarningOperations,
+        @FailedOperations,
+        @AverageValidationScore,
+        @AverageSegmentCount,
+        (SELECT * FROM @Anomalies FOR JSON PATH),
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
 
     -- Return audit summary
     SELECT
@@ -211,6 +280,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Provenance audit completed, analyzed ' + CAST(@TotalOperations AS NVARCHAR(10)) + ' operations';
 END;
+GO
 
 -- sp_ReconstructOperationTimeline: Reconstruct operation timeline from provenance
 CREATE OR ALTER PROCEDURE dbo.sp_ReconstructOperationTimeline
@@ -225,7 +295,7 @@ BEGIN
         PRINT 'Reconstructing operation timeline for ' + CAST(@OperationId AS NVARCHAR(36));
 
     -- Get operation provenance stream
-
+    DECLARE @ProvenanceStream NVARCHAR(MAX);
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
     WHERE OperationId = @OperationId;
@@ -237,8 +307,8 @@ BEGIN
     END
 
     -- Parse AtomicStream and extract timeline
-
-
+    DECLARE @Stream AtomicStream = AtomicStream::Parse(@ProvenanceStream);
+    DECLARE @Timeline TABLE (
         SequenceNumber INT,
         Timestamp DATETIME2,
         SegmentKind NVARCHAR(50),
@@ -247,10 +317,19 @@ BEGIN
         PayloadSize INT
     );
 
+    DECLARE @SegmentIndex INT = 0;
+    DECLARE @SegmentCount INT = @Stream.SegmentCount;
 
     WHILE @SegmentIndex < @SegmentCount
     BEGIN
-        
+        INSERT INTO @Timeline
+        SELECT
+            @SegmentIndex,
+            @Stream.GetSegmentTimestamp(@SegmentIndex),
+            @Stream.GetSegmentKind(@SegmentIndex),
+            @Stream.GetSegmentContentType(@SegmentIndex),
+            @Stream.GetSegmentMetadata(@SegmentIndex),
+            DATALENGTH(@Stream.GetSegmentPayload(@SegmentIndex));
 
         SET @SegmentIndex = @SegmentIndex + 1;
     END
@@ -259,7 +338,7 @@ BEGIN
     IF @IncludePayloads = 1
     BEGIN
         -- Include full payload data
-
+        DECLARE @FullTimeline TABLE (
             SequenceNumber INT,
             Timestamp DATETIME2,
             SegmentKind NVARCHAR(50),
@@ -271,7 +350,14 @@ BEGIN
         SET @SegmentIndex = 0;
         WHILE @SegmentIndex < @SegmentCount
         BEGIN
-            
+            INSERT INTO @FullTimeline
+            SELECT
+                @SegmentIndex,
+                @Stream.GetSegmentTimestamp(@SegmentIndex),
+                @Stream.GetSegmentKind(@SegmentIndex),
+                @Stream.GetSegmentContentType(@SegmentIndex),
+                @Stream.GetSegmentMetadata(@SegmentIndex),
+                @Stream.GetSegmentPayload(@SegmentIndex);
 
             SET @SegmentIndex = @SegmentIndex + 1;
         END
@@ -286,3 +372,10 @@ BEGIN
     IF @Debug = 1
         PRINT 'Operation timeline reconstructed with ' + CAST(@SegmentCount AS NVARCHAR(10)) + ' segments';
 END;
+GO
+
+PRINT 'Provenance tracking procedures created successfully';
+PRINT 'sp_ValidateOperationProvenance: Validate individual operation provenance';
+PRINT 'sp_AuditProvenanceChain: Comprehensive provenance audit';
+PRINT 'sp_ReconstructOperationTimeline: Reconstruct operation timeline';
+GO

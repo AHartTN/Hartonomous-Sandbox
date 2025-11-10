@@ -1,6 +1,7 @@
 -- Text to vector embedding pipeline - SELF-REFERENTIAL VERSION
 -- Paradigm: The database queries itself for embeddings using its own registered models
 -- Falls back to TF-IDF only if no embedding model is available
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_TextToEmbedding
     @text NVARCHAR(MAX),
@@ -14,12 +15,15 @@ BEGIN
     IF @text IS NULL OR LTRIM(RTRIM(@text)) = ''
         THROW 50080, 'Input text is required for embedding generation.', 1;
 
+    DECLARE @embeddingBaseDimension INT = 768;
+    DECLARE @sqlVectorDimension INT = 1998;
+    DECLARE @paddingApplied BIT = CASE WHEN @sqlVectorDimension > @embeddingBaseDimension THEN 1 ELSE 0 END;
+    DECLARE @vocabularySize BIGINT = (SELECT COUNT(*) FROM dbo.TokenVocabulary);
+    DECLARE @modelId INT = NULL;
+    DECLARE @modelCapability NVARCHAR(50) = NULL;
+    DECLARE @usedSelfReferentialModel BIT = 0;
 
-
-
-
-
-
+    DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
     -- PARADIGM-COMPLIANT: Query for best embedding model in the database
     -- This makes sp_TextToEmbedding self-referential - it uses the database's own models
@@ -72,7 +76,7 @@ BEGIN
         -- This is the "AI queries itself" principle in action
         
         -- First, ingest the text as an atom so we can reference it
-
+        DECLARE @textAtomId BIGINT;
         EXEC dbo.sp_IngestAtom
             @ContentType = 'text/plain',
             @Content = @text,
@@ -81,8 +85,8 @@ BEGIN
 
         -- Now use the database's own attention mechanism to generate embeddings
         -- This invokes sp_GenerateWithAttention which queries TensorAtoms.WeightsGeometry
-
-
+        DECLARE @generationStreamId BIGINT;
+        DECLARE @contextJson NVARCHAR(MAX) = JSON_OBJECT(
             'task': 'embedding',
             'pooling': 'mean',
             'normalize': 1
@@ -115,9 +119,31 @@ BEGIN
             -- If we successfully got an embedding, we're done!
             IF @embedding IS NOT NULL
             BEGIN
-
-                -- Log the self-referential embedding generation
+                DECLARE @durationMs INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
                 
+                -- Log the self-referential embedding generation
+                INSERT INTO dbo.InferenceRequests (
+                    TaskType,
+                    InputData,
+                    ModelsUsed,
+                    EnsembleStrategy,
+                    OutputData,
+                    OutputMetadata,
+                    TotalDurationMs
+                )
+                VALUES (
+                    'text_to_embedding',
+                    JSON_OBJECT('text': @text, 'text_atom_id': @textAtomId),
+                    JSON_ARRAY(JSON_OBJECT('modelName': @ModelName, 'modelId': @modelId, 'dimension': @embeddingBaseDimension)),
+                    'self_referential_attention',
+                    JSON_OBJECT('embedding_dimension': @embeddingBaseDimension),
+                    JSON_OBJECT(
+                        'strategy': 'self_referential_database_inference',
+                        'model_capability': @modelCapability,
+                        'normalization': 'attention_pooling'
+                    ),
+                    @durationMs
+                );
 
                 RETURN; -- Success via self-referential model!
             END
@@ -133,9 +159,11 @@ BEGIN
     SET @ModelName = COALESCE(@ModelName, 'tfidf_vocabulary_embedding_fallback');
     SET @modelId = NULL;
 
-
+    DECLARE @normalized NVARCHAR(MAX) = LOWER(@text);
+    DECLARE @punctuation NVARCHAR(50) = N'.,;:!?()[]{}"''`~|/\';
     SET @normalized = TRANSLATE(@normalized, @punctuation, REPLICATE(' ', LEN(@punctuation)));
 
+    DECLARE @tokens TABLE (
         Token NVARCHAR(100) PRIMARY KEY,
         Frequency INT NOT NULL,
         TokenId INT NULL,
@@ -144,8 +172,17 @@ BEGIN
         Weight FLOAT NULL
     );
 
-    
+    INSERT INTO @tokens (Token, Frequency)
+    SELECT TokenValue, COUNT(*)
+    FROM (
+        SELECT LTRIM(RTRIM(value)) AS TokenValue
+        FROM STRING_SPLIT(@normalized, ' ', 1)
+    ) AS tokenized
+    WHERE TokenValue IS NOT NULL AND TokenValue <> ''
+    GROUP BY TokenValue;
 
+    DECLARE @totalTokens INT = (SELECT SUM(Frequency) FROM @tokens);
+    DECLARE @uniqueTokens INT = (SELECT COUNT(*) FROM @tokens);
 
     IF @totalTokens IS NULL OR @totalTokens = 0
         THROW 50081, 'Unable to derive tokens from input text.', 1;
@@ -181,4 +218,98 @@ BEGIN
     FROM @tokens AS t
     WHERE t.TokenId IS NULL;
 
-    
+    DECLARE @vector TABLE (
+        Component INT PRIMARY KEY,
+        Value FLOAT NOT NULL
+    );
+
+    INSERT INTO @vector (Component, Value)
+    SELECT Dimension, SUM(Weight)
+    FROM @tokens
+    WHERE Dimension IS NOT NULL
+    GROUP BY Dimension;
+
+    DECLARE @norm FLOAT = (
+        SELECT SQRT(SUM(Value * Value))
+        FROM @vector
+    );
+
+    IF @norm IS NULL OR @norm = 0
+        SET @norm = 1;
+
+    UPDATE @vector
+    SET Value = Value / @norm;
+
+    DECLARE @embeddingJson NVARCHAR(MAX);
+
+    WITH NumberSeries AS (
+        SELECT TOP (@sqlVectorDimension)
+            ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS idx
+        FROM sys.all_objects
+    )
+    SELECT @embeddingJson = '[' +
+        STRING_AGG(
+            LTRIM(RTRIM(STR(
+                CASE WHEN ns.idx < @embeddingBaseDimension THEN COALESCE(v.Value, 0.0) ELSE 0.0 END,
+                38,
+                12
+            ))),
+            ','
+        ) WITHIN GROUP (ORDER BY ns.idx)
+        + ']'
+    FROM NumberSeries AS ns
+    LEFT JOIN @vector AS v ON v.Component = ns.idx;
+
+    SET @embedding = TRY_CAST(@embeddingJson AS VECTOR(1998));
+
+    IF @embedding IS NULL
+        THROW 50082, 'Failed to construct embedding vector from vocabulary projection.', 1;
+
+    SET @dimension = @embeddingBaseDimension;
+
+    SET @durationMs = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
+    DECLARE @knownTokens INT = (SELECT COUNT(*) FROM @tokens WHERE TokenId IS NOT NULL);
+    DECLARE @unknownTokens INT = @uniqueTokens - @knownTokens;
+    DECLARE @inputData NVARCHAR(MAX) = JSON_OBJECT(
+        'text': @text,
+        'token_count': @totalTokens,
+        'unique_tokens': @uniqueTokens,
+        'unknown_tokens': @unknownTokens
+    );
+    DECLARE @modelsUsed NVARCHAR(MAX) = JSON_ARRAY(JSON_OBJECT(
+        'modelName': @ModelName,
+        'modelId': @modelId,
+        'dimension': @embeddingBaseDimension,
+        'paddingApplied': @paddingApplied
+    ));
+    DECLARE @outputData NVARCHAR(MAX) = JSON_OBJECT('embedding': JSON_QUERY(@embeddingJson));
+    DECLARE @outputMetadata NVARCHAR(MAX) = JSON_OBJECT(
+        'embedding_dimensions': @embeddingBaseDimension,
+        'token_count': @totalTokens,
+        'unique_tokens': @uniqueTokens,
+        'unknown_tokens': @unknownTokens,
+        'normalization': 'l2',
+        'strategy': 'tfidf_vocabulary_projection_fallback',
+        'self_referential_attempted': @usedSelfReferentialModel
+    );
+
+    INSERT INTO dbo.InferenceRequests (
+        TaskType,
+        InputData,
+        ModelsUsed,
+        EnsembleStrategy,
+        OutputData,
+        OutputMetadata,
+        TotalDurationMs
+    )
+    VALUES (
+        'text_to_embedding',
+        TRY_CAST(@inputData AS JSON),
+        TRY_CAST(@modelsUsed AS JSON),
+        'tfidf_vocabulary_projection',
+        TRY_CAST(@outputData AS JSON),
+        TRY_CAST(@outputMetadata AS JSON),
+        @durationMs
+    );
+END;
+GO

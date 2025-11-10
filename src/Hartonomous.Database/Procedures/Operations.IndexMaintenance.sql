@@ -1,4 +1,5 @@
 -- Index maintenance controller for Hartonomous spatial and vector workloads.
+GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_ManageHartonomousIndexes
     @Operation NVARCHAR(20) = 'ANALYZE', -- CREATE, REBUILD, ANALYZE, OPTIMIZE, VALIDATE
@@ -9,22 +10,39 @@ BEGIN
 
     IF @Operation = 'CREATE'
     BEGIN
+        PRINT 'Creating spatial indexes via Common.CreateSpatialIndexes.sql...';
+        PRINT 'Invoke Common.CreateSpatialIndexes.sql through the deployment pipeline to materialize spatial indexes.';
         RETURN;
     END;
 
     IF @Operation = 'REBUILD'
     BEGIN
+        PRINT 'Rebuilding indexes for targeted tables...';
 
+        DECLARE @indexes TABLE (
             SchemaName NVARCHAR(128),
             TableName NVARCHAR(128),
             IndexName NVARCHAR(128)
         );
 
-        
+        INSERT INTO @indexes (SchemaName, TableName, IndexName)
+        SELECT
+            OBJECT_SCHEMA_NAME(i.object_id),
+            OBJECT_NAME(i.object_id),
+            i.name
+        FROM sys.indexes i
+        INNER JOIN sys.tables t ON i.object_id = t.object_id
+        WHERE i.name IS NOT NULL
+          AND i.is_hypothetical = 0
+          AND i.is_disabled = 0
+          AND i.type_desc IN ('CLUSTERED', 'NONCLUSTERED', 'SPATIAL')
+          AND (@TableName IS NULL OR t.name = @TableName);
 
-
-
-
+        DECLARE @schema NVARCHAR(128);
+        DECLARE @table NVARCHAR(128);
+        DECLARE @index NVARCHAR(128);
+        DECLARE @command NVARCHAR(MAX);
+        DECLARE @rebuilt INT = 0;
 
         DECLARE rebuild_cursor CURSOR FAST_FORWARD FOR
             SELECT SchemaName, TableName, IndexName FROM @indexes ORDER BY SchemaName, TableName, IndexName;
@@ -50,6 +68,8 @@ BEGIN
 
     IF @Operation = 'ANALYZE'
     BEGIN
+        PRINT 'Index usage statistics:';
+
         SELECT
             OBJECT_SCHEMA_NAME(i.object_id) AS SchemaName,
             OBJECT_NAME(i.object_id) AS TableName,
@@ -79,6 +99,8 @@ BEGIN
 
     IF @Operation = 'OPTIMIZE'
     BEGIN
+        PRINT 'Optimizing statistics...';
+
         UPDATE STATISTICS dbo.Atoms WITH FULLSCAN;
         UPDATE STATISTICS dbo.AtomEmbeddings WITH FULLSCAN;
         UPDATE STATISTICS dbo.TensorAtoms WITH FULLSCAN;
@@ -86,11 +108,14 @@ BEGIN
         UPDATE STATISTICS dbo.ModelLayers WITH FULLSCAN;
         UPDATE STATISTICS dbo.InferenceRequests WITH FULLSCAN;
 
+        PRINT 'Statistics updated.';
         RETURN;
     END;
 
     IF @Operation = 'VALIDATE'
     BEGIN
+        PRINT 'Validating index health...';
+
         SELECT
             OBJECT_NAME(d.object_id) AS TableName,
             'CREATE INDEX IX_' + OBJECT_NAME(d.object_id) + '_' + REPLACE(REPLACE(d.equality_columns, '[', ''), ']', '') AS SuggestedIndex,
@@ -108,8 +133,10 @@ BEGIN
           AND (@TableName IS NULL OR OBJECT_NAME(d.object_id) = @TableName)
         ORDER BY s.avg_user_impact DESC;
 
+        PRINT 'Validation complete.';
         RETURN;
     END;
 
     RAISERROR('Invalid operation. Use: CREATE, REBUILD, ANALYZE, OPTIMIZE, VALIDATE', 16, 1);
 END;
+GO

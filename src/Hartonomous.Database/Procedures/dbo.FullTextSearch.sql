@@ -28,11 +28,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_SemanticSimilarity: Document similarity using semantic search
 -- Finds documents similar to a given document
@@ -74,11 +75,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_ExtractKeyPhrases: Extract key phrases from document
 -- Uses semantic search key phrase extraction
@@ -102,11 +104,12 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- sp_FindRelatedDocuments: Multi-signal document discovery
 -- Combines FTS + vector + graph for comprehensive results
@@ -123,4 +126,101 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
+        DECLARE @Results TABLE (
+            RelatedAtomId BIGINT,
+            SemanticScore FLOAT,
+            VectorScore FLOAT,
+            GraphScore FLOAT,
+            CombinedScore FLOAT
+        );
         
+        -- 1. Semantic text similarity
+        IF @IncludeSemanticText = 1
+        BEGIN
+            INSERT INTO @Results (RelatedAtomId, SemanticScore, VectorScore, GraphScore)
+            SELECT 
+                sst.matched_document_key,
+                sst.score / 100.0, -- Normalize to 0-1
+                0.0,
+                0.0
+            FROM SEMANTICSIMILARITYTABLE(dbo.Atoms, Content, @AtomId) sst;
+        END
+        
+        -- 2. Vector embedding similarity
+        IF @IncludeVectorSimilarity = 1
+        BEGIN
+            DECLARE @QueryEmbedding VARBINARY(MAX);
+            
+            SELECT @QueryEmbedding = EmbeddingVector
+            FROM dbo.AtomEmbeddings
+            WHERE AtomId = @AtomId AND TenantId = @TenantId;
+            
+            IF @QueryEmbedding IS NOT NULL
+            BEGIN
+                MERGE @Results AS target
+                USING (
+                    SELECT 
+                        ae.AtomId,
+                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryEmbedding) AS VectorScore
+                    FROM dbo.AtomEmbeddings ae
+                    WHERE ae.TenantId = @TenantId
+                          AND ae.AtomId != @AtomId
+                ) AS source
+                ON target.RelatedAtomId = source.AtomId
+                WHEN MATCHED THEN
+                    UPDATE SET VectorScore = source.VectorScore
+                WHEN NOT MATCHED THEN
+                    INSERT (RelatedAtomId, SemanticScore, VectorScore, GraphScore)
+                    VALUES (source.AtomId, 0.0, source.VectorScore, 0.0);
+            END
+        END
+        
+        -- 3. Graph neighbors (1-hop)
+        IF @IncludeGraphNeighbors = 1
+        BEGIN
+            MERGE @Results AS target
+            USING (
+                SELECT DISTINCT edge.$to_id AS AtomId, 0.8 AS GraphScore
+                FROM provenance.AtomGraphEdges edge
+                WHERE edge.$from_id = @AtomId
+                UNION
+                SELECT DISTINCT edge.$from_id AS AtomId, 0.8 AS GraphScore
+                FROM provenance.AtomGraphEdges edge
+                WHERE edge.$to_id = @AtomId
+            ) AS source
+            ON target.RelatedAtomId = source.AtomId
+            WHEN MATCHED THEN
+                UPDATE SET GraphScore = source.GraphScore
+            WHEN NOT MATCHED THEN
+                INSERT (RelatedAtomId, SemanticScore, VectorScore, GraphScore)
+                VALUES (source.AtomId, 0.0, 0.0, source.GraphScore);
+        END
+        
+        -- Compute combined score (equal weighting)
+        UPDATE @Results
+        SET CombinedScore = (SemanticScore + VectorScore + GraphScore) / 3.0;
+        
+        -- Return top K results
+        SELECT TOP (@TopK)
+            r.RelatedAtomId AS AtomId,
+            r.SemanticScore,
+            r.VectorScore,
+            r.GraphScore,
+            r.CombinedScore,
+            a.ContentHash,
+            a.ContentType,
+            a.CreatedUtc
+        FROM @Results r
+        INNER JOIN dbo.Atoms a ON r.RelatedAtomId = a.AtomId
+        WHERE a.TenantId = @TenantId
+        ORDER BY r.CombinedScore DESC;
+        
+        RETURN 0;
+    END TRY
+    BEGIN CATCH
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN -1;
+    END CATCH
+END;
+GO

@@ -18,6 +18,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @GenerationStreamId BIGINT;
 
     IF @Debug = 1
         PRINT 'Starting attention-based generation with model ' + CAST(@ModelId AS NVARCHAR(10));
@@ -51,11 +53,39 @@ BEGIN
     IF @GenerationStreamId IS NULL OR @GenerationStreamId <= 0
     BEGIN
         IF @Debug = 1
-            RETURN;
+            PRINT 'Attention generation failed - no stream returned';
+        RETURN;
     END
 
     -- Log the generation
-    
+    INSERT INTO dbo.AttentionGenerationLog (
+        ModelId,
+        InputAtomIds,
+        ContextJson,
+        MaxTokens,
+        Temperature,
+        TopK,
+        TopP,
+        AttentionHeads,
+        GenerationStreamId,
+        DurationMs,
+        TenantId,
+        CreatedAt
+    )
+    VALUES (
+        @ModelId,
+        @InputAtomIds,
+        @ContextJson,
+        @MaxTokens,
+        @Temperature,
+        @TopK,
+        @TopP,
+        @AttentionHeads,
+        @GenerationStreamId,
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        @TenantId,
+        SYSUTCDATETIME()
+    );
 
     -- Return generation results
     SELECT
@@ -73,6 +103,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Attention-based generation completed, stream ID: ' + CAST(@GenerationStreamId AS NVARCHAR(20));
 END;
+GO
 
 -- sp_AttentionInference: Multi-head attention inference for complex reasoning
 CREATE OR ALTER PROCEDURE dbo.sp_AttentionInference
@@ -87,7 +118,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @ReasoningSteps TABLE (
         StepNumber INT,
         GenerationStreamId BIGINT,
         ContextUsed NVARCHAR(MAX),
@@ -100,14 +132,16 @@ BEGIN
         PRINT 'Starting attention inference for problem ' + CAST(@ProblemId AS NVARCHAR(36));
 
     -- Initial context preparation
-
+    DECLARE @CurrentContext NVARCHAR(MAX) = @ContextAtoms;
+    DECLARE @StepNumber INT = 1;
 
     WHILE @StepNumber <= @MaxReasoningSteps
     BEGIN
+        DECLARE @StepStartTime DATETIME2 = SYSUTCDATETIME();
 
         -- Generate reasoning step using attention
-
-
+        DECLARE @StepContextJson NVARCHAR(MAX) = CONCAT('{"step":', CAST(@StepNumber AS NVARCHAR(10)), ',"query":"', REPLACE(@Query, '"', '\"'), '"}');
+        DECLARE @StepStreamId BIGINT;
         EXEC dbo.sp_GenerateWithAttention
             @ModelId = @ModelId,
             @InputAtomIds = @CurrentContext,
@@ -133,13 +167,14 @@ BEGIN
         END
 
         -- Get generated atoms for this step
-
+        DECLARE @GeneratedAtoms NVARCHAR(MAX);
         SELECT @GeneratedAtoms = GeneratedAtomIds
         FROM provenance.GenerationStreams
         WHERE GenerationStreamId = @StepStreamId;
 
         -- Store reasoning step
-        
+        INSERT INTO @ReasoningSteps (StepNumber, GenerationStreamId, ContextUsed, Reasoning, Confidence, StepTime)
+        VALUES (@StepNumber, @StepStreamId, @CurrentContext, @GeneratedAtoms, 0.8, @StepStartTime);
 
         -- Update context for next step
         SET @CurrentContext = @CurrentContext + ',' + @GeneratedAtoms;
@@ -153,7 +188,28 @@ BEGIN
     END
 
     -- Store final attention inference result
-    
+    INSERT INTO dbo.AttentionInferenceResults (
+        ProblemId,
+        Query,
+        ModelId,
+        MaxReasoningSteps,
+        AttentionHeads,
+        ReasoningSteps,
+        TotalSteps,
+        DurationMs,
+        CreatedAt
+    )
+    VALUES (
+        @ProblemId,
+        @Query,
+        @ModelId,
+        @MaxReasoningSteps,
+        @AttentionHeads,
+        (SELECT * FROM @ReasoningSteps FOR JSON PATH),
+        @StepNumber - 1,
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
 
     -- Return reasoning steps
     SELECT
@@ -171,6 +227,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Attention inference completed with ' + CAST(@StepNumber - 1 AS NVARCHAR(10)) + ' steps';
 END;
+GO
 
 -- sp_TransformerStyleInference: Full transformer-style inference pipeline
 CREATE OR ALTER PROCEDURE dbo.sp_TransformerStyleInference
@@ -185,7 +242,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @LayerResults TABLE (
         LayerNumber INT,
         AttentionOutput NVARCHAR(MAX),
         FeedForwardOutput NVARCHAR(MAX),
@@ -196,14 +254,16 @@ BEGIN
         PRINT 'Starting transformer-style inference with ' + CAST(@Layers AS NVARCHAR(10)) + ' layers';
 
     -- Process through transformer layers
-
+    DECLARE @CurrentInput NVARCHAR(MAX) = @InputSequence;
+    DECLARE @Layer INT = 1;
 
     WHILE @Layer <= @Layers
     BEGIN
+        DECLARE @LayerStartTime DATETIME2 = SYSUTCDATETIME();
 
         -- Multi-head attention (using our CLR function)
-
-
+        DECLARE @LayerContextJson NVARCHAR(MAX) = CONCAT('{"layer":', CAST(@Layer AS NVARCHAR(10)), ',"type":"attention"}');
+        DECLARE @AttentionStreamId BIGINT;
         EXEC dbo.sp_GenerateWithAttention
             @ModelId = @ModelId,
             @InputAtomIds = @CurrentInput,
@@ -216,15 +276,15 @@ BEGIN
             @Debug = 0;
 
         -- Get attention output
-
+        DECLARE @AttentionOutput NVARCHAR(MAX);
         SELECT TOP 1 @AttentionOutput = GeneratedAtomIds
         FROM dbo.AttentionGenerationLog
         WHERE ModelId = @ModelId AND CreatedAt >= @LayerStartTime
         ORDER BY CreatedAt DESC;
 
         -- Feed-forward network (simplified - using text generation as proxy)
-
-
+        DECLARE @FeedForwardPrompt NVARCHAR(MAX) = CONCAT('Process through feed-forward: ', @AttentionOutput);
+        DECLARE @FeedForwardOutput NVARCHAR(MAX);
         EXEC dbo.sp_GenerateText
             @prompt = @FeedForwardPrompt,
             @max_tokens = 25,
@@ -232,7 +292,8 @@ BEGIN
             @GeneratedText = @FeedForwardOutput OUTPUT;
 
         -- Store layer result
-        
+        INSERT INTO @LayerResults (LayerNumber, AttentionOutput, FeedForwardOutput, LayerTime)
+        VALUES (@Layer, @AttentionOutput, @FeedForwardOutput, @LayerStartTime);
 
         -- Update input for next layer
         SET @CurrentInput = @FeedForwardOutput;
@@ -240,7 +301,28 @@ BEGIN
     END
 
     -- Store transformer inference result
-    
+    INSERT INTO dbo.TransformerInferenceResults (
+        ProblemId,
+        InputSequence,
+        ModelId,
+        Layers,
+        AttentionHeads,
+        FeedForwardDim,
+        LayerResults,
+        DurationMs,
+        CreatedAt
+    )
+    VALUES (
+        @ProblemId,
+        @InputSequence,
+        @ModelId,
+        @Layers,
+        @AttentionHeads,
+        @FeedForwardDim,
+        (SELECT * FROM @LayerResults FOR JSON PATH),
+        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+        SYSUTCDATETIME()
+    );
 
     -- Return layer results
     SELECT
@@ -256,3 +338,10 @@ BEGIN
     IF @Debug = 1
         PRINT 'Transformer-style inference completed with ' + CAST(@Layers AS NVARCHAR(10)) + ' layers';
 END;
+GO
+
+PRINT 'Attention generation procedures created successfully';
+PRINT 'sp_GenerateWithAttention: Core attention-based generation';
+PRINT 'sp_AttentionInference: Multi-step attention reasoning';
+PRINT 'sp_TransformerStyleInference: Full transformer pipeline';
+GO

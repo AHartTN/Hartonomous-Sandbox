@@ -16,9 +16,10 @@ BEGIN
         BEGIN TRANSACTION;
         
         -- Retrieve the parent audio atom
-
-
-
+        DECLARE @Content VARBINARY(MAX);
+        DECLARE @ContentType NVARCHAR(100);
+        DECLARE @Metadata NVARCHAR(MAX);
+        
         SELECT 
             @Content = Content,
             @ContentType = ContentType,
@@ -40,15 +41,17 @@ BEGIN
         END
         
         -- Extract audio parameters from metadata (or use defaults)
-
-
-
+        DECLARE @SampleRate INT = ISNULL(JSON_VALUE(@Metadata, '$.sampleRate'), 44100);
+        DECLARE @ChannelCount INT = ISNULL(JSON_VALUE(@Metadata, '$.channels'), 2);
+        DECLARE @DurationMs INT = ISNULL(JSON_VALUE(@Metadata, '$.durationMs'), 0);
+        
         -- Calculate frame parameters
-
-
-
+        DECLARE @SamplesPerFrame INT = (@SampleRate * @FrameWindowMs) / 1000;
+        DECLARE @SamplesOverlap INT = (@SampleRate * @OverlapMs) / 1000;
+        DECLARE @FrameStride INT = @SamplesPerFrame - @SamplesOverlap;
+        
         -- Convert the full audio to a waveform geometry
-
+        DECLARE @WaveformGeometry GEOMETRY;
         SET @WaveformGeometry = dbo.clr_AudioToWaveform(@Content, @ChannelCount, @SampleRate, 8192);
         
         IF @WaveformGeometry IS NULL
@@ -58,20 +61,23 @@ BEGIN
         END
         
         -- Compute global audio metrics
-
-
+        DECLARE @RmsAmplitude FLOAT = dbo.clr_AudioComputeRms(@Content, @ChannelCount);
+        DECLARE @PeakAmplitude FLOAT = dbo.clr_AudioComputePeak(@Content, @ChannelCount);
+        
         -- Generate frame-level atoms
-
-
-
-
-
-
-
-
-
-
-
+        DECLARE @TotalSamples INT = (DATALENGTH(@Content) / 2) / @ChannelCount;
+        DECLARE @FrameCount INT = CEILING((@TotalSamples - @SamplesPerFrame) * 1.0 / @FrameStride) + 1;
+        
+        DECLARE @FrameIndex INT = 0;
+        DECLARE @StartSample INT;
+        DECLARE @EndSample INT;
+        DECLARE @FrameStartTime FLOAT;
+        DECLARE @FrameEndTime FLOAT;
+        DECLARE @FrameWaveform GEOMETRY;
+        DECLARE @FrameRms FLOAT;
+        DECLARE @IsActiveFrame BIT;
+        DECLARE @FramesCreated INT = 0;
+        
         WHILE @FrameIndex < @FrameCount
         BEGIN
             SET @StartSample = @FrameIndex * @FrameStride;
@@ -86,8 +92,9 @@ BEGIN
             
             -- Extract the waveform segment for this frame
             -- Use GEOMETRY::STLineSubstring to extract the time slice
-
-
+            DECLARE @StartFraction FLOAT = @FrameStartTime / (@TotalSamples * 1.0 / @SampleRate);
+            DECLARE @EndFraction FLOAT = @FrameEndTime / (@TotalSamples * 1.0 / @SampleRate);
+            
             BEGIN TRY
                 -- Extract the line segment for this time window
                 SET @FrameWaveform = @WaveformGeometry.STLineSubstring(@StartFraction, @EndFraction);
@@ -102,7 +109,30 @@ BEGIN
                 IF @IsActiveFrame = 1
                 BEGIN
                     -- Insert the frame into dbo.AudioFrames
-                    
+                    INSERT INTO dbo.AudioFrames (
+                        ParentAtomId,
+                        FrameIndex,
+                        StartTimeSec,
+                        EndTimeSec,
+                        WaveformGeometry,
+                        RmsAmplitude,
+                        PeakAmplitude,
+                        SpectralCentroid,
+                        ZeroCrossingRate,
+                        TenantId
+                    )
+                    VALUES (
+                        @AtomId,
+                        @FrameIndex,
+                        @FrameStartTime,
+                        @FrameEndTime,
+                        @FrameWaveform,
+                        @FrameRms,
+                        NULL, -- PeakAmplitude would require full frame extraction
+                        NULL, -- SpectralCentroid requires FFT (future enhancement)
+                        NULL, -- ZeroCrossingRate (future enhancement)
+                        @TenantId
+                    );
                     
                     SET @FramesCreated = @FramesCreated + 1;
                 END
@@ -146,11 +176,13 @@ BEGIN
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;
     END CATCH
 END;
+GO
 
 -- Helper function: Compute RMS from a GEOMETRY waveform
 CREATE OR ALTER FUNCTION dbo.fn_ComputeGeometryRms(@Waveform GEOMETRY)
@@ -159,10 +191,12 @@ AS
 BEGIN
     IF @Waveform IS NULL OR @Waveform.STGeometryType() <> 'LINESTRING'
         RETURN 0;
-
-
-
-
+    
+    DECLARE @PointCount INT = @Waveform.STNumPoints();
+    DECLARE @SumSquares FLOAT = 0;
+    DECLARE @PointIndex INT = 1;
+    DECLARE @Amplitude FLOAT;
+    
     WHILE @PointIndex <= @PointCount
     BEGIN
         -- Y coordinate is amplitude
@@ -173,3 +207,4 @@ BEGIN
     
     RETURN SQRT(@SumSquares / @PointCount);
 END;
+GO

@@ -10,11 +10,13 @@ CREATE OR ALTER PROCEDURE dbo.sp_Act
 AS
 BEGIN
     SET NOCOUNT ON;
-
-
-
-
-
+    
+    DECLARE @ConversationHandle UNIQUEIDENTIFIER;
+    DECLARE @MessageBody XML;
+    DECLARE @MessageTypeName NVARCHAR(256);
+    DECLARE @HypothesesJson NVARCHAR(MAX);
+    DECLARE @ExecutionResults NVARCHAR(MAX);
+    
     BEGIN TRY
         -- 1. RECEIVE MESSAGE FROM HYPOTHESIZE PHASE
         WAITFOR (
@@ -27,15 +29,18 @@ BEGIN
         
         IF @ConversationHandle IS NULL
         BEGIN
+            PRINT 'sp_Act: No messages received';
             RETURN 0;
         END
         
         -- 2. PARSE HYPOTHESES
         SET @HypothesesJson = CAST(@MessageBody AS NVARCHAR(MAX));
-
-
+        
+        DECLARE @AnalysisId UNIQUEIDENTIFIER = JSON_VALUE(@HypothesesJson, '$.analysisId');
+        DECLARE @HypothesesCount INT = JSON_VALUE(@HypothesesJson, '$.hypothesesGenerated');
+        
         -- 3. EXECUTE ACTIONS FOR EACH HYPOTHESIS
-
+        DECLARE @ActionResults TABLE (
             HypothesisId UNIQUEIDENTIFIER,
             HypothesisType NVARCHAR(50),
             ActionStatus NVARCHAR(50),
@@ -43,7 +48,8 @@ BEGIN
             ExecutionTimeMs INT,
             ErrorMessage NVARCHAR(MAX)
         );
-
+        
+        DECLARE @Hypotheses TABLE (
             HypothesisId UNIQUEIDENTIFIER,
             HypothesisType NVARCHAR(50),
             Priority INT,
@@ -51,18 +57,33 @@ BEGIN
             RequiredActions NVARCHAR(MAX)
         );
         
-        
+        INSERT INTO @Hypotheses
+        SELECT 
+            HypothesisId,
+            HypothesisType,
+            Priority,
+            Description,
+            RequiredActions
+        FROM OPENJSON(@HypothesesJson, '$.hypotheses')
+        WITH (
+            HypothesisId UNIQUEIDENTIFIER,
+            HypothesisType NVARCHAR(50),
+            Priority INT,
+            Description NVARCHAR(MAX),
+            RequiredActions NVARCHAR(MAX) AS JSON
+        );
         
         -- 4. PROCESS EACH HYPOTHESIS
-
-
-
-
-
-
-
-
-
+        DECLARE @CurrentHypothesisId UNIQUEIDENTIFIER;
+        DECLARE @CurrentType NVARCHAR(50);
+        DECLARE @CurrentPriority INT;
+        DECLARE @CurrentActions NVARCHAR(MAX);
+        DECLARE @StartTime DATETIME2;
+        DECLARE @ExecutionTimeMs INT;
+        DECLARE @ActionStatus NVARCHAR(50);
+        DECLARE @ExecutedActionsList NVARCHAR(MAX);
+        DECLARE @ActionError NVARCHAR(MAX);
+        
         DECLARE hypothesis_cursor CURSOR FOR
         SELECT HypothesisId, HypothesisType, Priority, RequiredActions
         FROM @Hypotheses
@@ -73,28 +94,32 @@ BEGIN
         
         -- GÖDEL ENGINE: Check for compute job messages first
         -- This is where the CLR compute function is invoked
-
+        DECLARE @PrimeSearchJobId UNIQUEIDENTIFIER = @MessageBody.value('(/Action/PrimeSearch/JobId)[1]', 'uniqueidentifier');
+        
         IF @PrimeSearchJobId IS NOT NULL
         BEGIN
-
-
+            DECLARE @Start BIGINT = @MessageBody.value('(/Action/PrimeSearch/RangeStart)[1]', 'bigint');
+            DECLARE @End BIGINT = @MessageBody.value('(/Action/PrimeSearch/RangeEnd)[1]', 'bigint');
+            
             PRINT 'sp_Act: Executing prime search for range [' + CAST(@Start AS NVARCHAR(20)) + ', ' + CAST(@End AS NVARCHAR(20)) + ']';
             
             -- Call the CLR function to find primes in this chunk
-
+            DECLARE @ResultJson NVARCHAR(MAX);
             SET @ResultJson = dbo.clr_FindPrimes(@Start, @End);
             
             PRINT 'sp_Act: Found primes: ' + @ResultJson;
             
             -- Send results to Learn phase
-
+            DECLARE @LearnPayload XML = (
                 SELECT 
                     @PrimeSearchJobId AS JobId,
                     @End AS LastChecked,
                     @ResultJson AS PrimesFound
                 FOR XML PATH('PrimeResult'), ROOT('Learn')
             );
-
+            
+            DECLARE @LearnHandle UNIQUEIDENTIFIER;
+            
             BEGIN DIALOG CONVERSATION @LearnHandle
                 FROM SERVICE ActService
                 TO SERVICE 'LearnService'
@@ -107,6 +132,7 @@ BEGIN
             
             END CONVERSATION @ConversationHandle;
             
+            PRINT 'sp_Act: Compute job results sent to Learn phase.';
             RETURN 0;
         END
         
@@ -123,7 +149,7 @@ BEGIN
                 IF @CurrentType = 'IndexOptimization'
                 BEGIN
                     -- Analyze missing indexes
-
+                    DECLARE @MissingIndexes TABLE (
                         TableName NVARCHAR(256),
                         IndexColumns NVARCHAR(MAX),
                         IncludedColumns NVARCHAR(MAX),
@@ -131,7 +157,17 @@ BEGIN
                     );
                     
                     -- Get missing index recommendations
-                    
+                    INSERT INTO @MissingIndexes
+                    SELECT TOP 5
+                        OBJECT_NAME(mid.object_id) AS TableName,
+                        mid.equality_columns + ISNULL(', ' + mid.inequality_columns, '') AS IndexColumns,
+                        mid.included_columns AS IncludedColumns,
+                        migs.avg_total_user_cost * migs.avg_user_impact * (migs.user_seeks + migs.user_scans) AS ImpactScore
+                    FROM sys.dm_db_missing_index_details mid
+                    INNER JOIN sys.dm_db_missing_index_groups mig ON mid.index_handle = mig.index_handle
+                    INNER JOIN sys.dm_db_missing_index_group_stats migs ON mig.index_group_handle = migs.group_handle
+                    WHERE mid.database_id = DB_ID()
+                    ORDER BY ImpactScore DESC;
                     
                     -- Update statistics on key tables
                     UPDATE STATISTICS dbo.Atoms WITH FULLSCAN;
@@ -150,13 +186,15 @@ BEGIN
                 ELSE IF @CurrentType = 'QueryRegression'
                 BEGIN
                     -- Parse query regression recommendations from sp_Analyze observations
-
-
+                    DECLARE @RecommendationsJson NVARCHAR(MAX) = JSON_QUERY(@CurrentActions, '$.queryStoreRecommendations');
+                    DECLARE @ForcedPlansCount INT = 0;
+                    
                     IF @RecommendationsJson IS NOT NULL
                     BEGIN
-
-
-
+                        DECLARE @QueryId BIGINT;
+                        DECLARE @RecommendedPlanId BIGINT;
+                        DECLARE @ForceScript NVARCHAR(MAX);
+                        
                         DECLARE plan_cursor CURSOR FOR
                         SELECT 
                             TRY_CAST(JSON_VALUE(value, '$.QueryId') AS BIGINT),
@@ -197,7 +235,8 @@ BEGIN
                 ELSE IF @CurrentType = 'CacheWarming'
                 BEGIN
                     -- Preload frequent embeddings into buffer pool
-
+                    DECLARE @PreloadedCount INT = 0;
+                    
                     SELECT TOP 1000 @PreloadedCount = COUNT(*)
                     FROM dbo.AtomEmbeddings WITH (NOLOCK)
                     WHERE LastAccessedUtc >= DATEADD(DAY, -7, SYSUTCDATETIME())
@@ -211,7 +250,8 @@ BEGIN
                 ELSE IF @CurrentType = 'ConceptDiscovery'
                 BEGIN
                     -- Trigger concept discovery (placeholder - actual CLR function to be implemented)
-
+                    DECLARE @DiscoveredConcepts INT = 0;
+                    
                     -- For now, just detect clusters via spatial buckets
                     SELECT @DiscoveredConcepts = COUNT(DISTINCT SpatialBucket)
                     FROM dbo.AtomEmbeddings
@@ -224,7 +264,9 @@ BEGIN
                 -- MODEL RETRAINING: DANGEROUS, queue for approval
                 ELSE IF @CurrentType = 'ModelRetraining'
                 BEGIN
-                    -- 
+                    -- Insert into approval queue (table to be created)
+                    -- For now, just log the request
+                    SET @ExecutedActionsList = JSON_OBJECT('status': 'QueuedForApproval', 'reason': 'ModelRetraining requires manual approval');
                     SET @ActionStatus = 'QueuedForApproval';
                 END
                 
@@ -243,7 +285,8 @@ BEGIN
             
             SET @ExecutionTimeMs = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
             
-            
+            INSERT INTO @ActionResults
+            VALUES (@CurrentHypothesisId, @CurrentType, @ActionStatus, @ExecutedActionsList, @ExecutionTimeMs, @ActionError);
             
             FETCH NEXT FROM hypothesis_cursor INTO @CurrentHypothesisId, @CurrentType, @CurrentPriority, @CurrentActions;
         END
@@ -263,7 +306,8 @@ BEGIN
             FROM @ActionResults
             FOR JSON PATH
         );
-
+        
+        DECLARE @ActPayload NVARCHAR(MAX) = JSON_OBJECT(
             'analysisId': @AnalysisId,
             'originalHypothesisPayload': JSON_QUERY(@HypothesesJson),
             'executedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed'),
@@ -274,8 +318,9 @@ BEGIN
         );
         
         -- 6. SEND TO LEARN QUEUE
-
-
+        DECLARE @LearnConversationHandle UNIQUEIDENTIFIER;
+        DECLARE @LearnMessageBody XML = CAST(@ActPayload AS XML);
+        
         BEGIN DIALOG CONVERSATION @LearnConversationHandle
             FROM SERVICE ActService
             TO SERVICE 'LearnService'
@@ -295,9 +340,10 @@ BEGIN
         RETURN 0;
     END TRY
     BEGIN CATCH
-
-
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
         IF @ConversationHandle IS NOT NULL
         BEGIN
             END CONVERSATION @ConversationHandle WITH ERROR = 1 DESCRIPTION = @ErrorMessage;
@@ -308,3 +354,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO

@@ -5,6 +5,9 @@
 -- autonomous, tool-using agent framework.
 -- =============================================
 
+USE Hartonomous;
+GO
+
 -- 1. AgentTools Table
 -------------------------------------------------
 -- This table acts as a registry for all tools the agent can use.
@@ -13,6 +16,7 @@
 -------------------------------------------------
 IF OBJECT_ID('dbo.AgentTools', 'U') IS NOT NULL
     DROP TABLE dbo.AgentTools;
+GO
 
 CREATE TABLE dbo.AgentTools (
     ToolId INT IDENTITY(1,1) PRIMARY KEY,
@@ -24,6 +28,10 @@ CREATE TABLE dbo.AgentTools (
     IsEnabled BIT NOT NULL DEFAULT 1,
     CreatedAt DATETIME2 DEFAULT SYSUTCDATETIME()
 );
+GO
+
+PRINT 'Created dbo.AgentTools table.';
+GO
 
 -- 2. sp_Converse Stored Procedure
 -------------------------------------------------
@@ -33,6 +41,7 @@ CREATE TABLE dbo.AgentTools (
 -------------------------------------------------
 IF OBJECT_ID('dbo.sp_Converse', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_Converse;
+GO
 
 CREATE PROCEDURE dbo.sp_Converse
     @Prompt NVARCHAR(MAX),
@@ -41,12 +50,14 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-
-
-
-
-
-
+    DECLARE @ToolList NVARCHAR(MAX);
+    DECLARE @ToolSelectionPrompt NVARCHAR(MAX);
+    DECLARE @ToolSelectionResult NVARCHAR(MAX);
+    DECLARE @SelectedToolName NVARCHAR(128);
+    DECLARE @SelectedToolParams NVARCHAR(MAX);
+    DECLARE @ToolExecutionResult NVARCHAR(MAX);
+    DECLARE @SynthesisPrompt NVARCHAR(MAX);
+    DECLARE @FinalAnswer NVARCHAR(MAX);
 
     BEGIN TRY
         -- STEP 1: Get the list of available tools for the LLM to choose from.
@@ -82,8 +93,9 @@ RESPONSE (JSON only):
         IF @Debug = 1 PRINT 'Tool Selection Prompt: ' + @ToolSelectionPrompt;
 
         -- Call the text generation model to get the tool selection
-
-        
+        DECLARE @GenerationResult TABLE (GeneratedText NVARCHAR(MAX));
+        INSERT INTO @GenerationResult
+        EXEC dbo.sp_GenerateText @prompt = @ToolSelectionPrompt, @temperature = 0.0;
 
         SELECT TOP 1 @ToolSelectionResult = GeneratedText FROM @GenerationResult;
 
@@ -107,8 +119,9 @@ RESPONSE (JSON only):
         IF @SelectedToolName = 'analyze_system_state'
         BEGIN
             -- The tool returns a table, so we need to capture its output.
-
-             -- Simplified parameter passing
+            DECLARE @AnalysisData TABLE (ResultJson NVARCHAR(MAX));
+            INSERT INTO @AnalysisData
+            EXEC dbo.fn_clr_AnalyzeSystemState @targetArea = NULL; -- Simplified parameter passing
 
             -- Serialize the tool's output for the next step
             SELECT @ToolExecutionResult = (SELECT * FROM @AnalysisData FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
@@ -136,7 +149,8 @@ Do not just repeat the data; explain what it means.
         IF @Debug = 1 PRINT 'Synthesis Prompt: ' + @SynthesisPrompt;
 
         DELETE FROM @GenerationResult;
-        
+        INSERT INTO @GenerationResult
+        EXEC dbo.sp_GenerateText @prompt = @SynthesisPrompt, @temperature = 0.7;
 
         SELECT TOP 1 @FinalAnswer = GeneratedText FROM @GenerationResult;
 
@@ -146,7 +160,11 @@ Do not just repeat the data; explain what it means.
     END TRY
     BEGIN CATCH
         -- Error handling
-
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR('An error occurred in the agent conversation: %s', 16, 1, @ErrorMessage);
     END CATCH;
 END;
+GO
+
+PRINT 'Created dbo.sp_Converse procedure.';
+GO
