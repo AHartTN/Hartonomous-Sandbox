@@ -43,11 +43,17 @@ public class AtomEmbeddingConfiguration : IEntityTypeConfiguration<AtomEmbedding
         builder.Property(e => e.CreatedAt)
             .HasDefaultValueSql("SYSUTCDATETIME()");
 
+        builder.Property(e => e.LastUpdated)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
         builder.Property(e => e.SpatialGeometry)
             .HasColumnType("geometry");
 
         builder.Property(e => e.SpatialCoarse)
             .HasColumnType("geometry");
+
+        builder.Property(e => e.SpatialBucket)
+            .HasColumnName("SpatialBucket");
 
         builder.Property(e => e.SpatialBucketX)
             .HasColumnType("int")

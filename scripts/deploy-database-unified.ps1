@@ -210,14 +210,21 @@ function Invoke-SqlCommand {
         $connection.ConnectionString = $script:ConnectionString -replace "Database=[^;]+", "Database=$Database"
         $connection.Open()
         
-        $command = $connection.CreateCommand()
-        $command.CommandText = $Query
-        $command.CommandTimeout = $Timeout
+        # Split SQL on GO batch separators
+        $batches = $Query -split '(?m)^\s*GO\s*$' | Where-Object { $_.Trim() -ne '' }
         
-        $result = $command.ExecuteNonQuery()
+        $totalAffected = 0
+        foreach ($batch in $batches) {
+            $command = $connection.CreateCommand()
+            $command.CommandText = $batch
+            $command.CommandTimeout = $Timeout
+            
+            $result = $command.ExecuteNonQuery()
+            if ($result -gt 0) { $totalAffected += $result }
+        }
         
         $connection.Close()
-        return $result
+        return $totalAffected
     }
     catch {
         throw "SQL execution failed: $_"

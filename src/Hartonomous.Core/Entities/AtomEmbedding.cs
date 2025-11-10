@@ -46,6 +46,12 @@ public class AtomEmbedding
     public Point? SpatialCoarse { get; set; }
 
     /// <summary>
+    /// Combined spatial bucket identifier for coarse-grained spatial partitioning.
+    /// Legacy field - prefer using SpatialBucketX/Y/Z individually.
+    /// </summary>
+    public int SpatialBucket { get; set; }
+
+    /// <summary>
     /// Gets or sets the bucketed X coordinate (integer rounding of <see cref="SpatialProjX"/>).
     /// Enables fast joins with aggregated spatial metadata.
     /// </summary>
@@ -65,6 +71,8 @@ public class AtomEmbedding
     public string? Metadata { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
 
     public Atom Atom { get; set; } = null!;
 

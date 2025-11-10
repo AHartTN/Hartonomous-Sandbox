@@ -81,6 +81,21 @@ public class Atom
     public DateTime? UpdatedAt { get; set; }
 
     /// <summary>
+    /// Multi-tenant isolation identifier. Defaults to 0 for single-tenant or default tenant.
+    /// </summary>
+    public int TenantId { get; set; } = 0;
+
+    /// <summary>
+    /// Soft-delete flag for atoms. When true, the atom is logically deleted but retained for audit/provenance.
+    /// </summary>
+    public bool IsDeleted { get; set; } = false;
+
+    /// <summary>
+    /// The UTC timestamp when the atom was soft-deleted, if applicable.
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
     /// A flag indicating if the atom is active and available for querying.
     /// Inactive atoms can be excluded from searches and may be candidates for archival or garbage collection.
     /// </summary>

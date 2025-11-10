@@ -115,6 +115,9 @@ namespace Hartonomous.Data.Migrations
                     Metadata = table.Column<string>(type: "JSON", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
                     UpdatedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
+                    TenantId = table.Column<int>(type: "int", nullable: false, defaultValue: 0),
+                    IsDeleted = table.Column<bool>(type: "bit", nullable: false, defaultValue: false),
+                    DeletedAt = table.Column<DateTime>(type: "datetime2", nullable: true),
                     IsActive = table.Column<bool>(type: "bit", nullable: false, defaultValue: true),
                     ReferenceCount = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
                     SpatialKey = table.Column<Point>(type: "geometry", nullable: true),
@@ -679,11 +682,13 @@ namespace Hartonomous.Data.Migrations
                     SpatialProjZ = table.Column<double>(type: "float", nullable: true),
                     SpatialGeometry = table.Column<Point>(type: "geometry", nullable: true),
                     SpatialCoarse = table.Column<Point>(type: "geometry", nullable: true),
+                    SpatialBucket = table.Column<int>(type: "int", nullable: false),
                     SpatialBucketX = table.Column<int>(type: "int", nullable: true),
                     SpatialBucketY = table.Column<int>(type: "int", nullable: true),
                     SpatialBucketZ = table.Column<int>(type: "int", nullable: false, defaultValue: -2147483648),
                     Metadata = table.Column<string>(type: "JSON", nullable: true),
-                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
+                    CreatedAt = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    LastUpdated = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()")
                 },
                 constraints: table =>
                 {
@@ -902,20 +907,24 @@ namespace Hartonomous.Data.Migrations
                 name: "TokenVocabulary",
                 columns: table => new
                 {
-                    VocabId = table.Column<long>(type: "bigint", nullable: false)
+                    TokenId = table.Column<long>(type: "bigint", nullable: false)
                         .Annotation("SqlServer:Identity", "1, 1"),
                     ModelId = table.Column<int>(type: "int", nullable: false),
-                    Token = table.Column<string>(type: "nvarchar(100)", maxLength: 100, nullable: false),
-                    TokenId = table.Column<int>(type: "int", nullable: false),
-                    TokenType = table.Column<string>(type: "nvarchar(20)", maxLength: 20, nullable: true),
+                    VocabularyName = table.Column<string>(type: "nvarchar(128)", maxLength: 128, nullable: false, defaultValue: "default"),
+                    Token = table.Column<string>(type: "nvarchar(256)", maxLength: 256, nullable: false),
+                    DimensionIndex = table.Column<int>(type: "int", nullable: false),
+                    TokenType = table.Column<string>(type: "nvarchar(max)", nullable: true),
                     Embedding = table.Column<SqlVector<float>>(type: "VECTOR(768)", nullable: true),
                     EmbeddingDim = table.Column<int>(type: "int", nullable: true),
-                    Frequency = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
+                    Frequency = table.Column<long>(type: "bigint", nullable: false, defaultValue: 1L),
+                    IDF = table.Column<double>(type: "float", nullable: true),
+                    CreatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
+                    UpdatedUtc = table.Column<DateTime>(type: "datetime2", nullable: false, defaultValueSql: "SYSUTCDATETIME()"),
                     LastUsed = table.Column<DateTime>(type: "datetime2", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_TokenVocabulary", x => x.VocabId);
+                    table.PrimaryKey("PK_TokenVocabulary", x => x.TokenId);
                     table.ForeignKey(
                         name: "FK_TokenVocabulary_Models_ModelId",
                         column: x => x.ModelId,
@@ -1237,10 +1246,16 @@ namespace Hartonomous.Data.Migrations
                 column: "TargetAtomId");
 
             migrationBuilder.CreateIndex(
-                name: "UX_Atoms_ContentHash",
+                name: "IX_Atoms_Modality_Subtype",
                 table: "Atoms",
-                column: "ContentHash",
-                unique: true);
+                columns: new[] { "Modality", "Subtype" });
+
+            migrationBuilder.CreateIndex(
+                name: "UX_Atoms_ContentHash_TenantId",
+                table: "Atoms",
+                columns: new[] { "ContentHash", "TenantId" },
+                unique: true,
+                filter: "[IsDeleted] = 0");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AudioData_DurationMs",
@@ -1641,15 +1656,19 @@ namespace Hartonomous.Data.Migrations
                 descending: new bool[0]);
 
             migrationBuilder.CreateIndex(
+                name: "IX_TokenVocabulary_Dimension",
+                table: "TokenVocabulary",
+                column: "DimensionIndex");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TokenVocabulary_ModelId_Token",
                 table: "TokenVocabulary",
                 columns: new[] { "ModelId", "Token" });
 
             migrationBuilder.CreateIndex(
-                name: "IX_TokenVocabulary_ModelId_TokenId",
+                name: "IX_TokenVocabulary_Token",
                 table: "TokenVocabulary",
-                columns: new[] { "ModelId", "TokenId" },
-                unique: true);
+                columns: new[] { "VocabularyName", "Token" });
 
             migrationBuilder.CreateIndex(
                 name: "IX_VideoFrames_VideoId_FrameNumber",

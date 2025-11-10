@@ -47,10 +47,18 @@ namespace Hartonomous.Data.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("SYSUTCDATETIME()");
 
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
+
+                    b.Property<bool>("IsDeleted")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("Metadata")
                         .HasColumnType("JSON");
@@ -84,14 +92,23 @@ namespace Hartonomous.Data.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("nvarchar(128)");
 
+                    b.Property<int>("TenantId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("AtomId");
 
-                    b.HasIndex("ContentHash")
+                    b.HasIndex("ContentHash", "TenantId")
                         .IsUnique()
-                        .HasDatabaseName("UX_Atoms_ContentHash");
+                        .HasDatabaseName("UX_Atoms_ContentHash_TenantId")
+                        .HasFilter("[IsDeleted] = 0");
+
+                    b.HasIndex("Modality", "Subtype")
+                        .HasDatabaseName("IX_Atoms_Modality_Subtype");
 
                     b.ToTable("Atoms", (string)null);
                 });
@@ -125,11 +142,20 @@ namespace Hartonomous.Data.Migrations
                     b.Property<SqlVector<float>?>("EmbeddingVector")
                         .HasColumnType("VECTOR(1998)");
 
+                    b.Property<DateTime>("LastUpdated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
                     b.Property<string>("Metadata")
                         .HasColumnType("JSON");
 
                     b.Property<int?>("ModelId")
                         .HasColumnType("int");
+
+                    b.Property<int>("SpatialBucket")
+                        .HasColumnType("int")
+                        .HasColumnName("SpatialBucket");
 
                     b.Property<int?>("SpatialBucketX")
                         .HasColumnType("int")
@@ -2357,9 +2383,18 @@ namespace Hartonomous.Data.Migrations
                 {
                     b.Property<long>("VocabId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
+                        .HasColumnType("bigint")
+                        .HasColumnName("TokenId");
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("VocabId"));
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<int>("DimensionIndex")
+                        .HasColumnType("int");
 
                     b.Property<SqlVector<float>?>("Embedding")
                         .HasColumnType("VECTOR(768)");
@@ -2370,7 +2405,10 @@ namespace Hartonomous.Data.Migrations
                     b.Property<long>("Frequency")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")
-                        .HasDefaultValue(0L);
+                        .HasDefaultValue(1L);
+
+                    b.Property<double?>("IDF")
+                        .HasColumnType("float");
 
                     b.Property<DateTime?>("LastUsed")
                         .HasColumnType("datetime2");
@@ -2380,24 +2418,34 @@ namespace Hartonomous.Data.Migrations
 
                     b.Property<string>("Token")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("TokenId")
-                        .HasColumnType("int");
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
 
                     b.Property<string>("TokenType")
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)");
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("SYSUTCDATETIME()");
+
+                    b.Property<string>("VocabularyName")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)")
+                        .HasDefaultValue("default");
 
                     b.HasKey("VocabId");
+
+                    b.HasIndex("DimensionIndex")
+                        .HasDatabaseName("IX_TokenVocabulary_Dimension");
 
                     b.HasIndex("ModelId", "Token")
                         .HasDatabaseName("IX_TokenVocabulary_ModelId_Token");
 
-                    b.HasIndex("ModelId", "TokenId")
-                        .IsUnique()
-                        .HasDatabaseName("IX_TokenVocabulary_ModelId_TokenId");
+                    b.HasIndex("VocabularyName", "Token")
+                        .HasDatabaseName("IX_TokenVocabulary_Token");
 
                     b.ToTable("TokenVocabulary", (string)null);
                 });

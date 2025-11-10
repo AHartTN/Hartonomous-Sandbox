@@ -1,0 +1,96 @@
+{
+  "Error": "SQL execution failed: Exception calling \"ExecuteNonQuery\" with \"0\" argument(s): \"Incorrect syntax near 'GO'.\"",
+  "StackTrace": "at Invoke-SqlCommand, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 223\r\nat Deploy-AdvancedTables, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 489\r\nat <ScriptBlock>, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 747\r\nat <ScriptBlock>, <No file>: line 1",
+  "Log": [
+    {
+      "Message": "=== PHASE 0: Environment Initialization ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "Connected to SQL Server  ()",
+      "Level": "Success",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "Edition: ",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "=== PHASE 1: Database Prerequisites ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "Database 'Hartonomous' already exists",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "All schemas created/verified",
+      "Level": "Success",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "=== PHASE 2: EF Core Migrations ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "Using dotnet ef: Entity Framework Core .NET Command-line Tools 10.0.0-rc.2.25502.107",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "Applying EF Core migrations to database...",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:01"
+    },
+    {
+      "Message": "EF Core migrations applied successfully",
+      "Level": "Success",
+      "Timestamp": "2025-11-10 06:52:08"
+    },
+    {
+      "Message": "=== PHASE 3: CLR Assembly Deployment ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:08"
+    },
+    {
+      "Message": "Executing secure, multi-assembly CLR deployment script...",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:08"
+    },
+    {
+      "Message": "Secure CLR deployment script completed successfully.",
+      "Level": "Success",
+      "Timestamp": "2025-11-10 06:52:15"
+    },
+    {
+      "Message": "=== PHASE 4: Advanced SQL Tables ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:15"
+    },
+    {
+      "Message": "Deploying table: Attention.AttentionGenerationTables",
+      "Level": "Info",
+      "Timestamp": "2025-11-10 06:52:15"
+    },
+    {
+      "Message": "Failed to deploy Attention.AttentionGenerationTables: SQL execution failed: Exception calling \"ExecuteNonQuery\" with \"0\" argument(s): \"Incorrect syntax near 'GO'.\"",
+      "Level": "Error",
+      "Timestamp": "2025-11-10 06:52:15"
+    },
+    {
+      "Message": "ERROR: SQL execution failed: Exception calling \"ExecuteNonQuery\" with \"0\" argument(s): \"Incorrect syntax near 'GO'.\"",
+      "Level": "Error",
+      "Timestamp": "2025-11-10 06:52:15"
+    },
+    {
+      "Message": "Stack trace: at Invoke-SqlCommand, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 223\r\nat Deploy-AdvancedTables, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 489\r\nat <ScriptBlock>, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 747\r\nat <ScriptBlock>, <No file>: line 1",
+      "Level": "Error",
+      "Timestamp": "2025-11-10 06:52:15"
+    }
+  ]
+}

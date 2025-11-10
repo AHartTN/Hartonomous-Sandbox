@@ -16,9 +16,19 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
             .IsRequired()
             .HasColumnType("binary(32)");
 
-        builder.HasIndex(a => a.ContentHash)
+        builder.HasIndex(a => new { a.ContentHash, a.TenantId })
             .IsUnique()
-            .HasDatabaseName("UX_Atoms_ContentHash");
+            .HasFilter("[IsDeleted] = 0")
+            .HasDatabaseName("UX_Atoms_ContentHash_TenantId");
+
+        builder.HasIndex(a => new { a.Modality, a.Subtype })
+            .HasDatabaseName("IX_Atoms_Modality_Subtype");
+
+        builder.Property(a => a.TenantId)
+            .HasDefaultValue(0);
+
+        builder.Property(a => a.IsDeleted)
+            .HasDefaultValue(false);
 
         builder.Property(a => a.Modality)
             .IsRequired()

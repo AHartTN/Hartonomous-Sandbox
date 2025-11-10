@@ -10,28 +10,45 @@ public class TokenVocabularyConfiguration : IEntityTypeConfiguration<TokenVocabu
     {
         builder.ToTable("TokenVocabulary");
 
-        builder.HasKey(tv => tv.VocabId);
+        builder.HasKey(t => t.VocabId);
 
-        builder.Property(tv => tv.Token)
+        builder.Property(t => t.VocabId)
+            .HasColumnName("TokenId")
+            .UseIdentityColumn();
+
+        builder.Property(t => t.VocabularyName)
             .IsRequired()
-            .HasMaxLength(100);
+            .HasMaxLength(128)
+            .HasDefaultValue("default");
 
-        builder.Property(tv => tv.TokenType)
-            .HasMaxLength(20);
+        builder.Property(t => t.Token)
+            .IsRequired()
+            .HasMaxLength(256);
 
-        // VECTOR type for token embeddings
-        builder.Property(tv => tv.Embedding)
+        builder.Property(t => t.DimensionIndex)
+            .IsRequired();
+
+        builder.Property(t => t.Frequency)
+            .HasDefaultValue(1L);
+
+        builder.Property(t => t.IDF)
+            .HasColumnType("float");
+
+        builder.Property(t => t.CreatedUtc)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        builder.Property(t => t.UpdatedUtc)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
+        builder.HasIndex(t => new { t.VocabularyName, t.Token })
+            .HasDatabaseName("IX_TokenVocabulary_Token");
+
+        builder.HasIndex(t => t.DimensionIndex)
+            .HasDatabaseName("IX_TokenVocabulary_Dimension");
+
+        builder.Property(t => t.Embedding)
             .HasColumnType("VECTOR(768)");
 
-        builder.Property(tv => tv.Frequency)
-            .HasDefaultValue(0);
-
-        // Unique constraint on model_id + token_id
-        builder.HasIndex(tv => new { tv.ModelId, tv.TokenId })
-            .IsUnique()
-            .HasDatabaseName("IX_TokenVocabulary_ModelId_TokenId");
-
-        // Index for token lookup
         builder.HasIndex(tv => new { tv.ModelId, tv.Token })
             .HasDatabaseName("IX_TokenVocabulary_ModelId_Token");
 

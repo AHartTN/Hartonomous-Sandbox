@@ -18,14 +18,19 @@ public class TokenVocabulary
     public int ModelId { get; set; }
 
     /// <summary>
+    /// Gets or sets the vocabulary name (e.g., 'default', 'gpt2', 'bert').
+    /// </summary>
+    public string VocabularyName { get; set; } = "default";
+
+    /// <summary>
     /// Gets or sets the token text.
     /// </summary>
     public required string Token { get; set; }
 
     /// <summary>
-    /// Gets or sets the numeric token identifier used by the model.
+    /// Gets or sets the dimension index for this token in the vocabulary space.
     /// </summary>
-    public int TokenId { get; set; }
+    public int DimensionIndex { get; set; }
 
     /// <summary>
     /// Gets or sets the token type (e.g., 'word', 'subword', 'special').
@@ -46,6 +51,21 @@ public class TokenVocabulary
     /// Gets or sets the frequency count of this token in the training data or usage.
     /// </summary>
     public long Frequency { get; set; } = 0;
+
+    /// <summary>
+    /// Gets or sets the inverse document frequency (IDF) score for this token.
+    /// </summary>
+    public double? IDF { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timestamp when this token was created.
+    /// </summary>
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Gets or sets the timestamp when this token was last updated.
+    /// </summary>
+    public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
     /// <summary>
     /// Gets or sets the timestamp of the last time this token was used in inference.
