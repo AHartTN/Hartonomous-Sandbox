@@ -1,27 +1,33 @@
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Shared;
-using Hartonomous.Core.Utilities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Data.SqlClient;
 using NetTopologySuite.Geometries;
-using System.Data.SqlTypes;
+using NetTopologySuite.IO;
+using System.Data;
 
 namespace Hartonomous.Data.Repositories;
 
 /// <summary>
-/// Repository for vector search operations using EF Core
-/// Replaces sp_SpatialVectorSearch, sp_TemporalVectorSearch, sp_HybridSearch, sp_MultiModelEnsemble
+/// Repository for vector search operations delegating to SQL Server CLR procedures
+/// Calls sp_SpatialVectorSearch, sp_TemporalVectorSearch, sp_HybridSearch, sp_MultiModelEnsemble
+/// Uses SQL Server 2025 VECTOR_DISTANCE native functions via stored procedures
 /// </summary>
 public class VectorSearchRepository : IVectorSearchRepository
 {
     private readonly HartonomousDbContext _context;
+    private readonly string _connectionString;
 
     public VectorSearchRepository(HartonomousDbContext context)
     {
         _context = context;
+        _connectionString = context.Database.GetConnectionString() 
+            ?? throw new InvalidOperationException("Database connection string not configured");
     }
 
     /// <summary>
-    /// Performs spatial pre-filtering + exact k-NN search
+    /// Performs spatial pre-filtering + exact k-NN search via SQL Server CLR procedure
+    /// Delegates to sp_SpatialVectorSearch which uses VECTOR_DISTANCE native function
     /// </summary>
     public async Task<IReadOnlyList<VectorSearchResult>> SpatialVectorSearchAsync(
         byte[] queryVector,
@@ -31,73 +37,44 @@ public class VectorSearchRepository : IVectorSearchRepository
         int tenantId = 0,
         double minSimilarity = 0.0)
     {
-        IQueryable<AtomEmbedding> query = _context.AtomEmbeddings
-            .Include(e => e.Atom);
+        var results = new List<VectorSearchResult>();
 
-        // Spatial pre-filtering using SpatialGeometry
-        if (spatialCenter != null && radiusMeters.HasValue)
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand("dbo.sp_SpatialVectorSearch", connection)
         {
-            query = query.Where(e =>
-                e.SpatialGeometry != null &&
-                spatialCenter.Distance(e.SpatialGeometry) <= radiusMeters.Value);
-        }
+            CommandType = CommandType.StoredProcedure,
+            CommandTimeout = 60
+        };
 
-        // Get candidates (limit for performance)
-        var candidates = await query
-            .Take(100000) // Safety limit
-            .Select(e => new
-            {
-                e.AtomEmbeddingId,
-                e.AtomId,
-                e.EmbeddingVector,
-                SpatialDistance = spatialCenter != null && e.SpatialGeometry != null
-                    ? spatialCenter.Distance(e.SpatialGeometry)
-                    : 0.0
-            })
-            .ToListAsync();
+        command.Parameters.AddWithValue("@QueryVector", queryVector);
+        command.Parameters.AddWithValue("@SpatialCenter", (object?)spatialCenter ?? DBNull.Value);
+        command.Parameters.AddWithValue("@RadiusMeters", (object?)radiusMeters ?? DBNull.Value);
+        command.Parameters.AddWithValue("@TopK", topK);
+        command.Parameters.AddWithValue("@TenantId", tenantId);
+        command.Parameters.AddWithValue("@MinSimilarity", minSimilarity);
 
-        // Compute similarities and rank
-        var results = candidates
-            .Select(c => {
-                double similarity = 0.0;
-                if (c.EmbeddingVector.HasValue)
-                {
-                    var vector = VectorUtility.Materialize(c.EmbeddingVector.Value, c.EmbeddingVector.Value.Length);
-                    similarity = 1.0 - VectorUtility.ComputeCosineDistance(vector, queryVector.Select(b => (float)b).ToArray());
-                }
-                return new VectorSearchResult
-                {
-                    AtomId = c.AtomId,
-                    Similarity = similarity,
-                    SpatialDistance = c.SpatialDistance
-                };
-            })
-            .Where(r => r.Similarity >= minSimilarity)
-            .OrderByDescending(r => r.Similarity)
-            .Take(topK)
-            .ToList();
-
-        // Load atom details for results
-        var atomIds = results.Select(r => r.AtomId).ToList();
-        var atoms = await _context.Atoms
-            .Where(a => atomIds.Contains(a.AtomId))
-            .ToDictionaryAsync(a => a.AtomId);
-
-        foreach (var result in results)
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
         {
-            if (atoms.TryGetValue(result.AtomId, out var atom))
+            results.Add(new VectorSearchResult
             {
-                result.ContentHash = atom.ContentHash;
-                result.ContentType = atom.Subtype ?? atom.Modality;
-                result.CreatedUtc = atom.CreatedAt;
-            }
+                AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
+                Similarity = reader.GetDouble(reader.GetOrdinal("Similarity")),
+                SpatialDistance = reader.GetDouble(reader.GetOrdinal("SpatialDistance")),
+                ContentHash = reader.GetFieldValue<byte[]>(reader.GetOrdinal("ContentHash")),
+                ContentType = reader.GetString(reader.GetOrdinal("ContentType")),
+                CreatedUtc = reader.GetDateTime(reader.GetOrdinal("CreatedUtc"))
+            });
         }
 
         return results;
     }
 
     /// <summary>
-    /// Performs point-in-time semantic search using temporal tables
+    /// Performs point-in-time semantic search using temporal tables via SQL Server CLR
+    /// Delegates to sp_TemporalVectorSearch with FOR SYSTEM_TIME AS OF clause
     /// </summary>
     public async Task<IReadOnlyList<VectorSearchResult>> TemporalVectorSearchAsync(
         byte[] queryVector,
@@ -105,16 +82,42 @@ public class VectorSearchRepository : IVectorSearchRepository
         int topK = 10,
         int tenantId = 0)
     {
-        // Note: EF Core temporal table support is limited
-        // This would need custom SQL or raw SQL execution
-        // For now, return empty results with a comment
-        throw new NotImplementedException(
-            "Temporal vector search requires custom SQL implementation. " +
-            "Consider using raw SQL with FOR SYSTEM_TIME AS OF clause.");
+        var results = new List<VectorSearchResult>();
+
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand("dbo.sp_TemporalVectorSearch", connection)
+        {
+            CommandType = CommandType.StoredProcedure,
+            CommandTimeout = 60
+        };
+
+        command.Parameters.AddWithValue("@QueryVector", queryVector);
+        command.Parameters.AddWithValue("@AsOfDate", asOfDate);
+        command.Parameters.AddWithValue("@TopK", topK);
+        command.Parameters.AddWithValue("@TenantId", tenantId);
+
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            results.Add(new VectorSearchResult
+            {
+                AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
+                Similarity = reader.GetDouble(reader.GetOrdinal("Similarity")),
+                ContentHash = reader.GetFieldValue<byte[]>(reader.GetOrdinal("ContentHash")),
+                ContentType = reader.GetString(reader.GetOrdinal("ContentType")),
+                CreatedUtc = reader.GetDateTime(reader.GetOrdinal("LastComputedUtc"))
+            });
+        }
+
+        return results;
     }
 
     /// <summary>
-    /// Performs hybrid search combining full-text, vector, and spatial ranking
+    /// Performs hybrid search combining vector and spatial ranking via SQL Server CLR
+    /// Delegates to sp_HybridSearch which uses VECTOR_DISTANCE native function
+    /// Note: Full-text keyword search requires separate CONTAINSTABLE integration
     /// </summary>
     public async Task<IReadOnlyList<HybridSearchResult>> HybridSearchAsync(
         byte[] queryVector,
@@ -133,81 +136,68 @@ public class VectorSearchRepository : IVectorSearchRepository
             throw new ArgumentException("Weights must sum to 1.0");
         }
 
-        var atoms = await _context.Atoms
-            .Select(a => new
-            {
-                a.AtomId,
-                a.ContentHash,
-                a.Subtype,
-                a.Modality,
-                a.CreatedAt
-            })
-            .ToListAsync();
-
-        var atomIds = atoms.Select(a => a.AtomId).ToList();
-
-        // Get embeddings for vector scores
-        var embeddings = await _context.AtomEmbeddings
-            .Where(e => atomIds.Contains(e.AtomId))
-            .ToDictionaryAsync(e => e.AtomId, e => e.EmbeddingVector);
-
-        // Compute scores for each atom
         var results = new List<HybridSearchResult>();
-        foreach (var atom in atoms)
+
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        // For now, call sp_HybridSearch for spatial + vector only
+        // Full keyword integration would require sp_FusionSearch or CONTAINSTABLE
+        using var command = new SqlCommand("dbo.sp_HybridSearch", connection)
         {
-            double vectorScore = 0.0;
-            double keywordScore = 0.0;
-            double spatialScore = 0.0;
+            CommandType = CommandType.StoredProcedure,
+            CommandTimeout = 60
+        };
 
-            // Vector score
-            if (embeddings.TryGetValue(atom.AtomId, out var embedding) && embedding.HasValue)
-            {
-                var vector = VectorUtility.Materialize(embedding.Value, embedding.Value.Length);
-                vectorScore = 1.0 - VectorUtility.ComputeCosineDistance(vector, queryVector.Select(b => (float)b).ToArray());
-            }
+        // Extract spatial point from region (if provided)
+        double? spatialX = null, spatialY = null, spatialZ = null;
+        if (spatialRegion is Point point)
+        {
+            spatialX = point.X;
+            spatialY = point.Y;
+            spatialZ = point.Z;
+        }
 
-            // Keyword score (simplified - would need full-text search)
-            if (!string.IsNullOrEmpty(keywords))
-            {
-                // This is a placeholder - actual implementation would use CONTAINSTABLE
-                // or EF Core full-text search capabilities
-                keywordScore = atom.Subtype?.Contains(keywords, StringComparison.OrdinalIgnoreCase) == true ? 0.5 : 0.0;
-            }
+        command.Parameters.AddWithValue("@query_vector", queryVector);
+        command.Parameters.AddWithValue("@query_dimension", queryVector.Length);
+        command.Parameters.AddWithValue("@query_spatial_x", (object?)spatialX ?? DBNull.Value);
+        command.Parameters.AddWithValue("@query_spatial_y", (object?)spatialY ?? DBNull.Value);
+        command.Parameters.AddWithValue("@query_spatial_z", (object?)spatialZ ?? DBNull.Value);
+        command.Parameters.AddWithValue("@spatial_candidates", 100);
+        command.Parameters.AddWithValue("@final_top_k", topK);
+        command.Parameters.AddWithValue("@distance_metric", "cosine");
+        command.Parameters.AddWithValue("@embedding_type", DBNull.Value);
+        command.Parameters.AddWithValue("@ModelId", DBNull.Value);
+        command.Parameters.AddWithValue("@srid", 0);
 
-            // Spatial score
-            if (spatialRegion != null)
-            {
-                // This would need spatial data from atoms table
-                // Placeholder implementation
-                spatialScore = 0.0;
-            }
-
-            var combinedScore = (vectorScore * vectorWeight) +
-                               (keywordScore * keywordWeight) +
-                               (spatialScore * spatialWeight);
-
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var vectorScore = 1.0 - reader.GetDouble(reader.GetOrdinal("exact_distance"));
+            var spatialScore = reader.GetDouble(reader.GetOrdinal("spatial_distance"));
+            
+            // Simplified scoring: keyword not yet integrated
+            var combinedScore = (vectorScore * vectorWeight) + (spatialScore * spatialWeight);
+            
             results.Add(new HybridSearchResult
             {
-                AtomId = atom.AtomId,
+                AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
                 VectorScore = vectorScore,
-                KeywordScore = keywordScore,
+                KeywordScore = 0.0, // TODO: Integrate sp_FusionSearch for full-text
                 SpatialScore = spatialScore,
                 CombinedScore = combinedScore,
-                ContentHash = atom.ContentHash,
-                ContentType = atom.Subtype ?? atom.Modality,
-                CreatedUtc = atom.CreatedAt
+                ContentHash = null, // Not returned by sp_HybridSearch
+                ContentType = reader.GetString(reader.GetOrdinal("Modality")),
+                CreatedUtc = DateTime.UtcNow // Not returned by sp_HybridSearch
             });
         }
 
-        return results
-            .Where(r => r.CombinedScore > 0)
-            .OrderByDescending(r => r.CombinedScore)
-            .Take(topK)
-            .ToList();
+        return results;
     }
 
     /// <summary>
-    /// Performs ensemble search blending results from multiple models
+    /// Performs ensemble search blending results from multiple models via SQL Server CLR
+    /// Delegates to sp_MultiModelEnsemble which uses VECTOR_DISTANCE for each model
     /// </summary>
     public async Task<IReadOnlyList<EnsembleSearchResult>> MultiModelEnsembleSearchAsync(
         byte[] queryVector1, byte[] queryVector2, byte[] queryVector3,
@@ -215,96 +205,44 @@ public class VectorSearchRepository : IVectorSearchRepository
         double model1Weight = 0.4, double model2Weight = 0.35, double model3Weight = 0.25,
         int topK = 10, int tenantId = 0)
     {
-        var atoms = await _context.Atoms
-            .Select(a => new { a.AtomId, a.ContentHash, a.Subtype, a.Modality })
-            .ToListAsync();
-
-        var atomIds = atoms.Select(a => a.AtomId).ToList();
-
-        // Get embeddings for each model
-        var model1Embeddings = await _context.AtomEmbeddings
-            .Where(e => atomIds.Contains(e.AtomId) && e.ModelId == model1Id)
-            .ToDictionaryAsync(e => e.AtomId, e => e.EmbeddingVector);
-
-        var model2Embeddings = await _context.AtomEmbeddings
-            .Where(e => atomIds.Contains(e.AtomId) && e.ModelId == model2Id)
-            .ToDictionaryAsync(e => e.AtomId, e => e.EmbeddingVector);
-
-        var model3Embeddings = await _context.AtomEmbeddings
-            .Where(e => atomIds.Contains(e.AtomId) && e.ModelId == model3Id)
-            .ToDictionaryAsync(e => e.AtomId, e => e.EmbeddingVector);
-
-        // Compute ensemble scores
         var results = new List<EnsembleSearchResult>();
-        foreach (var atom in atoms)
+
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using var command = new SqlCommand("dbo.sp_MultiModelEnsemble", connection)
         {
-            double model1Score = model1Embeddings.TryGetValue(atom.AtomId, out var emb1) && emb1.HasValue
-                ? 1.0 - VectorUtility.ComputeCosineDistance(
-                    VectorUtility.Materialize(emb1.Value, emb1.Value.Length), 
-                    queryVector1.Select(b => (float)b).ToArray())
-                : 0.0;
+            CommandType = CommandType.StoredProcedure,
+            CommandTimeout = 60
+        };
 
-            double model2Score = model2Embeddings.TryGetValue(atom.AtomId, out var emb2) && emb2.HasValue
-                ? 1.0 - VectorUtility.ComputeCosineDistance(
-                    VectorUtility.Materialize(emb2.Value, emb2.Value.Length), 
-                    queryVector2.Select(b => (float)b).ToArray())
-                : 0.0;
+        command.Parameters.AddWithValue("@QueryVector1", queryVector1);
+        command.Parameters.AddWithValue("@QueryVector2", queryVector2);
+        command.Parameters.AddWithValue("@QueryVector3", queryVector3);
+        command.Parameters.AddWithValue("@Model1Id", model1Id);
+        command.Parameters.AddWithValue("@Model2Id", model2Id);
+        command.Parameters.AddWithValue("@Model3Id", model3Id);
+        command.Parameters.AddWithValue("@Model1Weight", model1Weight);
+        command.Parameters.AddWithValue("@Model2Weight", model2Weight);
+        command.Parameters.AddWithValue("@Model3Weight", model3Weight);
+        command.Parameters.AddWithValue("@TopK", topK);
+        command.Parameters.AddWithValue("@TenantId", tenantId);
 
-            double model3Score = model3Embeddings.TryGetValue(atom.AtomId, out var emb3) && emb3.HasValue
-                ? 1.0 - VectorUtility.ComputeCosineDistance(
-                    VectorUtility.Materialize(emb3.Value, emb3.Value.Length), 
-                    queryVector3.Select(b => (float)b).ToArray())
-                : 0.0;
-
-            var ensembleScore = (model1Score * model1Weight) +
-                               (model2Score * model2Weight) +
-                               (model3Score * model3Weight);
-
+        using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
             results.Add(new EnsembleSearchResult
             {
-                AtomId = atom.AtomId,
-                Model1Score = model1Score,
-                Model2Score = model2Score,
-                Model3Score = model3Score,
-                EnsembleScore = ensembleScore,
-                ContentHash = atom.ContentHash,
-                ContentType = atom.Subtype ?? atom.Modality
+                AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
+                Model1Score = reader.GetDouble(reader.GetOrdinal("Model1Score")),
+                Model2Score = reader.GetDouble(reader.GetOrdinal("Model2Score")),
+                Model3Score = reader.GetDouble(reader.GetOrdinal("Model3Score")),
+                EnsembleScore = reader.GetDouble(reader.GetOrdinal("EnsembleScore")),
+                ContentHash = reader.GetFieldValue<byte[]>(reader.GetOrdinal("ContentHash")),
+                ContentType = reader.GetString(reader.GetOrdinal("ContentType"))
             });
         }
 
-        return results
-            .OrderByDescending(r => r.EnsembleScore)
-            .Take(topK)
-            .ToList();
-    }
-}
-
-/// <summary>
-/// Vector distance calculations (placeholder - would use SQL Server VECTOR_DISTANCE)
-/// </summary>
-public static class VectorDistance
-{
-    public static double Cosine(byte[] a, byte[] b)
-    {
-        // Placeholder implementation
-        // In real implementation, this would delegate to SQL Server VECTOR_DISTANCE function
-        // or use a native library for vector operations
-        if (a.Length != b.Length) return 0.0;
-
-        double dotProduct = 0.0;
-        double normA = 0.0;
-        double normB = 0.0;
-
-        for (int i = 0; i < a.Length; i++)
-        {
-            dotProduct += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
-        }
-
-        normA = Math.Sqrt(normA);
-        normB = Math.Sqrt(normB);
-
-        return normA == 0.0 || normB == 0.0 ? 0.0 : dotProduct / (normA * normB);
+        return results;
     }
 }

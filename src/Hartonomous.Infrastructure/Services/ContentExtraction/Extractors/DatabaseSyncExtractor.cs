@@ -17,7 +17,7 @@ namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 
 /// <summary>
 /// Extracts data from external SQL databases (SQL Server, PostgreSQL, MySQL).
-/// Maps tablesΓåÆatom types, rowsΓåÆatoms, foreign keysΓåÆrelationships.
+/// Maps tables -> atom types, rows -> atoms, foreign keys -> relationships.
 /// </summary>
 public sealed class DatabaseSyncExtractor : IContentExtractor
 {
