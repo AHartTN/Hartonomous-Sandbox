@@ -2,6 +2,7 @@ using System.Linq;
 using System.Threading.RateLimiting;
 using Azure.Core;
 using Azure.Identity;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Azure.Storage.Blobs;
 using Azure.Storage.Queues;
 using Hartonomous.Api.Authorization;
@@ -120,7 +121,16 @@ builder.Services.AddOpenTelemetry()
             {
                 otlp.Endpoint = new Uri(endpoint);
             }
-        }));
+        }))
+    // Azure Monitor Integration for production telemetry (conditional on connection string)
+    .UseAzureMonitor(options =>
+    {
+        var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+        if (!string.IsNullOrEmpty(connectionString))
+        {
+            options.ConnectionString = connectionString;
+        }
+    });
 
 // Azure AD Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
