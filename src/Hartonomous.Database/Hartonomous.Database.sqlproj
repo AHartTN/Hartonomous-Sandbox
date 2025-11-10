@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build">
+  <Sdk Name="Microsoft.Build.Sql" Version="2.0.0" />
+  
+  <PropertyGroup>
+    <Name>Hartonomous.Database</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+    <TargetFramework>net481</TargetFramework>
+    <SqlServerVersion>Sql170</SqlServerVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>
+    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
+  </PropertyGroup>
+
+  <!-- Reference CLR assembly for build-time validation -->
+  <ItemGroup>
+    <ArtifactReference Include="..\SqlClr\bin\Release\SqlClrFunctions.dll">
+      <HintPath>..\SqlClr\bin\Release\SqlClrFunctions.dll</HintPath>
+      <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>
+    </ArtifactReference>
+  </ItemGroup>
+
+  <!-- Pre-deployment script for schemas and Service Broker -->
+  <ItemGroup>
+    <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
+  </ItemGroup>
+
+  <!-- Exclude files that need runtime execution or have unresolved issues -->
+  <ItemGroup>
+    <!-- Post-deployment ALTER scripts (cannot compile in DACPAC) -->
+    <Build Remove="Scripts\Post-Deployment\**" />
+    
+    <!-- Migration scripts with ALTER DATABASE and complex logic incompatible with DACPAC -->
+    <Build Remove="Tables\dbo.BillingUsageLedger_InMemory.sql" />
+    <Build Remove="Tables\dbo.BillingUsageLedger_Migrate_to_Ledger.sql" />
+    <Build Remove="Tables\dbo.TestResults.sql" />
+    
+    <!-- Procedures directory has multi-procedure files - needs splitting into one-per-file -->
+    <Build Remove="Procedures\**" />
+    
+    <!-- CLR UDTs and tables using them (deployed via CLR deployment script) -->
+    <Build Remove="Types\provenance.AtomicStream.sql" />
+    <Build Remove="Types\provenance.ComponentStream.sql" />
+    <Build Remove="Tables\provenance.GenerationStreams.sql" />
+  </ItemGroup>
+
+</Project>

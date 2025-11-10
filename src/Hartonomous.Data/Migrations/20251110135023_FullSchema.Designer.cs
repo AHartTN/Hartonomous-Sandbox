@@ -14,8 +14,8 @@ using NetTopologySuite.Geometries;
 namespace Hartonomous.Data.Migrations
 {
     [DbContext(typeof(HartonomousDbContext))]
-    [Migration("20251110131553_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20251110135023_FullSchema")]
+    partial class FullSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

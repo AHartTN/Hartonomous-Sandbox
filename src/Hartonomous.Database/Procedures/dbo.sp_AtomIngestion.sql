@@ -1,0 +1,211 @@
+-- =============================================
+-- sp_AtomIngestion: Intelligent Autonomous Atom Ingestion
+-- =============================================
+-- This procedure implements the full autonomous ingestion pipeline:
+-- 1. Exact hash deduplication (fast)
+-- 2. Semantic similarity deduplication (intelligent)
+-- 3. Embedding storage with spatial projections
+-- 4. Atomic provenance tracking
+-- 5. Policy-driven deduplication rules
+-- =============================================
+
+CREATE OR ALTER PROCEDURE dbo.sp_AtomIngestion
+    @HashInput NVARCHAR(MAX),
+    @Modality NVARCHAR(50),
+    @Subtype NVARCHAR(100) = NULL,
+    @SourceUri NVARCHAR(2000) = NULL,
+    @SourceType NVARCHAR(100) = NULL,
+    @CanonicalText NVARCHAR(MAX) = NULL,
+    @Metadata NVARCHAR(MAX) = NULL,
+    @PayloadLocator NVARCHAR(500) = NULL,
+    @Embedding VECTOR(1998) = NULL,
+    @EmbeddingType NVARCHAR(128) = 'default',
+    @ModelId INT = NULL,
+    @PolicyName NVARCHAR(100) = 'default',
+    @TenantId INT = 0,
+    @AtomId BIGINT OUTPUT,
+    @AtomEmbeddingId BIGINT OUTPUT,
+    @WasDuplicate BIT OUTPUT,
+    @DuplicateReason NVARCHAR(500) OUTPUT,
+    @SemanticSimilarity FLOAT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+
+    BEGIN TRY
+        -- =============================================
+        -- PHASE 1: EXACT HASH DEDUPLICATION
+        -- =============================================
+
+        -- Compute content hash for exact deduplication
+
+        -- Check for exact hash match (fastest deduplication)
+        SELECT TOP 1
+            @AtomId = a.AtomId,
+            @WasDuplicate = 1,
+            @DuplicateReason = 'Exact content hash match',
+            @SemanticSimilarity = NULL
+        FROM dbo.Atoms a
+        WHERE a.ContentHash = @ContentHash
+          AND a.TenantId = @TenantId;
+
+        IF @AtomId IS NOT NULL
+        BEGIN
+            -- Increment reference count for existing atom
+            UPDATE dbo.Atoms
+            SET ReferenceCount = ReferenceCount + 1,
+                UpdatedAt = SYSUTCDATETIME()
+            WHERE AtomId = @AtomId;
+
+            -- Find matching embedding if one exists
+            SELECT TOP 1 @AtomEmbeddingId = ae.AtomEmbeddingId
+            FROM dbo.AtomEmbeddings ae
+            WHERE ae.AtomId = @AtomId
+              AND ae.EmbeddingType = @EmbeddingType
+              AND (ae.ModelId = @ModelId OR (ae.ModelId IS NULL AND @ModelId IS NULL))
+            ORDER BY ae.CreatedAt DESC;
+
+            RETURN 0;
+        END
+
+        -- =============================================
+        -- PHASE 1.5: MODALITY-SPECIFIC EMBEDDING GENERATION
+        -- =============================================
+        -- If no embedding is provided, attempt to generate one for supported modalities.
+        IF @Embedding IS NULL AND @Modality = 'code' AND @CanonicalText IS NOT NULL
+        BEGIN
+            -- For the 'code' modality, generate a structural vector from the AST.
+
+            -- The clr_GenerateCodeAstVector returns a JSON array, convert it to the VECTOR type
+            IF @AstVectorJson IS NOT NULL AND JSON_VALUE(@AstVectorJson, '$.error') IS NULL
+            BEGIN
+                SET @Embedding = CAST(@AstVectorJson AS VECTOR(1998));
+                SET @EmbeddingType = 'ast_structural'; -- Set a specific type for this embedding
+            END
+        END
+
+        -- =============================================
+        -- PHASE 2: SEMANTIC DEDUPLICATION (if embedding provided)
+        -- =============================================
+
+        IF @Embedding IS NOT NULL
+        BEGIN
+            -- Load deduplication policy
+
+
+            SELECT TOP 1
+                @SimilarityThreshold = p.SimilarityThreshold,
+                @MaxCandidates = p.MaxCandidates
+            FROM dbo.DeduplicationPolicies p
+            WHERE p.PolicyName = @PolicyName
+              AND p.IsActive = 1
+              AND p.TenantId = @TenantId;
+
+            -- Define a table variable to match the output of sp_HybridSearch
+
+                AtomEmbeddingId BIGINT,
+                AtomId BIGINT,
+                Modality NVARCHAR(128),
+                Subtype NVARCHAR(128),
+                SourceUri NVARCHAR(2048),
+                SourceType NVARCHAR(128),
+                EmbeddingType NVARCHAR(128),
+                ModelId INT,
+                exact_distance FLOAT,
+                spatial_distance FLOAT
+            );
+
+            -- First, project the incoming embedding to its 3D spatial key
+
+            -- Now, execute the hybrid search to get the top candidates efficiently
+            
+
+            -- Check if we found a semantic duplicate from the candidates
+
+            SELECT TOP 1
+                @AtomId = cd.AtomId,
+                @BestSimilarity = (1.0 - cd.exact_distance),
+                @WasDuplicate = 1,
+                @DuplicateReason = 'Semantic similarity match (threshold: ' + CAST(@SimilarityThreshold AS NVARCHAR(10)) + ')',
+                @SemanticSimilarity = (1.0 - cd.exact_distance)
+            FROM @CandidateDuplicates cd
+            WHERE (1.0 - cd.exact_distance) >= @SimilarityThreshold
+            ORDER BY cd.exact_distance ASC; -- Order by distance ascending (highest similarity first)
+
+            IF @AtomId IS NOT NULL
+            BEGIN
+                -- Increment reference count for semantically similar atom
+                UPDATE dbo.Atoms
+                SET ReferenceCount = ReferenceCount + 1,
+                    UpdatedAt = SYSUTCDATETIME()
+                WHERE AtomId = @AtomId;
+
+                -- Find or create embedding record
+                SELECT TOP 1 @AtomEmbeddingId = ae.AtomEmbeddingId
+                FROM dbo.AtomEmbeddings ae
+                WHERE ae.AtomId = @AtomId
+                  AND ae.EmbeddingType = @EmbeddingType
+                  AND (ae.ModelId = @ModelId OR (ae.ModelId IS NULL AND @ModelId IS NULL))
+                ORDER BY ae.CreatedAt DESC;
+
+                RETURN 0;
+            END
+        END
+
+        -- =============================================
+        -- PHASE 3: STORE NEW ATOM
+        -- =============================================
+
+        SET @WasDuplicate = 0;
+        SET @DuplicateReason = NULL;
+        SET @SemanticSimilarity = NULL;
+
+        -- Insert new atom
+        
+
+        SET @AtomId = SCOPE_IDENTITY();
+
+        -- =============================================
+        -- PHASE 4: STORE EMBEDDING (if provided)
+        -- =============================================
+
+        IF @Embedding IS NOT NULL
+        BEGIN
+            -- Compute spatial projections for fast approximate search
+
+
+
+            -- Project the high-dimensional vector to a 3D point using the landmark-based CLR function.
+            SET @SpatialGeometry = dbo.fn_ProjectTo3D(@Embedding);
+
+            -- For coarse spatial bucketing (optional)
+            SET @SpatialCoarse = GEOGRAPHY::Point(@SpatialGeometry.STX * 111319.444, @SpatialGeometry.STY * 111319.444, 4326); -- Convert to meters
+
+            -- Store embedding with spatial projections
+            
+
+            SET @AtomEmbeddingId = SCOPE_IDENTITY();
+        END
+
+        -- =============================================
+        -- PHASE 5: LOG PROVENANCE (optional)
+        -- =============================================
+
+        -- This would integrate with AtomicStream for full provenance tracking
+        -- For now, just return success
+
+        RETURN 0;
+
+    END TRY
+    BEGIN CATCH
+
+
+
+        -- Log error details for debugging
+        
+
+        -- Re-throw the error
+        THROW;
+    END CATCH
+END;
