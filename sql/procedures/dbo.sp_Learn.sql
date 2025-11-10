@@ -46,21 +46,21 @@ BEGIN
         DECLARE @BaselineThroughput INT;
         
         SELECT 
-            @BaselineAvgDurationMs = AVG(DurationMs),
+            @BaselineAvgDurationMs = AVG(TotalDurationMs),
             @BaselineThroughput = COUNT(*)
         FROM dbo.InferenceRequests
-        WHERE RequestedAt >= DATEADD(HOUR, -24, SYSUTCDATETIME())
-              AND RequestedAt < DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Baseline: 24 hours ago to 5 minutes ago
+        WHERE RequestTimestamp >= DATEADD(HOUR, -24, SYSUTCDATETIME())
+              AND RequestTimestamp < DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Baseline: 24 hours ago to 5 minutes ago
         
         -- Current metrics (after actions)
         DECLARE @CurrentAvgDurationMs FLOAT;
         DECLARE @CurrentThroughput INT;
         
         SELECT 
-            @CurrentAvgDurationMs = AVG(DurationMs),
+            @CurrentAvgDurationMs = AVG(TotalDurationMs),
             @CurrentThroughput = COUNT(*)
         FROM dbo.InferenceRequests
-        WHERE RequestedAt >= DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Recent: last 5 minutes
+        WHERE RequestTimestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Recent: last 5 minutes
         
         -- Calculate deltas
         DECLARE @LatencyImprovement FLOAT = 
@@ -187,7 +187,7 @@ BEGIN
         IF EXISTS (
             SELECT 1 
             FROM dbo.AutonomousImprovementHistory 
-            WHERE AnalysisId = @AnalysisId 
+            WHERE CompletedAt >= DATEADD(HOUR, -1, SYSUTCDATETIME())
                 AND GeneratedCode IS NOT NULL
                 AND SuccessScore > 0.7 -- Only learn from successful improvements
         )
@@ -201,7 +201,7 @@ BEGIN
             SET @ImprovementCursor = CURSOR FOR
                 SELECT ImprovementId, GeneratedCode, SuccessScore
                 FROM dbo.AutonomousImprovementHistory
-                WHERE AnalysisId = @AnalysisId
+                WHERE CompletedAt >= DATEADD(HOUR, -1, SYSUTCDATETIME())
                     AND SuccessScore > 0.7
                 ORDER BY SuccessScore DESC;
             
@@ -235,22 +235,24 @@ BEGIN
             DEALLOCATE @ImprovementCursor;
         END
         
-        DECLARE @LearningPayload NVARCHAR(MAX) = JSON_OBJECT(
-            'analysisId': @AnalysisId,
-            'learningCycleComplete': 1,
-            'performanceMetrics': JSON_OBJECT(
-                'baselineLatencyMs': @BaselineAvgDurationMs,
-                'currentLatencyMs': @CurrentAvgDurationMs,
-                'latencyImprovement': @LatencyImprovement,
-                'throughputChange': @ThroughputChange
-            ),
-            'actionOutcomes': JSON_OBJECT(
-                'successfulActions': @SuccessfulActions,
-                'regressedActions': @RegressedActions,
-                'totalActions': @ExecutedActions
-            ),
-            'outcomes': JSON_QUERY(@LearningOutcomes),
-            'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
+        DECLARE @LearningPayload NVARCHAR(MAX) = (
+            SELECT 
+                @AnalysisId AS analysisId,
+                1 AS learningCycleComplete,
+                (SELECT 
+                    @BaselineAvgDurationMs AS baselineLatencyMs,
+                    @CurrentAvgDurationMs AS currentLatencyMs,
+                    @LatencyImprovement AS latencyImprovement,
+                    @ThroughputChange AS throughputChange
+                    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS performanceMetrics,
+                (SELECT 
+                    @SuccessfulActions AS successfulActions,
+                    @RegressedActions AS regressedActions,
+                    @ExecutedActions AS totalActions
+                    FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS actionOutcomes,
+                JSON_QUERY(@LearningOutcomes) AS outcomes,
+                FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS timestamp
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
         
         -- 6. DETERMINE NEXT ACTION
@@ -268,12 +270,14 @@ BEGIN
         DECLARE @AnalyzeConversationHandle UNIQUEIDENTIFIER;
         
         -- Build analysis trigger message
-        DECLARE @AnalyseTrigger NVARCHAR(MAX) = JSON_OBJECT(
-            'triggerReason': 'LearningCycleComplete',
-            'previousAnalysisId': @AnalysisId,
-            'latencyImprovement': @LatencyImprovement,
-            'delayMinutes': @NextCycleDelayMinutes,
-            'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
+        DECLARE @AnalyseTrigger NVARCHAR(MAX) = (
+            SELECT 
+                'LearningCycleComplete' AS triggerReason,
+                @AnalysisId AS previousAnalysisId,
+                @LatencyImprovement AS latencyImprovement,
+                @NextCycleDelayMinutes AS delayMinutes,
+                FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS timestamp
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
         
         DECLARE @AnalyzeMessageBody XML = CAST(@AnalyseTrigger AS XML);

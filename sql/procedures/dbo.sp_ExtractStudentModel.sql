@@ -42,8 +42,8 @@ BEGIN
         IF @TargetRows IS NULL OR @TargetCols IS NULL
         BEGIN
             SELECT 
-                @TargetRows = ISNULL(@TargetRows, NeuronCount),
-                @TargetCols = ISNULL(@TargetCols, NeuronCount)
+                @TargetRows = ISNULL(@TargetRows, ParameterCount),
+                @TargetCols = ISNULL(@TargetCols, ParameterCount)
             FROM dbo.ModelLayers
             WHERE LayerId = @ParentLayerId;
         END

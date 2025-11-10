@@ -1,95 +1,77 @@
-<?xml version="1.0" encoding="utf-8"?><?xml version="1.0" encoding="utf-8"?>
-
-<Project DefaultTargets="Build"><Project DefaultTargets="Build">
-
-  <Sdk Name="Microsoft.Build.Sql" Version="2.0.0" />  <Sdk Name="Microsoft.Build.Sql" Version="2.0.0" />
-
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build">
+  <Sdk Name="Microsoft.Build.Sql" Version="2.0.0" />
   
+  <PropertyGroup>
+    <Name>Hartonomous.Database</Name>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
+    <ModelCollation>1033, CI</ModelCollation>
+    <TargetFramework>net481</TargetFramework>
+    <SqlServerVersion>Sql170</SqlServerVersion>
+    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>
+    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
+  </PropertyGroup>
 
-  <PropertyGroup>  <PropertyGroup>
+  <!-- Reference CLR assembly for build-time validation -->
+  <ItemGroup>
+    <ArtifactReference Include="..\SqlClr\bin\Release\SqlClrFunctions.dll">
+      <HintPath>..\SqlClr\bin\Release\SqlClrFunctions.dll</HintPath>
+      <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>
+    </ArtifactReference>
+  </ItemGroup>
 
-    <Name>Hartonomous.Database</Name>    <Name>Hartonomous.Database</Name>
+  <!-- Pre-deployment script for schemas and Service Broker -->
+  <ItemGroup>
+    <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
+  </ItemGroup>
 
-    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
-
-    <ModelCollation>1033, CI</ModelCollation>    <ModelCollation>1033, CI</ModelCollation>
-
-    <TargetFramework>net481</TargetFramework>    <TargetFramework>net481</TargetFramework>
-
-    <SqlServerVersion>Sql170</SqlServerVersion>    <SqlServerVersion>Sql170</SqlServerVersion>
-
-    <OutputPath>bin\$(Configuration)\</OutputPath>    <OutputPath>bin\$(Configuration)\</OutputPath>
-
-    <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>    <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>
-
-    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
-
-  </PropertyGroup>  </PropertyGroup>
-
-
-
-  <!-- Reference CLR assembly for build-time validation -->  <!-- Reference CLR assembly for build-time validation -->
-
-  <ItemGroup>  <ItemGroup>
-
-    <ArtifactReference Include="..\SqlClr\bin\Release\SqlClrFunctions.dll">    <ArtifactReference Include="..\SqlClr\bin\Release\SqlClrFunctions.dll">
-
-      <HintPath>..\SqlClr\bin\Release\SqlClrFunctions.dll</HintPath>      <HintPath>..\SqlClr\bin\Release\SqlClrFunctions.dll</HintPath>
-
-      <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>      <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>
-
-    </ArtifactReference>    </ArtifactReference>
-
-  </ItemGroup>  </ItemGroup>
-
-
-
-  <!-- Pre-deployment script for schemas and Service Broker -->  <!-- Pre-deployment script for schemas and Service Broker -->
-
-  <ItemGroup>  <ItemGroup>
-
-    <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />    <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
-
-  </ItemGroup>  </ItemGroup>
-
-
-
-  <!-- Exclude files that need runtime execution or have unresolved issues -->  <!-- Exclude files that need runtime execution or have unresolved issues -->
-
-  <ItemGroup>  <ItemGroup>
-
-    <!-- Post-deployment ALTER scripts (cannot compile in DACPAC) -->    <!-- Post-deployment ALTER scripts (cannot compile in DACPAC) -->
-
-    <Build Remove="Scripts\Post-Deployment\**" />    <Build Remove="Scripts\Post-Deployment\**" />
-
+  <!-- Exclude files that need runtime execution or have unresolved issues -->
+  <ItemGroup>
+    <!-- Post-deployment ALTER scripts (cannot compile in DACPAC) -->
+    <Build Remove="Scripts\Post-Deployment\**" />
     
-
-    <!-- Migration scripts with ALTER DATABASE and complex logic incompatible with DACPAC -->    <!-- Migration scripts with ALTER DATABASE and complex logic incompatible with DACPAC -->
-
-    <Build Remove="Tables\dbo.BillingUsageLedger_InMemory.sql" />    <Build Remove="Tables\dbo.BillingUsageLedger_InMemory.sql" />
-
-    <Build Remove="Tables\dbo.BillingUsageLedger_Migrate_to_Ledger.sql" />    <Build Remove="Tables\dbo.BillingUsageLedger_Migrate_to_Ledger.sql" />
-
-    <Build Remove="Tables\dbo.TestResults.sql" />    <Build Remove="Tables\dbo.TestResults.sql" />
-
+    <!-- Migration scripts with ALTER DATABASE and complex logic incompatible with DACPAC -->
+    <Build Remove="Tables\dbo.BillingUsageLedger_InMemory.sql" />
+    <Build Remove="Tables\dbo.BillingUsageLedger_Migrate_to_Ledger.sql" />
+    <Build Remove="Tables\dbo.TestResults.sql" />
     
-
-    <!-- Procedures directory has multi-procedure files - needs splitting into one-per-file -->    <!-- Procedures directory has multi-procedure files - needs splitting into one-per-file -->
-
-    <Build Remove="Procedures\**" />    <Build Remove="Procedures\**" />
-
+    <!-- Procedures directory has multi-procedure files - needs splitting into one-per-file -->
+    <Build Remove="Procedures\**" />
     
+    <!-- CLR UDTs and tables using them (deployed via CLR deployment script) -->
+    <Build Remove="Types\provenance.AtomicStream.sql" />
+    <Build Remove="Types\provenance.ComponentStream.sql" />
+    <Build Remove="Tables\provenance.GenerationStreams.sql" />
+    
+    <!-- ALTER scripts with runtime logic (GO separators, IF EXISTS, ALTER statements) -->
+    <Build Remove="Tables\TensorAtomCoefficients_Temporal.sql" />
+    <Build Remove="Tables\Temporal_Tables_Add_Retention_and_Columnstore.sql" />
+    <Build Remove="Tables\Stream.StreamOrchestrationTables.sql" />
+    <Build Remove="Tables\Reasoning.ReasoningFrameworkTables.sql" />
+    <Build Remove="Tables\Provenance.ProvenanceTrackingTables.sql" />
+    <Build Remove="Tables\Attention.AttentionGenerationTables.sql" />
+    <Build Remove="Tables\graph.AtomGraphEdges_Add_PseudoColumn_Indexes.sql" />
+    
+    <!-- Tables with IF EXISTS/DROP patterns or FILESTREAM references -->
+    <Build Remove="Tables\provenance.Concepts.sql" />
+    <Build Remove="Tables\graph.AtomGraphNodes.sql" />
+    <Build Remove="Tables\graph.AtomGraphEdges.sql" />
+    <Build Remove="Tables\dbo.Weights.sql" />
+    <Build Remove="Tables\dbo.TokenVocabulary.sql" />
+    <Build Remove="Tables\dbo.TensorAtomPayloads.sql" />
+    <Build Remove="Tables\dbo.TenantSecurityPolicy.sql" />
+    <Build Remove="Tables\dbo.SpatialLandmarks.sql" />
+    <Build Remove="Tables\dbo.SessionPaths.sql" />
+    <Build Remove="Tables\dbo.PendingActions.sql" />
+    <Build Remove="Tables\dbo.ModelStructure.sql" />
+    <Build Remove="Tables\dbo.InferenceTracking.sql" />
+    <Build Remove="Tables\dbo.BillingUsageLedger.sql" />
+    <Build Remove="Tables\dbo.AutonomousImprovementHistory.sql" />
+    <Build Remove="Tables\dbo.AutonomousComputeJobs.sql" />
+    <Build Remove="Tables\dbo.Atoms.sql" />
+    <Build Remove="Tables\dbo.AtomEmbeddings.sql" />
+    <Build Remove="Tables\dbo.AtomPayloadStore.sql" />
+  </ItemGroup>
 
-    <!-- CLR UDTs and tables using them (deployed via CLR deployment script) -->    <!-- CLR UDTs and tables using them (deployed via CLR deployment script) -->
-
-    <Build Remove="Types\provenance.AtomicStream.sql" />    <Build Remove="Types\provenance.AtomicStream.sql" />
-
-    <Build Remove="Types\provenance.ComponentStream.sql" />    <Build Remove="Types\provenance.ComponentStream.sql" />
-
-    <Build Remove="Tables\provenance.GenerationStreams.sql" />    <Build Remove="Tables\provenance.GenerationStreams.sql" />
-
-  </ItemGroup>  </ItemGroup>
-
-
-
-</Project></Project>
+</Project>

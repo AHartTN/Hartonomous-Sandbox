@@ -92,8 +92,8 @@ BEGIN
                 COUNT(*) AS FailureCount,
                 MAX(ErrorMessage) AS LastError
             FROM dbo.TestResults
-            WHERE TestOutcome = 'Failed'
-                AND RunCompletedAt >= DATEADD(day, -7, SYSUTCDATETIME())
+            WHERE TestStatus = 'Failed'
+                AND ExecutedAt >= DATEADD(day, -7, SYSUTCDATETIME())
             GROUP BY TestSuite, TestName
             ORDER BY COUNT(*) DESC;
         END;

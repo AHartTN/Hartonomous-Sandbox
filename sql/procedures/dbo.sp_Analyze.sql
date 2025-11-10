@@ -64,7 +64,6 @@ BEGIN
                 RETURN 0;
             END
         END
-        END
         
         -- REGULAR OODA LOOP: Continue with standard performance analysis
         -- 1. QUERY RECENT INFERENCE ACTIVITY WITH EMBEDDINGS
@@ -86,7 +85,7 @@ BEGIN
             DATEADD(MILLISECOND, ISNULL(ir.TotalDurationMs, 0), ir.RequestTimestamp) AS CompletedAt,
             ISNULL(ir.TotalDurationMs, 0) AS DurationMs,
             -- Estimate token count: ~4 chars per token for English text
-            (LEN(ISNULL(ir.InputData, '')) + LEN(ISNULL(ir.OutputData, ''))) / 4 AS TokenCount,
+            (LEN(CAST(ir.InputData AS NVARCHAR(MAX))) + LEN(CAST(ir.OutputData AS NVARCHAR(MAX)))) / 4 AS TokenCount,
             -- Create performance vector for anomaly detection
             -- [duration_normalized, tokens_normalized, hour_of_day, day_of_week, ...]
             CAST(NULL AS VECTOR(1998)) -- Placeholder, would compute actual vector
@@ -216,14 +215,14 @@ BEGIN
             SELECT 
                 reason AS RecommendationType,
                 score AS ImpactScore,
-                state_desc AS RecommendationState,
+                state AS RecommendationState,
                 JSON_VALUE(details, '$.planForceDetails.queryId') AS QueryId,
                 JSON_VALUE(details, '$.planForceDetails.regressedPlanId') AS RegressedPlanId,
                 JSON_VALUE(details, '$.planForceDetails.recommendedPlanId') AS RecommendedPlanId,
                 JSON_VALUE(details, '$.implementationDetails.script') AS ForceScript
             FROM sys.dm_db_tuning_recommendations
             WHERE is_executable_action = 1
-                AND state_desc = 'Active'
+                AND state = 1  -- Active state
             FOR JSON PATH
         );
         

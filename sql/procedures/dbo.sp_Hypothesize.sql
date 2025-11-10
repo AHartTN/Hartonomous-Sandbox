@@ -146,8 +146,8 @@ BEGIN
                     'IndexOptimization',
                     1,
                     'High number of performance anomalies detected. Missing indexes may be causing slow queries.',
-                    JSON_OBJECT('latencyReduction': '50-70%', 'throughputIncrease': '30-50%'),
-                    JSON_ARRAY('AnalyzeMissingIndexes', 'CreateRecommendedIndexes', 'UpdateStatistics')
+                    '{"latencyReduction": "50-70%", "throughputIncrease": "30-50%"}',
+                    '["AnalyzeMissingIndexes", "CreateRecommendedIndexes", "UpdateStatistics"]'
                 );
             END
         
@@ -159,8 +159,8 @@ BEGIN
                     'CacheWarming',
                     2,
                     'Average inference duration exceeds 1 second. Cache warming could reduce cold-start latency.',
-                    JSON_OBJECT('latencyReduction': '30-40%', 'cacheHitRate': '60-80%'),
-                    JSON_ARRAY('PreloadFrequentEmbeddings', 'EnableInMemoryOLTP', 'OptimizeBufferPool')
+                    '{"latencyReduction": "30-40%", "cacheHitRate": "60-80%"}',
+                    '["PreloadFrequentEmbeddings", "EnableInMemoryOLTP", "OptimizeBufferPool"]'
                 );
             END
         
@@ -178,7 +178,7 @@ BEGIN
                     3,
                     'Embedding clustering patterns detected. Unsupervised concept learning may reveal emergent semantics.',
                     JSON_OBJECT('newConceptsExpected': @PatternCount, 'accuracyImprovement': '5-15%'),
-                    JSON_ARRAY('RunClusterAnalysis', 'ExtractConceptEmbeddings', 'BindConceptsToAtoms')
+                    [\"RunClusterAnalysis\"$(if (ExtractConceptEmbeddings) {\", \`\"ExtractConceptEmbeddings\`\"\"})$(if (BindConceptsToAtoms) {\", \`\"BindConceptsToAtoms\`\"\"}))]
                 );
             END
         
@@ -191,8 +191,8 @@ BEGIN
                     'ModelRetraining',
                     4,
                     'High inference volume detected. Incremental model retraining may capture recent patterns.',
-                    JSON_OBJECT('accuracyImprovement': '3-8%', 'recentDataCoverage': '95%'),
-                    JSON_ARRAY('CollectRecentFeedback', 'IncrementalRetrain', 'ValidateModelDrift')
+                    {\"accuracyImprovement\": \"3-8%\"$(if (recentDataCoverage) {\", \`\"recentDataCoverage\`\": \`\"95%\`\"\"})},
+                    [\"CollectRecentFeedback\"$(if (IncrementalRetrain) {\", \`\"IncrementalRetrain\`\"\"})$(if (ValidateModelDrift) {\", \`\"ValidateModelDrift\`\"\"}))]
                 );
             END
 
@@ -213,7 +213,7 @@ BEGIN
                     'PruneModel',
                     5,
                     'Identified tensor atoms with low importance coefficients. Pruning these may reduce model size and improve performance.',
-                    JSON_OBJECT('modelSizeReduction': '5-10%', 'inferenceSpeedup': '3-5%'),
+                    {\"modelSizeReduction\": \"5-10%\"$(if (inferenceSpeedup) {\", \`\"inferenceSpeedup\`\": \`\"3-5%\`\"\"})},
                     JSON_QUERY(@PruneableAtoms)
                 );
             END
@@ -235,7 +235,7 @@ BEGIN
                     'RefactorCode',
                     6,
                     'Detected multiple code blocks with identical abstract syntax tree (AST) signatures, indicating duplicated logic.',
-                    JSON_OBJECT('codebaseReduction': '1-2%', 'maintainabilityIncrease': 'medium'),
+                    {\"codebaseReduction\": \"1-2%\"$(if (maintainabilityIncrease) {\", \`\"maintainabilityIncrease\`\": \`\"medium\`\"\"})},
                     JSON_QUERY(@DuplicateCodeAtoms)
                 );
             END
@@ -257,7 +257,7 @@ BEGIN
                     'FixUX',
                     7,
                     'Detected user sessions terminating in a known error region of the state space.',
-                    JSON_OBJECT('userErrorRateReduction': '10-20%', 'sessionCompletionIncrease': '5%'),
+                    {\"userErrorRateReduction\": \"10-20%\"$(if (sessionCompletionIncrease) {\", \`\"sessionCompletionIncrease\`\": \`\"5%\`\"\"})},
                     JSON_QUERY(@FailingSessions)
                 );
             END
@@ -322,3 +322,4 @@ BEGIN
     END CATCH
 END;
 GO
+

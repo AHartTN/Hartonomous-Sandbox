@@ -103,7 +103,7 @@ $script:SqlPaths = @{
     
     # CLR bindings (must run AFTER CLR assembly deployment)
     CLRBindings = @(
-        "sql\procedures\Common.ClrBindings.sql"
+        # Common.ClrBindings.sql is redundant - those functions are created by DACPAC
         "sql\procedures\Autonomy.FileSystemBindings.sql"
     )
     
@@ -476,57 +476,65 @@ function Deploy-CLRAssemblies {
 }
 
 function Deploy-AdvancedTables {
-    Write-DeploymentLog "=== PHASE 4: Advanced SQL Tables ===" -Level Info
+    Write-DeploymentLog "=== PHASE 4: DACPAC Deployment (Tables, Views, Functions) ===" -Level Info
     
-    # Deploy advanced tables not created by EF
-    foreach ($tablePath in $script:SqlPaths.AdvancedTables) {
-        $fullPath = Join-Path $script:RootPath $tablePath
-        
-        if (-not (Test-Path $fullPath)) {
-            Write-DeploymentLog "SQL file not found: $tablePath" -Level Warning
-            continue
-        }
-        
-        $tableName = [System.IO.Path]::GetFileNameWithoutExtension($tablePath)
-        Write-DeploymentLog "Deploying table: $tableName" -Level Info
-        
-        $sql = Get-Content $fullPath -Raw
-        
-        try {
-            Invoke-SqlCommand -Query $sql -Database $Database -Timeout 120
-            Write-DeploymentLog "Table deployed: $tableName" -Level Success
-        }
-        catch {
-            Write-DeploymentLog "Failed to deploy $tableName`: $_" -Level Error
-            if (-not $Force) {
-                throw
-            }
-        }
+    # Build the DACPAC first
+    $dacpacProject = Join-Path $script:RootPath "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
+    $dacpacPath = Join-Path $script:RootPath "src\Hartonomous.Database\bin\Release\Hartonomous.Database.dacpac"
+    
+    if (-not (Test-Path $dacpacProject)) {
+        Write-DeploymentLog "DACPAC project not found: $dacpacProject" -Level Error
+        throw "DACPAC project missing"
     }
     
-    # Deploy SQL Graph tables (special syntax)
-    foreach ($graphPath in $script:SqlPaths.GraphTables) {
-        $fullPath = Join-Path $script:RootPath $graphPath
-        
-        if (-not (Test-Path $fullPath)) {
-            Write-DeploymentLog "Graph table not found: $graphPath" -Level Warning
-            continue
+    Write-DeploymentLog "Building DACPAC from $dacpacProject..." -Level Info
+    
+    try {
+        $buildOutput = dotnet build $dacpacProject -c Release 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeploymentLog "DACPAC build failed: $buildOutput" -Level Error
+            throw "DACPAC build failed with exit code $LASTEXITCODE"
         }
+        Write-DeploymentLog "DACPAC built successfully" -Level Success
+    }
+    catch {
+        Write-DeploymentLog "Failed to build DACPAC: $_" -Level Error
+        throw
+    }
+    
+    if (-not (Test-Path $dacpacPath)) {
+        Write-DeploymentLog "DACPAC not found at expected location: $dacpacPath" -Level Error
+        throw "DACPAC file missing after build"
+    }
+    
+    Write-DeploymentLog "Deploying DACPAC to $Server\$Database using sqlpackage..." -Level Info
+    
+    try {
+        $sqlpackageArgs = @(
+            "/Action:Publish"
+            "/SourceFile:$dacpacPath"
+            "/TargetServerName:$Server"
+            "/TargetDatabaseName:$Database"
+            "/TargetTrustServerCertificate:True"
+            "/p:BlockOnPossibleDataLoss=False"
+            "/p:DropObjectsNotInSource=False"
+        )
         
-        $tableName = [System.IO.Path]::GetFileNameWithoutExtension($graphPath)
-        Write-DeploymentLog "Deploying SQL Graph table: $tableName" -Level Info
-        
-        $sql = Get-Content $fullPath -Raw
-        
-        try {
-            Invoke-SqlCommand -Query $sql -Database $Database -Timeout 120
-            Write-DeploymentLog "Graph table deployed: $tableName" -Level Success
-        }
-        catch {
-            Write-DeploymentLog "Failed to deploy graph table $tableName`: $_" -Level Error
+        $deployOutput = sqlpackage $sqlpackageArgs 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-DeploymentLog "DACPAC deployment failed: $deployOutput" -Level Error
             if (-not $Force) {
-                throw
+                throw "DACPAC deployment failed with exit code $LASTEXITCODE"
             }
+        }
+        else {
+            Write-DeploymentLog "DACPAC deployed successfully" -Level Success
+        }
+    }
+    catch {
+        Write-DeploymentLog "Failed to deploy DACPAC: $_" -Level Error
+        if (-not $Force) {
+            throw
         }
     }
 }

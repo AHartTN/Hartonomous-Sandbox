@@ -17,7 +17,7 @@ BEGIN
         BEGIN TRANSACTION;
         
         -- Compute content hash (SHA-256 for content-addressable storage)
-        DECLARE @ContentHash NVARCHAR(64) = CONVERT(NVARCHAR(64), HASHBYTES('SHA2_256', @Content), 2);
+        DECLARE @ContentHash BINARY(32) = HASHBYTES('SHA2_256', @Content);
         
         -- Check for duplicate (content-addressable deduplication)
         SELECT @AtomId = AtomId
@@ -38,18 +38,22 @@ BEGIN
         
         -- Insert new atom
         INSERT INTO dbo.Atoms (
-            Content,
-            ContentType,
             ContentHash,
+            Modality,
+            Subtype,
+            PayloadLocator,
             Metadata,
-            TenantId
+            TenantId,
+            IsActive
         )
         VALUES (
-            @Content,
-            @ContentType,
             @ContentHash,
+            LEFT(@ContentType, CHARINDEX('/', @ContentType + '/') - 1),
+            SUBSTRING(@ContentType, CHARINDEX('/', @ContentType) + 1, 128),
+            'atom://' + CONVERT(NVARCHAR(64), @ContentHash, 2),  -- Generate URI from hash
             @Metadata,
-            @TenantId
+            @TenantId,
+            1
         );
         
         SET @AtomId = SCOPE_IDENTITY();
@@ -121,13 +125,12 @@ BEGIN
             BEGIN
                 SELECT TOP 1 @ModelId = ModelId
                 FROM dbo.Models
-                WHERE IsActive = 1 AND TenantId = @TenantId
-                ORDER BY ModelId DESC;
+                ORDER BY LastUsed DESC;
             END
             
             IF @ModelId IS NOT NULL
             BEGIN
-                DECLARE @Embedding VARBINARY(MAX);
+                DECLARE @Embedding VECTOR(1998);
                 SET @Embedding = dbo.fn_ComputeEmbedding(@AtomId, @ModelId, @TenantId);
                 
                 IF @Embedding IS NOT NULL
@@ -135,14 +138,12 @@ BEGIN
                     INSERT INTO dbo.AtomEmbeddings (
                         AtomId,
                         ModelId,
-                        EmbeddingVector,
-                        TenantId
+                        EmbeddingVector
                     )
                     VALUES (
                         @AtomId,
                         @ModelId,
-                        @Embedding,
-                        @TenantId
+                        @Embedding
                     );
                 END
             END
@@ -197,8 +198,10 @@ BEGIN
         INNER JOIN dbo.AtomEmbeddings ae2 
             ON ae1.ModelId = ae2.ModelId 
             AND ae1.AtomId < ae2.AtomId -- Avoid duplicate pairs
-            AND ae1.TenantId = ae2.TenantId
-        WHERE ae1.TenantId = @TenantId
+        INNER JOIN dbo.Atoms a1 ON ae1.AtomId = a1.AtomId
+        INNER JOIN dbo.Atoms a2 ON ae2.AtomId = a2.AtomId
+        WHERE a1.TenantId = @TenantId
+              AND a2.TenantId = @TenantId
               AND (1.0 - VECTOR_DISTANCE('cosine', ae1.EmbeddingVector, ae2.EmbeddingVector)) >= @SimilarityThreshold
         ORDER BY Similarity DESC;
         
@@ -209,8 +212,8 @@ BEGIN
             dg.Similarity,
             a1.ContentHash AS PrimaryHash,
             a2.ContentHash AS DuplicateHash,
-            a1.CreatedUtc AS PrimaryCreated,
-            a2.CreatedUtc AS DuplicateCreated
+            a1.CreatedAt AS PrimaryCreated,
+            a2.CreatedAt AS DuplicateCreated
         FROM @DuplicateGroups dg
         INNER JOIN dbo.Atoms a1 ON dg.PrimaryAtomId = a1.AtomId
         INNER JOIN dbo.Atoms a2 ON dg.DuplicateAtomId = a2.AtomId
@@ -297,28 +300,54 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        DECLARE @Content NVARCHAR(MAX);
-        DECLARE @ExtractedMetadata NVARCHAR(MAX);
+        DECLARE @PayloadLocator NVARCHAR(1024);
+        DECLARE @Modality NVARCHAR(64);
+        DECLARE @CanonicalText NVARCHAR(MAX);
+        DECLARE @ExtractedMetadata JSON;
         
-        -- Load content
-        SELECT @Content = CAST(Content AS NVARCHAR(MAX))
+        -- Load atom metadata
+        SELECT 
+            @PayloadLocator = PayloadLocator,
+            @Modality = Modality,
+            @CanonicalText = CanonicalText
         FROM dbo.Atoms
         WHERE AtomId = @AtomId AND TenantId = @TenantId;
         
-        IF @Content IS NULL
+        IF @PayloadLocator IS NULL
         BEGIN
             RAISERROR('Atom not found', 16, 1);
             RETURN -1;
         END
         
-        -- Extract metadata (placeholder - would use CLR NLP function in production)
-        SET @ExtractedMetadata = JSON_OBJECT(
-            'wordCount': LEN(@Content) - LEN(REPLACE(@Content, ' ', '')) + 1,
-            'language': 'en', -- Would use language detection
-            'sentiment': 0.5,  -- Would use sentiment analysis
-            'entities': JSON_ARRAY(), -- Would use NER
-            'extractedUtc': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
-        );
+        -- Extract metadata based on modality
+        -- For text modality with CanonicalText, perform basic analysis
+        IF @Modality = 'text' AND @CanonicalText IS NOT NULL
+        BEGIN
+            DECLARE @WordCount INT = LEN(@CanonicalText) - LEN(REPLACE(@CanonicalText, ' ', '')) + 1;
+            DECLARE @CharCount INT = LEN(@CanonicalText);
+            
+            SET @ExtractedMetadata = CAST((
+                SELECT 
+                    @WordCount AS wordCount,
+                    @CharCount AS charCount,
+                    'en' AS language,
+                    @PayloadLocator AS payloadLocator,
+                    FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            ) AS JSON);
+        END
+        ELSE
+        BEGIN
+            -- For other modalities or external payloads, store basic metadata
+            SET @ExtractedMetadata = CAST((
+                SELECT 
+                    @Modality AS modality,
+                    @PayloadLocator AS payloadLocator,
+                    'External payload - metadata extraction requires payload loading' AS note,
+                    FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            ) AS JSON);
+        END
         
         -- Update atom metadata
         UPDATE dbo.Atoms
