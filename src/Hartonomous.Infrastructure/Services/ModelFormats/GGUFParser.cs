@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using Hartonomous.Core.Interfaces;
 
 namespace Hartonomous.Infrastructure.Services.ModelFormats;
 
@@ -307,21 +308,4 @@ public class GGUFTensorInfo
     public ulong Offset { get; set; }
     public long ElementCount { get; set; }
     public ulong DataLengthBytes { get; set; }
-}
-
-public class GGUFMetadata
-{
-    public string FilePath { get; set; } = string.Empty;
-    public long FileSize { get; set; }
-    public uint Version { get; set; }
-    public int TensorCount { get; set; }
-    public Dictionary<string, object> MetadataKV { get; set; } = new();
-    public string? Architecture { get; set; }
-    public string? FileType { get; set; }
-    public string? QuantizationType { get; set; }
-    public int ContextLength { get; set; }
-    public int EmbeddingLength { get; set; }
-    public int AttentionHeadCount { get; set; }
-    public int LayerCount { get; set; }
-    public long ParameterCount { get; set; }
 }

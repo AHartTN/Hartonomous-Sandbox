@@ -33,6 +33,12 @@ using Hartonomous.Infrastructure.RateLimiting;
 using Hartonomous.Infrastructure.Lifecycle;
 using Hartonomous.Infrastructure.ProblemDetails;
 using Hartonomous.Infrastructure.Compliance;
+using Hartonomous.Infrastructure.Services.Inference;
+using Hartonomous.Infrastructure.Prediction;
+using Hartonomous.Infrastructure.Services.Generation;
+using Hartonomous.Infrastructure.Services.Autonomous;
+using Hartonomous.Infrastructure.Services.ContentExtraction;
+using Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 using Microsoft.Extensions.Compliance.Redaction;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -261,6 +267,21 @@ public static class DependencyInjection
         services.AddScoped<IIngestionStatisticsService, IngestionStatisticsService>();
         services.AddScoped<ICdcRepository, CdcRepository>();
 
+        // Model format reading infrastructure
+        services.AddScoped<Services.ModelFormats.GGUFParser>();
+        services.AddScoped<Services.ModelFormats.GGUFDequantizer>();
+        services.AddScoped<Services.ModelFormats.GGUFGeometryBuilder>();
+        services.AddScoped<Services.ModelFormats.GGUFModelBuilder>();
+        services.AddScoped<Services.ModelFormats.OnnxModelLoader>();
+        services.AddScoped<Services.ModelFormats.TorchSharpModelLoader>();
+        // OnnxModelParser, TensorDataReader, Float16Utilities are static utility classes
+
+        // Model format readers (vendor implementations)
+        services.AddScoped<IModelFormatReader<GGUFMetadata>, Services.ModelFormats.Readers.GGUFModelReader>();
+        services.AddScoped<IModelFormatReader<OnnxMetadata>, Services.ModelFormats.Readers.OnnxModelReader>();
+        services.AddScoped<IModelFormatReader<PyTorchMetadata>, Services.ModelFormats.Readers.PyTorchModelReader>();
+        services.AddScoped<IModelFormatReader<SafetensorsMetadata>, Services.ModelFormats.Readers.SafetensorsModelReader>();
+
         // Autonomous learning repositories (EF Core replacements for stored procedures)
         services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();
         services.AddScoped<IAutonomousActionRepository, AutonomousActionRepository>();
@@ -281,6 +302,40 @@ public static class DependencyInjection
 
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
         services.AddScoped<IEmbeddingService, EmbeddingService>();
+
+        // ============================================================================
+        // RESTORED AI CAPABILITIES - Prediction, Inference, Generation, Autonomous
+        // ============================================================================
+        
+        // Database connection abstraction
+        services.AddSingleton<ISqlConnectionHelper, SqlConnectionHelper>();
+        
+        // Core AI services (prediction orchestration)
+        services.AddScoped<IPredictionService, Services.AI.PredictionService>();
+        
+        // ONNX Runtime inference engine
+        services.AddScoped<IOnnxInferenceService, Services.AI.OnnxInferenceService>();
+        
+        // Neural text generation
+        services.AddScoped<ITextGenerationService, Services.AI.TextGenerationService>();
+        
+        // Multi-modal content generation suite (text, image, video, audio)
+        services.AddScoped<IContentGenerationSuite, Services.Generation.ContentGenerationSuite>();
+        
+        // Autonomous task execution (OODA loop)
+        services.AddScoped<IAutonomousExecutor, Services.Autonomous.AutonomousExecutor>();
+        
+        // Content ingestion orchestration
+        services.AddScoped<IContentIngestionService, Services.ContentExtraction.ContentIngestionService>();
+        
+        // Content extractors (registered as transient for per-request instances)
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.TextContentExtractor>();
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.TelemetryContentExtractor>();
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.JsonApiContentExtractor>();
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.HtmlContentExtractor>();
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.DatabaseSyncExtractor>();
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.DocumentContentExtractor>();
+        services.AddTransient<IContentExtractor, Services.ContentExtraction.Extractors.VideoContentExtractor>();
 
         services.AddScoped<ModelIngestionProcessor>();
         services.AddScoped<ModelIngestionOrchestrator>();
