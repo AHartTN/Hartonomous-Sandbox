@@ -4,6 +4,6 @@ namespace Hartonomous.Api.DTOs.Tokenizer
 {
     public class TokenizeResponse
     {
-        public List<int> TokenIds { get; set; }
+        public required List<int> TokenIds { get; set; }
     }
 }

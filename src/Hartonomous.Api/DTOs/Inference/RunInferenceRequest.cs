@@ -18,6 +18,6 @@ namespace Hartonomous.Api.DTOs.Inference
         /// </summary>
         [Required]
         [MinLength(1)]
-        public int[] TokenIds { get; set; }
+        public required int[] TokenIds { get; set; }
     }
 }

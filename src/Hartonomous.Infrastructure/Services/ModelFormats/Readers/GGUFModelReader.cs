@@ -75,7 +75,7 @@ public class GGUFModelReader : IModelFormatReader<GGUFMetadata>
             FileSize = new FileInfo(modelPath).Length,
             Version = header.Version,
             TensorCount = (int)header.TensorCount,
-            MetadataKV = metadata
+            MetadataKV = new Dictionary<string, object?>(metadata)
         };
 
         // Extract key metadata

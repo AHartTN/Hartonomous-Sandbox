@@ -200,7 +200,8 @@ public class TenantResourceAuthorizationHandler : AuthorizationHandler<TenantRes
             command.Parameters.AddWithValue("@ResourceId", resourceId);
             command.Parameters.AddWithValue("@TenantId", tenantId);
 
-            var count = (int)await command.ExecuteScalarAsync();
+            var result = await command.ExecuteScalarAsync();
+            var count = result != null ? Convert.ToInt32(result) : 0;
             return count > 0;
         }
         catch (Exception ex)

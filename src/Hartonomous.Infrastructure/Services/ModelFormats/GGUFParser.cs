@@ -30,9 +30,9 @@ public class GGUFParser
         };
     }
 
-    public Dictionary<string, object> ReadMetadata(BinaryReader reader, ulong kvCount)
+    public Dictionary<string, object?> ReadMetadata(BinaryReader reader, ulong kvCount)
     {
-        var metadata = new Dictionary<string, object>();
+        var metadata = new Dictionary<string, object?>();
 
         for (ulong i = 0; i < kvCount; i++)
         {
@@ -194,7 +194,6 @@ public class GGUFParser
         var kvCount = reader.ReadUInt64();
 
         // Read metadata KV pairs
-        long totalParams = 0;
         var metadataDict = ReadMetadata(reader, kvCount);
 
         foreach (var kvp in metadataDict)
@@ -203,7 +202,7 @@ public class GGUFParser
 
             // Extract important fields
             if (kvp.Key == "general.architecture")
-                metadata.Architecture = kvp.Value?.ToString();
+                metadata.Architecture = kvp.Value?.ToString() ?? string.Empty;
             else if (kvp.Key == "general.file_type")
             {
                 var fileType = Convert.ToUInt32(kvp.Value);

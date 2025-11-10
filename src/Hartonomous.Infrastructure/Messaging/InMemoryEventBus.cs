@@ -11,7 +11,6 @@ public class InMemoryEventBus : IEventBus
 {
     private readonly ILogger<InMemoryEventBus> _logger;
     private readonly ConcurrentDictionary<string, List<Delegate>> _handlers = new();
-    private bool _isRunning;
 
     public InMemoryEventBus(ILogger<InMemoryEventBus> logger)
     {
@@ -88,14 +87,12 @@ public class InMemoryEventBus : IEventBus
 
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        _isRunning = true;
         _logger.LogInformation("In-memory event bus started");
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
-        _isRunning = false;
         _logger.LogInformation("In-memory event bus stopped");
         return Task.CompletedTask;
     }

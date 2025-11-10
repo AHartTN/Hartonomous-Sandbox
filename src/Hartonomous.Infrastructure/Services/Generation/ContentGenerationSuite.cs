@@ -349,7 +349,8 @@ Return only the image description (max 50 words).";
         }
 
         // Create slideshow video from images + audio using FFmpeg
-        var frameDuration = 0.5; // Each frame displays for 0.5 seconds
+        // Note: In a full implementation, frameDuration would control slideshow timing
+        // Currently using first frame as static image
 
         // Simplified approach: use first frame as static image + audio
         // Real implementation would create proper slideshow with transitions

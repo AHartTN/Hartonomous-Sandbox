@@ -14,7 +14,6 @@
     <ProjectReference Include="..\..\src\Hartonomous.Data\Hartonomous.Data.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Workers.Neo4jSync\Hartonomous.Workers.Neo4jSync.csproj" />
-    <ProjectReference Include="..\..\src\Hartonomous.Database.Clr\Hartonomous.Database.Clr.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
   <ItemGroup>

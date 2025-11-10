@@ -6,6 +6,6 @@ namespace Hartonomous.Api.DTOs.Tokenizer
     {
         [Required]
         [MinLength(1)]
-        public string Text { get; set; }
+        public required string Text { get; set; }
     }
 }

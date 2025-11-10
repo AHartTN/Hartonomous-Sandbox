@@ -25,6 +25,6 @@ namespace Hartonomous.Api.DTOs.Search
         /// <summary>
         /// Search mode used.
         /// </summary>
-        public required string Mode { get; set; }
+        public TemporalSearchMode Mode { get; set; }
     }
 }

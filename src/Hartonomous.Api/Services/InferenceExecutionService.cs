@@ -1,7 +1,7 @@
 using Dapper;
 using Hartonomous.Api.DTOs.Inference;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
-using System.Data.SqlClient;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
@@ -17,14 +17,15 @@ namespace Hartonomous.Api.Services
 
         public InferenceExecutionService(IConfiguration configuration, ILogger<InferenceExecutionService> logger)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection");
+            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+                ?? throw new InvalidOperationException("DefaultConnection connection string is not configured");
             _logger = logger;
         }
 
         /// <summary>
         /// Executes the in-database inference function synchronously.
         /// </summary>
-        public async Task<RunInferenceResponse> RunInferenceAsync(RunInferenceRequest request, CancellationToken cancellationToken)
+        public async Task<RunInferenceResponse?> RunInferenceAsync(RunInferenceRequest request, CancellationToken cancellationToken)
         {
             _logger.LogInformation("Running synchronous inference for ModelId {ModelId}", request.ModelId);
 
@@ -57,7 +58,8 @@ namespace Hartonomous.Api.Services
                     throw new InvalidOperationException($"In-database inference failed: {errorCheck.Error}");
                 }
 
-                var embedding = JsonConvert.DeserializeObject<float[]>(resultJson);
+                var embedding = JsonConvert.DeserializeObject<float[]>(resultJson) 
+                    ?? throw new InvalidOperationException("Failed to deserialize embedding from inference result");
 
                 return new RunInferenceResponse { Embedding = embedding };
             }
@@ -65,7 +67,7 @@ namespace Hartonomous.Api.Services
 
         private class JsonError
         {
-            public string Error { get; set; }
+            public string? Error { get; set; }
         }
     }
 }

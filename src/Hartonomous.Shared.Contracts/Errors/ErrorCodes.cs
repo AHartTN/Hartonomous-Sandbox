@@ -27,6 +27,12 @@ public static class ErrorCodes
     {
         public const string DatabaseUnavailable = "infrastructure.database_unavailable";
         public const string ExternalDependencyFailure = "infrastructure.external_dependency_failure";
+        public const string OperationFailed = "infrastructure.operation_failed";
+    }
+
+    public static class System
+    {
+        public const string Unhandled = "system.unhandled";
     }
 
     public static class Security

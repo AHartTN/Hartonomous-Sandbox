@@ -229,19 +229,26 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
     private async Task<int> WarmEmbeddingsCache(CacheWarmingPayload payload, CancellationToken cancellationToken)
     {
         // Query top N most recently accessed embeddings
+        // Note: AtomEmbedding does not have TenantId - tenant filtering happens via Atom navigation
         var recentEmbeddings = await _dbContext.Set<Core.Entities.AtomEmbedding>()
-            .Where(e => payload.TenantId == null || e.TenantId == payload.TenantId)
             .OrderByDescending(e => e.CreatedAt)
             .Take(payload.MaxItemsPerType)
-            .Select(e => new { e.EmbeddingId, e.TenantId, e.EmbeddingVector })
+            .Select(e => new { e.AtomEmbeddingId, e.EmbeddingVector })
             .ToListAsync(cancellationToken);
 
         int cached = 0;
         foreach (var embedding in recentEmbeddings)
         {
-            var cacheKey = $"embedding:{embedding.TenantId}:{embedding.EmbeddingId}";
-            await _cache.SetAsync(cacheKey, embedding.EmbeddingVector, TimeSpan.FromHours(2), cancellationToken);
-            cached++;
+            var tenantPrefix = payload.TenantId?.ToString() ?? "global";
+            var cacheKey = $"embedding:{tenantPrefix}:{embedding.AtomEmbeddingId}";
+            
+            // Serialize the vector to byte array for caching
+            if (embedding.EmbeddingVector != null)
+            {
+                var vectorBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(embedding.EmbeddingVector);
+                await _cache.SetAsync(cacheKey, vectorBytes, TimeSpan.FromHours(2), cancellationToken);
+                cached++;
+            }
         }
 
         return cached;

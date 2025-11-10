@@ -59,8 +59,26 @@ public sealed class BillingController : ApiControllerBase
             return BadRequest(Failure<UsageReportResponse>(new[] { ValidationError("Request body is required.") }));
         }
 
-        // TODO: Add authorization check - user can only query their own tenant's usage unless Admin
-        // Get tenantId from claims: var tenantIdClaim = User.FindFirst("tenantId")?.Value;
+        // AUTHORIZATION: Users can only query their own tenant's usage unless Admin
+        var tenantIdClaim = User.FindFirst("tenant_id") 
+            ?? User.FindFirst("extension_TenantId")
+            ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier);
+        
+        if (tenantIdClaim is null || !int.TryParse(tenantIdClaim.Value, out var userTenantId))
+        {
+            _logger.LogWarning("User {UserId} attempted billing query without valid tenant claim", User.Identity?.Name);
+            return BadRequest(Failure<UsageReportResponse>(new[] { ValidationError("User tenant ID not found in claims. Contact administrator.") }));
+        }
+
+        var requestedTenantId = request.TenantId ?? userTenantId;
+
+        // Non-admin users can only query their own tenant
+        if (requestedTenantId != userTenantId && !User.IsInRole("Admin"))
+        {
+            _logger.LogWarning("User {UserId} (Tenant {UserTenantId}) attempted unauthorized access to Tenant {RequestedTenantId}", 
+                User.Identity?.Name, userTenantId, requestedTenantId);
+            return Forbid();
+        }
 
         try
         {

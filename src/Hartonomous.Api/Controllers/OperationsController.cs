@@ -197,7 +197,7 @@ public class OperationsController : ApiControllerBase
 
             totalStopwatch.Stop();
 
-            var metadata = new Dictionary<string, object>
+            var metadata = new Dictionary<string, object?>
             {
                 ["successCount"] = results.Count(r => r.Success),
                 ["failureCount"] = results.Count(r => !r.Success)
@@ -331,7 +331,7 @@ public class OperationsController : ApiControllerBase
             _logger.LogInformation("Diagnostics completed: {Type} returned {Count} entries",
                 request.DiagnosticType, entries.Count);
 
-            var metadata = new Dictionary<string, object>
+            var metadata = new Dictionary<string, object?>
             {
                 ["diagnosticType"] = request.DiagnosticType,
                 ["entryCount"] = entries.Count

@@ -1,8 +1,8 @@
 using Dapper;
 using Hartonomous.Api.DTOs.Tokenizer;
+using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
 using System.Data;
-using System.Data.SqlClient;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using System.Collections.Generic;
@@ -16,7 +16,8 @@ namespace Hartonomous.Api.Services
 
         public TokenizerService(IConfiguration configuration, ILogger<TokenizerService> logger)
         {
-            _connectionString = configuration.GetConnectionString("DefaultConnection");
+            _connectionString = configuration.GetConnectionString("DefaultConnection") 
+                ?? throw new InvalidOperationException("DefaultConnection connection string is not configured");
             _logger = logger;
         }
 

@@ -27,10 +27,10 @@ namespace Hartonomous.Api.DTOs.Search
         public DateTime EndTimeUtc { get; set; }
 
         /// <summary>
-        /// Temporal search mode: "range" (between start/end), "point_in_time" (as of specific time), "changes" (delta between two times).
+        /// Temporal search mode.
         /// </summary>
         [Required]
-        public required string Mode { get; set; } = "range";
+        public TemporalSearchMode Mode { get; set; } = TemporalSearchMode.Range;
 
         /// <summary>
         /// Maximum number of results to return.

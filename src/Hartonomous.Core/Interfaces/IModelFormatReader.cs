@@ -138,7 +138,7 @@ public class GGUFMetadata
     public int? EmbeddingLength { get; set; }
     public int? AttentionHeadCount { get; set; }
     public long? ParameterCount { get; set; }
-    public Dictionary<string, object> MetadataKV { get; set; } = new();
+    public Dictionary<string, object?> MetadataKV { get; set; } = new();
 }
 
 /// <summary>

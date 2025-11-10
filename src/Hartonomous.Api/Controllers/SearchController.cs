@@ -400,9 +400,9 @@ public sealed class SearchController : ApiControllerBase
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
             // Temporal search modes: range, point_in_time, changes
-            var queryText = request.Mode?.ToLowerInvariant() switch
+            var queryText = request.Mode switch
             {
-                "point_in_time" => @"
+                TemporalSearchMode.PointInTime => @"
                     SELECT TOP (@topK)
                         ae.AtomEmbeddingId,
                         ae.AtomId,
@@ -422,7 +422,7 @@ public sealed class SearchController : ApiControllerBase
                       AND (@modelId IS NULL OR ae.ModelId = @modelId)
                     ORDER BY Similarity DESC;",
                 
-                "changes" => @"
+                TemporalSearchMode.Changes => @"
                     SELECT TOP (@topK)
                         ae.AtomEmbeddingId,
                         ae.AtomId,

@@ -148,10 +148,10 @@ public class IngestionController : ControllerBase
                 Subtype = request.Subtype,
                 HashInput = contentHashString,
                 SourceUri = request.SourceUri ?? $"file://{request.File.FileName}",
-                SourceType = "file-upload",
-                CanonicalText = request.CanonicalText, // Can be null if content is in file
-                Payload = fileBytes, // Pass the raw file bytes
-                DeduplicationPolicy = request.DeduplicationPolicy ?? "hash_then_semantic"
+                SourceType = request.SourceType ?? "file-upload",
+                EmbeddingType = request.EmbeddingType ?? "default",
+                ModelId = request.ModelId,
+                PolicyName = request.DeduplicationPolicy ?? "default"
             };
 
             var result = await _ingestionService.IngestAsync(ingestionRequest, cancellationToken);

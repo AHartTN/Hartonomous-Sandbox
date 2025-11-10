@@ -87,7 +87,7 @@ namespace Hartonomous.Infrastructure.Services.Autonomous
             CancellationToken cancellationToken)
         {
             // Use YOUR LLM to break down the task
-            var decompositionPrompt = $ செய்யுங்கள்@"Break down this task into actionable subtasks:
+            var decompositionPrompt = $@"Break down this task into actionable subtasks:
 Task: {prompt}
 
 Return a numbered list of subtasks (max 10). Each subtask should have:
@@ -121,7 +121,7 @@ Format:
                 // Match pattern: "1. [TYPE] Description | Parameters"
                 var match = System.Text.RegularExpressions.Regex.Match(
                     line,
-                    @"^\d+\.\s*\[(\w+)\]\s*([^|]+)\s*\|\s*(.*)$\);
+                    @"^\d+\.\s*\[(\w+)\]\s*([^|]+)\s*\|\s*(.*)$");
 
                 if (match.Success)
                 {
@@ -201,7 +201,7 @@ Format:
             CancellationToken cancellationToken)
         {
             // Use YOUR LLM to discover API endpoints
-            var discoveryPrompt = $ செய்யுங்கள்@"Find API endpoints for: {subtask.Parameters}
+            var discoveryPrompt = $@"Find API endpoints for: {subtask.Parameters}
 Return only the URL(s), one per line.";
 
             var generation = await _textGenerator.GenerateAsync(
@@ -294,7 +294,7 @@ Return only the URL(s), one per line.";
             CancellationToken cancellationToken)
         {
             // Use YOUR LLM to transform data
-            var transformPrompt = $ செய்யுங்கள்@"Transform this data: {subtask.Parameters}
+            var transformPrompt = $@"Transform this data: {subtask.Parameters}
 Operation: {subtask.Description}";
 
             var generation = await _textGenerator.GenerateAsync(
