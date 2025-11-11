@@ -10,6 +10,11 @@ Hartonomous is a database-first autonomous AI platform where SQL Server 2025 is 
 - **Database-First Architecture**: SQL Server Database Project owns all schema (tables, procedures, functions, CLR bindings). EF Core used only as ORM for data access—no migrations control schema. Applications are thin clients orchestrating database intelligence.
 - **CLR Intelligence Layer**: `src/SqlClr` compiles to .NET Framework 4.8.1 assembly deployed in SQL Server. Provides SIMD vector aggregates, transformer attention, anomaly detection, multimodal generation, and stream orchestration called from stored procedures. **Security**: CLR assemblies deployed as `SAFE` where possible; `UNSAFE` assemblies (SIMD intrinsics, file I/O) use trusted assembly registration without enabling `TRUSTWORTHY` database option.
 - **Autonomous OODA Loop**: Service Broker queues (`AnalyzeQueue`, `HypothesizeQueue`, `ActQueue`, `LearnQueue`) coordinate the four-phase loop. Stored procedures publish/consume messages, CLR helpers aggregate telemetry, and results are recorded in `AutonomousImprovementHistory`.
+- **Dual-Ledger Provenance** (**CRITICAL FOR AUDITABILITY**):
+  - **SQL Temporal Tables**: System-versioned history on critical tables (`TensorAtomCoefficients`, `Models`, etc.) for point-in-time compliance queries
+  - **SQL Graph Tables**: `graph.AtomGraphNodes`, `graph.AtomGraphEdges` capture causal relationships using SQL Server graph syntax
+  - **Neo4j Provenance Graph**: Service Broker→Neo4j worker (`Hartonomous.Workers.Neo4jSync`) mirrors inference traces, model evolution, reasoning paths to Neo4j for explainability queries (see `neo4j/schemas/CoreSchema.cypher`)
+  - **Full Audit Trail**: Every inference decision tracked with evidence, alternatives considered, models used, reasoning modes, confidence scores—required for regulatory compliance and AI explainability
 - **Dual Embedding Paths**: C# `EmbeddingService` (`src/Hartonomous.Infrastructure/AI/Embeddings/EmbeddingService.cs`) for HTTP ingestion. CLR `fn_ComputeEmbedding` for T-SQL embedding generation. Both persist to `dbo.AtomEmbeddings` with `VECTOR(1998)` columns and spatial geometry projections.
 - **Unified Substrate**: Single `dbo.Atoms` table with modality metadata, JSON descriptors, geometry `SpatialKey`, and temporal columns. Embeddings, tensor atoms, and provenance link to atoms. No separate vector store—database is the vector store, graph store, and model repository.
 
@@ -18,7 +23,8 @@ Hartonomous is a database-first autonomous AI platform where SQL Server 2025 is 
 - **SQL Server 2025** with CLR, FILESTREAM, and Service Broker enabled
 - **.NET 10 SDK** for building `Hartonomous.sln` and `Hartonomous.Tests.sln`
 - **PowerShell 7+** for running deployment scripts (`scripts/deploy-database-unified.ps1`)
-- **Optional**: Neo4j 5.x for provenance graph sync, Azure AD tenant for authentication, Azure Storage for blob ingestion, OpenTelemetry endpoint for telemetry export
+- **Neo4j 5.x** (Community or Enterprise) for provenance graph sync and audit trail - **CRITICAL for compliance/explainability**
+- **Optional**: Azure AD tenant for authentication, Azure Storage for blob ingestion, OpenTelemetry endpoint for telemetry export
 
 ## Quick Start
 
@@ -68,6 +74,39 @@ This script:
 - Runs verification scripts to validate installation
 
 ### 4. Run Services Locally
+
+**Neo4j** (required for provenance/auditability - run BEFORE services):
+
+```pwsh
+# Option 1: Docker (recommended for development)
+docker run -d `
+  --name neo4j `
+  -p 7474:7474 -p 7687:7687 `
+  -e NEO4J_AUTH=neo4j/your-password `
+  -e NEO4J_apoc_export_file_enabled=true `
+  -e NEO4J_apoc_import_file_enabled=true `
+  neo4j:5.28-community
+
+# Option 2: Neo4j Desktop (Windows/Mac)
+# Download from https://neo4j.com/download/
+# Create a database, set password, start
+
+# Initialize schema
+# Open Neo4j Browser at http://localhost:7474
+# Execute: neo4j/schemas/CoreSchema.cypher
+```
+
+**Configuration**: Update connection strings in `appsettings.json`:
+
+```json
+{
+  "Neo4j": {
+    "Uri": "bolt://localhost:7687",
+    "Username": "neo4j",
+    "Password": "your-password"
+  }
+}
+```
 
 **API Server** (port 5000 by default):
 

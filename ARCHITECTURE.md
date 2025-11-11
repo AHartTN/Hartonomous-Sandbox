@@ -38,9 +38,14 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
 
 **Dual-Ledger Provenance**:
 
-- **SQL Temporal Tables**: System-versioned history on `TensorAtomCoefficients`, `Weights`, and other critical tables. Enables point-in-time queries for compliance.
-- **SQL Graph Tables**: `graph.AtomGraphNodes.sql`, `graph.AtomGraphEdges.sql` capture causal relationships using SQL Server graph syntax (`MATCH`).
-- **Neo4j Sync**: `ProvenanceGraphBuilder` (`src/Hartonomous.Workers.Neo4jSync/Services/ProvenanceGraphBuilder.cs`) mirrors weight-update events from Service Broker to Neo4j using `neo4j/schemas/CoreSchema.cypher`.
+- **SQL Temporal Tables**: System-versioned history on `TensorAtomCoefficients`, `Weights`, and other critical tables. Enables point-in-time queries for compliance (`SELECT * FROM TensorAtomCoefficients FOR SYSTEM_TIME AS OF '2024-01-01'`).
+- **SQL Graph Tables**: `graph.AtomGraphNodes.sql`, `graph.AtomGraphEdges.sql` capture causal relationships using SQL Server graph syntax (`MATCH (a)-[e]->(b)`).
+- **Neo4j Provenance Graph**: **CRITICAL FOR AUDITABILITY**. Service Broker→Neo4j worker (`Hartonomous.Workers.Neo4jSync`) mirrors inference traces, model evolution, reasoning paths to Neo4j for explainability queries.
+  - **Schema**: `neo4j/schemas/CoreSchema.cypher` defines nodes (`:Inference`, `:Model`, `:Decision`, `:Evidence`, `:Alternative`, `:ReasoningMode`) and relationships (`[:USED_MODEL]`, `:RESULTED_IN`, `:SUPPORTED_BY`, `:CONSIDERED_ALTERNATIVE`)
+  - **Sync Mechanism**: SQL Server Service Broker queue (`Neo4jSyncQueue`) triggers on inference completion → `sp_ForwardToNeo4j_Activated` enqueues sync message → `Hartonomous.Workers.Neo4jSync` consumes and executes Cypher
+  - **Explainability Queries**: "Why was this decision made?", "Which models contributed most?", "What alternatives were considered?", "What evidence supports this?", "How have models evolved?" (see query patterns in `CoreSchema.cypher`)
+  - **Regulatory Compliance**: Full audit trail for AI decisions required by GDPR Article 22 (right to explanation), EU AI Act transparency requirements, financial services regulations (SR 11-7)
+  - **Worker Implementation**: `ProvenanceGraphBuilder` (`src/Hartonomous.Workers.Neo4jSync/Services/ProvenanceGraphBuilder.cs`) constructs Cypher queries from SQL events
 
 ### 2. CLR Intelligence Layer (SqlClrFunctions)
 
@@ -164,10 +169,19 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
   - `FileCdcCheckpointManager` tracks ingestion progress
 
 - **Neo4j Sync** (`src/Hartonomous.Workers.Neo4jSync`):
-  - `ServiceBrokerMessagePump` consumes Service Broker messages
+  - **Purpose**: **CRITICAL FOR AUDITABILITY** - Mirrors SQL provenance to Neo4j for explainability queries and regulatory compliance
+  - `ServiceBrokerMessagePump` consumes Service Broker messages from `Neo4jSyncQueue`
   - Coordinates with retry/circuit breaker policies (`Hartonomous.Infrastructure.Resilience`)
-  - `ProvenanceGraphBuilder` projects weight-update events into Neo4j
+  - `ProvenanceGraphBuilder` projects weight-update events into Neo4j:
+    - `:Inference` nodes with task type, confidence, duration, prompt
+    - `:Model` nodes with contribution weights, individual confidence
+    - `:Decision` nodes with output, confidence, token count
+    - `:Evidence` nodes with similarity scores, sources, content
+    - `:Alternative` nodes with rejected paths and reasons
+    - `:ReasoningMode` nodes (vector similarity, spatial query, graph traversal, symbolic logic)
+    - Relationships: `[:USED_MODEL]`, `[:RESULTED_IN]`, `[:SUPPORTED_BY]`, `[:CONSIDERED_ALTERNATIVE]`, `[:INFLUENCED]`, `[:RATED_BY]`
   - Synchronizes SQL temporal history with Neo4j graph provenance
+  - **Compliance**: Enables GDPR Article 22 "right to explanation", EU AI Act transparency, financial services AI audit requirements
 
 - **Infrastructure Hosted Services** (`src/Hartonomous.Infrastructure`):
   - `AtomIngestionWorker`, `InferenceJobWorker`: Keep pipelines active
@@ -301,6 +315,45 @@ ORDER BY dbo.clr_VectorDistance(@embedding, EmbeddingVector) ASC;
 2. **Poison Message Handling**: Failed hypotheses don't crash system. Auto-retry with backoff.
 3. **Ordered Execution**: Conversation groups ensure correct sequencing.
 4. **No External Dependencies**: Built into SQL Server. Zero-configuration messaging.
+
+### Why Neo4j for Provenance? (Auditability & Explainability)
+
+**Regulatory Drivers**:
+
+- **GDPR Article 22**: Right to explanation for automated decision-making
+- **EU AI Act**: Transparency requirements for high-risk AI systems
+- **Financial Services**: SR 11-7 (model risk management), BCBS 239 (risk data aggregation)
+- **Healthcare**: HIPAA audit trails, FDA software validation requirements
+
+**Technical Advantages**:
+
+1. **Graph Query Performance**: O(1) relationship traversal vs O(n) SQL joins for multi-hop lineage queries
+2. **Temporal Reasoning**: "What prior inferences influenced this decision?" requires recursive graph traversal (inefficient in SQL)
+3. **Counterfactual Analysis**: "What if we had used model B instead of A?" requires graph pattern matching across alternative paths
+4. **Model Evolution Tracking**: `(:ModelVersion)-[:EVOLVED_TO*]->(:ModelVersion)` captures causal chain of model improvements
+5. **Explainability Patterns**: Pre-defined Cypher queries answer "Why?", "What if?", "When?", "How confident?" questions required by regulators
+
+**Architecture**:
+
+- **Dual Write**: SQL temporal tables (compliance/audit) + Neo4j graph (explainability/analysis)
+- **Eventual Consistency**: Service Broker ensures Neo4j sync completes (retry on failure, circuit breaker on Neo4j unavailable)
+- **Schema**: `neo4j/schemas/CoreSchema.cypher` defines 11 node types, 15 relationship types, 12 query patterns
+- **Worker**: `Hartonomous.Workers.Neo4jSync` (background service) consumes `Neo4jSyncQueue`, executes Cypher via Neo4j.Driver 5.28+
+
+**Example Explainability Query** (required for GDPR compliance):
+
+```cypher
+// Q1: Why was this decision made? (GDPR Article 22 - right to explanation)
+MATCH (i:Inference {inference_id: $inference_id})-[:RESULTED_IN]->(d:Decision)
+MATCH (d)-[:SUPPORTED_BY]->(ev:Evidence)
+MATCH (i)-[r:USED_MODEL]->(m:Model)
+RETURN d.output_text,
+       d.confidence,
+       collect(DISTINCT {model: m.name, weight: r.contribution_weight, confidence: r.individual_confidence}) as models_used,
+       collect(DISTINCT {type: ev.type, score: ev.similarity_score, content: ev.content}) as supporting_evidence
+```
+
+**Performance**: Neo4j Desktop (HART-DESKTOP Windows), Neo4j Community (HART-SERVER Linux) both deployed per [DEPLOYMENT_ARCHITECTURE_PLAN.md](../DEPLOYMENT_ARCHITECTURE_PLAN.md).
 
 ## Key Workflows
 
