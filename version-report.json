@@ -1,0 +1,1223 @@
+{
+  "Issues": {
+    "Outdated": [],
+    "PreviewRC": [
+      {
+        "Package": "Microsoft.EntityFrameworkCore.SqlServer",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Data.csproj",
+          "Hartonomous.IntegrationTests.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Logging",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "CesConsumer.csproj",
+          "Hartonomous.Workers.CesConsumer.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Logging.Abstractions",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.UnitTests.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Logging.Console",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.IntegrationTests.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.EntityFrameworkCore",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Data.csproj",
+          "Hartonomous.UnitTests.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Caching.Memory",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Workers.Neo4jSync.csproj",
+          "Neo4jSync.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      },
+      {
+        "Package": "System.CommandLine",
+        "Version": "2.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Cli.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Hosting",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "CesConsumer.csproj",
+          "Hartonomous.Workers.CesConsumer.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Data.csproj",
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      },
+      {
+        "Package": "OpenTelemetry.Instrumentation.EntityFrameworkCore",
+        "Version": "1.0.0-beta.12",
+        "Projects": [
+          "Hartonomous.Admin.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.EntityFrameworkCore.Design",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Data.csproj"
+        ]
+      },
+      {
+        "Package": "Microsoft.AspNetCore.Mvc.Testing",
+        "Version": "10.0.0-rc.2.25502.107",
+        "Projects": [
+          "Hartonomous.IntegrationTests.csproj"
+        ]
+      },
+      {
+        "Package": "OpenTelemetry.Exporter.Prometheus.AspNetCore",
+        "Version": "1.9.0-beta.2",
+        "Projects": [
+          "Hartonomous.Admin.csproj"
+        ]
+      }
+    ],
+    "DuplicateCsprojFiles": [
+      {
+        "BaseProjectName": "SqlClrFunctions",
+        "DuplicateFiles": [
+          "SqlClrFunctions-BACKUP.csproj",
+          "SqlClrFunctions-CLEAN.csproj",
+          "SqlClrFunctions.csproj"
+        ],
+        "Paths": [
+          "D:\\Repositories\\Hartonomous\\src\\SqlClr\\SqlClrFunctions-BACKUP.csproj",
+          "D:\\Repositories\\Hartonomous\\src\\SqlClr\\SqlClrFunctions-CLEAN.csproj",
+          "D:\\Repositories\\Hartonomous\\src\\SqlClr\\SqlClrFunctions.csproj"
+        ]
+      }
+    ],
+    "Vulnerabilities": [],
+    "VersionMixing": [
+      {
+        "Package": "OpenTelemetry.Instrumentation.Http",
+        "Versions": [
+          "1.9.0",
+          "1.12.0"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "Hartonomous.Admin.csproj"
+            ],
+            "Version": "1.9.0"
+          },
+          {
+            "ProjectFiles": [
+              "Hartonomous.Api.csproj"
+            ],
+            "Version": "1.12.0"
+          }
+        ]
+      },
+      {
+        "Package": "OpenTelemetry.Instrumentation.AspNetCore",
+        "Versions": [
+          "1.9.0",
+          "1.12.0"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "Hartonomous.Admin.csproj"
+            ],
+            "Version": "1.9.0"
+          },
+          {
+            "ProjectFiles": [
+              "Hartonomous.Api.csproj"
+            ],
+            "Version": "1.12.0"
+          }
+        ]
+      },
+      {
+        "Package": "OpenTelemetry.Extensions.Hosting",
+        "Versions": [
+          "1.9.0",
+          "1.12.0"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "Hartonomous.Admin.csproj"
+            ],
+            "Version": "1.9.0"
+          },
+          {
+            "ProjectFiles": [
+              "Hartonomous.Api.csproj"
+            ],
+            "Version": "1.12.0"
+          }
+        ]
+      },
+      {
+        "Package": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+        "Versions": [
+          "1.9.0",
+          "1.13.1"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "Hartonomous.Admin.csproj"
+            ],
+            "Version": "1.9.0"
+          },
+          {
+            "ProjectFiles": [
+              "Hartonomous.Api.csproj"
+            ],
+            "Version": "1.13.1"
+          }
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Logging.Abstractions",
+        "Versions": [
+          "10.0.0-rc.2.25502.107",
+          "9.0.10"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "Hartonomous.UnitTests.csproj"
+            ],
+            "Version": "10.0.0-rc.2.25502.107"
+          },
+          {
+            "ProjectFiles": [
+              "Hartonomous.Core.csproj"
+            ],
+            "Version": "9.0.10"
+          }
+        ]
+      },
+      {
+        "Package": "Microsoft.Extensions.Hosting",
+        "Versions": [
+          "10.0.0-rc.2.25502.107",
+          "9.0.10"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "CesConsumer.csproj",
+              "Hartonomous.Workers.CesConsumer.csproj"
+            ],
+            "Version": "10.0.0-rc.2.25502.107"
+          },
+          {
+            "ProjectFiles": [
+              "Hartonomous.Workers.Neo4jSync.csproj",
+              "Neo4jSync.csproj"
+            ],
+            "Version": "9.0.10"
+          }
+        ]
+      },
+      {
+        "Package": "Newtonsoft.Json",
+        "Versions": [
+          "13.0.3",
+          "13.0.4"
+        ],
+        "Projects": [
+          {
+            "ProjectFiles": [
+              "Hartonomous.Api.csproj"
+            ],
+            "Version": "13.0.3"
+          },
+          {
+            "ProjectFiles": [
+              "CesConsumer.csproj",
+              "Hartonomous.Workers.CesConsumer.csproj"
+            ],
+            "Version": "13.0.4"
+          }
+        ]
+      }
+    ]
+  },
+  "Summary": {
+    "Outdated": 0,
+    "UpToDate": 76,
+    "PreviewRC": 14,
+    "VersionMixingIssues": 7,
+    "Vulnerabilities": 0,
+    "DuplicateCsprojFiles": 1
+  },
+  "GeneratedAt": "2025-11-11T01:06:47Z",
+  "ProjectCount": 22,
+  "Packages": {
+    "System.Memory": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "System.Memory",
+      "Versions": {
+        "4.6.3": [
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "Microsoft.Build.Utilities.Core": {
+      "Projects": [
+        "Hartonomous.Data.csproj"
+      ],
+      "Name": "Microsoft.Build.Utilities.Core",
+      "Versions": {
+        "17.14.28": [
+          "Hartonomous.Data.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Instrumentation.Http": {
+      "Projects": [
+        "Hartonomous.Admin.csproj",
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "OpenTelemetry.Instrumentation.Http",
+      "Versions": {
+        "1.9.0": [
+          "Hartonomous.Admin.csproj"
+        ],
+        "1.12.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Neo4j.Driver": {
+      "Projects": [
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Infrastructure.csproj",
+        "Hartonomous.Workers.Neo4jSync.csproj",
+        "Neo4jSync.csproj"
+      ],
+      "Name": "Neo4j.Driver",
+      "Versions": {
+        "5.28.3": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Infrastructure.csproj",
+          "Hartonomous.Workers.Neo4jSync.csproj",
+          "Neo4jSync.csproj"
+        ]
+      }
+    },
+    "Microsoft.EntityFrameworkCore.SqlServer": {
+      "Projects": [
+        "Hartonomous.Data.csproj",
+        "Hartonomous.IntegrationTests.csproj"
+      ],
+      "Name": "Microsoft.EntityFrameworkCore.SqlServer",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.Data.csproj",
+          "Hartonomous.IntegrationTests.csproj"
+        ]
+      }
+    },
+    "Npgsql": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Npgsql",
+      "Versions": {
+        "9.0.4": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Instrumentation.AspNetCore": {
+      "Projects": [
+        "Hartonomous.Admin.csproj",
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "OpenTelemetry.Instrumentation.AspNetCore",
+      "Versions": {
+        "1.9.0": [
+          "Hartonomous.Admin.csproj"
+        ],
+        "1.12.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Testcontainers.MsSql": {
+      "Projects": [
+        "Hartonomous.EndToEndTests.csproj"
+      ],
+      "Name": "Testcontainers.MsSql",
+      "Versions": {
+        "4.2.0": [
+          "Hartonomous.EndToEndTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Hosting.Abstractions": {
+      "Projects": [
+        "Hartonomous.Core.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Hosting.Abstractions",
+      "Versions": {
+        "9.0.0": [
+          "Hartonomous.Core.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Logging": {
+      "Projects": [
+        "CesConsumer.csproj",
+        "Hartonomous.Workers.CesConsumer.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Logging",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "CesConsumer.csproj",
+          "Hartonomous.Workers.CesConsumer.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Extensions.Hosting": {
+      "Projects": [
+        "Hartonomous.Admin.csproj",
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "OpenTelemetry.Extensions.Hosting",
+      "Versions": {
+        "1.9.0": [
+          "Hartonomous.Admin.csproj"
+        ],
+        "1.12.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Configuration.Abstractions": {
+      "Projects": [
+        "Hartonomous.Core.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Configuration.Abstractions",
+      "Versions": {
+        "9.0.10": [
+          "Hartonomous.Core.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Exporter.OpenTelemetryProtocol": {
+      "Projects": [
+        "Hartonomous.Admin.csproj",
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "OpenTelemetry.Exporter.OpenTelemetryProtocol",
+      "Versions": {
+        "1.9.0": [
+          "Hartonomous.Admin.csproj"
+        ],
+        "1.13.1": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Microsoft.SqlServer.Types": {
+      "Projects": [
+        "Hartonomous.Core.csproj",
+        "Hartonomous.Data.csproj",
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "Microsoft.SqlServer.Types",
+      "Versions": {
+        "160.1000.6": [
+          "Hartonomous.Core.csproj",
+          "Hartonomous.Data.csproj",
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "ILGPU.Algorithms": {
+      "Projects": [
+        "Hartonomous.Core.Performance.csproj"
+      ],
+      "Name": "ILGPU.Algorithms",
+      "Versions": {
+        "1.5.1": [
+          "Hartonomous.Core.Performance.csproj"
+        ]
+      }
+    },
+    "Microsoft.Playwright": {
+      "Projects": [
+        "Hartonomous.EndToEndTests.csproj"
+      ],
+      "Name": "Microsoft.Playwright",
+      "Versions": {
+        "1.48.0": [
+          "Hartonomous.EndToEndTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Logging.Abstractions": {
+      "Projects": [
+        "Hartonomous.Core.csproj",
+        "Hartonomous.UnitTests.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Logging.Abstractions",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.UnitTests.csproj"
+        ],
+        "9.0.10": [
+          "Hartonomous.Core.csproj"
+        ]
+      }
+    },
+    "Swashbuckle.AspNetCore": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Swashbuckle.AspNetCore",
+      "Versions": {
+        "6.5.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Microsoft.Identity.Web": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Microsoft.Identity.Web",
+      "Versions": {
+        "4.0.1": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Dapper": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Dapper",
+      "Versions": {
+        "2.1.35": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "DocumentFormat.OpenXml": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "DocumentFormat.OpenXml",
+      "Versions": {
+        "3.3.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Azure.Storage.Blobs": {
+      "Projects": [
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Azure.Storage.Blobs",
+      "Versions": {
+        "12.26.0": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Logging.Console": {
+      "Projects": [
+        "Hartonomous.IntegrationTests.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Logging.Console",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.IntegrationTests.csproj"
+        ]
+      }
+    },
+    "System.Data.SqlClient": {
+      "Projects": [
+        "Hartonomous.UnitTests.csproj"
+      ],
+      "Name": "System.Data.SqlClient",
+      "Versions": {
+        "4.8.6": [
+          "Hartonomous.UnitTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.EntityFrameworkCore": {
+      "Projects": [
+        "Hartonomous.Data.csproj",
+        "Hartonomous.UnitTests.csproj"
+      ],
+      "Name": "Microsoft.EntityFrameworkCore",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.Data.csproj",
+          "Hartonomous.UnitTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Compliance.Redaction": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Compliance.Redaction",
+      "Versions": {
+        "9.10.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "DotNet.Testcontainers": {
+      "Projects": [
+        "Hartonomous.DatabaseTests.csproj"
+      ],
+      "Name": "DotNet.Testcontainers",
+      "Versions": {
+        "1.6.0": [
+          "Hartonomous.DatabaseTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Resilience": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Resilience",
+      "Versions": {
+        "9.10.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Caching.Memory": {
+      "Projects": [
+        "Hartonomous.Workers.Neo4jSync.csproj",
+        "Neo4jSync.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Caching.Memory",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.Workers.Neo4jSync.csproj",
+          "Neo4jSync.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.ML.OnnxRuntime": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.ML.OnnxRuntime",
+      "Versions": {
+        "1.22.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "MathNet.Numerics": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj",
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "MathNet.Numerics",
+      "Versions": {
+        "5.0.0": [
+          "Hartonomous.Database.Clr.csproj",
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "System.CommandLine": {
+      "Projects": [
+        "Hartonomous.Cli.csproj"
+      ],
+      "Name": "System.CommandLine",
+      "Versions": {
+        "2.0.0-rc.2.25502.107": [
+          "Hartonomous.Cli.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Hosting": {
+      "Projects": [
+        "CesConsumer.csproj",
+        "Hartonomous.Workers.CesConsumer.csproj",
+        "Hartonomous.Workers.Neo4jSync.csproj",
+        "Neo4jSync.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Hosting",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "CesConsumer.csproj",
+          "Hartonomous.Workers.CesConsumer.csproj"
+        ],
+        "9.0.10": [
+          "Hartonomous.Workers.Neo4jSync.csproj",
+          "Neo4jSync.csproj"
+        ]
+      }
+    },
+    "PdfPig": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "PdfPig",
+      "Versions": {
+        "0.1.11": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Exporter.Console": {
+      "Projects": [
+        "Hartonomous.Admin.csproj"
+      ],
+      "Name": "OpenTelemetry.Exporter.Console",
+      "Versions": {
+        "1.9.0": [
+          "Hartonomous.Admin.csproj"
+        ]
+      }
+    },
+    "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": {
+      "Projects": [
+        "Hartonomous.Data.csproj",
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.Data.csproj",
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "TorchSharp": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "TorchSharp",
+      "Versions": {
+        "0.105.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "System.Text.Json": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "System.Text.Json",
+      "Versions": {
+        "9.0.10": [
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Telemetry": {
+      "Projects": [
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Telemetry",
+      "Versions": {
+        "9.10.0": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Azure": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Azure",
+      "Versions": {
+        "1.13.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "ILGPU": {
+      "Projects": [
+        "Hartonomous.Core.Performance.csproj"
+      ],
+      "Name": "ILGPU",
+      "Versions": {
+        "1.5.1": [
+          "Hartonomous.Core.Performance.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Instrumentation.EntityFrameworkCore": {
+      "Projects": [
+        "Hartonomous.Admin.csproj"
+      ],
+      "Name": "OpenTelemetry.Instrumentation.EntityFrameworkCore",
+      "Versions": {
+        "1.0.0-beta.12": [
+          "Hartonomous.Admin.csproj"
+        ]
+      }
+    },
+    "Microsoft.Azure.AppConfiguration.AspNetCore": {
+      "Projects": [
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Workers.Neo4jSync.csproj"
+      ],
+      "Name": "Microsoft.Azure.AppConfiguration.AspNetCore",
+      "Versions": {
+        "8.4.0": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Workers.Neo4jSync.csproj"
+        ]
+      }
+    },
+    "Polly": {
+      "Projects": [
+        "Hartonomous.Core.csproj"
+      ],
+      "Name": "Polly",
+      "Versions": {
+        "8.4.2": [
+          "Hartonomous.Core.csproj"
+        ]
+      }
+    },
+    "Testcontainers.Neo4j": {
+      "Projects": [
+        "Hartonomous.EndToEndTests.csproj"
+      ],
+      "Name": "Testcontainers.Neo4j",
+      "Versions": {
+        "4.2.0": [
+          "Hartonomous.EndToEndTests.csproj"
+        ]
+      }
+    },
+    "Respawn": {
+      "Projects": [
+        "Hartonomous.DatabaseTests.csproj"
+      ],
+      "Name": "Respawn",
+      "Versions": {
+        "6.2.1": [
+          "Hartonomous.DatabaseTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.EntityFrameworkCore.Design": {
+      "Projects": [
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Data.csproj"
+      ],
+      "Name": "Microsoft.EntityFrameworkCore.Design",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Data.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Instrumentation.Runtime": {
+      "Projects": [
+        "Hartonomous.Admin.csproj"
+      ],
+      "Name": "OpenTelemetry.Instrumentation.Runtime",
+      "Versions": {
+        "1.9.0": [
+          "Hartonomous.Admin.csproj"
+        ]
+      }
+    },
+    "FFMpegCore": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "FFMpegCore",
+      "Versions": {
+        "5.1.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.AspNetCore.Mvc.Testing": {
+      "Projects": [
+        "Hartonomous.IntegrationTests.csproj"
+      ],
+      "Name": "Microsoft.AspNetCore.Mvc.Testing",
+      "Versions": {
+        "10.0.0-rc.2.25502.107": [
+          "Hartonomous.IntegrationTests.csproj"
+        ]
+      }
+    },
+    "AngleSharp": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "AngleSharp",
+      "Versions": {
+        "1.2.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "System.Runtime.CompilerServices.Unsafe": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "System.Runtime.CompilerServices.Unsafe",
+      "Versions": {
+        "6.1.2": [
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Http.Resilience": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Http.Resilience",
+      "Versions": {
+        "9.10.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Google.Protobuf": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Google.Protobuf",
+      "Versions": {
+        "3.29.3": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Http": {
+      "Projects": [
+        "Hartonomous.Cli.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Http",
+      "Versions": {
+        "9.0.10": [
+          "Hartonomous.Cli.csproj"
+        ]
+      }
+    },
+    "NSubstitute": {
+      "Projects": [
+        "Hartonomous.UnitTests.csproj"
+      ],
+      "Name": "NSubstitute",
+      "Versions": {
+        "5.3.0": [
+          "Hartonomous.UnitTests.csproj"
+        ]
+      }
+    },
+    "Azure.Monitor.OpenTelemetry.AspNetCore": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Azure.Monitor.OpenTelemetry.AspNetCore",
+      "Versions": {
+        "1.3.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "System.Buffers": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "System.Buffers",
+      "Versions": {
+        "4.6.1": [
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "Azure.Storage.Queues": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Azure.Storage.Queues",
+      "Versions": {
+        "12.24.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "Azure.Messaging.ServiceBus": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "Azure.Messaging.ServiceBus",
+      "Versions": {
+        "7.20.1": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "BenchmarkDotNet": {
+      "Projects": [
+        "Hartonomous.Core.Performance.csproj"
+      ],
+      "Name": "BenchmarkDotNet",
+      "Versions": {
+        "0.14.0": [
+          "Hartonomous.Core.Performance.csproj"
+        ]
+      }
+    },
+    "System.Text.Encodings.Web": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "System.Text.Encodings.Web",
+      "Versions": {
+        "9.0.10": [
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "OpenTelemetry.Exporter.Prometheus.AspNetCore": {
+      "Projects": [
+        "Hartonomous.Admin.csproj"
+      ],
+      "Name": "OpenTelemetry.Exporter.Prometheus.AspNetCore",
+      "Versions": {
+        "1.9.0-beta.2": [
+          "Hartonomous.Admin.csproj"
+        ]
+      }
+    },
+    "System.Numerics.Vectors": {
+      "Projects": [
+        "Hartonomous.Database.Clr.csproj"
+      ],
+      "Name": "System.Numerics.Vectors",
+      "Versions": {
+        "4.6.1": [
+          "Hartonomous.Database.Clr.csproj"
+        ]
+      }
+    },
+    "CliWrap": {
+      "Projects": [
+        "Hartonomous.EndToEndTests.csproj"
+      ],
+      "Name": "CliWrap",
+      "Versions": {
+        "3.6.6": [
+          "Hartonomous.EndToEndTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.Data.SqlClient": {
+      "Projects": [
+        "CesConsumer.csproj",
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Core.csproj",
+        "Hartonomous.Data.csproj",
+        "Hartonomous.Infrastructure.csproj",
+        "Hartonomous.Workers.CesConsumer.csproj",
+        "Hartonomous.Workers.Neo4jSync.csproj",
+        "Neo4jSync.csproj",
+        "Hartonomous.DatabaseTests.csproj",
+        "Hartonomous.EndToEndTests.csproj",
+        "Hartonomous.IntegrationTests.csproj",
+        "Hartonomous.UnitTests.csproj"
+      ],
+      "Name": "Microsoft.Data.SqlClient",
+      "Versions": {
+        "6.1.2": [
+          "CesConsumer.csproj",
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Core.csproj",
+          "Hartonomous.Data.csproj",
+          "Hartonomous.Infrastructure.csproj",
+          "Hartonomous.Workers.CesConsumer.csproj",
+          "Hartonomous.Workers.Neo4jSync.csproj",
+          "Neo4jSync.csproj",
+          "Hartonomous.DatabaseTests.csproj",
+          "Hartonomous.EndToEndTests.csproj",
+          "Hartonomous.IntegrationTests.csproj",
+          "Hartonomous.UnitTests.csproj"
+        ]
+      }
+    },
+    "Testcontainers": {
+      "Projects": [
+        "Hartonomous.EndToEndTests.csproj"
+      ],
+      "Name": "Testcontainers",
+      "Versions": {
+        "4.2.0": [
+          "Hartonomous.EndToEndTests.csproj"
+        ]
+      }
+    },
+    "Newtonsoft.Json": {
+      "Projects": [
+        "CesConsumer.csproj",
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Workers.CesConsumer.csproj"
+      ],
+      "Name": "Newtonsoft.Json",
+      "Versions": {
+        "13.0.3": [
+          "Hartonomous.Api.csproj"
+        ],
+        "13.0.4": [
+          "CesConsumer.csproj",
+          "Hartonomous.Workers.CesConsumer.csproj"
+        ]
+      }
+    },
+    "SixLabors.ImageSharp": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "SixLabors.ImageSharp",
+      "Versions": {
+        "3.1.12": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "MySqlConnector": {
+      "Projects": [
+        "Hartonomous.Infrastructure.csproj"
+      ],
+      "Name": "MySqlConnector",
+      "Versions": {
+        "2.4.0": [
+          "Hartonomous.Infrastructure.csproj"
+        ]
+      }
+    },
+    "Microsoft.Build.Tasks.Core": {
+      "Projects": [
+        "Hartonomous.Data.csproj"
+      ],
+      "Name": "Microsoft.Build.Tasks.Core",
+      "Versions": {
+        "17.14.28": [
+          "Hartonomous.Data.csproj"
+        ]
+      }
+    },
+    "Microsoft.FeatureManagement.AspNetCore": {
+      "Projects": [
+        "Hartonomous.Api.csproj"
+      ],
+      "Name": "Microsoft.FeatureManagement.AspNetCore",
+      "Versions": {
+        "4.3.0": [
+          "Hartonomous.Api.csproj"
+        ]
+      }
+    },
+    "NetTopologySuite": {
+      "Projects": [
+        "Hartonomous.Core.csproj",
+        "Hartonomous.Data.csproj",
+        "Hartonomous.UnitTests.csproj"
+      ],
+      "Name": "NetTopologySuite",
+      "Versions": {
+        "2.6.0": [
+          "Hartonomous.Core.csproj",
+          "Hartonomous.Data.csproj",
+          "Hartonomous.UnitTests.csproj"
+        ]
+      }
+    },
+    "Microsoft.Extensions.Configuration.Json": {
+      "Projects": [
+        "Hartonomous.Workers.Neo4jSync.csproj",
+        "Neo4jSync.csproj"
+      ],
+      "Name": "Microsoft.Extensions.Configuration.Json",
+      "Versions": {
+        "9.0.10": [
+          "Hartonomous.Workers.Neo4jSync.csproj",
+          "Neo4jSync.csproj"
+        ]
+      }
+    },
+    "Azure.Identity": {
+      "Projects": [
+        "Hartonomous.Api.csproj",
+        "Hartonomous.Workers.Neo4jSync.csproj"
+      ],
+      "Name": "Azure.Identity",
+      "Versions": {
+        "1.17.0": [
+          "Hartonomous.Api.csproj",
+          "Hartonomous.Workers.Neo4jSync.csproj"
+        ]
+      }
+    }
+  },
+  "RepoRoot": "D:\\Repositories\\Hartonomous"
+}
