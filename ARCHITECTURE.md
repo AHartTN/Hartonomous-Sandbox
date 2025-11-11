@@ -8,6 +8,8 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
 
 **Core Principle**: The database is not a passive store—it is the active AI runtime. T-SQL is the AI interface. Model weights, embeddings, and provenance live in SQL tables with geometry projections, temporal history, and graph relationships.
 
+**Architecture Philosophy**: **Database-First**. SQL Server Database Project (`sql/` directory) owns all schema (tables, stored procedures, functions, CLR bindings). EF Core (`src/Hartonomous.Data`) is used only as an ORM for data access—it does **not** control schema. Applications (`Hartonomous.Api`, `Hartonomous.Admin`, workers) are thin clients that orchestrate database intelligence and expose external interfaces.
+
 ## Platform Components
 
 ### 1. Database Substrate (SQL Server 2025)
@@ -43,6 +45,22 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
 ### 2. CLR Intelligence Layer (SqlClrFunctions)
 
 **Assembly**: `src/SqlClr/SqlClrFunctions.csproj` compiles to `SqlClrFunctions.dll` targeting .NET Framework 4.8.1. Deployed via `scripts/deploy-database-unified.ps1` or `sql/procedures/Common.ClrBindings.sql`.
+
+**Security Model**: CLR assemblies are deployed with minimum required permissions:
+
+- **SAFE**: Deterministic functions without external resource access (preferred where possible)
+- **UNSAFE**: Required for SIMD intrinsics (`System.Runtime.Intrinsics`), file I/O (FILESTREAM), and unmanaged memory operations
+  - Registered via `sp_add_trusted_assembly` (assembly hash whitelisting)
+  - Database property `TRUSTWORTHY OFF` (never enable `TRUSTWORTHY` for security)
+  - Requires `sysadmin` or `CONTROL SERVER` for deployment
+  - See [scripts/CLR_SECURITY_ANALYSIS.md](../scripts/CLR_SECURITY_ANALYSIS.md) for security surface analysis
+
+**Permission Set Rationale**:
+
+- Vector operations (`VectorOperations.cs`, `VectorAggregates.cs`): `UNSAFE` (SIMD intrinsics via `System.Runtime.Intrinsics.X86.Avx2`)
+- Transformer inference (`TransformerInference.cs`): `UNSAFE` (SIMD + unmanaged memory allocation)
+- FILESTREAM operations: `UNSAFE` (file system access)
+- Pure math/statistical functions: `SAFE` (no external dependencies)
 
 **Vector Analytics**:
 
@@ -171,12 +189,15 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
 **Data Layer** (`src/Hartonomous.Data`):
 
 - EF Core 10 `DbContext`
+- **Database-First Design**: EF Core configurations map to SQL schema owned by SQL Server Database Project
 - Entity configurations (`Configurations/*.cs`) wire:
-  - Geometry columns (`SpatialKey`, `SpatialSignature`)
-  - JSON columns (`ContentJson`, `DescriptorJson`)
-  - Temporal tables (system-versioned history)
+  - Geometry columns (`SpatialKey`, `SpatialSignature`) using NetTopologySuite
+  - JSON columns (`ContentJson`, `DescriptorJson`) using JSON serialization
+  - Temporal tables (system-versioned history) with `ToTable(t => t.IsTemporal())`
   - Graph relationships (`Model → ModelLayer → TensorAtom → TensorAtomCoefficient`)
-- Migrations for schema evolution
+- **No migrations control schema**: Migrations exist for backward compatibility but schema changes happen in `sql/` scripts
+- Scaffolding: Use `dotnet ef dbcontext scaffold` to generate entities from deployed database when schema changes
+- Manual configuration updates required after SQL schema modifications
 
 **Infrastructure** (`src/Hartonomous.Infrastructure`):
 
@@ -416,7 +437,7 @@ See [docs/CLR_GUIDE.md](docs/CLR_GUIDE.md) for detailed CLR deployment instructi
 dotnet ef database update --project src/Hartonomous.Data/Hartonomous.Data.csproj --connection "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
 ```
 
-EF Core migrations handle schema evolution. SQL scripts in `sql/` handle CLR, Service Broker, and verification.
+**Important**: In database-first architecture, EF Core migrations are **not recommended** for schema changes. Migrations exist for backward compatibility only. Schema modifications should be made in `sql/` scripts and deployed via `deploy-database-unified.ps1`. After SQL schema changes, update EF Core configurations manually or use `dotnet ef dbcontext scaffold` to regenerate entities.
 
 ### Production Deployment
 
@@ -449,17 +470,25 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment guide (systemd unit
 
 - **Source Code**: `src/` (.NET 10 services, infrastructure, domain, CLR packaging)
 - **CLR Assembly**: `src/SqlClr` (.NET Framework 4.8.1 SQL CLR implementation)
-- **Database Scripts**: `sql/` (tables, procedures, functions, verification)
+- **Database Scripts**: `sql/` (tables, procedures, functions, verification) - **Schema Source of Truth**
 - **Automation**: `scripts/` (PowerShell deployment, CLR refresh, dependency analysis)
 - **Graph Schema**: `neo4j/schemas/CoreSchema.cypher`
 - **Deployment**: `deploy/` (systemd units, bootstrap script)
 - **Tests**: `tests/` (unit, integration, database validation, end-to-end suites)
+  - **Current Status**: 110/110 unit tests passing (~30-40% coverage), 2/28 integration tests passing (missing infrastructure)
+  - **Testing Roadmap**: [TESTING_AUDIT_AND_COVERAGE_PLAN.md](../TESTING_AUDIT_AND_COVERAGE_PLAN.md) (184-item plan to 100% coverage)
 - **Documentation**:
-  - [README.md](README.md) - Getting started guide
-  - [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment guide
-  - [API.md](API.md) - REST API reference
-  - [docs/CLR_GUIDE.md](docs/CLR_GUIDE.md) - CLR reference
-  - [docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md) - Schema reference
+  - [README.md](../README.md) - Getting started guide
+  - [DEPLOYMENT_ARCHITECTURE_PLAN.md](../DEPLOYMENT_ARCHITECTURE_PLAN.md) - Hybrid Arc SQL deployment strategy
+  - [DATABASE_DEPLOYMENT_GUIDE.md](../DATABASE_DEPLOYMENT_GUIDE.md) - Database provisioning guide
+  - [API.md](../API.md) - REST API reference
+  - [TESTING_AUDIT_AND_COVERAGE_PLAN.md](../TESTING_AUDIT_AND_COVERAGE_PLAN.md) - Testing status and coverage plan
+  - [IMPLEMENTATION_CHECKLIST.md](../IMPLEMENTATION_CHECKLIST.md) - 226-item implementation plan
+  - [VERSION_AND_COMPATIBILITY_AUDIT.md](../VERSION_AND_COMPATIBILITY_AUDIT.md) - Version compatibility matrix
+  - [DATABASE_AND_DEPLOYMENT_AUDIT.md](../DATABASE_AND_DEPLOYMENT_AUDIT.md) - Schema inventory and CLR security
+  - [CODE_REFACTORING_AUDIT.md](../CODE_REFACTORING_AUDIT.md) - 400+ code quality issues
+  - [docs/CLR_DEPLOYMENT.md](docs/CLR_DEPLOYMENT.md) - CLR reference and security
   - [docs/GODEL_ENGINE.md](docs/GODEL_ENGINE.md) - Autonomous compute reference
+  - [scripts/CLR_SECURITY_ANALYSIS.md](../scripts/CLR_SECURITY_ANALYSIS.md) - CLR security surface analysis
 
 All architectural claims are traceable to referenced source files and SQL scripts.

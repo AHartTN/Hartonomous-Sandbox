@@ -7,8 +7,8 @@ Hartonomous is a database-first autonomous AI platform where SQL Server 2025 is 
 ## Platform Highlights
 
 - **T-SQL as AI Interface**: Call `sp_Analyze`, `sp_Hypothesize`, `sp_Act`, `sp_Learn` directly from SQL to execute autonomous reasoning loops. Invoke CLR functions like `clr_RunInference`, `fn_ComputeEmbedding`, or `fn_GenerateText` for inference without leaving the database.
-- **Database-First Architecture**: Core runtime is SQL Server 2025. Atoms, embeddings, tensor atoms, and model coefficients live in SQL tables with geometry columns (`SpatialKey`, `SpatialSignature`), temporal history (system-versioned tables), and graph relationships (SQL graph tables + Neo4j sync).
-- **CLR Intelligence Layer**: `src/SqlClr` compiles to .NET Framework 4.8.1 assembly deployed in SQL Server. Provides SIMD vector aggregates, transformer attention, anomaly detection, multimodal generation, and stream orchestration called from stored procedures.
+- **Database-First Architecture**: SQL Server Database Project owns all schema (tables, procedures, functions, CLR bindings). EF Core used only as ORM for data access—no migrations control schema. Applications are thin clients orchestrating database intelligence.
+- **CLR Intelligence Layer**: `src/SqlClr` compiles to .NET Framework 4.8.1 assembly deployed in SQL Server. Provides SIMD vector aggregates, transformer attention, anomaly detection, multimodal generation, and stream orchestration called from stored procedures. **Security**: CLR assemblies deployed as `SAFE` where possible; `UNSAFE` assemblies (SIMD intrinsics, file I/O) use trusted assembly registration without enabling `TRUSTWORTHY` database option.
 - **Autonomous OODA Loop**: Service Broker queues (`AnalyzeQueue`, `HypothesizeQueue`, `ActQueue`, `LearnQueue`) coordinate the four-phase loop. Stored procedures publish/consume messages, CLR helpers aggregate telemetry, and results are recorded in `AutonomousImprovementHistory`.
 - **Dual Embedding Paths**: C# `EmbeddingService` (`src/Hartonomous.Infrastructure/AI/Embeddings/EmbeddingService.cs`) for HTTP ingestion. CLR `fn_ComputeEmbedding` for T-SQL embedding generation. Both persist to `dbo.AtomEmbeddings` with `VECTOR(1998)` columns and spatial geometry projections.
 - **Unified Substrate**: Single `dbo.Atoms` table with modality metadata, JSON descriptors, geometry `SpatialKey`, and temporal columns. Embeddings, tensor atoms, and provenance link to atoms. No separate vector store—database is the vector store, graph store, and model repository.
@@ -97,29 +97,53 @@ dotnet run
 
 **Configuration**: Each service reads connection strings and configuration from `appsettings.json` or environment variables. Default SQL connection: `Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;`
 
-### 5. Run EF Core Migrations (Alternative)
+### 5. Run EF Core Migrations (Alternative - Not Recommended)
 
-If using EF Core migrations instead of raw SQL scripts:
+**Note**: In database-first architecture, SQL Server Database Project owns schema. EF Core migrations are preserved for backward compatibility but **should not** be used to modify schema. Use SQL scripts in `sql/` instead.
 
 ```pwsh
 dotnet ef database update --project src/Hartonomous.Data/Hartonomous.Data.csproj --connection "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
 ```
 
+**Database-First Workflow**:
+
+1. Modify schema in `sql/tables/*.sql`, `sql/procedures/*.sql`, etc.
+2. Deploy via `deploy-database-unified.ps1`
+3. Scaffold EF Core entities if needed: `dotnet ef dbcontext scaffold`
+4. Manually update EF Core configurations in `src/Hartonomous.Data/Configurations/` to match SQL schema
+
 ### 6. Run Tests
 
+**Current Test Status** (as of November 2024):
+
+- **Unit Tests**: ✅ 110/110 passing (stubs, ~30-40% code coverage)
+- **Integration Tests**: ⚠️ 2/28 passing (25 failures due to missing `appsettings.Testing.json` configuration)
+- **End-to-End Tests**: ✅ 2/2 passing (minimal smoke tests)
+- **Database Tests**: ❌ Not yet executed
+- **Coverage Goal**: 100% (see [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md))
+
 ```pwsh
-# All tests
+# All tests (will show failures without test infrastructure)
 dotnet test Hartonomous.Tests.sln
 
-# Unit tests only
+# Unit tests only (all passing)
 dotnet test tests/Hartonomous.UnitTests
 
-# Integration tests
+# Integration tests (requires appsettings.Testing.json, test database, Neo4j)
 dotnet test tests/Hartonomous.IntegrationTests
 
-# Database validation tests
+# Database validation tests (not yet implemented)
 dotnet test tests/Hartonomous.DatabaseTests
 ```
+
+**To Fix Integration Test Failures**:
+
+1. Create `tests/Hartonomous.IntegrationTests/appsettings.Testing.json` with connection strings
+2. Deploy test database: `./scripts/deploy-database-unified.ps1 -Server "localhost" -Database "Hartonomous_Test"`
+3. Start Neo4j container for graph tests
+4. Configure External ID test tokens
+
+See [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) for complete testing roadmap.
 
 ## Project Structure
 
@@ -168,11 +192,17 @@ EXEC dbo.sp_Analyze
 ## Documentation
 
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: Database-first design, CLR intelligence layer, OODA loop, dual embedding paths, schema overview, .NET 10 orchestration.
-- **[DEPLOYMENT.md](DEPLOYMENT.md)**: Comprehensive deployment guide (prerequisites, database provisioning, CLR deployment, service deployment, systemd setup, verification).
+- **[DEPLOYMENT_ARCHITECTURE_PLAN.md](DEPLOYMENT_ARCHITECTURE_PLAN.md)**: Hybrid Azure Arc SQL deployment strategy, production infrastructure plan.
+- **[DATABASE_DEPLOYMENT_GUIDE.md](DATABASE_DEPLOYMENT_GUIDE.md)**: Step-by-step database provisioning guide.
 - **[API.md](API.md)**: REST API endpoint reference (ingestion, inference, search, provenance, operations).
-- **[docs/CLR_GUIDE.md](docs/CLR_GUIDE.md)**: CLR function reference, .NET Framework 4.8.1 constraints, SAFE vs UNSAFE deployment, security best practices, troubleshooting.
-- **[docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)**: Comprehensive schema reference (atoms, embeddings, tensor atoms, temporal tables, graph tables, provenance).
+- **[TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md)**: Testing status, coverage gaps, 184-item plan to 100% coverage.
+- **[IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md)**: 226-item sequential action plan (database-first architecture).
+- **[VERSION_AND_COMPATIBILITY_AUDIT.md](VERSION_AND_COMPATIBILITY_AUDIT.md)**: Package versions, SQL Server 2025 requirements, compatibility matrix.
+- **[DATABASE_AND_DEPLOYMENT_AUDIT.md](DATABASE_AND_DEPLOYMENT_AUDIT.md)**: Schema inventory, CLR UNSAFE security documentation.
+- **[CODE_REFACTORING_AUDIT.md](CODE_REFACTORING_AUDIT.md)**: 400+ code quality issues cataloged (P0-P4 priority levels).
+- **[docs/CLR_DEPLOYMENT.md](docs/CLR_DEPLOYMENT.md)**: CLR function reference, .NET Framework 4.8.1 constraints, SAFE vs UNSAFE deployment, security best practices.
 - **[docs/GODEL_ENGINE.md](docs/GODEL_ENGINE.md)**: Autonomous compute via Service Broker (`sp_StartPrimeSearch`, `clr_FindPrimes`, `AutonomousComputeJobs`).
+- **[scripts/CLR_SECURITY_ANALYSIS.md](scripts/CLR_SECURITY_ANALYSIS.md)**: CLR security surface analysis, UNSAFE assembly justification.
 
 
 ## License

@@ -1,6 +1,6 @@
 # DEPLOYMENT ARCHITECTURE PLAN
 
-**Generated**: November 11, 2025  
+**Generated**: November 11, 2024  
 **Purpose**: Define deployment topology for hybrid Azure Arc SQL Server architecture  
 **Status**: Planning Phase
 
@@ -55,7 +55,7 @@
 **App Configuration**:
 - **Name**: appconfig-hartonomous
 - **SKU**: **Standard** (⚠️ ~$1.20/day = $36/month base + transaction costs)
-- **Created**: August 31, 2025
+- **Created**: August 31, 2024
 - **Endpoint**: `https://appconfig-hartonomous.azconfig.io`
 - **Purpose**: Centralized configuration for API, Workers, Admin portal
 - **Cost Optimization Opportunity**: Consider downgrading to Free tier (1,000 requests/day limit) if usage is low

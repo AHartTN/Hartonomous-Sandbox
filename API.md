@@ -2,12 +2,13 @@
 
 ## Overview
 
-`Hartonomous.Api` (ASP.NET Core) exposes the public REST surface for embeddings, search, graph exploration, analytics, and operations.
+`Hartonomous.Api` (ASP.NET Core 10) exposes the public REST surface for embeddings, search, graph exploration, analytics, and operations.
 
 - All routes live under `/api/...`
-- Local development host: `https://localhost:5001`
+- Local development host: `https://localhost:5001` (configurable via `appsettings.json` or environment variables)
 - Swagger UI available at `/swagger` when `ASPNETCORE_ENVIRONMENT=Development`
 - Health probes: `/health/startup`, `/health/ready`, `/health/live` (GET)
+- **Testing Status**: API controllers have **0% test coverage** (15 controllers, 0 tests). See [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) for testing roadmap.
 
 ## Authentication
 
@@ -639,7 +640,8 @@ Requires `Admin` policy.
 
 - [README.md](README.md) - Getting started guide
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
-- [DEPLOYMENT.md](DEPLOYMENT.md) - Deployment configuration
+- [DEPLOYMENT_ARCHITECTURE_PLAN.md](DEPLOYMENT_ARCHITECTURE_PLAN.md) - Deployment strategy
+- [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) - API testing roadmap (0% current coverage)
 - `src/Hartonomous.Api/Program.cs` - API configuration
 - `src/Hartonomous.Api/Controllers/` - Controller implementations
 - `src/Hartonomous.Shared.Contracts/` - Request/response DTOs
