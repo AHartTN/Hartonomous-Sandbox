@@ -521,13 +521,14 @@ GO
 IF OBJECT_ID('dbo.fn_GenerateEnsemble', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateEnsemble;
 GO
 CREATE FUNCTION dbo.fn_GenerateEnsemble(
-    @modelId INT,
+    @modelIdsJson NVARCHAR(MAX),
     @inputAtomIds NVARCHAR(MAX),
     @contextJson NVARCHAR(MAX),
     @maxTokens INT,
     @temperature FLOAT,
     @topK INT,
     @topP FLOAT,
+    @attentionHeads INT,
     @tenantId INT
 )
 RETURNS BIGINT
@@ -607,7 +608,8 @@ GO
 IF OBJECT_ID('dbo.clr_ExecuteShellCommand', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_ExecuteShellCommand;
 GO
 CREATE FUNCTION dbo.clr_ExecuteShellCommand(
-    @command NVARCHAR(MAX),
+    @executable NVARCHAR(MAX),
+    @arguments NVARCHAR(MAX),
     @workingDirectory NVARCHAR(MAX),
     @timeoutSeconds INT
 )
@@ -638,7 +640,7 @@ GO
 
 IF OBJECT_ID('dbo.fn_MergeAtoms', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_MergeAtoms;
 GO
-CREATE FUNCTION dbo.fn_MergeAtoms(@atomIdsJson NVARCHAR(MAX), @tenantId INT)
+CREATE FUNCTION dbo.fn_MergeAtoms(@primaryAtomId BIGINT, @duplicateAtomId BIGINT, @tenantId INT)
 RETURNS BIGINT
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.EmbeddingFunctions].fn_MergeAtoms;
 GO
