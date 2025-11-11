@@ -432,4 +432,344 @@ RETURNS NVARCHAR(MAX)
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorOperations.ModelSynthesis].clr_SynthesizeModelLayer;
 GO
 
+IF OBJECT_ID('dbo.clr_BytesToFloatArrayJson', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_BytesToFloatArrayJson;
+GO
+CREATE FUNCTION dbo.clr_BytesToFloatArrayJson(@bytes VARBINARY(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorDataIO].clr_BytesToFloatArrayJson;
+GO
+
+-- ========================================
+-- Transformer & Model Operations
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_RunInference', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_RunInference;
+GO
+CREATE FUNCTION dbo.clr_RunInference(@modelId INT, @tokenIdsJson NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorOperations.TransformerInference].clr_RunInference;
+GO
+
+-- ========================================
+-- Multi-Modal Generation Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.fn_GenerateText', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateText;
+GO
+CREATE FUNCTION dbo.fn_GenerateText(
+    @modelId INT,
+    @inputAtomIds NVARCHAR(MAX),
+    @contextJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT,
+    @topP FLOAT,
+    @tenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.MultiModalGeneration].fn_GenerateText;
+GO
+
+IF OBJECT_ID('dbo.fn_GenerateImage', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateImage;
+GO
+CREATE FUNCTION dbo.fn_GenerateImage(
+    @modelId INT,
+    @inputAtomIds NVARCHAR(MAX),
+    @contextJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT,
+    @topP FLOAT,
+    @tenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.MultiModalGeneration].fn_GenerateImage;
+GO
+
+IF OBJECT_ID('dbo.fn_GenerateAudio', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateAudio;
+GO
+CREATE FUNCTION dbo.fn_GenerateAudio(
+    @modelId INT,
+    @inputAtomIds NVARCHAR(MAX),
+    @contextJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT,
+    @topP FLOAT,
+    @tenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.MultiModalGeneration].fn_GenerateAudio;
+GO
+
+IF OBJECT_ID('dbo.fn_GenerateVideo', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateVideo;
+GO
+CREATE FUNCTION dbo.fn_GenerateVideo(
+    @modelId INT,
+    @inputAtomIds NVARCHAR(MAX),
+    @contextJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT,
+    @topP FLOAT,
+    @tenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.MultiModalGeneration].fn_GenerateVideo;
+GO
+
+IF OBJECT_ID('dbo.fn_GenerateEnsemble', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateEnsemble;
+GO
+CREATE FUNCTION dbo.fn_GenerateEnsemble(
+    @modelId INT,
+    @inputAtomIds NVARCHAR(MAX),
+    @contextJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT,
+    @topP FLOAT,
+    @tenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.MultiModalGeneration].fn_GenerateEnsemble;
+GO
+
+IF OBJECT_ID('dbo.fn_GenerateWithAttention', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GenerateWithAttention;
+GO
+CREATE FUNCTION dbo.fn_GenerateWithAttention(
+    @modelId INT,
+    @inputAtomIds NVARCHAR(MAX),
+    @contextJson NVARCHAR(MAX),
+    @maxTokens INT,
+    @temperature FLOAT,
+    @topK INT,
+    @topP FLOAT,
+    @attentionHeads INT,
+    @tenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AttentionGeneration].fn_GenerateWithAttention;
+GO
+
+-- ========================================
+-- File System Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_FileExists', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_FileExists;
+GO
+CREATE FUNCTION dbo.clr_FileExists(@filePath NVARCHAR(MAX))
+RETURNS BIT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].FileExists;
+GO
+
+IF OBJECT_ID('dbo.clr_DirectoryExists', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_DirectoryExists;
+GO
+CREATE FUNCTION dbo.clr_DirectoryExists(@directoryPath NVARCHAR(MAX))
+RETURNS BIT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].DirectoryExists;
+GO
+
+IF OBJECT_ID('dbo.clr_DeleteFile', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_DeleteFile;
+GO
+CREATE FUNCTION dbo.clr_DeleteFile(@filePath NVARCHAR(MAX))
+RETURNS BIT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].DeleteFile;
+GO
+
+IF OBJECT_ID('dbo.clr_ReadFileBytes', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ReadFileBytes;
+GO
+CREATE FUNCTION dbo.clr_ReadFileBytes(@filePath NVARCHAR(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].ReadFileBytes;
+GO
+
+IF OBJECT_ID('dbo.clr_ReadFileText', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ReadFileText;
+GO
+CREATE FUNCTION dbo.clr_ReadFileText(@filePath NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].ReadFileText;
+GO
+
+IF OBJECT_ID('dbo.clr_WriteFileBytes', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_WriteFileBytes;
+GO
+CREATE FUNCTION dbo.clr_WriteFileBytes(@filePath NVARCHAR(MAX), @content VARBINARY(MAX))
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].WriteFileBytes;
+GO
+
+IF OBJECT_ID('dbo.clr_WriteFileText', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_WriteFileText;
+GO
+CREATE FUNCTION dbo.clr_WriteFileText(@filePath NVARCHAR(MAX), @content NVARCHAR(MAX))
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].WriteFileText;
+GO
+
+IF OBJECT_ID('dbo.clr_ExecuteShellCommand', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_ExecuteShellCommand;
+GO
+CREATE FUNCTION dbo.clr_ExecuteShellCommand(
+    @command NVARCHAR(MAX),
+    @workingDirectory NVARCHAR(MAX),
+    @timeoutSeconds INT
+)
+RETURNS TABLE (
+    OutputLine NVARCHAR(MAX),
+    IsError BIT
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.FileSystemFunctions].ExecuteShellCommand;
+GO
+
+-- ========================================
+-- Embedding & Concept Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.fn_ComputeEmbedding', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_ComputeEmbedding;
+GO
+CREATE FUNCTION dbo.fn_ComputeEmbedding(@atomId BIGINT, @modelId INT, @tenantId INT)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.EmbeddingFunctions].fn_ComputeEmbedding;
+GO
+
+IF OBJECT_ID('dbo.fn_CompareAtoms', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_CompareAtoms;
+GO
+CREATE FUNCTION dbo.fn_CompareAtoms(@atomId1 BIGINT, @atomId2 BIGINT, @tenantId INT)
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.EmbeddingFunctions].fn_CompareAtoms;
+GO
+
+IF OBJECT_ID('dbo.fn_MergeAtoms', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_MergeAtoms;
+GO
+CREATE FUNCTION dbo.fn_MergeAtoms(@atomIdsJson NVARCHAR(MAX), @tenantId INT)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.EmbeddingFunctions].fn_MergeAtoms;
+GO
+
+-- ========================================
+-- Autonomous Analytics Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.fn_clr_AnalyzeSystemState', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_clr_AnalyzeSystemState;
+GO
+CREATE FUNCTION dbo.fn_clr_AnalyzeSystemState(@tenantId INT)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.Analysis.AutonomousAnalyticsTVF].fn_clr_AnalyzeSystemState;
+GO
+
+IF OBJECT_ID('dbo.fn_CalculateComplexity', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_CalculateComplexity;
+GO
+CREATE FUNCTION dbo.fn_CalculateComplexity(@atomId BIGINT)
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AutonomousFunctions].fn_CalculateComplexity;
+GO
+
+IF OBJECT_ID('dbo.fn_DetermineSla', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_DetermineSla;
+GO
+CREATE FUNCTION dbo.fn_DetermineSla(@complexity FLOAT, @tenantId INT)
+RETURNS NVARCHAR(50)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AutonomousFunctions].fn_DetermineSla;
+GO
+
+IF OBJECT_ID('dbo.fn_EstimateResponseTime', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_EstimateResponseTime;
+GO
+CREATE FUNCTION dbo.fn_EstimateResponseTime(@complexity FLOAT)
+RETURNS INT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AutonomousFunctions].fn_EstimateResponseTime;
+GO
+
+IF OBJECT_ID('dbo.fn_ParseModelCapabilities', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_ParseModelCapabilities;
+GO
+CREATE FUNCTION dbo.fn_ParseModelCapabilities(@modelMetadataJson NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AutonomousFunctions].fn_ParseModelCapabilities;
+GO
+
+-- ========================================
+-- Spatial & Projection Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.fn_ProjectTo3D', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_ProjectTo3D;
+GO
+CREATE FUNCTION dbo.fn_ProjectTo3D(@embedding VARBINARY(MAX))
+RETURNS GEOMETRY
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SpatialOperations].fn_ProjectTo3D;
+GO
+
+-- ========================================
+-- Stream & Component Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_EnumerateSegments', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_EnumerateSegments;
+GO
+CREATE FUNCTION dbo.clr_EnumerateSegments(@stream VARBINARY(MAX))
+RETURNS TABLE (
+    SegmentIndex INT,
+    SegmentType NVARCHAR(50),
+    SegmentData VARBINARY(MAX)
+)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AtomicStreamFunctions].EnumerateSegments;
+GO
+
+IF OBJECT_ID('dbo.fn_GetComponentCount', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GetComponentCount;
+GO
+CREATE FUNCTION dbo.fn_GetComponentCount(@streamData VARBINARY(MAX))
+RETURNS INT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.StreamOrchestrator].fn_GetComponentCount;
+GO
+
+IF OBJECT_ID('dbo.fn_DecompressComponents', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_DecompressComponents;
+GO
+CREATE FUNCTION dbo.fn_DecompressComponents(@streamData VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.StreamOrchestrator].fn_DecompressComponents;
+GO
+
+IF OBJECT_ID('dbo.fn_GetTimeWindow', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_GetTimeWindow;
+GO
+CREATE FUNCTION dbo.fn_GetTimeWindow(@streamData VARBINARY(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.StreamOrchestrator].fn_GetTimeWindow;
+GO
+
+-- ========================================
+-- Model Ingestion & Parsing Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_ParseGGUFTensorCatalog', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ParseGGUFTensorCatalog;
+GO
+CREATE FUNCTION dbo.clr_ParseGGUFTensorCatalog(@modelBlob VARBINARY(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ModelIngestionFunctions].ParseGGUFTensorCatalog;
+GO
+
+IF OBJECT_ID('dbo.clr_ReadFilestreamChunk', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ReadFilestreamChunk;
+GO
+CREATE FUNCTION dbo.clr_ReadFilestreamChunk(@filestreamPath NVARCHAR(MAX), @offset BIGINT, @length INT)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ModelIngestionFunctions].ReadFilestreamChunk;
+GO
+
+IF OBJECT_ID('dbo.clr_CreateMultiLineStringFromWeights', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_CreateMultiLineStringFromWeights;
+GO
+CREATE FUNCTION dbo.clr_CreateMultiLineStringFromWeights(@weightsJson NVARCHAR(MAX), @rows INT, @cols INT)
+RETURNS GEOMETRY
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ModelIngestionFunctions].CreateMultiLineStringFromWeights;
+GO
+
+-- ========================================
+-- Utility Functions
+-- ========================================
+
+IF OBJECT_ID('dbo.clr_FindPrimes', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_FindPrimes;
+GO
+CREATE FUNCTION dbo.clr_FindPrimes(@maxValue BIGINT)
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.PrimeNumberSearch].clr_FindPrimes;
+GO
+
+IF OBJECT_ID('dbo.clr_ComputeSemanticFeatures', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ComputeSemanticFeatures;
+GO
+CREATE FUNCTION dbo.clr_ComputeSemanticFeatures(@text NVARCHAR(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SemanticAnalysis].ComputeSemanticFeatures;
+GO
+
 

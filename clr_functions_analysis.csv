@@ -1,0 +1,187 @@
+"FunctionName","ClassName","ReturnType","Parameters"
+"EnumerateSegments","SqlClrFunctions.AtomicStreamFunctions","IEnumerable","AtomicStream stream"
+"fn_GenerateWithAttention","SqlClrFunctions.AttentionGeneration","SqlInt64","
+            SqlInt32 modelId,
+            SqlString inputAtomIds,
+            SqlString contextJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlDouble topP,
+            SqlInt32 attentionHeads,
+            SqlInt32 tenantId"
+"AudioToWaveform","SqlClrFunctions.AudioProcessing","SqlGeometry","SqlBytes audioData, SqlInt32 channelCount, SqlInt32 sampleRate, SqlInt32 maxPoints"
+"AudioComputeRms","SqlClrFunctions.AudioProcessing","SqlDouble","SqlBytes audioData, SqlInt32 channelCount"
+"AudioComputePeak","SqlClrFunctions.AudioProcessing","SqlDouble","SqlBytes audioData, SqlInt32 channelCount"
+"AudioDownsample","SqlClrFunctions.AudioProcessing","SqlBytes","SqlBytes audioData, SqlInt32 channelCount, SqlInt32 factor"
+"GenerateHarmonicTone","SqlClrFunctions.AudioProcessing","SqlBytes","
+            SqlDouble fundamentalHz,
+            SqlInt32 durationMs,
+            SqlInt32 sampleRate,
+            SqlInt32 channelCount,
+            SqlDouble amplitude,
+            SqlDouble secondHarmonicLevel,
+            SqlDouble thirdHarmonicLevel"
+"GenerateAudioFromSpatialSignature","SqlClrFunctions.AudioProcessing","SqlBytes","SqlGeometry spatialSignature"
+"fn_CalculateComplexity","SqlClrFunctions.AutonomousFunctions","SqlInt32","
+            SqlInt32 inputTokenCount,
+            SqlBoolean requiresMultiModal,
+            SqlBoolean requiresToolUse"
+"fn_DetermineSla","SqlClrFunctions.AutonomousFunctions","SqlString","SqlString priority, SqlInt32 complexity"
+"fn_EstimateResponseTime","SqlClrFunctions.AutonomousFunctions","SqlInt32","SqlString modelName, SqlInt32 complexity"
+"clr_GenerateCodeAstVector","SqlClrFunctions.CodeAnalysis","SqlString","SqlString sourceCode"
+"fn_ComputeEmbedding","Hartonomous.SqlClr.EmbeddingFunctions","SqlBytes","
+            SqlInt64 atomId,
+            SqlInt32 modelId,
+            SqlInt32 tenantId"
+"fn_CompareAtoms","Hartonomous.SqlClr.EmbeddingFunctions","SqlDouble","
+            SqlInt64 atomId1,
+            SqlInt64 atomId2,
+            SqlInt32 tenantId"
+"fn_MergeAtoms","Hartonomous.SqlClr.EmbeddingFunctions","SqlInt64","
+            SqlInt64 primaryAtomId,
+            SqlInt64 duplicateAtomId,
+            SqlInt32 tenantId"
+"WriteFileBytes","SqlClrFunctions.FileSystemFunctions","SqlInt64","SqlString filePath, SqlBytes content"
+"WriteFileText","SqlClrFunctions.FileSystemFunctions","SqlInt64","SqlString filePath, SqlString content"
+"ReadFileBytes","SqlClrFunctions.FileSystemFunctions","SqlBytes","SqlString filePath"
+"ReadFileText","SqlClrFunctions.FileSystemFunctions","SqlString","SqlString filePath"
+"FileExists","SqlClrFunctions.FileSystemFunctions","SqlBoolean","SqlString filePath"
+"DirectoryExists","SqlClrFunctions.FileSystemFunctions","SqlBoolean","SqlString directoryPath"
+"DeleteFile","SqlClrFunctions.FileSystemFunctions","SqlBoolean","SqlString filePath"
+"GenerateSequence","SqlClrFunctions.GenerationFunctions","IEnumerable","
+            SqlBytes seedEmbedding,
+            SqlString modelsJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlString requiredModality"
+"GenerateTextSequence","SqlClrFunctions.GenerationFunctions","IEnumerable","
+            SqlBytes seedEmbedding,
+            SqlString modelsJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK"
+"GenerateImageFromShapes","SqlClrFunctions.ImageGeneration","SqlBytes","SqlGeometry shapes, SqlInt32 width, SqlInt32 height"
+"GenerateGuidedPatches","SqlClrFunctions.ImageGeneration","IEnumerable","
+            SqlInt32 width,
+            SqlInt32 height,
+            SqlInt32 patchSize,
+            SqlInt32 steps,
+            SqlDouble guidanceScale,
+            SqlDouble guideX,
+            SqlDouble guideY,
+            SqlDouble guideZ,
+            SqlInt32 seed"
+"GenerateGuidedGeometry","SqlClrFunctions.ImageGeneration","SqlGeometry","
+            SqlInt32 width,
+            SqlInt32 height,
+            SqlInt32 patchSize,
+            SqlInt32 steps,
+            SqlDouble guidanceScale,
+            SqlDouble guideX,
+            SqlDouble guideY,
+            SqlDouble guideZ,
+            SqlInt32 seed"
+"ImageToPointCloud","SqlClrFunctions.ImageProcessing","SqlGeometry","SqlBytes imageData, SqlInt32 width, SqlInt32 height, SqlInt32 sampleStep"
+"ImageAverageColor","SqlClrFunctions.ImageProcessing","SqlString","SqlBytes imageData, SqlInt32 width, SqlInt32 height"
+"ImageLuminanceHistogram","SqlClrFunctions.ImageProcessing","SqlString","SqlBytes imageData, SqlInt32 width, SqlInt32 height, SqlInt32 binCount"
+"GenerateImageGeometry","SqlClrFunctions.ImageProcessing","SqlGeometry","
+            SqlInt32 width,
+            SqlInt32 height,
+            SqlInt32 patchSize,
+            SqlInt32 steps,
+            SqlDouble guidanceScale,
+            SqlDouble guideX,
+            SqlDouble guideY,
+            SqlDouble guideZ,
+            SqlInt32 seed"
+"ReadFilestreamChunk","SqlClrFunctions.ModelIngestionFunctions","SqlBytes","SqlGuid payloadId, SqlInt64 offset, SqlInt64 size"
+"CreateMultiLineStringFromWeights","SqlClrFunctions.ModelIngestionFunctions","SqlGeometry","
+            SqlBytes rawWeights,
+            SqlString dataType,
+            SqlInt32 maxPoints"
+"clr_ParseModelLayer","is.ModelParsing","SqlString","SqlBytes modelBlob, SqlString tensorName, SqlString modelFormatHint"
+"fn_GenerateText","SqlClrFunctions.MultiModalGeneration","SqlInt64","
+            SqlInt32 modelId,
+            SqlString inputAtomIds,
+            SqlString contextJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlDouble topP,
+            SqlInt32 tenantId"
+"fn_GenerateImage","SqlClrFunctions.MultiModalGeneration","SqlInt64","
+            SqlInt32 modelId,
+            SqlString inputAtomIds,
+            SqlString contextJson,
+            SqlInt32 maxPatches,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlDouble topP,
+            SqlInt32 tenantId"
+"fn_GenerateAudio","SqlClrFunctions.MultiModalGeneration","SqlInt64","
+            SqlInt32 modelId,
+            SqlString inputAtomIds,
+            SqlString contextJson,
+            SqlInt32 maxSamples,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlDouble topP,
+            SqlInt32 tenantId"
+"fn_GenerateVideo","SqlClrFunctions.MultiModalGeneration","SqlInt64","
+            SqlInt32 modelId,
+            SqlString inputAtomIds,
+            SqlString contextJson,
+            SqlInt32 maxFrames,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlDouble topP,
+            SqlInt32 tenantId"
+"fn_GenerateEnsemble","SqlClrFunctions.MultiModalGeneration","SqlInt64","
+            SqlString modelIdsJson,
+            SqlString inputAtomIds,
+            SqlString contextJson,
+            SqlInt32 maxTokens,
+            SqlDouble temperature,
+            SqlInt32 topK,
+            SqlDouble topP,
+            SqlInt32 attentionHeads,
+            SqlInt32 tenantId"
+"clr_FindPrimes","SqlClrFunctions.PrimeNumberSearch","SqlString","SqlInt64 rangeStart, SqlInt64 rangeEnd"
+"ComputeSemanticFeatures","SqlClrFunctions.SemanticAnalysis","SqlString","SqlString input"
+"fn_ProjectTo3D","SqlClrFunctions.SpatialOperations","SqlGeometry","SqlBytes vector"
+"fn_GetComponentCount","Hartonomous.SqlClr.ComponentStreamHelpers","SqlInt32","SqlBytes componentStream"
+"fn_GetTimeWindow","Hartonomous.SqlClr.ComponentStreamHelpers","SqlString","SqlBytes componentStream"
+"clr_SvdDecompose","SqlClrFunctions.SVDGeometryFunctions","SqlString","
+            SqlString weightArrayJson,
+            SqlInt32 rows,
+            SqlInt32 cols,
+            SqlInt32 maxRank"
+"clr_ProjectToPoint","SqlClrFunctions.SVDGeometryFunctions","SqlString","SqlString vectorJson"
+"clr_CreateGeometryPointWithImportance","SqlClrFunctions.SVDGeometryFunctions","SqlString","
+            SqlDouble x,
+            SqlDouble y,
+            SqlDouble z,
+            SqlDouble importance"
+"clr_ReconstructFromSVD","SqlClrFunctions.SVDGeometryFunctions","SqlString","
+            SqlString UJson,
+            SqlString SJson,
+            SqlString VTJson"
+"clr_GetTensorAtomPayload","SqlClrFunctions.TensorDataIO","SqlBytes","SqlInt64 tensorAtomId"
+"clr_JsonFloatArrayToBytes","SqlClrFunctions.TensorDataIO","SqlBytes","SqlString jsonFloatArray"
+"clr_BytesToFloatArrayJson","SqlClrFunctions.TensorDataIO","SqlString","SqlBytes bytes"
+"VectorDotProduct","SqlClrFunctions.VectorOperations","SqlDouble","SqlBytes vector1, SqlBytes vector2"
+"VectorCosineSimilarity","SqlClrFunctions.VectorOperations","SqlDouble","SqlBytes vector1, SqlBytes vector2"
+"VectorEuclideanDistance","SqlClrFunctions.VectorOperations","SqlDouble","SqlBytes vector1, SqlBytes vector2"
+"VectorAdd","SqlClrFunctions.VectorOperations","SqlBytes","SqlBytes vector1, SqlBytes vector2"
+"VectorSubtract","SqlClrFunctions.VectorOperations","SqlBytes","SqlBytes vector1, SqlBytes vector2"
+"VectorScale","SqlClrFunctions.VectorOperations","SqlBytes","SqlBytes vector, SqlDouble scalar"
+"VectorNorm","SqlClrFunctions.VectorOperations","SqlDouble","SqlBytes vector"
+"VectorNormalize","SqlClrFunctions.VectorOperations","SqlBytes","SqlBytes vector"
+"VectorLerp","SqlClrFunctions.VectorOperations","SqlBytes","SqlBytes vector1, SqlBytes vector2, SqlDouble t"
+"VectorSoftmax","SqlClrFunctions.VectorOperations","SqlBytes","SqlBytes vector"
+"VectorArgMax","SqlClrFunctions.VectorOperations","SqlInt32","SqlBytes vector"
+"fn_clr_AnalyzeSystemState","SqlClrFunctions.Analysis.containing","IEnumerable","SqlString targetArea"
+"clr_SynthesizeModelLayer","SqlClrFunctions.TensorOperations.ModelSynthesis","SqlString","SqlGeometry query_shape, SqlInt64 parent_layer_id"
+"clr_RunInference","SqlClrFunctions.TensorOperations.TransformerInference","SqlString","SqlInt32 modelId, SqlString tokenIdsJson"
