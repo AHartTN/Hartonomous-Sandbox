@@ -647,10 +647,12 @@ GO
 -- Autonomous Analytics Functions
 -- ========================================
 
-IF OBJECT_ID('dbo.fn_clr_AnalyzeSystemState', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_clr_AnalyzeSystemState;
+IF OBJECT_ID('dbo.fn_clr_AnalyzeSystemState', 'TF') IS NOT NULL DROP FUNCTION dbo.fn_clr_AnalyzeSystemState;
 GO
-CREATE FUNCTION dbo.fn_clr_AnalyzeSystemState(@tenantId INT)
-RETURNS NVARCHAR(MAX)
+CREATE FUNCTION dbo.fn_clr_AnalyzeSystemState(@targetArea NVARCHAR(MAX))
+RETURNS TABLE (
+    AnalysisJson NVARCHAR(MAX)
+)
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.Analysis.AutonomousAnalyticsTVF].fn_clr_AnalyzeSystemState;
 GO
 

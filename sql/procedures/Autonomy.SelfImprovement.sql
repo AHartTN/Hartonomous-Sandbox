@@ -356,8 +356,15 @@ OUTPUT FORMAT (JSON):
         DECLARE @GitWorkingDir NVARCHAR(1000) = 'D:\Repositories\Hartonomous';
         
         BEGIN TRY
-            -- Write generated code to file
-            EXEC dbo.clr_WriteFileText @FullFilePath, @FileContent;
+            -- Write generated code to file (returns bytes written)
+            DECLARE @BytesWritten BIGINT;
+            SET @BytesWritten = dbo.clr_WriteFileText(@FullFilePath, @FileContent);
+            
+            IF @BytesWritten IS NULL OR @BytesWritten = 0
+            BEGIN
+                RAISERROR('Failed to write file: %s', 16, 1, @FullFilePath);
+                RETURN;
+            END
             
             -- Stage file in git (SECURITY: Using ArgumentList to prevent injection)
             DELETE FROM @GitOutput;

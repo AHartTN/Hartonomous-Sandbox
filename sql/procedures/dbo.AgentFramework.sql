@@ -118,13 +118,12 @@ RESPONSE (JSON only):
         -- This is a simplified dispatcher. A real implementation would be more robust.
         IF @SelectedToolName = 'analyze_system_state'
         BEGIN
-            -- The tool returns a table, so we need to capture its output.
-            DECLARE @AnalysisData TABLE (ResultJson NVARCHAR(MAX));
-            INSERT INTO @AnalysisData
-            EXEC dbo.fn_clr_AnalyzeSystemState @targetArea = NULL; -- Simplified parameter passing
-
-            -- Serialize the tool's output for the next step
-            SELECT @ToolExecutionResult = (SELECT * FROM @AnalysisData FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+            -- The tool returns a table-valued function, query it directly
+            SELECT @ToolExecutionResult = (
+                SELECT AnalysisJson 
+                FROM dbo.fn_clr_AnalyzeSystemState(NULL) 
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            );
         END
         -- ELSE IF @SelectedToolName = 'another_tool' ...
         ELSE
