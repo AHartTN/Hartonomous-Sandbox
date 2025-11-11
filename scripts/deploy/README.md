@@ -405,6 +405,6 @@ GROUP BY q.name, q.is_receive_enabled;
 
 ---
 
-**Last Updated:** 2025-06-15  
+**Last Updated:** 2024-11-11  
 **Maintainer:** Azure Arc DevOps Team  
 **Status:** Production-ready ✓

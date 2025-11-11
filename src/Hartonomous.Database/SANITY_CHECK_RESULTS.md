@@ -20,7 +20,8 @@ All critical database components are accounted for after DACPAC migration. The d
 - **Deployment:** Available for runtime deployment via unified script
 
 ### ✅ CLR Components
-- **Assembly:** SqlClrFunctions.dll (295.5 KB, built Nov 10 2025)
+#### 1. Assembly Analysis
+- **Assembly:** SqlClrFunctions.dll (295.5 KB, built Nov 10 2024)
 - **UDTs:** 2 types (AtomicStream, ComponentStream) - tracked but excluded from DACPAC
 - **Deployment:** Via deploy-clr-secure.ps1
 
