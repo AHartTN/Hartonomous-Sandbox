@@ -1,34 +1,23 @@
 using System;
-using System.Runtime.InteropServices;
 using ILGPU;
 using ILGPU.Runtime;
 using ILGPU.Runtime.Cuda;
+using ILGPU.Runtime.CPU;
 using ILGPU.Runtime.OpenCL;
-using ILGPU.Algorithms;
 
 namespace SqlClrFunctions.Core
 {
     /// <summary>
-    /// Provides GPU-accelerated vector operations with automatic CPU fallback.
-    /// Uses ILGPU for CUDA/OpenCL device detection and kernel execution.
-    /// When GPU is unavailable, automatically falls back to existing SIMD/AVX CPU code in VectorMath.
+    /// GPU acceleration for .NET Framework 4.8.1 SQL CLR using ILGPU 0.8.0.
+    /// Falls back to CPU SIMD code in VectorMath if GPU initialization fails.
     /// </summary>
-    /// <remarks>
-    /// CRITICAL: .NET Framework 4.8.1 constraint - ILGPU 1.5.1 is the last version supporting .NET Framework.
-    /// Conditional compilation enables GPU acceleration only when hardware is available.
-    /// Performance: CUDA GPU ~100-1000x faster than CPU for large vectors (10K+ dimensions).
-    /// </remarks>
     public static class GpuAccelerator
     {
-        private static readonly Lazy<(Context context, Accelerator device, bool isGpuAvailable)> _lazyGpu 
+        private static readonly Lazy<(Context context, Accelerator device, bool isGpuAvailable)> _lazyGpu
             = new Lazy<(Context, Accelerator, bool)>(InitializeGpu);
 
         private static Context GpuContext => _lazyGpu.Value.context;
         private static Accelerator GpuDevice => _lazyGpu.Value.device;
-        
-        /// <summary>
-        /// Indicates whether a GPU device (CUDA or OpenCL) is available for acceleration.
-        /// </summary>
         public static bool IsGpuAvailable => _lazyGpu.Value.isGpuAvailable;
 
         /// <summary>
@@ -49,37 +38,40 @@ namespace SqlClrFunctions.Core
         {
             try
             {
-                var context = Context.CreateDefault();
-                
+                var context = new Context();
+
                 // Attempt CUDA first (highest performance)
-                for (int i = 0; i < context.Devices.Length; i++)
+                if (CudaAccelerator.CudaAccelerators.Length > 0)
                 {
-                    var device = context.Devices[i];
-                    if (device.AcceleratorType == AcceleratorType.Cuda)
-                    {
-                        var cudaAccelerator = context.CreateCudaAccelerator(i);
-                        return (context, cudaAccelerator, true);
-                    }
+                    var cudaAccelerator = new CudaAccelerator(context);
+                    return (context, cudaAccelerator, true);
                 }
 
                 // Fallback to OpenCL (broader hardware support)
-                for (int i = 0; i < context.Devices.Length; i++)
+                if (CLAccelerator.CLAccelerators.Length > 0)
                 {
-                    var device = context.Devices[i];
-                    if (device.AcceleratorType == AcceleratorType.OpenCL)
-                    {
-                        var clAccelerator = context.CreateCLAccelerator(i);
-                        return (context, clAccelerator, true);
-                    }
+                    var clAcceleratorId = CLAccelerator.CLAccelerators[0];
+                    var clAccelerator = new CLAccelerator(context, clAcceleratorId);
+                    return (context, clAccelerator, true);
                 }
 
-                // No GPU available - CPU fallback
-                return (context, null, false);
+                // No GPU available - use CPU accelerator
+                var cpuAccelerator = new CPUAccelerator(context);
+                return (context, cpuAccelerator, false);
             }
             catch
             {
                 // GPU initialization failed - silent fallback to CPU
-                return (null, null, false);
+                try
+                {
+                    var context = new Context();
+                    var cpuAccelerator = new CPUAccelerator(context);
+                    return (context, cpuAccelerator, false);
+                }
+                catch
+                {
+                    return (null, null, false);
+                }
             }
         }
 
@@ -142,15 +134,18 @@ namespace SqlClrFunctions.Core
         {
             try
             {
-                using (var bufferA = GpuDevice.Allocate1D(a))
-                using (var bufferB = GpuDevice.Allocate1D(b))
-                using (var bufferResult = GpuDevice.Allocate1D<float>(1))
+                using (var bufferA = GpuDevice.Allocate<float>(a.Length))
+                using (var bufferB = GpuDevice.Allocate<float>(b.Length))
+                using (var bufferResult = GpuDevice.Allocate<float>(1))
                 {
+                    bufferA.CopyFrom(a, 0, 0, a.Length);
+                    bufferB.CopyFrom(b, 0, 0, b.Length);
+
                     // Load kernel
                     var kernel = GpuDevice.LoadAutoGroupedStreamKernel<
-                        Index1D, 
-                        ArrayView<float>, 
-                        ArrayView<float>, 
+                        Index1,
+                        ArrayView<float>,
+                        ArrayView<float>,
                         ArrayView<float>>(DotProductKernel);
 
                     // Execute
@@ -159,7 +154,7 @@ namespace SqlClrFunctions.Core
 
                     // Retrieve result
                     var result = new float[1];
-                    bufferResult.CopyToCPU(result);
+                    bufferResult.CopyTo(result, 0, 0, 1);
                     return result[0];
                 }
             }
@@ -193,12 +188,15 @@ namespace SqlClrFunctions.Core
         {
             try
             {
-                using (var bufferA = GpuDevice.Allocate1D(a))
-                using (var bufferB = GpuDevice.Allocate1D(b))
-                using (var bufferResult = GpuDevice.Allocate1D<float>(1))
+                using (var bufferA = GpuDevice.Allocate<float>(a.Length))
+                using (var bufferB = GpuDevice.Allocate<float>(b.Length))
+                using (var bufferResult = GpuDevice.Allocate<float>(1))
                 {
+                    bufferA.CopyFrom(a, 0, 0, a.Length);
+                    bufferB.CopyFrom(b, 0, 0, b.Length);
+
                     var kernel = GpuDevice.LoadAutoGroupedStreamKernel<
-                        Index1D,
+                        Index1,
                         ArrayView<float>,
                         ArrayView<float>,
                         ArrayView<float>>(EuclideanDistanceKernel);
@@ -207,7 +205,7 @@ namespace SqlClrFunctions.Core
                     GpuDevice.Synchronize();
 
                     var result = new float[1];
-                    bufferResult.CopyToCPU(result);
+                    bufferResult.CopyTo(result, 0, 0, 1);
                     return (float)Math.Sqrt(result[0]);
                 }
             }
@@ -221,11 +219,13 @@ namespace SqlClrFunctions.Core
         {
             try
             {
-                using (var buffer = GpuDevice.Allocate1D(a))
-                using (var bufferResult = GpuDevice.Allocate1D<float>(1))
+                using (var buffer = GpuDevice.Allocate<float>(a.Length))
+                using (var bufferResult = GpuDevice.Allocate<float>(1))
                 {
+                    buffer.CopyFrom(a, 0, 0, a.Length);
+
                     var kernel = GpuDevice.LoadAutoGroupedStreamKernel<
-                        Index1D,
+                        Index1,
                         ArrayView<float>,
                         ArrayView<float>>(NormKernel);
 
@@ -233,7 +233,7 @@ namespace SqlClrFunctions.Core
                     GpuDevice.Synchronize();
 
                     var result = new float[1];
-                    bufferResult.CopyToCPU(result);
+                    bufferResult.CopyTo(result, 0, 0, 1);
                     return (float)Math.Sqrt(result[0]);
                 }
             }
@@ -245,7 +245,7 @@ namespace SqlClrFunctions.Core
 
         // ILGPU kernels (executed on GPU)
         private static void DotProductKernel(
-            Index1D index,
+            Index1 index,
             ArrayView<float> a,
             ArrayView<float> b,
             ArrayView<float> result)
@@ -255,7 +255,7 @@ namespace SqlClrFunctions.Core
         }
 
         private static void EuclideanDistanceKernel(
-            Index1D index,
+            Index1 index,
             ArrayView<float> a,
             ArrayView<float> b,
             ArrayView<float> result)
@@ -265,7 +265,7 @@ namespace SqlClrFunctions.Core
         }
 
         private static void NormKernel(
-            Index1D index,
+            Index1 index,
             ArrayView<float> a,
             ArrayView<float> result)
         {

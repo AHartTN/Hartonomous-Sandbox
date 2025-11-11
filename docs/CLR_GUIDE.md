@@ -555,3 +555,4 @@ ORDER BY Timestamp DESC;
 - [Microsoft Docs: CLR Strict Security](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/clr-strict-security)
 - [Microsoft Docs: CREATE ASSEMBLY](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-assembly-transact-sql)
 - [Microsoft Docs: sys.sp_add_trusted_assembly](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sys-sp-add-trusted-assembly-transact-sql)
+- [HIGH_PERFORMANCE_CLR_PLAN.md](HIGH_PERFORMANCE_CLR_PLAN.md) - Binding redirects and ILGPU dependency plan

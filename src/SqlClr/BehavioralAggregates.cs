@@ -97,7 +97,8 @@ namespace SqlClrFunctions
             var converted = steps.Any(s => s.ConversionValue > 0);
 
             // Engagement score: time spent + actions + semantic coherence
-            double engagementScore = 0;
+            double engagementScore = Math.Log(1 + totalDuration) / 10 * 0.4 +
+                                    Math.Log(1 + steps.Count) / 5 * 0.3;
             double semanticCoherence = 0;
             
             for (int i = 1; i < steps.Count; i++)
@@ -108,6 +109,9 @@ namespace SqlClrFunctions
                 semanticCoherence += similarity;
             }
             semanticCoherence /= Math.Max(1, steps.Count - 1);
+
+            // Complete engagement score with semantic coherence
+            engagementScore += semanticCoherence * 0.3;
 
             // High coherence = focused journey, low = exploring
             double focusScore = semanticCoherence;

@@ -103,7 +103,7 @@ $script:SqlPaths = @{
     
     # CLR bindings (must run AFTER CLR assembly deployment)
     CLRBindings = @(
-        # Common.ClrBindings.sql is redundant - those functions are created by DACPAC
+        "sql\procedures\Common.ClrBindings.sql"
         "sql\procedures\Autonomy.FileSystemBindings.sql"
     )
     

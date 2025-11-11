@@ -28,7 +28,9 @@ internal static class VectorUtilities
     /// This method is used across 9 SQL CLR aggregate files for vector deserialization.
     /// Uses bridge library for robust JSON parsing with System.Text.Json.
     /// </remarks>
+#nullable enable
     internal static float[]? ParseVectorJson(string json)
+#nullable disable
     {
         try
         {

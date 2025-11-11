@@ -18,23 +18,22 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 
 # NuGet packages
 $nugetPackages = @(
-    @{Name="System.Runtime.CompilerServices.Unsafe"; Path="system.runtime.compilerservices.unsafe\4.5.3\lib\net461\System.Runtime.CompilerServices.Unsafe.dll"},
+    @{Name="ILGPU"; Path="ilgpu\0.9.2\lib\net47\ILGPU.dll"},
+    @{Name="ILGPU.Algorithms"; Path="ilgpu.algorithms\0.9.2\lib\net47\ILGPU.Algorithms.dll"},
+    @{Name="MathNet.Numerics"; Path="mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll"},
+    @{Name="Newtonsoft.Json"; Path="newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll"},
+    @{Name="System.Collections.Immutable"; Path="system.collections.immutable\1.7.1\lib\net461\System.Collections.Immutable.dll"},
+    @{Name="System.Reflection.Metadata"; Path="system.reflection.metadata\1.8.1\lib\net461\System.Reflection.Metadata.dll"},
+    @{Name="System.Runtime.CompilerServices.Unsafe"; Path="system.runtime.compilerservices.unsafe\4.7.1\lib\net461\System.Runtime.CompilerServices.Unsafe.dll"},
     @{Name="System.Buffers"; Path="system.buffers\4.5.1\lib\net461\System.Buffers.dll"},
-    @{Name="System.Memory"; Path="system.memory\4.5.5\lib\net461\System.Memory.dll"},
-    @{Name="System.ValueTuple"; Path="system.valuetuple\4.5.0\lib\net47\System.ValueTuple.dll"},
-    @{Name="System.Threading.Tasks.Extensions"; Path="system.threading.tasks.extensions\4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll"},
-    @{Name="Microsoft.Bcl.AsyncInterfaces"; Path="microsoft.bcl.asyncinterfaces\8.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll"},
-    @{Name="System.Text.Encodings.Web"; Path="system.text.encodings.web\8.0.0\lib\net462\System.Text.Encodings.Web.dll"},
+    @{Name="System.Memory"; Path="system.memory\4.5.4\lib\net461\System.Memory.dll"},
     @{Name="System.Numerics.Vectors"; Path="system.numerics.vectors\4.5.0\lib\net46\System.Numerics.Vectors.dll"},
-    @{Name="System.Text.Json"; Path="system.text.json\8.0.5\lib\net462\System.Text.Json.dll"},
-    @{Name="MathNet.Numerics"; Path="mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll"}
+    @{Name="Microsoft.SqlServer.Types"; Path="microsoft.sqlserver.types\160.1000.6\lib\net462\Microsoft.SqlServer.Types.dll"}
 )
 
-# .NET Framework GAC assemblies
-$gacAssemblies = @(
-    "System.Xml.Linq.dll",
-    "System.Runtime.Serialization.dll"
-)
+# Note: GAC assemblies (System.ServiceModel.Internals, SMDiagnostics, System.Runtime.Serialization, System.Drawing)
+# are provided by .NET Framework 4.8.1 and must NOT be deployed to SQL Server to avoid MVID conflicts.
+# They are removed from this copy script as of the CLR deployment fix.
 
 $frameworkDir = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319"
 
@@ -44,23 +43,10 @@ foreach ($pkg in $nugetPackages) {
     $dest = Join-Path $TargetDir "$($pkg.Name).dll"
     
     if (Test-Path $source) {
-        Copy-Item $source $dest -Force
+    New-Item -ItemType Directory -Path (Split-Path $dest) -Force | Out-Null
+    Copy-Item $source $dest -Force
         $size = (Get-Item $dest).Length / 1KB
         Write-Host "  ✓ $($pkg.Name).dll ($([math]::Round($size,1)) KB)" -ForegroundColor Green
-    } else {
-        Write-Host "  ✗ NOT FOUND: $source" -ForegroundColor Red
-    }
-}
-
-Write-Host "`nCopying .NET Framework GAC assemblies..." -ForegroundColor Cyan
-foreach ($gac in $gacAssemblies) {
-    $source = Join-Path $frameworkDir $gac
-    $dest = Join-Path $TargetDir $gac
-    
-    if (Test-Path $source) {
-        Copy-Item $source $dest -Force
-        $size = (Get-Item $dest).Length / 1KB
-        Write-Host "  ✓ $gac ($([math]::Round($size,1)) KB)" -ForegroundColor Green
     } else {
         Write-Host "  ✗ NOT FOUND: $source" -ForegroundColor Red
     }

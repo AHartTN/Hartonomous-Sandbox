@@ -65,6 +65,18 @@ if ($Rebuild) {
         Write-Host $build -ForegroundColor Red
         throw "SqlClrFunctions rebuild failed"
     }
+    
+    # Extract net4x dependencies after build
+    Write-Host "Extracting net4x dependencies..." -ForegroundColor Cyan
+    $extractScript = Join-Path $PSScriptRoot "extract-clr-dependencies.ps1"
+    if (Test-Path $extractScript) {
+        & $extractScript -ProjectPath $csproj -OutputDirectory $DependenciesDirectory -Verify
+        if ($LASTEXITCODE -ne 0) {
+            throw "Dependency extraction failed"
+        }
+    } else {
+        Write-Warning "extract-clr-dependencies.ps1 not found, skipping dependency extraction"
+    }
 }
 
 if (-not (Test-Path $BinDirectory)) {
@@ -76,28 +88,38 @@ if (-not (Test-Path $DependenciesDirectory)) {
 }
 
 # Define assemblies in dependency order (dependencies first)
+# Implements the Assembly Binding Paradox solution per SQLSERVER_BINDING_REDIRECTS.md
+# All assemblies extracted from net4x folders (NOT netstandard) to avoid compatibility shims
 $assemblies = @(
-    @{ Name = "System.ServiceModel.Internals"; Required = $true },
-    @{ Name = "SMDiagnostics"; Required = $true },
-    @{ Name = "System.Runtime.Serialization"; Required = $true },
-    @{ Name = "System.Numerics.Vectors"; Required = $true },
-    @{ Name = "System.Runtime.CompilerServices.Unsafe"; Required = $true },
-    @{ Name = "System.Buffers"; Required = $true },
-    @{ Name = "System.Memory"; Required = $true },
-    @{ Name = "System.Collections.Immutable"; Required = $true },
-    @{ Name = "ILGPU"; Required = $true },
-    @{ Name = "ILGPU.Algorithms"; Required = $true },
-    @{ Name = "MathNet.Numerics"; Required = $true },
-    @{ Name = "Newtonsoft.Json"; Required = $true },
-    @{ Name = "System.Drawing"; Required = $true },
-    @{ Name = "Microsoft.SqlServer.Types"; Required = $true; SystemAssembly = $true },
-    @{ Name = "SqlClrFunctions"; Required = $true }
+    # TIER 1: Foundation (no dependencies)
+    @{ Name = "System.Runtime.CompilerServices.Unsafe"; Required = $true; Order = 1; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Buffers"; Required = $true; Order = 2; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Numerics.Vectors"; Required = $true; Order = 3; PermissionSet = 'UNSAFE' },
+
+    # TIER 2: Memory management
+    @{ Name = "System.Memory"; Required = $true; Order = 4; PermissionSet = 'UNSAFE' },
+
+    # TIER 3: Language & reflection support
+    @{ Name = "System.Collections.Immutable"; Required = $true; Order = 5; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Reflection.Metadata"; Required = $true; Order = 6; PermissionSet = 'UNSAFE' },
+
+    # TIER 4: High-level computation libraries
+    @{ Name = "Newtonsoft.Json"; Required = $true; Order = 7; PermissionSet = 'UNSAFE' },
+    @{ Name = "MathNet.Numerics"; Required = $true; Order = 8; PermissionSet = 'UNSAFE' },
+    @{ Name = "ILGPU"; Required = $true; Order = 9; PermissionSet = 'UNSAFE' },
+    @{ Name = "ILGPU.Algorithms"; Required = $true; Order = 10; PermissionSet = 'UNSAFE' },
+
+    # TIER 5: Application assembly
+    @{ Name = "SqlClrFunctions"; Required = $true; Order = 11; PermissionSet = 'UNSAFE' }
 )
 
 # Verify all assemblies exist
 Write-Host "Verifying assembly files..." -ForegroundColor Cyan
 $assemblyData = @{}
 foreach ($assembly in $assemblies) {
+    $isSystemAssembly = ($assembly.SystemAssembly -eq $true)
+    $skipFileCheck = ($assembly.SkipFileCheck -eq $true)
+
     $dllPath = Join-Path $BinDirectory "$($assembly.Name).dll"
     if (-not (Test-Path $dllPath)) {
         $altPath = Join-Path $DependenciesDirectory "$($assembly.Name).dll"
@@ -107,16 +129,27 @@ foreach ($assembly in $assemblies) {
     }
 
     if (-not (Test-Path $dllPath)) {
+        if ($skipFileCheck -or $isSystemAssembly) {
+            Write-Host "○ Using system assembly: $($assembly.Name)" -ForegroundColor Cyan
+
+            $assemblyData[$assembly.Name] = @{
+                Path = $null
+                SystemAssembly = $true
+            }
+            continue
+        }
+
         if ($assembly.Required) {
             throw "Required assembly not found: $($assembly.Name).dll in either $BinDirectory or $DependenciesDirectory"
         }
+
         Write-Host "⚠ Optional assembly not found: $($assembly.Name).dll" -ForegroundColor Yellow
         continue
     }
 
     $assemblyInfo = @{
         Path = $dllPath
-        SystemAssembly = ($assembly.SystemAssembly -eq $true)
+        SystemAssembly = $isSystemAssembly
     }
 
     if (-not $assemblyInfo.SystemAssembly) {
@@ -218,7 +251,7 @@ BEGIN
         DROP ASSEMBLY [$assemblyName];
 
         DECLARE @hashUser BINARY(64);
-        SET @hashUser = (SELECT hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
+        SET @hashUser = (SELECT TOP 1 hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
         IF @hashUser IS NOT NULL
         BEGIN
             EXEC sys.sp_drop_trusted_assembly @hashUser;
@@ -241,9 +274,9 @@ BEGIN
     PRINT 'Dropping assembly [$assemblyName]...';
     DROP ASSEMBLY [$assemblyName];
 
-    -- Remove from trusted assembly list
+    -- Remove from trusted assembly list (use TOP 1 in case of duplicates)
     DECLARE @hash BINARY(64);
-    SET @hash = (SELECT hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
+    SET @hash = (SELECT TOP 1 hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
     IF @hash IS NOT NULL
     BEGIN
         EXEC sys.sp_drop_trusted_assembly @hash;
@@ -308,25 +341,7 @@ SELECT
 FROM sys.assemblies a
 LEFT JOIN sys.trusted_assemblies ta ON ta.description = a.name
 WHERE a.name IN ($((($assemblies | ForEach-Object { $_.Name }) | ForEach-Object { "'$_'" }) -join ", "))
-ORDER BY
-    CASE a.name
-    WHEN 'System.ServiceModel.Internals' THEN 1
-    WHEN 'SMDiagnostics' THEN 2
-    WHEN 'System.Runtime.Serialization' THEN 3
-    WHEN 'System.Numerics.Vectors' THEN 4
-    WHEN 'System.Runtime.CompilerServices.Unsafe' THEN 5
-    WHEN 'System.Buffers' THEN 6
-    WHEN 'System.Memory' THEN 7
-    WHEN 'System.Collections.Immutable' THEN 8
-    WHEN 'ILGPU' THEN 9
-    WHEN 'ILGPU.Algorithms' THEN 10
-    WHEN 'MathNet.Numerics' THEN 11
-    WHEN 'Newtonsoft.Json' THEN 12
-    WHEN 'System.Drawing' THEN 13
-    WHEN 'Microsoft.SqlServer.Types' THEN 14
-    WHEN 'SqlClrFunctions' THEN 15
-    ELSE 99
-    END;
+ORDER BY a.name;
 GO
 
 PRINT '';
@@ -339,6 +354,25 @@ PRINT '  - Strong-name signing: REQUIRED';
 PRINT '==============================================';
 PRINT '';
 PRINT '✓ Secure CLR multi-assembly deployment completed!';
+PRINT '';
+PRINT 'Dependency Deployment Order:';
+PRINT '  TIER 1: Foundation (System.Runtime.CompilerServices.Unsafe, System.Buffers, System.Numerics.Vectors)';
+PRINT '  TIER 2: Memory (System.Memory)';
+PRINT '  TIER 3: Reflection (System.Collections.Immutable, System.Reflection.Metadata)';
+PRINT '  TIER 4: Computation (Newtonsoft.Json, MathNet.Numerics, ILGPU, ILGPU.Algorithms)';
+PRINT '  TIER 5: Application (SqlClrFunctions)';
+PRINT '';
+PRINT 'CLR Assembly Versions (Package → Assembly):';
+PRINT '  System.Runtime.CompilerServices.Unsafe 4.7.1 → 4.0.6.0';
+PRINT '  System.Buffers 4.5.1 → 4.0.3.0';
+PRINT '  System.Memory 4.5.4 → 4.0.1.0';
+PRINT '  System.Collections.Immutable 1.7.1 → 1.2.3.0';
+PRINT '  System.Reflection.Metadata 1.8.1 → 1.4.5.0';
+PRINT '  System.Numerics.Vectors 4.5.0 → 4.1.4.0';
+PRINT '  Newtonsoft.Json 13.0.4 → 13.0.4.0';
+PRINT '  MathNet.Numerics 5.0.0 → 5.0.0.0';
+PRINT '  ILGPU 0.9.2 → 0.9.2.0';
+PRINT '  ILGPU.Algorithms 0.9.2 → 0.9.2.0';
 "@
 
 # --- Execute SQL ---

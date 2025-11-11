@@ -16,6 +16,7 @@
     <Deterministic>true</Deterministic>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>SqlClrKey.snk</AssemblyOriginatorKeyFile>
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <DebugSymbols>true</DebugSymbols>
@@ -45,54 +46,63 @@
     <Reference Include="System.Transactions" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Numerics" />
-    
-    <!-- Third-party Dependencies (from dependencies folder) -->
-    <Reference Include="MathNet.Numerics">
-      <HintPath>..\..\dependencies\MathNet.Numerics.dll</HintPath>
+    <!-- NuGet Dependencies -->
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=4.0.4.1, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <HintPath>$(UserProfile)\.nuget\packages\system.runtime.compilerservices.unsafe\4.5.3\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="Microsoft.SqlServer.Types">
-      <HintPath>..\..\dependencies\Microsoft.SqlServer.Types.dll</HintPath>
+    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51">
+      <HintPath>$(UserProfile)\.nuget\packages\system.buffers\4.5.1\lib\net461\System.Buffers.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\..\dependencies\Newtonsoft.Json.dll</HintPath>
+    <Reference Include="System.Memory, Version=4.0.1.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51">
+      <HintPath>$(UserProfile)\.nuget\packages\system.memory\4.5.4\lib\net461\System.Memory.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="System.Numerics.Vectors">
-      <HintPath>..\..\dependencies\System.Numerics.Vectors.dll</HintPath>
+    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <HintPath>$(UserProfile)\.nuget\packages\system.numerics.vectors\4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    
-    <!-- ILGPU GPU Acceleration Dependencies -->
-    <Reference Include="ILGPU">
-      <HintPath>..\..\dependencies\ILGPU.dll</HintPath>
+    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51">
+      <HintPath>$(UserProfile)\.nuget\packages\system.valuetuple\4.5.0\lib\net47\System.ValueTuple.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="ILGPU.Algorithms">
-      <HintPath>..\..\dependencies\ILGPU.Algorithms.dll</HintPath>
+    <Reference Include="System.Collections.Immutable, Version=1.2.5.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <HintPath>$(UserProfile)\.nuget\packages\system.collections.immutable\1.7.1\lib\net461\System.Collections.Immutable.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    
-    <!-- ILGPU Required Dependencies -->
-    <Reference Include="System.Memory">
-      <HintPath>..\..\dependencies\System.Memory.dll</HintPath>
+    <Reference Include="System.Reflection.Metadata, Version=1.4.5.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
+      <HintPath>$(UserProfile)\.nuget\packages\system.reflection.metadata\1.8.1\lib\net461\System.Reflection.Metadata.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="System.Collections.Immutable">
-      <HintPath>..\..\dependencies\System.Collections.Immutable.dll</HintPath>
+    <Reference Include="MathNet.Numerics, Version=5.0.0.0, Culture=neutral, PublicKeyToken=null">
+      <HintPath>$(UserProfile)\.nuget\packages\mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="System.Buffers">
-      <HintPath>..\..\dependencies\System.Buffers.dll</HintPath>
+    <Reference Include="Microsoft.SqlServer.Types, Version=16.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91">
+      <HintPath>$(UserProfile)\.nuget\packages\microsoft.sqlserver.types\160.1000.6\lib\net462\Microsoft.SqlServer.Types.dll</HintPath>
+      <Private>True</Private>
     </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe">
-      <HintPath>..\..\dependencies\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed">
+      <HintPath>$(UserProfile)\.nuget\packages\newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <!-- ONLY add ONE package: MathNet.Numerics - we know this works -->
+    <!-- NuGet Package References for restore only -->
+    <PackageReference Include="ILGPU" Version="0.8.0" />
+    <PackageReference Include="ILGPU.Algorithms" Version="0.8.0" />
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <PackageReference Include="System.Buffers" Version="4.5.1" />
+    <PackageReference Include="System.Collections.Immutable" Version="1.7.1" />
+    <PackageReference Include="System.Memory" Version="4.5.4" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
-    <PackageReference Include="ILGPU" Version="1.5.1" />
-    <PackageReference Include="ILGPU.Algorithms" Version="1.5.1" />
-    <PackageReference Include="System.Memory" Version="4.5.5" />
-    <PackageReference Include="System.Collections.Immutable" Version="7.0.0" />
+    <PackageReference Include="System.Reflection.Metadata" Version="1.8.1" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.3" />
+    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
+
   <ItemGroup>
     <Compile Include="AdvancedVectorAggregates.cs" />
     <Compile Include="Analysis\AutonomousAnalyticsTVF.cs" />
