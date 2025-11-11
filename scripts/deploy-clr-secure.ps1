@@ -35,7 +35,8 @@ param(
     [string]$DatabaseName = "Hartonomous",
     [string]$BinDirectory = $null,
     [string]$DependenciesDirectory = $null,
-    [switch]$Rebuild
+    [switch]$Rebuild,
+    [switch]$SkipConfigCheck
 )
 
 $ErrorActionPreference = "Stop"
@@ -56,6 +57,57 @@ Write-Host "Database:     $DatabaseName"
 Write-Host "Bin Directory: $BinDirectory"
 Write-Host "Dependencies: $DependenciesDirectory"
 Write-Host "Security:     sys.sp_add_trusted_assembly (TRUSTWORTHY OFF)`n"
+
+# Check for sqlservr.exe.config binding redirects
+if (-not $SkipConfigCheck) {
+    Write-Host "Checking SQL Server configuration..." -ForegroundColor Cyan
+    try {
+        $sqlServerPath = Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\*\Setup" -Name SQLPath -ErrorAction Stop | Select-Object -ExpandProperty SQLPath
+        if ($sqlServerPath) {
+            $configPath = Join-Path $sqlServerPath "Binn\sqlservr.exe.config"
+            if (Test-Path $configPath) {
+                $configContent = Get-Content $configPath -Raw
+                $requiredRedirects = @(
+                    "System.Runtime.CompilerServices.Unsafe",
+                    "System.Buffers", 
+                    "System.Numerics.Vectors",
+                    "System.Memory",
+                    "System.Collections.Immutable",
+                    "System.Reflection.Metadata",
+                    "System.Drawing"
+                )
+                
+                $missingRedirects = @()
+                foreach ($redirect in $requiredRedirects) {
+                    if ($configContent -notmatch "$redirect.*bindingRedirect") {
+                        $missingRedirects += $redirect
+                    }
+                }
+                
+                if ($missingRedirects.Count -gt 0) {
+                    Write-Host "⚠ WARNING: Missing binding redirects in sqlservr.exe.config:" -ForegroundColor Yellow
+                    $missingRedirects | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+                    Write-Host "  Update sqlservr.exe.config and restart SQL Server service before deployment." -ForegroundColor Yellow
+                    Write-Host "  See deploy/sqlservr.exe.config for the required configuration." -ForegroundColor Yellow
+                    Write-Host "  Or use -SkipConfigCheck to bypass this check." -ForegroundColor Yellow
+                } else {
+                    Write-Host "✓ SQL Server binding redirects configured correctly" -ForegroundColor Green
+                }
+            } else {
+                Write-Host "⚠ WARNING: sqlservr.exe.config not found at $configPath" -ForegroundColor Yellow
+                Write-Host "  Copy deploy/sqlservr.exe.config to SQL Server Binn directory and restart service." -ForegroundColor Yellow
+                Write-Host "  Or use -SkipConfigCheck to bypass this check." -ForegroundColor Yellow
+            }
+        } else {
+            Write-Host "⚠ Could not determine SQL Server installation path" -ForegroundColor Yellow
+        }
+    } catch {
+        Write-Host "⚠ Could not check SQL Server configuration: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  Use -SkipConfigCheck to bypass this check." -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "Skipping SQL Server configuration check (--SkipConfigCheck)" -ForegroundColor Cyan
+}
 
 if ($Rebuild) {
     Write-Host "Rebuilding SqlClrFunctions (Release configuration)..." -ForegroundColor Cyan
@@ -102,15 +154,16 @@ $assemblies = @(
     # TIER 3: Language & reflection support
     @{ Name = "System.Collections.Immutable"; Required = $true; Order = 5; PermissionSet = 'UNSAFE' },
     @{ Name = "System.Reflection.Metadata"; Required = $true; Order = 6; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Drawing"; Required = $true; Order = 7; PermissionSet = 'UNSAFE'; SystemAssembly = $true },
 
     # TIER 4: High-level computation libraries
-    @{ Name = "Newtonsoft.Json"; Required = $true; Order = 7; PermissionSet = 'UNSAFE' },
-    @{ Name = "MathNet.Numerics"; Required = $true; Order = 8; PermissionSet = 'UNSAFE' },
-    @{ Name = "ILGPU"; Required = $true; Order = 9; PermissionSet = 'UNSAFE' },
-    @{ Name = "ILGPU.Algorithms"; Required = $true; Order = 10; PermissionSet = 'UNSAFE' },
+    @{ Name = "Newtonsoft.Json"; Required = $true; Order = 8; PermissionSet = 'UNSAFE' },
+    @{ Name = "MathNet.Numerics"; Required = $true; Order = 9; PermissionSet = 'UNSAFE' },
+    @{ Name = "ILGPU"; Required = $true; Order = 10; PermissionSet = 'UNSAFE' },
+    @{ Name = "ILGPU.Algorithms"; Required = $true; Order = 11; PermissionSet = 'UNSAFE' },
 
     # TIER 5: Application assembly
-    @{ Name = "SqlClrFunctions"; Required = $true; Order = 11; PermissionSet = 'UNSAFE' }
+    @{ Name = "SqlClrFunctions"; Required = $true; Order = 12; PermissionSet = 'UNSAFE' }
 )
 
 # Verify all assemblies exist
@@ -358,7 +411,7 @@ PRINT '';
 PRINT 'Dependency Deployment Order:';
 PRINT '  TIER 1: Foundation (System.Runtime.CompilerServices.Unsafe, System.Buffers, System.Numerics.Vectors)';
 PRINT '  TIER 2: Memory (System.Memory)';
-PRINT '  TIER 3: Reflection (System.Collections.Immutable, System.Reflection.Metadata)';
+PRINT '  TIER 3: Reflection (System.Collections.Immutable, System.Reflection.Metadata, System.Drawing)';
 PRINT '  TIER 4: Computation (Newtonsoft.Json, MathNet.Numerics, ILGPU, ILGPU.Algorithms)';
 PRINT '  TIER 5: Application (SqlClrFunctions)';
 PRINT '';
