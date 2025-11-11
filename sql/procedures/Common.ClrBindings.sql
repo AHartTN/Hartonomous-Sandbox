@@ -221,12 +221,12 @@ CREATE FUNCTION dbo.clr_GenerateTextSequence(
     @topK INT
 )
 RETURNS TABLE (
-    AtomId BIGINT,
-    Token NVARCHAR(400),
-    Score FLOAT,
-    Distance FLOAT,
-    ModelCount INT,
-    DurationMs INT
+    atom_id BIGINT,
+    token NVARCHAR(400),
+    score FLOAT,
+    distance FLOAT,
+    model_count INT,
+    duration_ms INT
 )
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.GenerationFunctions].GenerateTextSequence;
 GO
