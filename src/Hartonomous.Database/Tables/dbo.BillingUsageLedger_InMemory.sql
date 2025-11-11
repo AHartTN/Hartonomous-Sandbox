@@ -9,15 +9,13 @@
 
 -- Step 1: Create memory-optimized filegroup (if not exists)
 USE Hartonomous;
-GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.filegroups WHERE name = N'HartonomousMemoryOptimized' AND type = 'FX')
 BEGIN
     ALTER DATABASE Hartonomous
     ADD FILEGROUP HartonomousMemoryOptimized CONTAINS MEMORY_OPTIMIZED_DATA;
-    PRINT 'Memory-optimized filegroup created.';
+
 END
-GO
 
 IF NOT EXISTS (
     SELECT 1 
@@ -31,10 +29,8 @@ BEGIN
         NAME = N'HartonomousMemoryOptimized_File',
         FILENAME = N'D:\Hartonomous\HartonomousMemoryOptimized'
     ) TO FILEGROUP HartonomousMemoryOptimized;
-    
-    PRINT 'Memory-optimized file added.';
+
 END
-GO
 
 -- Step 2: Create memory-optimized table
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'BillingUsageLedger_InMemory' AND schema_id = SCHEMA_ID('dbo'))
@@ -67,6 +63,4 @@ BEGIN
         DURABILITY = SCHEMA_AND_DATA
     );
 
-    PRINT 'Created dbo.BillingUsageLedger_InMemory table';
 END
-GO

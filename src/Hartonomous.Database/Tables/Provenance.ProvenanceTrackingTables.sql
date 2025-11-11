@@ -47,9 +47,3 @@ CREATE TABLE dbo.ProvenanceAuditResults (
     INDEX IX_ProvenanceAuditResults_AuditPeriod (AuditPeriodStart, AuditPeriodEnd),
     INDEX IX_ProvenanceAuditResults_AuditedAt (AuditedAt DESC)
 );
-
-PRINT 'Provenance tracking tables created successfully';
-PRINT 'OperationProvenance: Operation provenance stream storage';
-PRINT 'ProvenanceValidationResults: Validation result storage';
-PRINT 'ProvenanceAuditResults: Comprehensive audit storage';
-GO

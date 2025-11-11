@@ -1,116 +1,181 @@
 # Hartonomous
 
-Hartonomous is a SQL Server-native autonomous AI platform. The system stores embeddings, model weights, and provenance data directly in SQL Server 2025, couples them with CLR-implemented intelligence, and exposes the platform through ASP.NET Core services, background workers, and Blazor administration tools.
+**Autonomous AGI-in-SQL-Server Platform**
+
+Hartonomous is a database-first autonomous AI platform where SQL Server 2025 is the runtime, storage, and intelligence substrate. T-SQL stored procedures execute the full OODA loop (Observe → Orient → Decide → Act), CLR functions provide SIMD-accelerated inference and embedding generation, and .NET 10 services orchestrate ingestion, API access, and background workers. The database stores atoms (multimodal data units), embeddings (vector representations), tensor coefficients (model weights), and provenance graphs (dual-ledger temporal + Neo4j lineage).
 
 ## Platform Highlights
-- SQL-first substrate: Hartonomous.Core models atoms, embeddings, tensor coefficients, and provenance, with NetTopologySuite geometry columns (see src/Hartonomous.Data/Configurations/AtomConfiguration.cs).
-- In-database intelligence: the SqlClrFunctions assembly (src/SqlClr) delivers vector math, dimensionality reduction, attention mechanisms, anomaly detection, and multimedia processing compiled for .NET Framework 4.8.1.
-- Autonomous operations: Service Broker queues (scripts/setup-service-broker.sql) drive the Analyze → Hypothesize → Act → Learn loop backed by stored procedures such as sql/procedures/dbo.sp_Analyze.sql and sql/procedures/dbo.sp_Learn.sql.
-- Provenance and governance: temporal tables (sql/tables/TensorAtomCoefficients_Temporal.sql) capture history, graph tables (sql/tables/graph.*) map causal relationships, and CLR types like AtomicStream persist auditable event streams.
-- End-to-end services: .NET 10 projects provide the REST API (src/Hartonomous.Api), Blazor admin surface (src/Hartonomous.Admin), and workers for change-data capture and Neo4j sync (src/Hartonomous.Workers.*).
 
-## Repository Layout
-- src/Hartonomous.Api: ASP.NET Core 10 gateway exposing ingestion, search, and orchestration endpoints.
-- src/Hartonomous.Admin: Blazor Server admin portal with telemetry and operational tooling.
-- src/Hartonomous.Core and src/Hartonomous.Shared.Contracts: domain models, value objects, and shared contracts.
-- src/Hartonomous.Data: Entity Framework Core 10 DbContext and model configuration (includes geometry, temporal, and FILESTREAM mappings).
-- src/Hartonomous.Infrastructure: integrations (Service Bus, Neo4j, Azure storage), orchestration services, and performance tooling.
-- src/Hartonomous.Core.Performance: ILGPU and BenchmarkDotNet harnesses for SIMD and accelerator testing.
-- src/SqlClr: SQL Server CLR assembly source (SqlClrFunctions.csproj).
-- src/Hartonomous.Database.Clr: packaging project for deploying CLR assemblies from the solution build.
-- src/Hartonomous.Workers.CesConsumer and src/Hartonomous.Workers.Neo4jSync: background services for CDC ingestion and provenance sync; src/Neo4jSync retains the legacy console runner.
-- sql/: schema, types, procedures, and verification scripts (vector search, provenance, inference orchestration, temporal tables).
-- scripts/: PowerShell automation including deploy-database-unified.ps1 for one-click provisioning.
-- deploy/: systemd unit files and server bootstrap scripts.
-- tests/: unit, integration, database, and end-to-end suites tracked by Hartonomous.Tests.sln.
-- docs/: architecture, deployment, performance, SIMD, and CLR research notes.
+- **T-SQL as AI Interface**: Call `sp_Analyze`, `sp_Hypothesize`, `sp_Act`, `sp_Learn` directly from SQL to execute autonomous reasoning loops. Invoke CLR functions like `clr_RunInference`, `fn_ComputeEmbedding`, or `fn_GenerateText` for inference without leaving the database.
+- **Database-First Architecture**: Core runtime is SQL Server 2025. Atoms, embeddings, tensor atoms, and model coefficients live in SQL tables with geometry columns (`SpatialKey`, `SpatialSignature`), temporal history (system-versioned tables), and graph relationships (SQL graph tables + Neo4j sync).
+- **CLR Intelligence Layer**: `src/SqlClr` compiles to .NET Framework 4.8.1 assembly deployed in SQL Server. Provides SIMD vector aggregates, transformer attention, anomaly detection, multimodal generation, and stream orchestration called from stored procedures.
+- **Autonomous OODA Loop**: Service Broker queues (`AnalyzeQueue`, `HypothesizeQueue`, `ActQueue`, `LearnQueue`) coordinate the four-phase loop. Stored procedures publish/consume messages, CLR helpers aggregate telemetry, and results are recorded in `AutonomousImprovementHistory`.
+- **Dual Embedding Paths**: C# `EmbeddingService` (`src/Hartonomous.Infrastructure/AI/Embeddings/EmbeddingService.cs`) for HTTP ingestion. CLR `fn_ComputeEmbedding` for T-SQL embedding generation. Both persist to `dbo.AtomEmbeddings` with `VECTOR(1998)` columns and spatial geometry projections.
+- **Unified Substrate**: Single `dbo.Atoms` table with modality metadata, JSON descriptors, geometry `SpatialKey`, and temporal columns. Embeddings, tensor atoms, and provenance link to atoms. No separate vector store—database is the vector store, graph store, and model repository.
 
-## Database and AI Substrate
-- **Atoms and embeddings**: sql/tables/dbo.Atoms.sql and sql/tables/dbo.AtomEmbeddings.sql create the unified semantic store. Spatial indexes are generated via sql/procedures/Common.CreateSpatialIndexes.sql.
-- **Tensor storage**: sql/tables/dbo.ModelStructure.sql and temporal TensorAtomCoefficients track weights with automatic history.
-- **Autonomous loop**: Service Broker is enabled by scripts/setup-service-broker.sql; orchestration logic lives in procedures under sql/procedures/Autonomy.*, sql/procedures/dbo.sp_Act.sql, and related files.
-- **Provenance**: Graph structures (graph.AtomGraphNodes.sql, graph.AtomGraphEdges.sql) and CLR types (src/SqlClr/AtomicStream.cs, src/SqlClr/ComponentStream.cs) capture lineage and replayable event streams.
+## Prerequisites
 
-## CLR Assembly
-The CLR package (SqlClrFunctions) compiles under .NET Framework 4.8.1 and delivers:
-- Vector math, aggregates, and SIMD-aware operations (VectorAggregates.cs, VectorOperations.cs, AdvancedVectorAggregates.cs).
-- Dimensionality reduction and analytics (DimensionalityReductionAggregates.cs, TimeSeriesVectorAggregates.cs, Analysis/QueryStoreAnalyzer.cs).
-- Transformer and attention helpers (TensorOperations/TransformerInference.cs, AttentionGeneration.cs).
-- Multimedia and multimodal pipelines (AudioProcessing.cs, ImageProcessing.cs, MultiModalGeneration.cs).
-- Spatial projection helpers (SpatialOperations.cs, Core/LandmarkProjection.cs) exposing high-dimensional embeddings as geometry.
+- **SQL Server 2025** with CLR, FILESTREAM, and Service Broker enabled
+- **.NET 10 SDK** for building `Hartonomous.sln` and `Hartonomous.Tests.sln`
+- **PowerShell 7+** for running deployment scripts (`scripts/deploy-database-unified.ps1`)
+- **Optional**: Neo4j 5.x for provenance graph sync, Azure AD tenant for authentication, Azure Storage for blob ingestion, OpenTelemetry endpoint for telemetry export
 
-Build with Visual Studio or dotnet (dotnet build src/SqlClr/SqlClrFunctions.csproj). Deploy assemblies via the unified script or sql/procedures/Common.ClrBindings.sql.
+## Quick Start
 
-## Getting Started
+### 1. Clone and Restore
 
-### Prerequisites
-- SQL Server 2025 Developer/Enterprise with CLR enabled, FILESTREAM configured, and graph features available.
-- .NET 10 SDK and PowerShell 7+.
-- Optional: Neo4j 5.x for graph synchronization, Azure resources for Event Hubs and Blob storage.
-
-### Local Setup (PowerShell)
-`pwsh
-# Clone
-git clone https://github.com/AHartTN/Hartonomous-Sandbox.git
+```pwsh
+git clone <repository-url> Hartonomous
 cd Hartonomous
-
-# Restore and build
 dotnet restore Hartonomous.sln
+dotnet restore Hartonomous.Tests.sln
+```
+
+### 2. Build Solutions
+
+```pwsh
+# Build all projects (Debug)
 dotnet build Hartonomous.sln -c Debug
 
-# Provision database (creates schemas, deploys CLR, runs procedures)
+# Build CLR assembly (targets .NET Framework 4.8.1)
+dotnet build src/SqlClr/SqlClrFunctions.csproj -c Release
+
+# Build test suite
+dotnet build Hartonomous.Tests.sln -c Debug
+```
+
+### 3. Provision Database
+
+Run the unified deployment script to create schema, deploy CLR, and configure Service Broker:
+
+```pwsh
 ./scripts/deploy-database-unified.ps1 -Server "localhost" -Database "Hartonomous"
+```
 
-# Apply EF Core migrations only (optional)
-dotnet ef database update --project src/Hartonomous.Data/Hartonomous.Data.csproj --connection "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
-`
-The deployment script is idempotent. Use -SkipFilestream, -SkipCLR, or -DryRun when needed.
+**Options**:
 
-### Run Services
-`pwsh
-# API
+- `-SkipFilestream`: Skip FILESTREAM setup
+- `-SkipClr`: Skip CLR assembly deployment
+- `-DryRun`: Show SQL commands without executing
+- `-ConnectionString`: Override default connection string
+
+This script:
+
+- Enables CLR integration, FILESTREAM, and Service Broker
+- Executes schema scripts from `sql/tables`, `sql/procedures`, `sql/functions`
+- Deploys `SqlClrFunctions.dll` and registers CLR functions/aggregates/types
+- Sets up Service Broker message types, contracts, queues, and services
+- Runs verification scripts to validate installation
+
+### 4. Run Services Locally
+
+**API Server** (port 5000 by default):
+
+```pwsh
 cd src/Hartonomous.Api
 dotnet run
+```
 
-# Admin portal
-cd ../Hartonomous.Admin
+**Admin Portal** (Blazor, port 5001 by default):
+
+```pwsh
+cd src/Hartonomous.Admin
+dotnet run
+```
+
+**Background Workers**:
+
+```pwsh
+# CES consumer (CDC ingestion)
+cd src/Hartonomous.Workers.CesConsumer
 dotnet run
 
-# Background workers (separate terminals)
-cd ../Hartonomous.Workers.CesConsumer
+# Neo4j sync worker (Service Broker → Neo4j)
+cd src/Hartonomous.Workers.Neo4jSync
 dotnet run
-cd ../Hartonomous.Workers.Neo4jSync
-dotnet run
-`
+```
 
-## Testing
-`pwsh
-# Full test matrix
+**Configuration**: Each service reads connection strings and configuration from `appsettings.json` or environment variables. Default SQL connection: `Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;`
+
+### 5. Run EF Core Migrations (Alternative)
+
+If using EF Core migrations instead of raw SQL scripts:
+
+```pwsh
+dotnet ef database update --project src/Hartonomous.Data/Hartonomous.Data.csproj --connection "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
+```
+
+### 6. Run Tests
+
+```pwsh
+# All tests
 dotnet test Hartonomous.Tests.sln
 
-# Targeted suite
+# Unit tests only
 dotnet test tests/Hartonomous.UnitTests
-`
+
+# Integration tests
+dotnet test tests/Hartonomous.IntegrationTests
+
+# Database validation tests
+dotnet test tests/Hartonomous.DatabaseTests
+```
+
+## Project Structure
+
+- **`src/Hartonomous.Api`**: ASP.NET Core REST API. Controllers expose ingestion, inference, search, provenance, and operations endpoints. Configured with Azure AD auth, rate limiting, OpenTelemetry.
+- **`src/Hartonomous.Admin`**: Blazor Server admin portal with telemetry dashboards, atom browser, model management.
+- **`src/Hartonomous.Workers.*`**: Background services (CES consumer for CDC, Neo4j sync for Service Broker message pump).
+- **`src/Hartonomous.Core`**: Domain entities (`Atom`, `AtomEmbedding`, `TensorAtom`, `TensorAtomCoefficient`, `Model`, `ModelLayer`), value objects, interfaces.
+- **`src/Hartonomous.Shared.Contracts`**: DTOs, request/response models shared across services.
+- **`src/Hartonomous.Data`**: EF Core `DbContext`, entity configurations, migrations. Maps geometry columns, JSON columns, temporal tables, and relationships.
+- **`src/Hartonomous.Infrastructure`**: Service registrations (`DependencyInjection.cs`), pipelines (ingestion, inference, provenance), messaging (event bus, Service Broker client), resilience policies, billing, security services.
+- **`src/Hartonomous.Core.Performance`**: ILGPU harnesses and BenchmarkDotNet tests for SIMD validation.
+- **`src/Hartonomous.Database.Clr`**: Packaging project for CLR assembly deployment.
+- **`src/SqlClr`**: SQL CLR implementation (vector aggregates, transformer helpers, anomaly detection, multimodal processing, stream UDTs, Service Broker orchestrators). Compiles to `SqlClrFunctions.dll` targeting .NET Framework 4.8.1.
+- **`sql/`**: Database schema scripts (`tables/`, `procedures/`, `functions/`), verification utilities, setup scripts (FILESTREAM, vector indexes, Service Broker).
+- **`scripts/`**: PowerShell automation (database deployment, CLR refresh, dependency analysis).
+- **`deploy/`**: Production deployment artifacts (systemd units, bootstrap script).
+- **`docs/`**: Architecture, deployment, CLR guide, schema reference, Gödel Engine documentation.
+- **`tests/`**: Unit, integration, database validation, end-to-end test suites.
+
+## Example: T-SQL Inference
+
+```sql
+-- Generate embedding from text (CLR function)
+DECLARE @embedding VECTOR(1998);
+SET @embedding = dbo.fn_ComputeEmbedding('The quick brown fox jumps over the lazy dog', 'text-embedding-3-large');
+
+-- Search for similar atoms (CLR aggregate + spatial index)
+SELECT TOP 10 a.AtomId, a.Modality, a.ContentJson, 
+       dbo.clr_VectorDistance(@embedding, e.EmbeddingVector) AS Distance
+FROM dbo.Atoms a
+INNER JOIN dbo.AtomEmbeddings e ON a.AtomId = e.AtomId
+WHERE e.EmbeddingType = 'text-embedding-3-large'
+ORDER BY Distance ASC;
+
+-- Run multimodal inference (CLR stored procedure)
+EXEC dbo.clr_RunInference 
+    @modelName = 'gpt-4-vision',
+    @inputJson = '{"text": "Describe this image", "imageUrl": "https://..."}',
+    @outputJson = @result OUTPUT;
+
+-- Trigger autonomous analysis (OODA loop entry point)
+EXEC dbo.sp_Analyze 
+    @observationJson = '{"metricName": "ResponseTime", "value": 1250, "threshold": 1000}';
+```
 
 ## Documentation
-- ARCHITECTURE.md: system and component overview.
-- DATABASE_DEPLOYMENT_GUIDE.md: SQL Server configuration, CLR permissions, and fallback procedures.
-- DEVELOPMENT.md: environment setup, build, run, and debugging workflows.
-- API.md: REST surface area.
-- docs/CLR_DEPLOYMENT.md: assembly deployment strategy and permission guidance.
-- docs/DEPLOYMENT.md: infrastructure rollout playbooks (Linux and Windows).
-- docs/PERFORMANCE_ARCHITECTURE_AUDIT.md: SIMD optimization findings and backlog.
-- docs/SIMD_RESTORATION_STATUS.md: status of vector hot paths.
-- docs/SQL_CLR_RESEARCH_FINDINGS.md: research notes backing CLR feature design.
-- docs/EMERGENT_CAPABILITIES.md: OODA reflex catalogue and autonomous behaviors.
-- docs/AZURE_ARC_MANAGED_IDENTITY.md: identity strategy for Arc-enabled SQL.
 
-Refer to docs/document-list.txt for historical and archived material.
+- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Database-first design, CLR intelligence layer, OODA loop, dual embedding paths, schema overview, .NET 10 orchestration.
+- **[DEPLOYMENT.md](DEPLOYMENT.md)**: Comprehensive deployment guide (prerequisites, database provisioning, CLR deployment, service deployment, systemd setup, verification).
+- **[API.md](API.md)**: REST API endpoint reference (ingestion, inference, search, provenance, operations).
+- **[docs/CLR_GUIDE.md](docs/CLR_GUIDE.md)**: CLR function reference, .NET Framework 4.8.1 constraints, SAFE vs UNSAFE deployment, security best practices, troubleshooting.
+- **[docs/DATABASE_SCHEMA.md](docs/DATABASE_SCHEMA.md)**: Comprehensive schema reference (atoms, embeddings, tensor atoms, temporal tables, graph tables, provenance).
+- **[docs/GODEL_ENGINE.md](docs/GODEL_ENGINE.md)**: Autonomous compute via Service Broker (`sp_StartPrimeSearch`, `clr_FindPrimes`, `AutonomousComputeJobs`).
 
-## Deployment Automation
-- scripts/deploy-database-unified.ps1: single-entry deployment covering prerequisites, EF migrations, CLR assembly upload, Service Broker, and verification.
-- scripts/deploy/*: specialized routines for CLR-only refresh, dependency mapping, and temporal verification.
-- deploy/*.service and deploy/setup-hart-server.sh: production systemd units and server bootstrap instructions.
 
-## License and Support
-This repository is proprietary. See LICENSE for usage restrictions. For licensing or support inquiries, contact support@hartonomous.dev.
+## License
+
+See [LICENSE](LICENSE) for details.
+

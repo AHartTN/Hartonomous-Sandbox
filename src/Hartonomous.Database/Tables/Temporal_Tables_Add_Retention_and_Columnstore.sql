@@ -5,13 +5,10 @@
 -- =============================================
 
 USE Hartonomous;
-GO
 
 -- =============================================
 -- PART 1: TensorAtomCoefficients - Add 90-day retention
 -- =============================================
-PRINT 'Configuring TensorAtomCoefficients temporal retention...';
-GO
 
 -- Step 1: Disable system versioning temporarily
 IF EXISTS (
@@ -20,14 +17,13 @@ IF EXISTS (
     AND temporal_type = 2
 )
 BEGIN
-    PRINT '  Temporarily disabling system versioning...';
+
     ALTER TABLE dbo.TensorAtomCoefficients SET (SYSTEM_VERSIONING = OFF);
-    PRINT '  ✓ System versioning disabled';
+
 END;
-GO
 
 -- Step 2: Re-enable with 90-day retention
-PRINT '  Enabling system versioning with 90-day retention...';
+
 ALTER TABLE dbo.TensorAtomCoefficients
 SET (
     SYSTEM_VERSIONING = ON (
@@ -35,15 +31,9 @@ SET (
         HISTORY_RETENTION_PERIOD = 90 DAYS
     )
 );
-PRINT '  ✓ 90-day retention enabled for TensorAtomCoefficients';
-GO
 
 -- Step 3: Convert history table to clustered columnstore
-PRINT '  Converting TensorAtomCoefficients_History to clustered columnstore...';
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'CCI_TensorAtomCoefficients_History' 
-    AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients_History')
+
 )
 BEGIN
     -- Drop existing nonclustered index first
@@ -60,20 +50,15 @@ BEGIN
     CREATE CLUSTERED COLUMNSTORE INDEX CCI_TensorAtomCoefficients_History
     ON dbo.TensorAtomCoefficients_History;
 
-    PRINT '  ✓ Clustered columnstore created on TensorAtomCoefficients_History (10x compression expected)';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ Clustered columnstore already exists on TensorAtomCoefficients_History';
+
 END;
-GO
 
 -- =============================================
 -- PART 2: Weights - Add 90-day retention
 -- =============================================
-PRINT '';
-PRINT 'Configuring Weights temporal retention...';
-GO
 
 -- Step 1: Disable system versioning temporarily
 IF EXISTS (
@@ -82,14 +67,13 @@ IF EXISTS (
     AND temporal_type = 2
 )
 BEGIN
-    PRINT '  Temporarily disabling system versioning...';
+
     ALTER TABLE dbo.Weights SET (SYSTEM_VERSIONING = OFF);
-    PRINT '  ✓ System versioning disabled';
+
 END;
-GO
 
 -- Step 2: Re-enable with 90-day retention
-PRINT '  Enabling system versioning with 90-day retention...';
+
 ALTER TABLE dbo.Weights
 SET (
     SYSTEM_VERSIONING = ON (
@@ -97,36 +81,24 @@ SET (
         HISTORY_RETENTION_PERIOD = 90 DAYS
     )
 );
-PRINT '  ✓ 90-day retention enabled for Weights';
-GO
 
 -- Step 3: Convert history table to clustered columnstore
-PRINT '  Converting Weights_History to clustered columnstore...';
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'CCI_Weights_History' 
-    AND object_id = OBJECT_ID('dbo.Weights_History')
+
 )
 BEGIN
     -- Create clustered columnstore index (optimal for large historical data)
     CREATE CLUSTERED COLUMNSTORE INDEX CCI_Weights_History
     ON dbo.Weights_History;
 
-    PRINT '  ✓ Clustered columnstore created on Weights_History (10x compression expected)';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ Clustered columnstore already exists on Weights_History';
+
 END;
-GO
 
 -- =============================================
 -- VERIFICATION
 -- =============================================
-PRINT '';
-PRINT '============================================';
-PRINT 'VERIFICATION REPORT';
-PRINT '============================================';
 
 SELECT 
     t.name AS TableName,
@@ -143,14 +115,3 @@ FROM sys.tables t
 LEFT JOIN sys.indexes i ON i.object_id = t.history_table_id AND i.index_id = 1
 WHERE t.name IN ('TensorAtomCoefficients', 'Weights')
 ORDER BY t.name;
-
-PRINT '';
-PRINT 'Expected Configuration:';
-PRINT '  - Retention: 90 DAYS';
-PRINT '  - History Index Type: CLUSTERED COLUMNSTORE';
-PRINT '';
-PRINT 'Benefits:';
-PRINT '  - Automatic cleanup of historical data older than 90 days';
-PRINT '  - 10x storage compression on history tables';
-PRINT '  - Faster analytical queries on historical weight data';
-GO

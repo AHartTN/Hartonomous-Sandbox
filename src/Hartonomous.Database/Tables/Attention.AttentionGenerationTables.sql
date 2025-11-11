@@ -55,9 +55,3 @@ CREATE TABLE dbo.TransformerInferenceResults (
     INDEX IX_TransformerInferenceResults_ProblemId (ProblemId),
     INDEX IX_TransformerInferenceResults_CreatedAt (CreatedAt DESC)
 );
-
-PRINT 'Attention generation tables created successfully';
-PRINT 'AttentionGenerationLog: Generation call logging';
-PRINT 'AttentionInferenceResults: Attention reasoning storage';
-PRINT 'TransformerInferenceResults: Transformer pipeline storage';
-GO

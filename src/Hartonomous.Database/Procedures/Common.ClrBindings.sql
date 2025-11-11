@@ -439,4 +439,41 @@ RETURNS NVARCHAR(MAX)
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.TensorOperations.ModelSynthesis].clr_SynthesizeModelLayer;
 GO
 
+-- =============================================
+-- EMBEDDING FUNCTIONS
+-- =============================================
+
+IF OBJECT_ID('dbo.fn_ComputeEmbedding', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_ComputeEmbedding;
+GO
+CREATE FUNCTION dbo.fn_ComputeEmbedding(
+    @AtomId BIGINT,
+    @ModelId INT,
+    @TenantId INT
+)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[Hartonomous.SqlClr.EmbeddingFunctions].fn_ComputeEmbedding;
+GO
+
+IF OBJECT_ID('dbo.fn_CompareAtoms', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_CompareAtoms;
+GO
+CREATE FUNCTION dbo.fn_CompareAtoms(
+    @AtomId1 BIGINT,
+    @AtomId2 BIGINT,
+    @TenantId INT
+)
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[Hartonomous.SqlClr.EmbeddingFunctions].fn_CompareAtoms;
+GO
+
+IF OBJECT_ID('dbo.fn_MergeAtoms', 'FN') IS NOT NULL DROP FUNCTION dbo.fn_MergeAtoms;
+GO
+CREATE FUNCTION dbo.fn_MergeAtoms(
+    @PrimaryAtomId BIGINT,
+    @DuplicateAtomId BIGINT,
+    @TenantId INT
+)
+RETURNS BIGINT
+AS EXTERNAL NAME SqlClrFunctions.[Hartonomous.SqlClr.EmbeddingFunctions].fn_MergeAtoms;
+GO
+
 

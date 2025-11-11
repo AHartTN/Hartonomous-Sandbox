@@ -296,31 +296,34 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
+    DECLARE @CanonicalText NVARCHAR(MAX);
+    DECLARE @ExtractedMetadata NVARCHAR(MAX);
+    
     BEGIN TRY
-        DECLARE @Content NVARCHAR(MAX);
-        DECLARE @ExtractedMetadata NVARCHAR(MAX);
-        
-        -- Load content
-        SELECT @Content = CAST(Content AS NVARCHAR(MAX))
+        -- Load canonical text representation
+        SELECT @CanonicalText = CanonicalText
         FROM dbo.Atoms
         WHERE AtomId = @AtomId AND TenantId = @TenantId;
         
-        IF @Content IS NULL
+        IF @CanonicalText IS NULL
         BEGIN
-            RAISERROR('Atom not found', 16, 1);
+            RAISERROR('Atom not found or has no canonical text', 16, 1);
             RETURN -1;
         END
         
         -- Extract metadata (placeholder - would use CLR NLP function in production)
-        SET @ExtractedMetadata = JSON_OBJECT(
-            'wordCount': LEN(@Content) - LEN(REPLACE(@Content, ' ', '')) + 1,
-            'language': 'en', -- Would use language detection
-            'sentiment': 0.5,  -- Would use sentiment analysis
-            'entities': JSON_ARRAY(), -- Would use NER
-            'extractedUtc': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
+        -- Using FOR JSON PATH instead of JSON_OBJECT for SQL Server 2025 compatibility
+        SET @ExtractedMetadata = (
+            SELECT 
+                LEN(@CanonicalText) - LEN(REPLACE(@CanonicalText, ' ', '')) + 1 AS wordCount,
+                'en' AS language, -- Would use language detection CLR function
+                0.5 AS sentiment,  -- Would use sentiment analysis CLR function
+                (SELECT TOP 0 NULL AS entity FOR JSON PATH) AS entities, -- Empty array placeholder
+                FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedUtc
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
         
-        -- Update atom metadata
+        -- Update atom metadata by merging extracted data
         UPDATE dbo.Atoms
         SET Metadata = JSON_MODIFY(
             ISNULL(Metadata, '{}'),

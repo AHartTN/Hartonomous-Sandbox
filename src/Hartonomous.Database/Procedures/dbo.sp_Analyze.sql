@@ -64,7 +64,6 @@ BEGIN
                 RETURN 0;
             END
         END
-        END
         
         -- REGULAR OODA LOOP: Continue with standard performance analysis
         -- 1. QUERY RECENT INFERENCE ACTIVITY WITH EMBEDDINGS
@@ -243,17 +242,19 @@ BEGIN
         );
         
         -- 4. COMPILE OBSERVATIONS
-        SET @Observations = JSON_OBJECT(
-            'analysisId': @AnalysisId,
-            'scope': @AnalysisScope,
-            'lookbackHours': @LookbackHours,
-            'totalInferences': (SELECT COUNT(*) FROM @RecentInferences),
-            'avgDurationMs': @AvgDurationMs,
-            'anomalyCount': (SELECT COUNT(*) FROM OPENJSON(@Anomalies)),
-            'anomalies': JSON_QUERY(@Anomalies),
-            'queryStoreRecommendations': JSON_QUERY(@QueryStoreRecommendations),
-            'patterns': JSON_QUERY(@Patterns),
-            'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
+        SET @Observations = (
+            SELECT 
+                @AnalysisId AS analysisId,
+                @AnalysisScope AS scope,
+                @LookbackHours AS lookbackHours,
+                (SELECT COUNT(*) FROM @RecentInferences) AS totalInferences,
+                @AvgDurationMs AS avgDurationMs,
+                (SELECT COUNT(*) FROM OPENJSON(@Anomalies)) AS anomalyCount,
+                JSON_QUERY(@Anomalies) AS anomalies,
+                JSON_QUERY(@QueryStoreRecommendations) AS queryStoreRecommendations,
+                JSON_QUERY(@Patterns) AS patterns,
+                FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS timestamp
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
         
         -- 5. SEND TO HYPOTHESIZE QUEUE

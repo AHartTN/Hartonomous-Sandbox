@@ -69,10 +69,3 @@ CREATE TABLE dbo.EventAtoms (
 
     FOREIGN KEY (StreamId) REFERENCES dbo.StreamOrchestrationResults(Id)
 );
-
-PRINT 'Stream orchestration tables created successfully';
-PRINT 'StreamOrchestrationResults: Sensor stream orchestration storage';
-PRINT 'StreamFusionResults: Multi-modal fusion storage';
-PRINT 'EventGenerationResults: Event generation metadata';
-PRINT 'EventAtoms: Generated event atoms';
-GO

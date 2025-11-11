@@ -35,9 +35,7 @@ BEGIN
         ON dbo.BillingUsageLedger_New(Operation, TimestampUtc DESC)
         INCLUDE (TenantId, Units, TotalCost);
 
-    PRINT 'Created dbo.BillingUsageLedger_New as append-only ledger table';
 END
-GO
 
 -- STEP 2: Migrate existing data (if BillingUsageLedger exists)
 IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'BillingUsageLedger' AND schema_id = SCHEMA_ID('dbo'))
@@ -58,7 +56,6 @@ BEGIN
 
     PRINT 'Migrated ' + CAST(@@ROWCOUNT AS NVARCHAR(20)) + ' rows to ledger table';
 END
-GO
 
 -- STEP 3: Rename tables (swap old and new)
 -- Run this manually after validating data migration:
@@ -95,4 +92,3 @@ FROM dbo.BillingUsageLedger
 WHERE TenantId = 'tenant-123'
 ORDER BY ledger_start_sequence_number DESC;
 */
-GO

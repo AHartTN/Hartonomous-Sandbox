@@ -2,7 +2,6 @@
 -- Stores test outcomes from automated test runs for Phase 5 evaluation
 
 SET QUOTED_IDENTIFIER ON;
-GO
 
 IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE schema_id = SCHEMA_ID('dbo') AND name = 'TestResults')
 BEGIN
@@ -55,4 +54,3 @@ CREATE NONCLUSTERED INDEX IX_TestResults_Outcome
 ON dbo.TestResults(TestOutcome, RunStartedAt DESC);
 
 END;
-GO

@@ -36,10 +36,10 @@ namespace Hartonomous.SqlClr
             {
                 conn.Open();
 
-                // Step 1: Load atom content
+                // Step 1: Load atom canonical text
                 string content = null;
                 var contentQuery = @"
-                    SELECT TOP 1 CAST(Content AS NVARCHAR(MAX))
+                    SELECT TOP 1 CanonicalText
                     FROM dbo.Atoms
                     WHERE AtomId = @AtomId AND TenantId = @TenantId";
 

@@ -46,9 +46,3 @@ CREATE TABLE dbo.MultiPathReasoning (
     INDEX IX_MultiPathReasoning_ProblemId (ProblemId),
     INDEX IX_MultiPathReasoning_CreatedAt (CreatedAt DESC)
 );
-
-PRINT 'Reasoning framework tables created successfully';
-PRINT 'ReasoningChains: Chain-of-thought reasoning storage';
-PRINT 'SelfConsistencyResults: Self-consistency reasoning storage';
-PRINT 'MultiPathReasoning: Multi-path reasoning storage';
-GO
