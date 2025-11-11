@@ -307,7 +307,7 @@ if ($CheckOutdated) {
                 $Report.Issues.Outdated += $Issue
                 $Report.Summary.Outdated++
                 
-                Write-Host "  ⚠️  $PackageName: $Resolved → $Latest" -ForegroundColor $ColorWarn
+                Write-Host "  ⚠️  $PackageName`: $Resolved -> $Latest" -ForegroundColor $ColorWarn
             }
         }
     }
