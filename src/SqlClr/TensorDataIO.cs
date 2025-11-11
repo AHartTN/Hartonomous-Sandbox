@@ -179,5 +179,44 @@ namespace SqlClrFunctions
                 throw;
             }
         }
+
+        /// <summary>
+        /// Converts a VARBINARY containing a float array into a JSON string.
+        /// This is the inverse of clr_JsonFloatArrayToBytes.
+        /// </summary>
+        /// <param name="bytes">The binary data containing a sequence of 4-byte floats.</param>
+        /// <returns>A JSON string representing the float array, e.g., "[1.0, 2.5, -3.0]".</returns>
+        [SqlFunction(DataAccess = DataAccessKind.None)]
+        public static SqlString clr_BytesToFloatArrayJson(SqlBytes bytes)
+        {
+            if (bytes.IsNull || bytes.Length == 0)
+            {
+                return SqlString.Null;
+            }
+
+            try
+            {
+                // Each float is 4 bytes
+                int floatCount = (int)(bytes.Length / 4);
+                float[] floats = new float[floatCount];
+
+                using (var ms = new System.IO.MemoryStream(bytes.Value))
+                using (var br = new System.IO.BinaryReader(ms))
+                {
+                    for (int i = 0; i < floatCount; i++)
+                    {
+                        floats[i] = br.ReadSingle();
+                    }
+                }
+
+                string json = Newtonsoft.Json.JsonConvert.SerializeObject(floats);
+                return new SqlString(json);
+            }
+            catch (Exception ex)
+            {
+                SqlContext.Pipe.Send("Error in clr_BytesToFloatArrayJson: " + ex.Message);
+                throw;
+            }
+        }
     }
 }

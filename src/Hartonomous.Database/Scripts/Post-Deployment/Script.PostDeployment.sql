@@ -22,6 +22,8 @@ GO
 
 :r .\Seed.TopicKeywords.sql
 
+:r .\RegisterAgentTools.sql
+
 :r .\Configure.Neo4jSyncActivation.sql
 
 :r .\Configure.InferenceQueueActivation.sql

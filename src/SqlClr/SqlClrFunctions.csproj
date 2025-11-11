@@ -37,6 +37,7 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Framework References -->
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Data" />
@@ -44,25 +45,53 @@
     <Reference Include="System.Transactions" />
     <Reference Include="System.Xml" />
     <Reference Include="System.Numerics" />
+    
+    <!-- Third-party Dependencies (from dependencies folder) -->
     <Reference Include="MathNet.Numerics">
-      <HintPath>$(USERPROFILE)\.nuget\packages\mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll</HintPath>
+      <HintPath>..\..\dependencies\MathNet.Numerics.dll</HintPath>
     </Reference>
     <Reference Include="Microsoft.SqlServer.Types">
-      <HintPath>$(USERPROFILE)\.nuget\packages\microsoft.sqlserver.types\160.1000.6\lib\net462\Microsoft.SqlServer.Types.dll</HintPath>
+      <HintPath>..\..\dependencies\Microsoft.SqlServer.Types.dll</HintPath>
     </Reference>
     <Reference Include="Newtonsoft.Json">
-      <HintPath>$(USERPROFILE)\.nuget\packages\newtonsoft.json\13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\..\dependencies\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="System.Numerics.Vectors">
-      <HintPath>$(USERPROFILE)\.nuget\packages\system.numerics.vectors\4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+      <HintPath>..\..\dependencies\System.Numerics.Vectors.dll</HintPath>
+    </Reference>
+    
+    <!-- ILGPU GPU Acceleration Dependencies -->
+    <Reference Include="ILGPU">
+      <HintPath>..\..\dependencies\ILGPU.dll</HintPath>
+    </Reference>
+    <Reference Include="ILGPU.Algorithms">
+      <HintPath>..\..\dependencies\ILGPU.Algorithms.dll</HintPath>
+    </Reference>
+    
+    <!-- ILGPU Required Dependencies -->
+    <Reference Include="System.Memory">
+      <HintPath>..\..\dependencies\System.Memory.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Collections.Immutable">
+      <HintPath>..\..\dependencies\System.Collections.Immutable.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Buffers">
+      <HintPath>..\..\dependencies\System.Buffers.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\..\dependencies\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>
     <!-- ONLY add ONE package: MathNet.Numerics - we know this works -->
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
     <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
     <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+    <PackageReference Include="ILGPU" Version="1.5.1" />
+    <PackageReference Include="ILGPU.Algorithms" Version="1.5.1" />
+    <PackageReference Include="System.Memory" Version="4.5.5" />
+    <PackageReference Include="System.Collections.Immutable" Version="7.0.0" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AdvancedVectorAggregates.cs" />
@@ -86,6 +115,7 @@
     <Compile Include="Core\SqlTensorProvider.cs" />
     <Compile Include="Core\TensorMetadata.cs" />
     <Compile Include="Core\VectorMath.cs" />
+    <Compile Include="Core\GpuAccelerator.cs" />
     <Compile Include="Core\VectorUtilities.cs" />
   <Compile Include="Core\PooledList.cs" />
   <Compile Include="Core\TimestampedVector.cs" />

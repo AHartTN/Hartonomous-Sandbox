@@ -189,13 +189,6 @@ RETURNS VARBINARY(MAX)
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].GenerateHarmonicTone;
 GO
 
-IF OBJECT_ID('dbo.clr_SemanticFeaturesJson', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_SemanticFeaturesJson;
-GO
-CREATE FUNCTION dbo.clr_SemanticFeaturesJson(@input NVARCHAR(MAX))
-RETURNS NVARCHAR(MAX)
-AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SemanticAnalysis].ComputeSemanticFeatures;
-GO
-
 IF OBJECT_ID('dbo.clr_GenerateSequence', 'TF') IS NOT NULL DROP FUNCTION dbo.clr_GenerateSequence;
 GO
 CREATE FUNCTION dbo.clr_GenerateSequence(

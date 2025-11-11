@@ -81,6 +81,12 @@ $assemblies = @(
     @{ Name = "SMDiagnostics"; Required = $true },
     @{ Name = "System.Runtime.Serialization"; Required = $true },
     @{ Name = "System.Numerics.Vectors"; Required = $true },
+    @{ Name = "System.Runtime.CompilerServices.Unsafe"; Required = $true },
+    @{ Name = "System.Buffers"; Required = $true },
+    @{ Name = "System.Memory"; Required = $true },
+    @{ Name = "System.Collections.Immutable"; Required = $true },
+    @{ Name = "ILGPU"; Required = $true },
+    @{ Name = "ILGPU.Algorithms"; Required = $true },
     @{ Name = "MathNet.Numerics"; Required = $true },
     @{ Name = "Newtonsoft.Json"; Required = $true },
     @{ Name = "System.Drawing"; Required = $true },
@@ -308,11 +314,17 @@ ORDER BY
     WHEN 'SMDiagnostics' THEN 2
     WHEN 'System.Runtime.Serialization' THEN 3
     WHEN 'System.Numerics.Vectors' THEN 4
-    WHEN 'MathNet.Numerics' THEN 5
-    WHEN 'Newtonsoft.Json' THEN 6
-    WHEN 'System.Drawing' THEN 7
-    WHEN 'Microsoft.SqlServer.Types' THEN 8
-    WHEN 'SqlClrFunctions' THEN 9
+    WHEN 'System.Runtime.CompilerServices.Unsafe' THEN 5
+    WHEN 'System.Buffers' THEN 6
+    WHEN 'System.Memory' THEN 7
+    WHEN 'System.Collections.Immutable' THEN 8
+    WHEN 'ILGPU' THEN 9
+    WHEN 'ILGPU.Algorithms' THEN 10
+    WHEN 'MathNet.Numerics' THEN 11
+    WHEN 'Newtonsoft.Json' THEN 12
+    WHEN 'System.Drawing' THEN 13
+    WHEN 'Microsoft.SqlServer.Types' THEN 14
+    WHEN 'SqlClrFunctions' THEN 15
     ELSE 99
     END;
 GO

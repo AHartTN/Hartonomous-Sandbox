@@ -25,8 +25,8 @@ namespace SqlClrFunctions
             var values1 = SqlBytesInterop.GetFloatArray(vector1, out var length1);
             var values2 = SqlBytesInterop.GetFloatArray(vector2, out var length2);
 
-            // Delegate to the centralized, optimized math function
-            return new SqlDouble(VectorMath.DotProduct(values1, values2));
+            // Use GPU accelerator with automatic CPU fallback
+            return new SqlDouble(GpuAccelerator.DotProduct(values1, values2));
         }
 
         /// <summary>
@@ -44,8 +44,8 @@ namespace SqlClrFunctions
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
-            // Delegate to VectorMath
-            return new SqlDouble(VectorMath.CosineSimilarity(values1, values2));
+            // Use GPU accelerator with automatic CPU fallback
+            return new SqlDouble(GpuAccelerator.CosineSimilarity(values1, values2));
         }
 
         /// <summary>
@@ -63,8 +63,8 @@ namespace SqlClrFunctions
             if (length1 != length2)
                 throw new ArgumentException("Vectors must have same dimension");
 
-            // Delegate to VectorMath
-            return new SqlDouble(VectorMath.EuclideanDistance(values1, values2));
+            // Use GPU accelerator with automatic CPU fallback
+            return new SqlDouble(GpuAccelerator.EuclideanDistance(values1, values2));
         }
 
         /// <summary>

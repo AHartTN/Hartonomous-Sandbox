@@ -11,6 +11,7 @@
     <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>
     <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
     <EnableDefaultSqlItems>false</EnableDefaultSqlItems>
+    <ProjectGuid>{00000000-0000-0000-0000-000000000000}</ProjectGuid>
   </PropertyGroup>
   <!-- CLR assembly reference -->
   <ItemGroup>
@@ -24,13 +25,15 @@
     <Build Include="Schemas\graph.sql" />
     <Build Include="Schemas\provenance.sql" />
     <Build Include="Procedures\Admin.WeightRollback.sql" />
-    <Build Include="Procedures\Analysis.WeightHistory.sql" />
+    <Build Include="Views\dbo.vw_CurrentWeights.sql" />
+    <Build Include="Views\dbo.vw_WeightChangeHistory.sql" />
+    <Build Include="Procedures\dbo.sp_GetWeightEvolution.sql" />
+    <Build Include="Procedures\dbo.sp_CompareWeightsAtTimes.sql" />
+    <Build Include="Procedures\dbo.sp_GetRecentWeightChanges.sql" />
     <Build Include="Procedures\Attention.AttentionGeneration.sql" />
     <Build Include="Procedures\Autonomy.FileSystemBindings.sql" />
     <Build Include="Procedures\Autonomy.SelfImprovement.sql" />
     <Build Include="Procedures\Billing.InsertUsageRecord_Native.sql" />
-
-
     <Build Include="Procedures\dbo.fn_GetAtomEmbeddingsWithAtoms.sql" />
     <Build Include="Procedures\dbo.fn_VectorCosineSimilarity.sql" />
     <Build Include="Procedures\dbo.fn_CreateSpatialPoint.sql" />
@@ -52,7 +55,6 @@
     <Build Include="Procedures\dbo.FullTextSearch.sql" />
     <Build Include="Procedures\dbo.ModelManagement.sql" />
     <Build Include="Procedures\dbo.ProvenanceFunctions.sql" />
-    <Build Include="Procedures\dbo.RegisterAgentTools.sql" />
     <Build Include="Procedures\dbo.sp_Act.sql" />
     <Build Include="Procedures\dbo.sp_Analyze.sql" />
     <Build Include="Procedures\dbo.sp_AtomIngestion.sql" />
@@ -70,7 +72,11 @@
     <Build Include="Procedures\dbo.sp_StoreAtomPayload.sql" />
     <Build Include="Procedures\dbo.sp_TokenizeText.sql" />
     <Build Include="Procedures\dbo.sp_UpdateAtomEmbeddingSpatialMetadata.sql" />
-    <Build Include="Procedures\dbo.VectorSearch.sql" />
+    <Build Include="Procedures\dbo.sp_SpatialVectorSearch.sql" />
+    <Build Include="Procedures\dbo.sp_TemporalVectorSearch.sql" />
+    <Build Include="Procedures\dbo.sp_FusionSearch.sql" />
+    <Build Include="Procedures\dbo.sp_MultiModelEnsemble.sql" />
+    <Build Include="Procedures\dbo.sp_HybridSearch.sql" />
     <Build Include="Procedures\Deduplication.SimilarityCheck.sql" />
     <Build Include="Procedures\Embedding.TextToVector.sql" />
     <Build Include="Procedures\Feedback.ModelWeightUpdates.sql" />

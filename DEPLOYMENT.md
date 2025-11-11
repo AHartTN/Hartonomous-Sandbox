@@ -220,6 +220,12 @@ WHERE drs.database_id = DB_ID('Hartonomous');
 
 ### Step 2: CLR Assembly Deployment
 
+**⚠️ CRITICAL SECURITY NOTICE:** All CLR assemblies require **UNSAFE** permissions. See **[UNSAFE CLR Security Documentation](docs/UNSAFE_CLR_SECURITY.md)** for:
+- Security implications and attack scenarios
+- Production deployment with trusted assemblies (sys.sp_add_trusted_assembly)
+- GPU acceleration security considerations
+- Migration from TRUSTWORTHY ON to secure deployment
+
 **Strong-Name Signing** (production requirement):
 
 1. Generate strong-name key:

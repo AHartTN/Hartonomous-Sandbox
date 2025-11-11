@@ -1,11 +1,3 @@
-USE Hartonomous;
-GO
-
--- Drop the procedure if it already exists to ensure a clean slate.
-IF OBJECT_ID('dbo.sp_AtomizeModel', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_AtomizeModel;
-GO
-
 CREATE OR ALTER PROCEDURE dbo.sp_AtomizeModel
     @model_blob VARBINARY(MAX),
     @model_format_hint NVARCHAR(50),

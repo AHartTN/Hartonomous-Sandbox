@@ -118,11 +118,9 @@ BEGIN
 
             IF @payload IS NOT NULL
             BEGIN
-                -- Convert payload to JSON float array
+                -- Convert payload to JSON float array using CLR function
                 DECLARE @vectorJson NVARCHAR(MAX);
-                -- Note: We need a clr_BytesToFloatArrayJson function for this conversion
-                -- For now, assume the payload is already stored as JSON (from sp_AtomizeModel)
-                -- In production, implement proper binary-to-JSON conversion
+                SET @vectorJson = dbo.clr_BytesToFloatArrayJson(@payload);
                 
                 INSERT INTO @VTMatrix (VectorJson) VALUES (@vectorJson);
                 INSERT INTO @SValues (SingularValue) VALUES (@CurrentCoefficient);
