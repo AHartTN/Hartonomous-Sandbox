@@ -230,18 +230,32 @@ EXEC dbo.sp_Analyze
 
 ## Documentation
 
+### Core Architecture & Implementation
 - **[ARCHITECTURE.md](ARCHITECTURE.md)**: Database-first design, CLR intelligence layer, OODA loop, dual embedding paths, schema overview, .NET 10 orchestration.
+- **[API.md](API.md)**: REST API endpoint reference (ingestion, inference, search, provenance, operations).
+- **[IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md)**: 226-item sequential action plan (database-first architecture).
+
+### Technical Analysis (Enterprise-Grade)
+- **[docs/technical-analysis/](docs/technical-analysis/)**: Professional technical documentation suite
+  - **[ARCHITECTURE_EVOLUTION.md](docs/technical-analysis/ARCHITECTURE_EVOLUTION.md)**: Historical architectural decisions (database-first pivot, CLR UNSAFE rationale, Neo4j provenance, Service Broker OODA loop).
+  - **[IMPLEMENTATION_STATUS.md](docs/technical-analysis/IMPLEMENTATION_STATUS.md)**: Component status, testing coverage, deployment state (110 unit tests, 2/28 integration tests, roadmap).
+  - **[TECHNICAL_DEBT_CATALOG.md](docs/technical-analysis/TECHNICAL_DEBT_CATALOG.md)**: 47+ identified items with P0-P3 classification and remediation plan.
+  - **[CLAIMS_VALIDATION.md](docs/technical-analysis/CLAIMS_VALIDATION.md)**: Evidence-based validation of AGI-in-SQL-Server capabilities.
+
+### Deployment & Operations
 - **[DEPLOYMENT_ARCHITECTURE_PLAN.md](DEPLOYMENT_ARCHITECTURE_PLAN.md)**: Hybrid Azure Arc SQL deployment strategy, production infrastructure plan.
 - **[DATABASE_DEPLOYMENT_GUIDE.md](DATABASE_DEPLOYMENT_GUIDE.md)**: Step-by-step database provisioning guide.
-- **[API.md](API.md)**: REST API endpoint reference (ingestion, inference, search, provenance, operations).
+- **[docs/CLR_DEPLOYMENT.md](docs/CLR_DEPLOYMENT.md)**: CLR function reference, .NET Framework 4.8.1 constraints, SAFE vs UNSAFE deployment, security best practices.
+- **[scripts/CLR_SECURITY_ANALYSIS.md](scripts/CLR_SECURITY_ANALYSIS.md)**: CLR security surface analysis, UNSAFE assembly justification.
+
+### Testing & Quality
 - **[TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md)**: Testing status, coverage gaps, 184-item plan to 100% coverage.
-- **[IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md)**: 226-item sequential action plan (database-first architecture).
+- **[CODE_REFACTORING_AUDIT.md](CODE_REFACTORING_AUDIT.md)**: 400+ code quality issues cataloged (P0-P4 priority levels).
+
+### Technical Reference
 - **[VERSION_AND_COMPATIBILITY_AUDIT.md](VERSION_AND_COMPATIBILITY_AUDIT.md)**: Package versions, SQL Server 2025 requirements, compatibility matrix.
 - **[DATABASE_AND_DEPLOYMENT_AUDIT.md](DATABASE_AND_DEPLOYMENT_AUDIT.md)**: Schema inventory, CLR UNSAFE security documentation.
-- **[CODE_REFACTORING_AUDIT.md](CODE_REFACTORING_AUDIT.md)**: 400+ code quality issues cataloged (P0-P4 priority levels).
-- **[docs/CLR_DEPLOYMENT.md](docs/CLR_DEPLOYMENT.md)**: CLR function reference, .NET Framework 4.8.1 constraints, SAFE vs UNSAFE deployment, security best practices.
 - **[docs/GODEL_ENGINE.md](docs/GODEL_ENGINE.md)**: Autonomous compute via Service Broker (`sp_StartPrimeSearch`, `clr_FindPrimes`, `AutonomousComputeJobs`).
-- **[scripts/CLR_SECURITY_ANALYSIS.md](scripts/CLR_SECURITY_ANALYSIS.md)**: CLR security surface analysis, UNSAFE assembly justification.
 
 
 ## License
