@@ -1,20 +1,16 @@
-CREATE TABLE dbo.AtomPayloadStore (
-    PayloadId BIGINT IDENTITY(1,1) NOT NULL,
-    RowGuid UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT NEWSEQUENTIALID(),
-    AtomId BIGINT NOT NULL,
-    ContentType NVARCHAR(256) NOT NULL,
-    ContentHash BINARY(32) NOT NULL,
-    SizeBytes BIGINT NOT NULL,
-    PayloadData VARBINARY(MAX) FILESTREAM NOT NULL,
-    CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CreatedBy NVARCHAR(256),
-    CONSTRAINT PK_AtomPayloadStore PRIMARY KEY (PayloadId),
-    CONSTRAINT UQ_AtomPayloadStore_RowGuid UNIQUE (RowGuid),
-    CONSTRAINT UX_AtomPayloadStore_ContentHash UNIQUE (ContentHash),
-    CONSTRAINT FK_AtomPayloadStore_Atoms FOREIGN KEY (AtomId) REFERENCES dbo.Atoms(AtomId) ON DELETE CASCADE,
-    CONSTRAINT CK_AtomPayloadStore_ContentType CHECK (ContentType LIKE '%/%'),
-    CONSTRAINT CK_AtomPayloadStore_SizeBytes CHECK (SizeBytes > 0),
-    INDEX IX_AtomPayloadStore_AtomId (AtomId),
-    INDEX IX_AtomPayloadStore_ContentHash (ContentHash),
-    INDEX IX_AtomPayloadStore_RowGuid (RowGuid)
-) FILESTREAM_ON HartonomousFileStream;
+CREATE TABLE [dbo].[AtomPayloadStore] (
+    [PayloadId]   BIGINT           NOT NULL IDENTITY,
+    [RowGuid]     UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT (NEWSEQUENTIALID()),
+    [AtomId]      BIGINT           NOT NULL,
+    [ContentType] NVARCHAR (256)   NOT NULL,
+    [ContentHash] BINARY (32)      NOT NULL,
+    [SizeBytes]   BIGINT           NOT NULL,
+    [PayloadData] VARBINARY (MAX)  FILESTREAM NOT NULL,
+    [CreatedBy]   NVARCHAR (256)   NULL,
+    [CreatedUtc]  DATETIME2 (7)    NOT NULL DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT [PK_AtomPayloadStore] PRIMARY KEY CLUSTERED ([PayloadId] ASC),
+    CONSTRAINT [UQ_AtomPayloadStore_RowGuid] UNIQUE NONCLUSTERED ([RowGuid]),
+    CONSTRAINT [CK_AtomPayloadStore_ContentType] CHECK ([ContentType] LIKE '%/%'),
+    CONSTRAINT [CK_AtomPayloadStore_SizeBytes] CHECK ([SizeBytes]>(0)),
+    CONSTRAINT [FK_AtomPayloadStore_Atoms_AtomId] FOREIGN KEY ([AtomId]) REFERENCES [dbo].[Atoms] ([AtomId]) ON DELETE CASCADE
+);

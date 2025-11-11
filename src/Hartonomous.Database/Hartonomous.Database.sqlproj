@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build">
   <Sdk Name="Microsoft.Build.Sql" Version="2.0.0" />
-  
   <PropertyGroup>
     <Name>Hartonomous.Database</Name>
     <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
@@ -11,67 +10,225 @@
     <OutputPath>bin\$(Configuration)\</OutputPath>
     <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>
     <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
+    <EnableDefaultSqlItems>false</EnableDefaultSqlItems>
   </PropertyGroup>
-
-  <!-- Reference CLR assembly for build-time validation -->
+  <!-- CLR assembly reference -->
   <ItemGroup>
     <ArtifactReference Include="..\SqlClr\bin\Release\SqlClrFunctions.dll">
       <HintPath>..\SqlClr\bin\Release\SqlClrFunctions.dll</HintPath>
       <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>
     </ArtifactReference>
   </ItemGroup>
+  <!-- Schema and object definitions -->
+  <ItemGroup>
+    <Build Include="Schemas\graph.sql" />
+    <Build Include="Schemas\provenance.sql" />
+    <Build Include="Procedures\Admin.WeightRollback.sql" />
+    <Build Include="Procedures\Analysis.WeightHistory.sql" />
+    <Build Include="Procedures\Attention.AttentionGeneration.sql" />
+    <Build Include="Procedures\Autonomy.FileSystemBindings.sql" />
+    <Build Include="Procedures\Autonomy.SelfImprovement.sql" />
+    <Build Include="Procedures\Billing.InsertUsageRecord_Native.sql" />
 
-  <!-- Pre-deployment script for schemas and Service Broker -->
+
+    <Build Include="Procedures\dbo.fn_GetAtomEmbeddingsWithAtoms.sql" />
+    <Build Include="Procedures\dbo.fn_VectorCosineSimilarity.sql" />
+    <Build Include="Procedures\dbo.fn_CreateSpatialPoint.sql" />
+    <Build Include="Procedures\dbo.fn_GetContextCentroid.sql" />
+    <Build Include="Procedures\dbo.fn_NormalizeJSON.sql" />
+    <Build Include="Procedures\dbo.fn_SpatialKNN.sql" />
+    <Build Include="Procedures\dbo.fn_SoftmaxTemperature.sql" />
+    <Build Include="Procedures\dbo.fn_SelectModelsForTask.sql" />
+    <Build Include="Procedures\dbo.fn_EnsembleAtomScores.sql" />
+    <Build Include="Procedures\dbo.sp_IngestAtom.sql" />
+    <Build Include="Procedures\dbo.sp_DetectDuplicates.sql" />
+    <Build Include="Procedures\dbo.sp_LinkProvenance.sql" />
+    <Build Include="Procedures\dbo.sp_ExtractMetadata.sql" />
+    <Build Include="Procedures\dbo.sp_RecordUsage.sql" />
+    <Build Include="Procedures\dbo.sp_CalculateBill.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateUsageReport.sql" />
+    <Build Include="Procedures\dbo.fn_BindConcepts.sql" />
+    <Build Include="Procedures\dbo.fn_DiscoverConcepts.sql" />
+    <Build Include="Procedures\dbo.FullTextSearch.sql" />
+    <Build Include="Procedures\dbo.ModelManagement.sql" />
+    <Build Include="Procedures\dbo.ProvenanceFunctions.sql" />
+    <Build Include="Procedures\dbo.RegisterAgentTools.sql" />
+    <Build Include="Procedures\dbo.sp_Act.sql" />
+    <Build Include="Procedures\dbo.sp_Analyze.sql" />
+    <Build Include="Procedures\dbo.sp_AtomIngestion.sql" />
+    <Build Include="Procedures\dbo.sp_AtomizeAudio.sql" />
+    <Build Include="Procedures\dbo.sp_AtomizeCode.sql" />
+    <Build Include="Procedures\dbo.sp_AtomizeImage.sql" />
+    <Build Include="Procedures\dbo.sp_AtomizeModel.sql" />
+    <Build Include="Procedures\dbo.sp_Converse.sql" />
+    <Build Include="Procedures\dbo.sp_DiscoverAndBindConcepts.sql" />
+    <Build Include="Procedures\dbo.sp_ExtractStudentModel.sql" />
+    <Build Include="Procedures\dbo.sp_Hypothesize.sql" />
+    <Build Include="Procedures\dbo.sp_Learn.sql" />
+    <Build Include="Procedures\dbo.sp_RetrieveAtomPayload.sql" />
+    <Build Include="Procedures\dbo.sp_StartPrimeSearch.sql" />
+    <Build Include="Procedures\dbo.sp_StoreAtomPayload.sql" />
+    <Build Include="Procedures\dbo.sp_TokenizeText.sql" />
+    <Build Include="Procedures\dbo.sp_UpdateAtomEmbeddingSpatialMetadata.sql" />
+    <Build Include="Procedures\dbo.VectorSearch.sql" />
+    <Build Include="Procedures\Deduplication.SimilarityCheck.sql" />
+    <Build Include="Procedures\Embedding.TextToVector.sql" />
+    <Build Include="Procedures\Feedback.ModelWeightUpdates.sql" />
+    <Build Include="Procedures\dbo.VectorMeanVariance.sql" />
+    <Build Include="Procedures\dbo.GeometricMedian.sql" />
+    <Build Include="Procedures\dbo.StreamingSoftmax.sql" />
+    <Build Include="Procedures\dbo.VectorCentroid.sql" />
+    <Build Include="Procedures\dbo.VectorCovariance.sql" />
+    <Build Include="Procedures\dbo.VectorKMeansCluster.sql" />
+    <Build Include="Procedures\dbo.VectorAttentionAggregate.sql" />
+    <Build Include="Procedures\dbo.AutoencoderCompression.sql" />
+    <Build Include="Procedures\dbo.GradientStatistics.sql" />
+    <Build Include="Procedures\dbo.CosineAnnealingSchedule.sql" />
+    <Build Include="Procedures\dbo.GraphPathVectorSummary.sql" />
+    <Build Include="Procedures\dbo.EdgeWeightedByVectorSimilarity.sql" />
+    <Build Include="Procedures\dbo.VectorDriftOverTime.sql" />
+    <Build Include="Procedures\dbo.VectorSequencePatterns.sql" />
+    <Build Include="Procedures\dbo.VectorARForecast.sql" />
+    <Build Include="Procedures\dbo.DTWDistance.sql" />
+    <Build Include="Procedures\dbo.ChangePointDetection.sql" />
+    <Build Include="Procedures\dbo.CollaborativeFilter.sql" />
+    <Build Include="Procedures\dbo.ContentBasedFilter.sql" />
+    <Build Include="Procedures\dbo.MatrixFactorization.sql" />
+    <Build Include="Procedures\dbo.DiversityRecommendation.sql" />
+    <Build Include="Procedures\dbo.PrincipalComponentAnalysis.sql" />
+    <Build Include="Procedures\dbo.TSNEProjection.sql" />
+    <Build Include="Procedures\dbo.RandomProjection.sql" />
+    <Build Include="Procedures\dbo.ResearchWorkflow.sql" />
+    <Build Include="Procedures\dbo.ToolExecutionChain.sql" />
+    <Build Include="Procedures\dbo.UserJourney.sql" />
+    <Build Include="Procedures\dbo.ABTestAnalysis.sql" />
+    <Build Include="Procedures\dbo.ChurnPrediction.sql" />
+    <Build Include="Procedures\dbo.SpatialConvexHull.sql" />
+    <Build Include="Procedures\dbo.SpatialDensityGrid.sql" />
+    <Build Include="Procedures\dbo.TreeOfThought.sql" />
+    <Build Include="Procedures\dbo.ReflexionAggregate.sql" />
+    <Build Include="Procedures\dbo.SelfConsistency.sql" />
+    <Build Include="Procedures\dbo.ChainOfThoughtCoherence.sql" />
+    <Build Include="Procedures\dbo.IsolationForestScore.sql" />
+    <Build Include="Procedures\dbo.LocalOutlierFactor.sql" />
+    <Build Include="Procedures\dbo.DBSCANCluster.sql" />
+    <Build Include="Procedures\dbo.MahalanobisDistance.sql" />
+    <Build Include="Procedures\dbo.ConvertVarbinary4ToReal.sql" />
+    <Build Include="Procedures\dbo.VectorDotProduct.sql" />
+    <Build Include="Procedures\dbo.VectorCosineSimilarity.sql" />
+    <Build Include="Procedures\dbo.VectorEuclideanDistance.sql" />
+    <Build Include="Procedures\dbo.VectorNormalize.sql" />
+    <Build Include="Procedures\dbo.VectorSoftmax.sql" />
+    <Build Include="Procedures\dbo.VectorArgMax.sql" />
+    <Build Include="Procedures\dbo.VectorAdd.sql" />
+    <Build Include="Procedures\dbo.VectorSubtract.sql" />
+    <Build Include="Procedures\dbo.VectorScale.sql" />
+    <Build Include="Procedures\dbo.VectorLerp.sql" />
+    <Build Include="Procedures\dbo.VectorNorm.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateAudio.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateImage.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateText.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateVideo.sql" />
+    <Build Include="Tables\graph.AtomGraphNodes.sql" />
+    <Build Include="Tables\graph.AtomGraphEdges.sql" />
+    <Build Include="Procedures\dbo.sp_MultiResolutionSearch.sql" />
+    <Build Include="Procedures\dbo.sp_CognitiveActivation.sql" />
+    <Build Include="Procedures\dbo.sp_DynamicStudentExtraction.sql" />
+    <Build Include="Procedures\dbo.sp_CrossModalQuery.sql" />
+    <Build Include="Procedures\dbo.sp_CompareModelKnowledge.sql" />
+    <Build Include="Procedures\dbo.sp_InferenceHistory.sql" />
+    <Build Include="Procedures\dbo.sp_SubmitInferenceJob.sql" />
+    <Build Include="Procedures\dbo.sp_GetInferenceJobStatus.sql" />
+    <Build Include="Procedures\dbo.sp_UpdateInferenceJobStatus.sql" />
+    <Build Include="Procedures\dbo.sp_EnsembleInference.sql" />
+    <Build Include="ServiceBroker\InferenceJobRequest.MessageType.sql" />
+    <Build Include="ServiceBroker\InferenceJobResponse.MessageType.sql" />
+    <Build Include="ServiceBroker\InferenceJobContract.Contract.sql" />
+    <Build Include="ServiceBroker\InferenceQueue.Queue.sql" />
+    <Build Include="ServiceBroker\InferenceService.Service.sql" />
+    <Build Include="Procedures\dbo.sp_ExecuteInference_Activated.sql" />
+    <Build Include="Procedures\dbo.sp_SpatialAttention.sql" />
+    <Build Include="Procedures\dbo.sp_SpatialNextToken.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateTextSpatial.sql" />
+    <Build Include="Procedures\dbo.sp_ExactVectorSearch.sql" />
+    <Build Include="Procedures\dbo.sp_ApproxSpatialSearch.sql" />
+    <Build Include="Procedures\dbo.sp_QueryModelWeights.sql" />
+    <Build Include="Tables\dbo.EventHubCheckpoints.sql" />
+    <Build Include="Procedures\dbo.sp_ManageHartonomousIndexes.sql" />
+    <Build Include="Procedures\provenance.clr_CreateAtomicStream.sql" />
+    <Build Include="Procedures\provenance.clr_AppendAtomicStreamSegment.sql" />
+    <Build Include="Procedures\provenance.AtomicStreamSegments.sql" />
+    <Build Include="ServiceBroker\Neo4jSyncRequest.sql" />
+    <Build Include="ServiceBroker\Neo4jSyncContract.sql" />
+    <Build Include="ServiceBroker\Neo4jSyncQueue.sql" />
+    <Build Include="ServiceBroker\Neo4jSyncService.sql" />
+    <Build Include="Procedures\dbo.sp_ForwardToNeo4j_Activated.sql" />
+    <Build Include="Procedures\dbo.sp_EnqueueNeo4jSync.sql" />
+    <Build Include="Procedures\dbo.sp_ValidateOperationProvenance.sql" />
+    <Build Include="Procedures\dbo.sp_AuditProvenanceChain.sql" />
+    <Build Include="Procedures\dbo.sp_ReconstructOperationTimeline.sql" />
+    <Build Include="Procedures\dbo.sp_ChainOfThoughtReasoning.sql" />
+    <Build Include="Procedures\dbo.sp_SelfConsistencyReasoning.sql" />
+    <Build Include="Procedures\dbo.sp_MultiPathReasoning.sql" />
+    <Build Include="Procedures\dbo.sp_SemanticSearch.sql" />
+    <Build Include="Tables\dbo.SemanticFeatures.sql" />
+    <Build Include="Tables\dbo.TopicKeywords.sql" />
+    <Build Include="Procedures\dbo.sp_ComputeSemanticFeatures.sql" />
+    <Build Include="Procedures\dbo.sp_ComputeAllSemanticFeatures.sql" />
+    <Build Include="Procedures\dbo.sp_SemanticFilteredSearch.sql" />
+    <Build Include="Procedures\dbo.CreateLineStringFromWeights.sql" />
+    <Build Include="Procedures\dbo.CreateMultiLineStringFromWeights.sql" />
+    <Build Include="Procedures\dbo.fn_ProjectTo3D.sql" />
+    <Build Include="Procedures\dbo.sp_OrchestrateSensorStream.sql" />
+    <Build Include="Procedures\dbo.sp_FuseMultiModalStreams.sql" />
+    <Build Include="Procedures\dbo.sp_GenerateEventsFromStream.sql" />
+    <Build Include="Tables\dbo.AgentTools.sql" />
+    <Build Include="Tables\dbo.AtomEmbeddingComponents.sql" />
+    <Build Include="Tables\dbo.AtomEmbeddings.sql" />
+    <Build Include="Tables\dbo.AtomicAudioSamples.sql" />
+    <Build Include="Tables\dbo.AtomicPixels.sql" />
+    <Build Include="Tables\dbo.AtomicTextTokens.sql" />
+    <Build Include="Tables\dbo.AtomPayloadStore.sql" />
+    <Build Include="Tables\dbo.AtomRelations.sql" />
+    <Build Include="Tables\dbo.Atoms.sql" />
+    <Build Include="Tables\dbo.AudioData.sql" />
+    <Build Include="Tables\dbo.AudioFrames.sql" />
+    <Build Include="Tables\dbo.AutonomousImprovementHistory.sql" />
+    <Build Include="Tables\dbo.BillingMultipliers.sql" />
+    <Build Include="Tables\dbo.BillingOperationRates.sql" />
+    <Build Include="Tables\dbo.BillingRatePlans.sql" />
+    <Build Include="Tables\dbo.BillingUsageLedger.sql" />
+    <Build Include="Tables\dbo.CachedActivations.sql" />
+    <Build Include="Tables\dbo.CodeAtoms.sql" />
+    <Build Include="Tables\dbo.DeduplicationPolicies.sql" />
+    <Build Include="Tables\dbo.ImagePatches.sql" />
+    <Build Include="Tables\dbo.Images.sql" />
+    <Build Include="Tables\dbo.InferenceCache.sql" />
+    <Build Include="Tables\dbo.InferenceRequests.sql" />
+    <Build Include="Tables\dbo.InferenceSteps.sql" />
+    <Build Include="Tables\dbo.IngestionJobAtoms.sql" />
+    <Build Include="Tables\dbo.IngestionJobs.sql" />
+    <Build Include="Tables\dbo.LayerTensorSegments.sql" />
+    <Build Include="Tables\dbo.ModelLayers.sql" />
+    <Build Include="Tables\dbo.ModelMetadata.sql" />
+    <Build Include="Tables\dbo.Models.sql" />
+    <Build Include="Tables\dbo.TenantSecurityPolicy.sql" />
+    <Build Include="Tables\dbo.TensorAtomCoefficients.sql" />
+    <Build Include="Tables\dbo.TensorAtoms.sql" />
+    <Build Include="Tables\dbo.TextDocuments.sql" />
+    <Build Include="Tables\dbo.TokenVocabulary.sql" />
+    <Build Include="Tables\dbo.VideoFrames.sql" />
+    <Build Include="Tables\dbo.Videos.sql" />
+    <Build Include="Tables\graph.AtomGraphEdges.sql" />
+    <Build Include="Tables\graph.AtomGraphNodes.sql" />
+    <Build Include="Tables\provenance.Concepts.sql" />
+    <Build Include="Tables\provenance.GenerationStreams.sql" />
+    <Build Include="Types\provenance.AtomicStream.sql" />
+    <Build Include="Types\provenance.ComponentStream.sql" />
+  </ItemGroup>
+  <!-- Deployment scripts -->
   <ItemGroup>
     <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
+    <PostDeploy Include="Scripts\Post-Deployment\Script.PostDeployment.sql" />
   </ItemGroup>
-
-  <!-- Exclude files that need runtime execution or have unresolved issues -->
-  <ItemGroup>
-    <!-- Post-deployment ALTER scripts (cannot compile in DACPAC) -->
-    <Build Remove="Scripts\Post-Deployment\**" />
-    
-    <!-- Migration scripts with ALTER DATABASE and complex logic incompatible with DACPAC -->
-    <Build Remove="Tables\dbo.BillingUsageLedger_InMemory.sql" />
-    <Build Remove="Tables\dbo.BillingUsageLedger_Migrate_to_Ledger.sql" />
-    <Build Remove="Tables\dbo.TestResults.sql" />
-    
-    <!-- Procedures directory has multi-procedure files - needs splitting into one-per-file -->
-    <Build Remove="Procedures\**" />
-    
-    <!-- CLR UDTs and tables using them (deployed via CLR deployment script) -->
-    <Build Remove="Types\provenance.AtomicStream.sql" />
-    <Build Remove="Types\provenance.ComponentStream.sql" />
-    <Build Remove="Tables\provenance.GenerationStreams.sql" />
-    
-    <!-- ALTER scripts with runtime logic (GO separators, IF EXISTS, ALTER statements) -->
-    <Build Remove="Tables\TensorAtomCoefficients_Temporal.sql" />
-    <Build Remove="Tables\Temporal_Tables_Add_Retention_and_Columnstore.sql" />
-    <Build Remove="Tables\Stream.StreamOrchestrationTables.sql" />
-    <Build Remove="Tables\Reasoning.ReasoningFrameworkTables.sql" />
-    <Build Remove="Tables\Provenance.ProvenanceTrackingTables.sql" />
-    <Build Remove="Tables\Attention.AttentionGenerationTables.sql" />
-    <Build Remove="Tables\graph.AtomGraphEdges_Add_PseudoColumn_Indexes.sql" />
-    
-    <!-- Tables with IF EXISTS/DROP patterns or FILESTREAM references -->
-    <Build Remove="Tables\provenance.Concepts.sql" />
-    <Build Remove="Tables\graph.AtomGraphNodes.sql" />
-    <Build Remove="Tables\graph.AtomGraphEdges.sql" />
-    <Build Remove="Tables\dbo.Weights.sql" />
-    <Build Remove="Tables\dbo.TokenVocabulary.sql" />
-    <Build Remove="Tables\dbo.TensorAtomPayloads.sql" />
-    <Build Remove="Tables\dbo.TenantSecurityPolicy.sql" />
-    <Build Remove="Tables\dbo.SpatialLandmarks.sql" />
-    <Build Remove="Tables\dbo.SessionPaths.sql" />
-    <Build Remove="Tables\dbo.PendingActions.sql" />
-    <Build Remove="Tables\dbo.ModelStructure.sql" />
-    <Build Remove="Tables\dbo.InferenceTracking.sql" />
-    <Build Remove="Tables\dbo.BillingUsageLedger.sql" />
-    <Build Remove="Tables\dbo.AutonomousImprovementHistory.sql" />
-    <Build Remove="Tables\dbo.AutonomousComputeJobs.sql" />
-    <Build Remove="Tables\dbo.Atoms.sql" />
-    <Build Remove="Tables\dbo.AtomEmbeddings.sql" />
-    <Build Remove="Tables\dbo.AtomPayloadStore.sql" />
-  </ItemGroup>
-
 </Project>

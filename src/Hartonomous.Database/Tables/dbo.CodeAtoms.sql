@@ -1,0 +1,20 @@
+CREATE TABLE [dbo].[CodeAtoms] (
+    [CodeAtomId]         BIGINT           NOT NULL IDENTITY,
+    [Language]           NVARCHAR (50)    NOT NULL,
+    [Code]               TEXT             NOT NULL,
+    [Framework]          NVARCHAR (200)   NULL,
+    [Description]        NVARCHAR (2000)  NULL,
+    [CodeType]           NVARCHAR (100)   NULL,
+    [Embedding]          GEOMETRY         NULL,
+    [EmbeddingDimension] INT              NULL,
+    [TestResults]        NVARCHAR(MAX)    NULL,
+    [QualityScore]       REAL             NULL,
+    [UsageCount]         INT              NOT NULL DEFAULT 0,
+    [CodeHash]           VARBINARY (32)   NULL,
+    [SourceUri]          NVARCHAR (2048)  NULL,
+    [Tags]               NVARCHAR(MAX)    NULL,
+    [CreatedAt]          DATETIME2 (7)    NOT NULL DEFAULT (SYSUTCDATETIME()),
+    [UpdatedAt]          DATETIME2 (7)    NULL,
+    [CreatedBy]          NVARCHAR (200)   NULL,
+    CONSTRAINT [PK_CodeAtoms] PRIMARY KEY CLUSTERED ([CodeAtomId] ASC)
+);

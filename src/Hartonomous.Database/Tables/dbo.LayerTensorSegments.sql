@@ -1,0 +1,22 @@
+CREATE TABLE [dbo].[LayerTensorSegments] (
+    [LayerTensorSegmentId] BIGINT           NOT NULL IDENTITY,
+    [LayerId]              BIGINT           NOT NULL,
+    [SegmentOrdinal]       INT              NOT NULL,
+    [PointOffset]          BIGINT           NOT NULL,
+    [PointCount]           INT              NOT NULL,
+    [QuantizationType]     NVARCHAR (20)    NOT NULL,
+    [QuantizationScale]    FLOAT (53)       NULL,
+    [QuantizationZeroPoint]FLOAT (53)       NULL,
+    [ZMin]                 FLOAT (53)       NULL,
+    [ZMax]                 FLOAT (53)       NULL,
+    [MMin]                 FLOAT (53)       NULL,
+    [MMax]                 FLOAT (53)       NULL,
+    [MortonCode]           BIGINT           NULL,
+    [GeometryFootprint]    GEOMETRY         NULL,
+    [RawPayload]           VARBINARY (MAX)  FILESTREAM NOT NULL,
+    [PayloadRowGuid]       UNIQUEIDENTIFIER ROWGUIDCOL NOT NULL DEFAULT (NEWSEQUENTIALID()),
+    [CreatedAt]            DATETIME2 (7)    NOT NULL DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT [PK_LayerTensorSegments] PRIMARY KEY CLUSTERED ([LayerTensorSegmentId] ASC),
+    CONSTRAINT [UX_LayerTensorSegments_PayloadRowGuid] UNIQUE NONCLUSTERED ([PayloadRowGuid] ASC),
+    CONSTRAINT [FK_LayerTensorSegments_ModelLayers_LayerId] FOREIGN KEY ([LayerId]) REFERENCES [dbo].[ModelLayers] ([LayerId]) ON DELETE CASCADE
+);

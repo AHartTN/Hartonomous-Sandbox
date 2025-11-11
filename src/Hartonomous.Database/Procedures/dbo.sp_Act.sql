@@ -227,7 +227,7 @@ BEGIN
                         DEALLOCATE plan_cursor;
                     END
                     
-                    SET @ExecutedActionsList = JSON_OBJECT('forcedPlans': @ForcedPlansCount);
+                    SET @ExecutedActionsList = (SELECT @ForcedPlansCount AS forcedPlans FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'Executed';
                 END
                 
@@ -237,12 +237,13 @@ BEGIN
                     -- Preload frequent embeddings into buffer pool
                     DECLARE @PreloadedCount INT = 0;
                     
-                    SELECT TOP 1000 @PreloadedCount = COUNT(*)
-                    FROM dbo.AtomEmbeddings WITH (NOLOCK)
-                    WHERE LastAccessedUtc >= DATEADD(DAY, -7, SYSUTCDATETIME())
-                    ORDER BY LastAccessedUtc DESC;
+                    SELECT @PreloadedCount = COUNT(*)
+                    FROM (SELECT TOP 1000 CacheId 
+                          FROM dbo.InferenceCache WITH (NOLOCK)
+                          WHERE LastAccessUtc >= DATEADD(DAY, -7, SYSUTCDATETIME())
+                          ORDER BY LastAccessUtc DESC) AS FrequentCache;
                     
-                    SET @ExecutedActionsList = JSON_OBJECT('preloadedEmbeddings': @PreloadedCount);
+                    SET @ExecutedActionsList = (SELECT @PreloadedCount AS preloadedEmbeddings FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'Executed';
                 END
                 
@@ -255,9 +256,9 @@ BEGIN
                     -- For now, just detect clusters via spatial buckets
                     SELECT @DiscoveredConcepts = COUNT(DISTINCT SpatialBucket)
                     FROM dbo.AtomEmbeddings
-                    WHERE CreatedUtc >= DATEADD(DAY, -7, SYSUTCDATETIME());
+                    WHERE CreatedAt >= DATEADD(DAY, -7, SYSUTCDATETIME());
                     
-                    SET @ExecutedActionsList = JSON_OBJECT('discoveredClusters': @DiscoveredConcepts);
+                    SET @ExecutedActionsList = (SELECT @DiscoveredConcepts AS discoveredClusters FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'Executed';
                 END
                 
@@ -266,13 +267,13 @@ BEGIN
                 BEGIN
                     -- Insert into approval queue (table to be created)
                     -- For now, just log the request
-                    SET @ExecutedActionsList = JSON_OBJECT('status': 'QueuedForApproval', 'reason': 'ModelRetraining requires manual approval');
+                    SET @ExecutedActionsList = (SELECT 'QueuedForApproval' AS status, 'ModelRetraining requires manual approval' AS reason FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'QueuedForApproval';
                 END
                 
                 ELSE
                 BEGIN
-                    SET @ExecutedActionsList = JSON_OBJECT('status': 'Skipped', 'reason': 'Unknown hypothesis type');
+                    SET @ExecutedActionsList = (SELECT 'Skipped' AS status, 'Unknown hypothesis type' AS reason FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'Skipped';
                 END
                 
@@ -280,7 +281,7 @@ BEGIN
             BEGIN CATCH
                 SET @ActionError = ERROR_MESSAGE();
                 SET @ActionStatus = 'Failed';
-                SET @ExecutedActionsList = JSON_OBJECT('error': @ActionError);
+                SET @ExecutedActionsList = (SELECT @ActionError AS error FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
             END CATCH
             
             SET @ExecutionTimeMs = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
@@ -307,14 +308,21 @@ BEGIN
             FOR JSON PATH
         );
         
-        DECLARE @ActPayload NVARCHAR(MAX) = JSON_OBJECT(
-            'analysisId': @AnalysisId,
-            'originalHypothesisPayload': JSON_QUERY(@HypothesesJson),
-            'executedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed'),
-            'queuedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'QueuedForApproval'),
-            'failedActions': (SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Failed'),
-            'results': JSON_QUERY(@ExecutionResults),
-            'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
+        DECLARE @ExecutedCount INT, @QueuedCount INT, @FailedCount INT;
+        SELECT @ExecutedCount = COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed';
+        SELECT @QueuedCount = COUNT(*) FROM @ActionResults WHERE ActionStatus = 'QueuedForApproval';
+        SELECT @FailedCount = COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Failed';
+        
+        DECLARE @ActPayload NVARCHAR(MAX) = (
+            SELECT 
+                @AnalysisId AS analysisId,
+                JSON_QUERY(@HypothesesJson) AS originalHypothesisPayload,
+                @ExecutedCount AS executedActions,
+                @QueuedCount AS queuedActions,
+                @FailedCount AS failedActions,
+                JSON_QUERY(@ExecutionResults) AS results,
+                FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS timestamp
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         );
         
         -- 6. SEND TO LEARN QUEUE
@@ -334,7 +342,9 @@ BEGIN
         -- 7. END ORIGINAL CONVERSATION
         END CONVERSATION @ConversationHandle;
         
-        PRINT 'sp_Act completed: ' + CAST((SELECT COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed') AS VARCHAR(10)) + ' actions executed';
+        DECLARE @ExecutedActionsCount INT;
+        SELECT @ExecutedActionsCount = COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed';
+        PRINT 'sp_Act completed: ' + CAST(@ExecutedActionsCount AS VARCHAR(10)) + ' actions executed';
         PRINT 'Execution Results: ' + @ExecutionResults;
         
         RETURN 0;

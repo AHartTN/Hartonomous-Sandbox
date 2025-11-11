@@ -1,0 +1,4 @@
+CREATE QUEUE [InferenceQueue]
+WITH STATUS = ON,
+     RETENTION = OFF;
+GO

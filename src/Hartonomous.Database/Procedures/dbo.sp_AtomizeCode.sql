@@ -22,18 +22,18 @@ BEGIN
         -- ==========================================================================================
         -- Phase 1: Retrieve source code from Atom
         -- ==========================================================================================
-        DECLARE @CanonicalText NVARCHAR(MAX);
-        DECLARE @Modality NVARCHAR(64);
+        DECLARE @SourceCode NVARCHAR(MAX);
+        DECLARE @ContentType NVARCHAR(100);
         
         SELECT 
-            @CanonicalText = CanonicalText,
-            @Modality = Modality
+            @SourceCode = CAST(Content AS NVARCHAR(MAX)),
+            @ContentType = ContentType
         FROM dbo.Atoms
         WHERE AtomId = @AtomId AND TenantId = @TenantId;
 
-        IF @CanonicalText IS NULL
+        IF @SourceCode IS NULL
         BEGIN
-            RAISERROR('AtomId %I64d not found or has no canonical text.', 16, 1, @AtomId);
+            RAISERROR('AtomId %I64d not found or has no content.', 16, 1, @AtomId);
             RETURN;
         END
 
@@ -41,7 +41,7 @@ BEGIN
         -- Phase 2: Generate AST structural vector using Roslyn CLR function
         -- ==========================================================================================
         DECLARE @AstVectorJson NVARCHAR(MAX);
-        SET @AstVectorJson = dbo.clr_GenerateCodeAstVector(@CanonicalText);
+        SET @AstVectorJson = dbo.clr_GenerateCodeAstVector(@SourceCode);
 
         IF @AstVectorJson IS NULL OR JSON_VALUE(@AstVectorJson, '$.error') IS NOT NULL
         BEGIN

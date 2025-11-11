@@ -1,0 +1,20 @@
+CREATE TABLE [dbo].[Images] (
+    [ImageId]            BIGINT           NOT NULL IDENTITY,
+    [SourcePath]         NVARCHAR (500)   NULL,
+    [SourceUrl]          NVARCHAR (1000)  NULL,
+    [Width]              INT              NOT NULL,
+    [Height]             INT              NOT NULL,
+    [Channels]           INT              NOT NULL,
+    [Format]             NVARCHAR (20)    NULL,
+    [PixelCloud]         GEOMETRY         NULL,
+    [EdgeMap]            GEOMETRY         NULL,
+    [ObjectRegions]      GEOMETRY         NULL,
+    [SaliencyRegions]    GEOMETRY         NULL,
+    [GlobalEmbedding]    VARBINARY(MAX)   NULL,
+    [GlobalEmbeddingDim] INT              NULL,
+    [Metadata]           NVARCHAR(MAX)    NULL,
+    [IngestionDate]      DATETIME2 (7)    NULL DEFAULT (SYSUTCDATETIME()),
+    [LastAccessed]       DATETIME2 (7)    NULL,
+    [AccessCount]        BIGINT           NOT NULL DEFAULT CAST(0 AS BIGINT),
+    CONSTRAINT [PK_Images] PRIMARY KEY CLUSTERED ([ImageId] ASC)
+);

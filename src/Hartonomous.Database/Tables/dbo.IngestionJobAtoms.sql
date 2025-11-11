@@ -1,0 +1,10 @@
+CREATE TABLE [dbo].[IngestionJobAtoms] (
+    [IngestionJobAtomId] BIGINT           NOT NULL IDENTITY,
+    [IngestionJobId]     BIGINT           NOT NULL,
+    [AtomId]             BIGINT           NOT NULL,
+    [WasDuplicate]       BIT              NOT NULL,
+    [Notes]              NVARCHAR (1024)  NULL,
+    CONSTRAINT [PK_IngestionJobAtoms] PRIMARY KEY CLUSTERED ([IngestionJobAtomId] ASC),
+    CONSTRAINT [FK_IngestionJobAtoms_Atoms_AtomId] FOREIGN KEY ([AtomId]) REFERENCES [dbo].[Atoms] ([AtomId]),
+    CONSTRAINT [FK_IngestionJobAtoms_IngestionJobs_IngestionJobId] FOREIGN KEY ([IngestionJobId]) REFERENCES [dbo].[IngestionJobs] ([IngestionJobId]) ON DELETE CASCADE
+);

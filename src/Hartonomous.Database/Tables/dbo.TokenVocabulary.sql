@@ -1,13 +1,13 @@
-CREATE TABLE dbo.TokenVocabulary (
-    TokenId INT IDENTITY(1,1) NOT NULL,
-    Token NVARCHAR(256) NOT NULL,
-    VocabularyName NVARCHAR(128) NOT NULL DEFAULT 'default',
-    Frequency INT NOT NULL DEFAULT 1,
-    DimensionIndex INT NOT NULL,
-    IDF FLOAT NULL,
-    CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT PK_TokenVocabulary PRIMARY KEY CLUSTERED (TokenId),
-    INDEX IX_TokenVocabulary_Token (VocabularyName, Token),
-    INDEX IX_TokenVocabulary_Dimension (DimensionIndex)
+CREATE TABLE [dbo].[TokenVocabulary] (
+    [VocabId]     BIGINT         NOT NULL IDENTITY,
+    [ModelId]     INT            NOT NULL,
+    [Token]       NVARCHAR (100) NOT NULL,
+    [TokenId]     INT            NOT NULL,
+    [TokenType]   NVARCHAR (20)  NULL,
+    [Embedding]   VARBINARY(MAX) NULL,
+    [EmbeddingDim]INT            NULL,
+    [Frequency]   BIGINT         NOT NULL DEFAULT CAST(0 AS BIGINT),
+    [LastUsed]    DATETIME2 (7)  NULL,
+    CONSTRAINT [PK_TokenVocabulary] PRIMARY KEY CLUSTERED ([VocabId] ASC),
+    CONSTRAINT [FK_TokenVocabulary_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Models] ([ModelId]) ON DELETE CASCADE
 );

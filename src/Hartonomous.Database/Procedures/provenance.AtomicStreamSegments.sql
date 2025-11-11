@@ -1,8 +1,4 @@
-IF OBJECT_ID('provenance.clr_AtomicStreamSegments', 'TF') IS NOT NULL
-    DROP FUNCTION provenance.clr_AtomicStreamSegments;
-GO
-
-CREATE FUNCTION provenance.clr_AtomicStreamSegments(@stream provenance.AtomicStream)
+CREATE FUNCTION provenance.clr_AtomicStreamSegments(@stream VARBINARY(MAX)) -- TODO: Change back to provenance.AtomicStream
 RETURNS TABLE
 (
     segment_ordinal INT,

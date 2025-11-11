@@ -1,0 +1,8 @@
+ALTER QUEUE [Neo4jSyncQueue]
+WITH ACTIVATION (
+    STATUS = ON,
+    PROCEDURE_NAME = dbo.sp_ForwardToNeo4j_Activated,
+    MAX_QUEUE_READERS = 3,
+    EXECUTE AS OWNER
+);
+GO

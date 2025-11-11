@@ -1,19 +1,15 @@
-CREATE TABLE dbo.TenantSecurityPolicy (
-    TenantId INT NOT NULL,
-    AllowUnsafeClr BIT NOT NULL DEFAULT 0,
-    AllowShellCommands BIT NOT NULL DEFAULT 0,
-    AllowFileSystemAccess BIT NOT NULL DEFAULT 0,
-    AllowNetworkAccess BIT NOT NULL DEFAULT 0,
-    ShellCommandWhitelist JSON,
-    FilePathWhitelist JSON,
-    NetworkEndpointWhitelist JSON,
-    AuditLevel TINYINT NOT NULL DEFAULT 2,
-    LogRetentionDays INT NOT NULL DEFAULT 90,
-    CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    UpdatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CreatedBy NVARCHAR(256),
-    UpdatedBy NVARCHAR(256),
-    CONSTRAINT PK_TenantSecurityPolicy PRIMARY KEY (TenantId),
-    CONSTRAINT CK_TenantSecurityPolicy_AuditLevel CHECK (AuditLevel BETWEEN 0 AND 3),
-    INDEX IX_TenantSecurityPolicy_TenantId (TenantId) INCLUDE (AllowUnsafeClr, AllowShellCommands, AllowFileSystemAccess)
+CREATE TABLE [dbo].[TenantSecurityPolicy] (
+    [PolicyId]    INT            NOT NULL IDENTITY,
+    [TenantId]    NVARCHAR (128) NOT NULL,
+    [PolicyName]  NVARCHAR (100) NOT NULL,
+    [PolicyType]  NVARCHAR (50)  NOT NULL,
+    [PolicyRules] NVARCHAR (MAX) NOT NULL,
+    [IsActive]    BIT            NOT NULL DEFAULT CAST(1 AS BIT),
+    [EffectiveFrom] DATETIME2 (7)  NULL,
+    [EffectiveTo] DATETIME2 (7)  NULL,
+    [CreatedUtc]  DATETIME2 (7)  NOT NULL DEFAULT (SYSUTCDATETIME()),
+    [UpdatedUtc]  DATETIME2 (7)  NULL,
+    [CreatedBy]   NVARCHAR (256) NULL,
+    [UpdatedBy]   NVARCHAR (256) NULL,
+    CONSTRAINT [PK_TenantSecurityPolicy] PRIMARY KEY CLUSTERED ([PolicyId] ASC)
 );

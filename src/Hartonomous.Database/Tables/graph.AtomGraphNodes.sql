@@ -1,14 +1,17 @@
-CREATE TABLE graph.AtomGraphNodes (
-    NodeId BIGINT IDENTITY(1,1) NOT NULL,
-    AtomId BIGINT NOT NULL,
-    NodeType NVARCHAR(50) NOT NULL,
-    Metadata JSON,
-    EmbeddingX FLOAT NULL,
-    EmbeddingY FLOAT NULL,
-    EmbeddingZ FLOAT NULL,
-    CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT PK_AtomGraphNodes PRIMARY KEY (NodeId),
-    CONSTRAINT CK_AtomGraphNodes_NodeType CHECK (NodeType IN ('Atom', 'Model', 'Concept', 'Component', 'Embedding')),
-    INDEX IX_AtomGraphNodes_AtomId (AtomId),
-    INDEX IX_AtomGraphNodes_NodeType (NodeType)
+CREATE TABLE graph.AtomGraphNodes
+(
+    AtomId              BIGINT          NOT NULL,
+    Modality            NVARCHAR(64)    NOT NULL,
+    Subtype             NVARCHAR(64)    NULL,
+    SourceType          NVARCHAR(128)   NULL,
+    SourceUri           NVARCHAR(2048)  NULL,
+    PayloadLocator      NVARCHAR(512)   NULL,
+    CanonicalText       NVARCHAR(MAX)   NULL,
+    Metadata            NVARCHAR(MAX)   NULL,
+    Semantics           NVARCHAR(MAX)   NULL,
+    SpatialKey          GEOMETRY        NULL,
+    CreatedAt           DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedAt           DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    CONSTRAINT UX_AtomGraphNodes_AtomId UNIQUE (AtomId)
 ) AS NODE;
+GO

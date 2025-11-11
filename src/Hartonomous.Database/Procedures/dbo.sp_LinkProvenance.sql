@@ -1,0 +1,53 @@
+CREATE PROCEDURE dbo.sp_LinkProvenance
+    @ParentAtomIds NVARCHAR(MAX),
+    @ChildAtomId BIGINT,
+    @DependencyType NVARCHAR(50) = 'DerivedFrom',
+    @TenantId INT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        DECLARE @ParentAtoms TABLE (AtomId BIGINT);
+        
+        INSERT INTO @ParentAtoms
+        SELECT CAST(value AS BIGINT)
+        FROM STRING_SPLIT(@ParentAtomIds, ',');
+        
+        INSERT INTO provenance.AtomGraphEdges ($from_id, $to_id, DependencyType, TenantId)
+        SELECT 
+            pa.AtomId,
+            @ChildAtomId,
+            @DependencyType,
+            @TenantId
+        FROM @ParentAtoms pa
+        WHERE NOT EXISTS (
+            SELECT 1 
+            FROM provenance.AtomGraphEdges edge
+            WHERE edge.$from_id = pa.AtomId 
+                  AND edge.$to_id = @ChildAtomId
+        );
+        
+        DECLARE @EdgesCreated INT = @@ROWCOUNT;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 
+            @ChildAtomId AS ChildAtomId,
+            @EdgesCreated AS EdgesCreated,
+            @DependencyType AS DependencyType;
+        
+        RETURN 0;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        RAISERROR(@ErrorMessage, 16, 1);
+        RETURN -1;
+    END CATCH
+END;
+GO

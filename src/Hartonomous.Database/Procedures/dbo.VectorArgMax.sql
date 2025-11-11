@@ -1,0 +1,7 @@
+CREATE FUNCTION dbo.VectorArgMax (@v VARBINARY(MAX))
+RETURNS INT
+AS
+BEGIN
+    RETURN dbo.clr_VectorArgMax(@v);
+END;
+GO

@@ -33,7 +33,7 @@ BEGIN
         END
 
         DECLARE @rows INT, @cols INT;
-        SELECT @rows = NeuronCount, @cols = NeuronCount -- Assuming square matrix for now
+        SELECT @rows = ParameterCount, @cols = ParameterCount -- Assuming square matrix for now
         FROM dbo.ModelLayers
         WHERE LayerId = @parent_layer_id;
 

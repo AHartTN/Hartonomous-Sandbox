@@ -85,7 +85,7 @@ BEGIN
             DATEADD(MILLISECOND, ISNULL(ir.TotalDurationMs, 0), ir.RequestTimestamp) AS CompletedAt,
             ISNULL(ir.TotalDurationMs, 0) AS DurationMs,
             -- Estimate token count: ~4 chars per token for English text
-            (LEN(ISNULL(ir.InputData, '')) + LEN(ISNULL(ir.OutputData, ''))) / 4 AS TokenCount,
+            (LEN(CAST(ir.InputData AS NVARCHAR(MAX))) + LEN(CAST(ir.OutputData AS NVARCHAR(MAX)))) / 4 AS TokenCount,
             -- Create performance vector for anomaly detection
             -- [duration_normalized, tokens_normalized, hour_of_day, day_of_week, ...]
             CAST(NULL AS VECTOR(1998)) -- Placeholder, would compute actual vector
@@ -215,14 +215,14 @@ BEGIN
             SELECT 
                 reason AS RecommendationType,
                 score AS ImpactScore,
-                state_desc AS RecommendationState,
+                state AS RecommendationState,
                 JSON_VALUE(details, '$.planForceDetails.queryId') AS QueryId,
                 JSON_VALUE(details, '$.planForceDetails.regressedPlanId') AS RegressedPlanId,
                 JSON_VALUE(details, '$.planForceDetails.recommendedPlanId') AS RecommendedPlanId,
                 JSON_VALUE(details, '$.implementationDetails.script') AS ForceScript
             FROM sys.dm_db_tuning_recommendations
             WHERE is_executable_action = 1
-                AND state_desc = 'Active'
+                AND state = 1  -- Active state
             FOR JSON PATH
         );
         
@@ -242,19 +242,17 @@ BEGIN
         );
         
         -- 4. COMPILE OBSERVATIONS
-        SET @Observations = (
-            SELECT 
-                @AnalysisId AS analysisId,
-                @AnalysisScope AS scope,
-                @LookbackHours AS lookbackHours,
-                (SELECT COUNT(*) FROM @RecentInferences) AS totalInferences,
-                @AvgDurationMs AS avgDurationMs,
-                (SELECT COUNT(*) FROM OPENJSON(@Anomalies)) AS anomalyCount,
-                JSON_QUERY(@Anomalies) AS anomalies,
-                JSON_QUERY(@QueryStoreRecommendations) AS queryStoreRecommendations,
-                JSON_QUERY(@Patterns) AS patterns,
-                FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS timestamp
-            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        SET @Observations = JSON_OBJECT(
+            'analysisId': @AnalysisId,
+            'scope': @AnalysisScope,
+            'lookbackHours': @LookbackHours,
+            'totalInferences': (SELECT COUNT(*) FROM @RecentInferences),
+            'avgDurationMs': @AvgDurationMs,
+            'anomalyCount': (SELECT COUNT(*) FROM OPENJSON(@Anomalies)),
+            'anomalies': JSON_QUERY(@Anomalies),
+            'queryStoreRecommendations': JSON_QUERY(@QueryStoreRecommendations),
+            'patterns': JSON_QUERY(@Patterns),
+            'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
         );
         
         -- 5. SEND TO HYPOTHESIZE QUEUE

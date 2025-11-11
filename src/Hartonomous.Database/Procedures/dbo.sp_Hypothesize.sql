@@ -1,8 +1,3 @@
--- sp_Hypothesize: Autonomous loop Phase 2 - Orient & Hypothesize
--- Receives observations from sp_Analyze
--- Generates hypotheses about system improvements
--- Sends ActMessage to Service Broker for execution phase
-
 CREATE OR ALTER PROCEDURE dbo.sp_Hypothesize
     @TenantId INT = 0
 AS
@@ -146,8 +141,8 @@ BEGIN
                     'IndexOptimization',
                     1,
                     'High number of performance anomalies detected. Missing indexes may be causing slow queries.',
-                    JSON_OBJECT('latencyReduction': '50-70%', 'throughputIncrease': '30-50%'),
-                    JSON_ARRAY('AnalyzeMissingIndexes', 'CreateRecommendedIndexes', 'UpdateStatistics')
+                    '{"latencyReduction": "50-70%", "throughputIncrease": "30-50%"}',
+                    '["AnalyzeMissingIndexes", "CreateRecommendedIndexes", "UpdateStatistics"]'
                 );
             END
         
@@ -159,8 +154,8 @@ BEGIN
                     'CacheWarming',
                     2,
                     'Average inference duration exceeds 1 second. Cache warming could reduce cold-start latency.',
-                    JSON_OBJECT('latencyReduction': '30-40%', 'cacheHitRate': '60-80%'),
-                    JSON_ARRAY('PreloadFrequentEmbeddings', 'EnableInMemoryOLTP', 'OptimizeBufferPool')
+                    '{"latencyReduction": "30-40%", "cacheHitRate": "60-80%"}',
+                    '["PreloadFrequentEmbeddings", "EnableInMemoryOLTP", "OptimizeBufferPool"]'
                 );
             END
         
@@ -177,8 +172,8 @@ BEGIN
                     'ConceptDiscovery',
                     3,
                     'Embedding clustering patterns detected. Unsupervised concept learning may reveal emergent semantics.',
-                    JSON_OBJECT('newConceptsExpected': @PatternCount, 'accuracyImprovement': '5-15%'),
-                    JSON_ARRAY('RunClusterAnalysis', 'ExtractConceptEmbeddings', 'BindConceptsToAtoms')
+                    '{"newConceptsExpected": ' + CAST(@PatternCount AS NVARCHAR(10)) + ', "accuracyImprovement": "5-15%"}',
+                    '["RunClusterAnalysis", "ExtractConceptEmbeddings", "BindConceptsToAtoms"]'
                 );
             END
         
@@ -191,8 +186,8 @@ BEGIN
                     'ModelRetraining',
                     4,
                     'High inference volume detected. Incremental model retraining may capture recent patterns.',
-                    JSON_OBJECT('accuracyImprovement': '3-8%', 'recentDataCoverage': '95%'),
-                    JSON_ARRAY('CollectRecentFeedback', 'IncrementalRetrain', 'ValidateModelDrift')
+                    '{"accuracyImprovement": "3-8%", "recentDataCoverage": "95%"}',
+                    '["CollectRecentFeedback", "IncrementalRetrain", "ValidateModelDrift"]'
                 );
             END
 
@@ -200,8 +195,8 @@ BEGIN
             DECLARE @PruneThreshold FLOAT = 0.01; -- Define a threshold for low importance
             DECLARE @PruneableAtoms NVARCHAR(MAX) = (
                 SELECT ta.TensorAtomId, tac.Coefficient
-                FROM dbo.TensorAtom ta
-                JOIN dbo.TensorAtomCoefficient tac ON ta.TensorAtomId = tac.TensorAtomId
+                FROM dbo.TensorAtoms ta
+                JOIN dbo.TensorAtomCoefficients tac ON ta.TensorAtomId = tac.TensorAtomId
                 WHERE tac.Coefficient < @PruneThreshold
                 FOR JSON PATH
             );
@@ -213,15 +208,15 @@ BEGIN
                     'PruneModel',
                     5,
                     'Identified tensor atoms with low importance coefficients. Pruning these may reduce model size and improve performance.',
-                    JSON_OBJECT('modelSizeReduction': '5-10%', 'inferenceSpeedup': '3-5%'),
-                    JSON_QUERY(@PruneableAtoms)
+                    '{"modelSizeReduction": "5-10%", "inferenceSpeedup": "3-5%"}',
+                    @PruneableAtoms
                 );
             END
 
             -- HYPOTHESIS 6: Refactor code based on duplicate AST signatures
             DECLARE @DuplicateCodeAtoms NVARCHAR(MAX) = (
                 SELECT TOP 10 SpatialSignature.ToString() AS Signature, COUNT(*) AS DuplicateCount
-                FROM dbo.CodeAtom
+                FROM dbo.CodeAtoms
                 GROUP BY SpatialSignature.ToString()
                 HAVING COUNT(*) > 1
                 ORDER BY COUNT(*) DESC
@@ -235,8 +230,8 @@ BEGIN
                     'RefactorCode',
                     6,
                     'Detected multiple code blocks with identical abstract syntax tree (AST) signatures, indicating duplicated logic.',
-                    JSON_OBJECT('codebaseReduction': '1-2%', 'maintainabilityIncrease': 'medium'),
-                    JSON_QUERY(@DuplicateCodeAtoms)
+                    '{"codebaseReduction": "1-2%", "maintainabilityIncrease": "medium"}',
+                    @DuplicateCodeAtoms
                 );
             END
 
@@ -257,11 +252,11 @@ BEGIN
                     'FixUX',
                     7,
                     'Detected user sessions terminating in a known error region of the state space.',
-                    JSON_OBJECT('userErrorRateReduction': '10-20%', 'sessionCompletionIncrease': '5%'),
-                    JSON_QUERY(@FailingSessions)
+                    '{"userErrorRateReduction": "10-20%", "sessionCompletionIncrease": "5%"}',
+                    @FailingSessions
                 );
             END
-        END
+        
         
         -- 4. COMPILE HYPOTHESES
         SELECT @Hypotheses = (

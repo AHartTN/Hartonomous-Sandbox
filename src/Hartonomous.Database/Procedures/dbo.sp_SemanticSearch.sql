@@ -1,0 +1,228 @@
+CREATE PROCEDURE dbo.sp_SemanticSearch
+    @query_text NVARCHAR(MAX) = NULL,
+    @query_embedding VARBINARY(MAX) = NULL,
+    @query_dimension INT = 768,
+    @top_k INT = 5,
+    @category NVARCHAR(50) = NULL,
+    @use_hybrid BIT = 1
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
+    DECLARE @InferenceId BIGINT;
+    DECLARE @ResultCount INT = 0;
+
+    IF @query_embedding IS NULL
+    BEGIN
+        IF @query_text IS NULL
+        BEGIN
+            RAISERROR('Either @query_embedding or @query_text must be provided.', 16, 1);
+            RETURN;
+        END;
+
+        RAISERROR('Text-to-embedding inference not implemented. Please provide @query_embedding parameter.', 16, 1);
+        RETURN;
+    END;
+
+    DECLARE @input_data NVARCHAR(MAX) = CASE
+        WHEN @query_text IS NULL THEN NULL
+        ELSE (SELECT @query_text FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+    END;
+
+    DECLARE @input_hash BINARY(32) = CASE
+        WHEN @query_text IS NULL THEN NULL
+        ELSE HASHBYTES('SHA2_256', CONVERT(VARBINARY(MAX), @query_text))
+    END;
+
+    DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
+    DECLARE @models_used_json NVARCHAR(MAX) = (SELECT @search_method as searchMethod FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+
+    INSERT INTO dbo.InferenceRequests (
+        TaskType,
+        InputData,
+        InputHash,
+        ModelsUsed,
+        EnsembleStrategy
+    )
+    VALUES (
+        'semantic_search',
+        @input_data,
+        @input_hash,
+        @models_used_json,
+        'spatial_filter_vector_rerank'
+    );
+
+    SET @InferenceId = SCOPE_IDENTITY();
+
+    DECLARE @Results TABLE
+    (
+        AtomEmbeddingId BIGINT NOT NULL,
+        AtomId BIGINT NOT NULL,
+        Modality NVARCHAR(128) NULL,
+        Subtype NVARCHAR(128) NULL,
+        SourceType NVARCHAR(128) NULL,
+        SourceUri NVARCHAR(2048) NULL,
+        CanonicalText NVARCHAR(MAX) NULL,
+        EmbeddingType NVARCHAR(128) NULL,
+        ModelId INT NULL,
+        ExactDistance FLOAT NULL,
+        SimilarityScore FLOAT NULL,
+        SpatialDistance FLOAT NULL,
+        SearchMethod NVARCHAR(50) NOT NULL
+    );
+
+    IF @use_hybrid = 1
+    BEGIN
+        DECLARE @spatial_x FLOAT = 0.0;
+        DECLARE @spatial_y FLOAT = 0.0;
+        DECLARE @spatial_z FLOAT = 0.0;
+        DECLARE @spatial_candidates INT = CASE WHEN @top_k IS NULL OR @top_k <= 0 THEN 10 ELSE @top_k * 10 END;
+
+        EXEC dbo.sp_ComputeSpatialProjection
+            @input_vector = @query_embedding,
+            @input_dimension = @query_dimension,
+            @output_x = @spatial_x OUTPUT,
+            @output_y = @spatial_y OUTPUT,
+            @output_z = @spatial_z OUTPUT;
+
+        DECLARE @Hybrid TABLE
+        (
+            AtomEmbeddingId BIGINT,
+            AtomId BIGINT,
+            Modality NVARCHAR(128),
+            Subtype NVARCHAR(128),
+            SourceUri NVARCHAR(2048),
+            SourceType NVARCHAR(128),
+            EmbeddingType NVARCHAR(128),
+            ModelId INT,
+            exact_distance FLOAT,
+            spatial_distance FLOAT
+        );
+
+        INSERT INTO @Hybrid
+        EXEC dbo.sp_HybridSearch
+            @query_vector = @query_embedding,
+            @query_dimension = @query_dimension,
+            @query_spatial_x = @spatial_x,
+            @query_spatial_y = @spatial_y,
+            @query_spatial_z = @spatial_z,
+            @spatial_candidates = @spatial_candidates,
+            @final_top_k = @top_k;
+
+        INSERT INTO @Results
+        (
+            AtomEmbeddingId,
+            AtomId,
+            Modality,
+            Subtype,
+            SourceType,
+            SourceUri,
+            CanonicalText,
+            EmbeddingType,
+            ModelId,
+            ExactDistance,
+            SimilarityScore,
+            SpatialDistance,
+            SearchMethod
+        )
+        SELECT
+            h.AtomEmbeddingId,
+            h.AtomId,
+            h.Modality,
+            h.Subtype,
+            h.SourceType,
+            h.SourceUri,
+            a.CanonicalText,
+            h.EmbeddingType,
+            h.ModelId,
+            h.exact_distance,
+            CASE WHEN h.exact_distance IS NULL THEN NULL ELSE 1.0 - h.exact_distance END,
+            h.spatial_distance,
+            'HYBRID_SPATIAL_VECTOR'
+        FROM @Hybrid AS h
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = h.AtomId
+        WHERE @category IS NULL
+           OR a.SourceType = @category
+           OR a.Subtype = @category;
+    END
+    ELSE
+    BEGIN
+        INSERT INTO @Results
+        (
+            AtomEmbeddingId,
+            AtomId,
+            Modality,
+            Subtype,
+            SourceType,
+            SourceUri,
+            CanonicalText,
+            EmbeddingType,
+            ModelId,
+            ExactDistance,
+            SimilarityScore,
+            SpatialDistance,
+            SearchMethod
+        )
+        SELECT TOP (@top_k)
+            ae.AtomEmbeddingId,
+            ae.AtomId,
+            a.Modality,
+            a.Subtype,
+            a.SourceType,
+            a.SourceUri,
+            a.CanonicalText,
+            ae.EmbeddingType,
+            ae.ModelId,
+            VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS distance,
+            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS similarity,
+            NULL,
+            'VECTOR_ONLY'
+        FROM dbo.AtomEmbeddings AS ae
+        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        WHERE ae.EmbeddingVector IS NOT NULL
+          AND ae.Dimension = @query_dimension
+          AND (@category IS NULL OR a.SourceType = @category OR a.Subtype = @category)
+        ORDER BY distance ASC;
+    END;
+
+    DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
+    SET @ResultCount = (SELECT COUNT(*) FROM @Results);
+
+    DECLARE @OutputMetadata NVARCHAR(MAX) = (
+        SELECT
+            'completed' as status,
+            @ResultCount as results_count,
+            @search_method as search_method,
+            @DurationMs as duration_ms
+        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+    );
+
+    UPDATE dbo.InferenceRequests
+    SET
+        TotalDurationMs = @DurationMs,
+        OutputMetadata = @OutputMetadata,
+        CacheHit = 0
+    WHERE InferenceId = @InferenceId;
+
+    SELECT
+        r.AtomEmbeddingId AS AtomEmbeddingId,
+        r.AtomId AS AtomId,
+        r.Modality,
+        r.Subtype,
+        r.SourceType,
+        r.SourceUri,
+        r.CanonicalText,
+        r.EmbeddingType,
+        r.ModelId,
+        r.ExactDistance AS CosineDistance,
+        r.SimilarityScore,
+        r.SpatialDistance,
+        r.SearchMethod,
+        @InferenceId AS InferenceId
+    FROM @Results AS r
+    ORDER BY r.ExactDistance;
+
+    SELECT @InferenceId AS InferenceId, @DurationMs AS DurationMs, @ResultCount AS ResultsCount;
+END
+GO
