@@ -119,6 +119,31 @@ public class AdvancedAudioAtomizer : IAudioAtomizer
             metadata["acousticFingerprint"] = fingerprint;
         }
 
+        // Extract audio features for quality assessment and semantic understanding
+        try
+        {
+            var features = await ExtractAudioFeaturesAsync(audioData, audioFormat);
+            if (features != null)
+            {
+                metadata["features"] = new Dictionary<string, object>
+                {
+                    ["zeroCrossingRate"] = features.ZeroCrossingRate,
+                    ["spectralCentroid"] = features.SpectralCentroid,
+                    ["spectralFlatness"] = features.SpectralFlatness,
+                    ["spectralRolloff"] = features.SpectralRolloff,
+                    ["spectralBandwidth"] = features.SpectralBandwidth,
+                    ["tempo"] = features.Tempo,
+                    ["bassFrequency"] = features.Tones.BassFrequency,
+                    ["midFrequency"] = features.Tones.MidFrequency,
+                    ["trebleFrequency"] = features.Tones.TrebleFrequency
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning($"Failed to extract audio features: {ex.Message}");
+        }
+
         yield return new AtomCandidate
         {
             Modality = "audio",
@@ -592,6 +617,53 @@ public class AdvancedAudioAtomizer : IAudioAtomizer
                     EndTime = TimeSpan.FromSeconds(audioData.Length / 32000.0)
                 }
             };
+        }
+    }
+
+    private async Task<AudioFeatures?> ExtractAudioFeaturesAsync(byte[] audioData, string audioFormat)
+    {
+        try
+        {
+            // Only support WAV for now (can extend to other formats later)
+            if (!audioFormat.Equals("wav", StringComparison.OrdinalIgnoreCase))
+            {
+                return null;
+            }
+
+            // Parse WAV header
+            var wavHeader = WavFileParser.ParseWavHeader(audioData);
+            if (wavHeader == null || wavHeader.SampleRate <= 0)
+            {
+                return null;
+            }
+
+            // Extract PCM samples and convert to float
+            var pcmSamples = WavFileParser.ExtractPcmSamples(audioData, wavHeader);
+            if (pcmSamples.Length == 0)
+            {
+                return null;
+            }
+
+            // Convert short[] to float[] (normalize to -1.0 to 1.0)
+            var floatSamples = new float[pcmSamples.Length];
+            for (int i = 0; i < pcmSamples.Length; i++)
+            {
+                floatSamples[i] = pcmSamples[i] / 32768.0f; // 16-bit normalization
+            }
+
+            // Extract features using AudioFeatureExtractor
+            var features = AudioFeatureExtractor.ExtractFeatures(
+                floatSamples,
+                wavHeader.SampleRate,
+                fftSize: 2048
+            );
+
+            return await Task.FromResult(features);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to extract audio features");
+            return null;
         }
     }
 
