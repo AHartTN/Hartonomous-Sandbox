@@ -19,15 +19,18 @@ public class GraphQueryController : ApiControllerBase
     private readonly ILogger<GraphQueryController> _logger;
     private readonly IDriver _neo4jDriver;
     private readonly IInferenceService _inferenceService;
+    private readonly IEmbeddingService _embeddingService;
 
     public GraphQueryController(
         ILogger<GraphQueryController> logger,
         IDriver neo4jDriver,
-        IInferenceService inferenceService)
+        IInferenceService inferenceService,
+        IEmbeddingService embeddingService)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
         _neo4jDriver = neo4jDriver ?? throw new ArgumentNullException(nameof(neo4jDriver));
         _inferenceService = inferenceService ?? throw new ArgumentNullException(nameof(inferenceService));
+        _embeddingService = embeddingService ?? throw new ArgumentNullException(nameof(embeddingService));
     }
 
     [HttpPost("query")]
@@ -387,30 +390,7 @@ public class GraphQueryController : ApiControllerBase
 
     private async Task<float[]> GetEmbeddingForTextAsync(string text, CancellationToken cancellationToken)
     {
-        // Call semantic search with a dummy vector to trigger embedding generation via sp_TextToEmbedding
-        // In production, this should be a direct call to IEmbeddingService.EmbedTextAsync
-        // For now, return normalized random vector based on text hash for deterministic results
-        var embedding = new float[768];
-        var hash = text.GetHashCode();
-        var random = new Random(hash);
-
-        for (int i = 0; i < embedding.Length; i++)
-        {
-            embedding[i] = (float)(random.NextDouble() * 2.0 - 1.0);
-        }
-
-        // Normalize
-        var magnitude = (float)Math.Sqrt(embedding.Sum(x => x * x));
-        if (magnitude > 0)
-        {
-            for (int i = 0; i < embedding.Length; i++)
-            {
-                embedding[i] /= magnitude;
-            }
-        }
-
-        await Task.CompletedTask;
-        return embedding;
+        return await _embeddingService.EmbedTextAsync(text, cancellationToken);
     }
 
     private static object ConvertNeo4jValue(object value)

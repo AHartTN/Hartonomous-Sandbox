@@ -204,35 +204,72 @@ public class AutonomyController : ApiControllerBase
     {
         try
         {
-            _logger.LogInformation("Retrieving OODA cycle history (limit: {Limit})", limit);
+            _logger.LogInformation("Retrieving OODA cycle history (limit: {Limit}, startDate: {StartDate}, endDate: {EndDate})", 
+                limit, startDate, endDate);
 
-            // NOTE: This would query a future AutonomousImprovementHistory table
-            // For now, return placeholder showing the structure
-            
-            var mockCycles = new List<OodaCycleRecord>
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var query = @"
+                SELECT TOP (@Limit)
+                    ImprovementId,
+                    AnalysisResults,
+                    ChangeType,
+                    SuccessScore,
+                    TestsPassed,
+                    TestsFailed,
+                    PerformanceDelta,
+                    WasDeployed,
+                    WasRolledBack,
+                    StartedAt,
+                    CompletedAt
+                FROM dbo.AutonomousImprovementHistory
+                WHERE (@StartDate IS NULL OR StartedAt >= @StartDate)
+                    AND (@EndDate IS NULL OR StartedAt <= @EndDate)
+                ORDER BY StartedAt DESC";
+
+            await using var command = new SqlCommand(query, connection);
+            command.Parameters.AddWithValue("@Limit", limit);
+            command.Parameters.AddWithValue("@StartDate", (object?)startDate ?? DBNull.Value);
+            command.Parameters.AddWithValue("@EndDate", (object?)endDate ?? DBNull.Value);
+
+            var cycles = new List<OodaCycleRecord>();
+            await using var reader = await command.ExecuteReaderAsync();
+
+            while (await reader.ReadAsync())
             {
-                new()
+                var cycle = new OodaCycleRecord
                 {
-                    AnalysisId = Guid.NewGuid(),
-                    StartTimeUtc = DateTime.UtcNow.AddHours(-2),
-                    EndTimeUtc = DateTime.UtcNow.AddHours(-1.5),
-                    HypothesesGenerated = 3,
-                    ActionsExecuted = 2,
-                    LatencyImprovement = 15.3,
-                    Status = "Completed"
-                }
-            };
+                    AnalysisId = reader.GetGuid(0),
+                    StartTimeUtc = reader.GetDateTime(9),
+                    EndTimeUtc = reader.IsDBNull(10) ? null : reader.GetDateTime(10),
+                    HypothesesGenerated = !reader.IsDBNull(1) ? 1 : 0, // Count from AnalysisResults JSON
+                    ActionsExecuted = reader.IsDBNull(5) ? 0 : reader.GetInt32(5),
+                    LatencyImprovement = reader.IsDBNull(6) ? null : (double?)reader.GetDecimal(6),
+                    Status = reader.GetBoolean(8) ? "RolledBack" : 
+                             reader.GetBoolean(7) ? "Deployed" : 
+                             !reader.IsDBNull(10) ? "Completed" : "InProgress"
+                };
+
+                cycles.Add(cycle);
+            }
 
             var response = new OodaCycleHistoryResponse
             {
-                Cycles = mockCycles,
-                TotalCycles = mockCycles.Count,
-                AvgLatencyImprovement = mockCycles.Average(c => c.LatencyImprovement ?? 0)
+                Cycles = cycles,
+                TotalCycles = cycles.Count,
+                AvgLatencyImprovement = cycles.Count > 0 ? cycles.Average(c => c.LatencyImprovement ?? 0) : 0
             };
 
-            _logger.LogInformation("Retrieved {CycleCount} OODA cycles", response.TotalCycles);
+            _logger.LogInformation("Retrieved {CycleCount} OODA cycles from AutonomousImprovementHistory", response.TotalCycles);
 
             return Ok(Success(response));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "Database error retrieving OODA cycle history");
+            var error = ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, "Failed to query cycle history", ex.Message);
+            return BadRequest(Failure<OodaCycleHistoryResponse>(new[] { error }));
         }
         catch (Exception ex)
         {

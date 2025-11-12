@@ -165,9 +165,6 @@ BEGIN
         
         -- REGULAR OODA LOOP: Measure performance delta for system improvements
         -- 5. STORE IMPROVEMENT HISTORY
-        -- (Note: AutonomousImprovementHistory table to be created in future migration)
-        -- For now, just compile the learning outcomes
-        
         DECLARE @SuccessfulActions INT = (SELECT COUNT(*) FROM @ActionOutcomes WHERE Outcome IN ('Success', 'HighSuccess'));
         DECLARE @RegressedActions INT = (SELECT COUNT(*) FROM @ActionOutcomes WHERE Outcome = 'Regressed');
         
