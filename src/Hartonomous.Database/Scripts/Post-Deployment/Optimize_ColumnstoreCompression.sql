@@ -1,11 +1,4 @@
--- =============================================
--- Columnstore and Compression Strategy
--- =============================================
--- Applies columnstore indexes and rowstore compression
--- for optimal storage and query performance
--- =============================================
-
-USE Hartonomous;
+USE [$(DatabaseName)]
 GO
 
 SET ANSI_NULLS ON;

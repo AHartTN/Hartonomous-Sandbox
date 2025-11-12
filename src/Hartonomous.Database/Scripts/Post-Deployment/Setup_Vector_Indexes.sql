@@ -1,34 +1,22 @@
--- =============================================
--- SQL Server 2025 Vector Implementation Setup
--- =============================================
--- Enables PREVIEW_FEATURES for VECTOR type support
--- Creates DiskANN indexes for high-performance vector search
--- Requires: Microsoft.Data.SqlClient 6.1+ for binary TDS protocol
--- =============================================
-
-USE Hartonomous;
+USE [$(DatabaseName)]
 GO
 
 -- Step 1: Enable PREVIEW_FEATURES at database scope
 -- Required for VECTOR data type and DiskANN indexes in SQL Server 2025
-PRINT '=======================================================';
-PRINT 'Enabling SQL Server 2025 PREVIEW_FEATURES...';
-PRINT '=======================================================';
-GO
-
-ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;
-GO
-
-PRINT 'PREVIEW_FEATURES enabled successfully.';
+IF NOT EXISTS (SELECT 1 FROM sys.database_scoped_configurations WHERE name = 'PREVIEW_FEATURES' AND value = 1)
+BEGIN
+    ALTER DATABASE SCOPED CONFIGURATION SET PREVIEW_FEATURES = ON;
+    PRINT 'PREVIEW_FEATURES enabled successfully.';
+END
+ELSE
+BEGIN
+    PRINT 'PREVIEW_FEATURES already enabled.';
+END
 GO
 
 -- Step 2: Create DiskANN vector indexes for AtomEmbedding table
 -- DiskANN: Graph-based approximate nearest neighbor algorithm
 -- Optimized for high-dimensional vectors with billion-scale support
-PRINT '=======================================================';
-PRINT 'Creating DiskANN vector indexes...';
-PRINT '=======================================================';
-GO
 
 -- AtomEmbedding.EmbeddingVector (VECTOR(1998))
 -- Primary vector search table for semantic similarity
@@ -290,49 +278,4 @@ ELSE
 BEGIN
     PRINT 'DiskANN index already exists on VideoFrame.FrameEmbedding';
 END
-GO
-
--- Step 3: Verify vector indexes
-PRINT '=======================================================';
-PRINT 'Vector Index Summary:';
-PRINT '=======================================================';
-GO
-
-SELECT 
-    OBJECT_SCHEMA_NAME(i.object_id) + '.' + OBJECT_NAME(i.object_id) AS TableName,
-    i.name AS IndexName,
-    c.name AS ColumnName,
-    t.name AS DataType,
-    CASE 
-        WHEN i.name LIKE '%DiskANN%' THEN 'DiskANN'
-        ELSE 'Unknown'
-    END AS Algorithm
-FROM sys.indexes i
-JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
-JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-JOIN sys.types t ON c.user_type_id = t.user_type_id
-WHERE i.name LIKE '%Vector%DiskANN%'
-ORDER BY TableName, IndexName;
-GO
-
-PRINT '=======================================================';
-PRINT 'SQL Server 2025 Vector Implementation Setup Complete';
-PRINT '=======================================================';
-PRINT '';
-PRINT 'Configuration:';
-PRINT '- PREVIEW_FEATURES: ON';
-PRINT '- DiskANN Indexes: Created for all vector columns';
-PRINT '- Distance Metric: COSINE';
-PRINT '- R (Graph Degree): 32';
-PRINT '- L (Build Search List): 100';
-PRINT '';
-PRINT 'Client Requirements:';
-PRINT '- Microsoft.Data.SqlClient 6.1+ (using 6.1.2 ✓)';
-PRINT '- Binary TDS protocol for vector data';
-PRINT '';
-PRINT 'Performance Notes:';
-PRINT '- DiskANN provides sub-linear query time O(log n)';
-PRINT '- Suitable for billion-scale vector datasets';
-PRINT '- Trade-off: 95-99% recall vs 100% exact search';
-PRINT '=======================================================';
 GO
