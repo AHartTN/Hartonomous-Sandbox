@@ -24,8 +24,20 @@ BEGIN
             RETURN;
         END;
 
-        RAISERROR('Text-to-embedding inference not implemented. Please provide @query_embedding parameter.', 16, 1);
-        RETURN;
+        -- Generate embedding from text using your TensorAtoms framework
+        -- sp_TextToEmbedding uses sp_GenerateWithAttention and AttentionGeneration.cs CLR
+        DECLARE @embedding_dimension INT;
+        EXEC dbo.sp_TextToEmbedding 
+            @text = @query_text,
+            @ModelName = NULL,  -- Auto-select best embedding model
+            @embedding = @query_embedding OUTPUT,
+            @dimension = @embedding_dimension OUTPUT;
+        
+        IF @query_embedding IS NULL
+        BEGIN
+            RAISERROR('Failed to generate embedding from query text. Ensure models are ingested.', 16, 1);
+            RETURN;
+        END;
     END;
 
     DECLARE @input_data JSON = CASE

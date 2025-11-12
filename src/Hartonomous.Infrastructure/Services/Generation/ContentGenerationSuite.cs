@@ -17,20 +17,18 @@ namespace Hartonomous.Infrastructure.Services.Generation;
 /// Multi-modal content generation suite using ONLY YOUR ingested model weights.
 /// Text→Audio (YOUR TTS), Text→Image (YOUR Stable Diffusion), Audio+Images→Video (FFmpeg).
 /// NO external API calls - fully self-contained generation pipeline.
+/// All generation uses sp_GenerateWithAttention and TensorAtoms framework.
 /// </summary>
 public sealed class ContentGenerationSuite
 {
     private readonly TensorAtomTextGenerator _textGenerator;
-    private readonly OnnxInferenceService _onnxInference;
     private readonly string _connectionString;
 
     public ContentGenerationSuite(
         TensorAtomTextGenerator textGenerator,
-        OnnxInferenceService onnxInference,
         string connectionString)
     {
         _textGenerator = textGenerator ?? throw new ArgumentNullException(nameof(textGenerator));
-        _onnxInference = onnxInference ?? throw new ArgumentNullException(nameof(onnxInference));
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
     }
 

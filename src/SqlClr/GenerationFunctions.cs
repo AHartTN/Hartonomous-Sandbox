@@ -135,7 +135,9 @@ namespace SqlClrFunctions
             var modelsJsonValue = modelsJson.IsNull ? string.Empty : modelsJson.Value;
             var modalityFilter = requiredModality.IsNull ? null : requiredModality.Value;
 
-            var random = new Random(unchecked(Environment.TickCount ^ Guid.NewGuid().GetHashCode()));
+            // Use deterministic seed based on seedEmbedding content for reproducible sampling
+            var seed = ComputeEmbeddingSeed(seedEmbedding.Value);
+            var random = new Random(seed);
             var visitedAtoms = new HashSet<long>();
             var currentEmbedding = seedEmbedding.Value;
 
@@ -471,5 +473,33 @@ ORDER BY ae.CreatedAt DESC;
 
             internal int DurationMs { get; }
         }
+
+        /// <summary>
+        /// Computes deterministic seed from embedding bytes for reproducible random sampling.
+        /// </summary>
+        private static int ComputeEmbeddingSeed(byte[] embedding)
+        {
+            if (embedding == null || embedding.Length == 0)
+                return 42; // Fallback seed
+            
+            // Use FNV-1a hash for deterministic seed from embedding bytes
+            unchecked
+            {
+                const uint FnvPrime = 16777619;
+                const uint FnvOffsetBasis = 2166136261;
+                
+                uint hash = FnvOffsetBasis;
+                int step = Math.Max(1, embedding.Length / 64); // Sample every Nth byte for large embeddings
+                
+                for (int i = 0; i < embedding.Length; i += step)
+                {
+                    hash ^= embedding[i];
+                    hash *= FnvPrime;
+                }
+                
+                return (int)hash;
+            }
+        }
     }
 }
+

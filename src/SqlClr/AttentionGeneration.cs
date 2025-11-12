@@ -111,7 +111,10 @@ namespace SqlClrFunctions
                     // Generate sequence with attention
                     var generatedAtomIds = new List<long>();
                     var currentEmbeddings = new List<float[]>(inputEmbeddings);
-                    var random = new Random(Guid.NewGuid().GetHashCode());
+                    
+                    // Use deterministic seed: XOR of streamId hash and modelId for reproducible sampling
+                    var seed = streamId.GetHashCode() ^ modelId.Value;
+                    var random = new Random(seed);
 
                     for (var step = 0; step < maxTokenCount; step++)
                     {
