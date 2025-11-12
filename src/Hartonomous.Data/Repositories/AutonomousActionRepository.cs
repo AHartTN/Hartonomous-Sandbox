@@ -13,10 +13,12 @@ namespace Hartonomous.Data.Repositories;
 public class AutonomousActionRepository : IAutonomousActionRepository
 {
     private readonly HartonomousDbContext _context;
+    private readonly IConceptDiscoveryRepository _conceptDiscovery;
 
-    public AutonomousActionRepository(HartonomousDbContext context)
+    public AutonomousActionRepository(HartonomousDbContext context, IConceptDiscoveryRepository conceptDiscovery)
     {
         _context = context;
+        _conceptDiscovery = conceptDiscovery;
     }
 
     /// <summary>
@@ -98,26 +100,63 @@ public class AutonomousActionRepository : IAutonomousActionRepository
 
     private async Task<(string executedActions, string status)> ExecuteIndexOptimizationAsync(CancellationToken cancellationToken)
     {
-        // Analyze missing indexes (simplified - would need DMV access)
-        var missingIndexes = await _context.AtomEmbeddings
-            .GroupBy(ae => new { ae.SpatialBucketX, ae.SpatialBucketY })
-            .Where(g => g.Count() > 100) // Large clusters that might benefit from indexing
-            .Take(5)
-            .Select(g => new
-            {
-                TableName = "AtomEmbeddings",
-                IndexColumns = $"SpatialBucketX, SpatialBucketY",
-                ImpactScore = g.Count()
-            })
-            .ToListAsync(cancellationToken);
+        // Query DMVs to find missing indexes
+        var missingIndexSql = @"
+            SELECT TOP 5
+                d.statement AS TableName,
+                d.equality_columns + COALESCE(', ' + d.inequality_columns, '') AS IndexColumns,
+                s.avg_user_impact AS ImpactScore
+            FROM sys.dm_db_missing_index_details d
+            JOIN sys.dm_db_missing_index_groups g ON d.index_handle = g.index_handle
+            JOIN sys.dm_db_missing_index_group_stats s ON g.index_group_handle = s.group_handle
+            WHERE d.database_id = DB_ID()
+                AND s.avg_user_impact > 50
+            ORDER BY s.avg_user_impact DESC";
 
-        // Update statistics on key tables (simplified)
-        // In real implementation, this would execute UPDATE STATISTICS
+        using var conn = _context.Database.GetDbConnection();
+        await conn.OpenAsync(cancellationToken);
+
+        var missingIndexes = new List<object>();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = missingIndexSql;
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                missingIndexes.Add(new
+                {
+                    TableName = reader.GetString(0),
+                    IndexColumns = reader.IsDBNull(1) ? "" : reader.GetString(1),
+                    ImpactScore = reader.GetDouble(2)
+                });
+            }
+        }
+
+        // Update statistics on key tables
+        var tablesToUpdate = new[] { "AtomEmbeddings", "InferenceRequests", "Atoms" };
+        var statisticsResults = new List<string>();
+
+        foreach (var tableName in tablesToUpdate)
+        {
+            try
+            {
+                // FormattableString prevents SQL injection - table names are hardcoded
+                await _context.Database.ExecuteSqlAsync(
+                    $"UPDATE STATISTICS dbo.{tableName} WITH FULLSCAN",
+                    cancellationToken);
+                statisticsResults.Add($"{tableName}: Success");
+            }
+            catch (Exception ex)
+            {
+                statisticsResults.Add($"{tableName}: Failed - {ex.Message}");
+            }
+        }
 
         var executedActions = JsonSerializer.Serialize(new
         {
-            analyzedIndexes = missingIndexes.Count,
-            potentialIndexes = missingIndexes
+            missingIndexesAnalyzed = missingIndexes.Count,
+            potentialIndexes = missingIndexes,
+            statisticsUpdated = statisticsResults
         });
 
         return (executedActions, "Executed");
@@ -125,27 +164,114 @@ public class AutonomousActionRepository : IAutonomousActionRepository
 
     private async Task<(string executedActions, string status)> ExecuteCacheWarmingAsync(CancellationToken cancellationToken)
     {
-        // Preload frequent embeddings into memory (simplified)
-        var preloadedCount = await _context.AtomEmbeddings
-            .Where(ae => ae.CreatedAt >= DateTime.UtcNow.AddDays(-7))
-            .CountAsync(cancellationToken);
+        // Identify frequently accessed embeddings from recent inference requests
+        var frequentEmbeddingsSql = @"
+            SELECT TOP 1000 ae.AtomEmbeddingId
+            FROM dbo.AtomEmbeddings ae
+            WHERE ae.CreatedAt >= DATEADD(day, -7, GETUTCDATE())
+            ORDER BY ae.CreatedAt DESC";
 
-        // In real implementation, this would trigger cache warming operations
+        using var conn = _context.Database.GetDbConnection();
+        if (conn.State != System.Data.ConnectionState.Open)
+            await conn.OpenAsync(cancellationToken);
 
-        var executedActions = JsonSerializer.Serialize(new { preloadedEmbeddings = preloadedCount });
-        return (executedActions, "Executed");
+        var embeddingIds = new List<long>();
+        using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = frequentEmbeddingsSql;
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                embeddingIds.Add(reader.GetInt64(0));
+            }
+        }
+
+        // Preload these embeddings into SQL Server buffer pool
+        if (embeddingIds.Count > 0)
+        {
+            var warmUpSql = @"
+                SELECT AtomEmbeddingId, EmbeddingVector, SpatialGeometry 
+                FROM dbo.AtomEmbeddings WITH (READCOMMITTEDLOCK)
+                WHERE AtomEmbeddingId IN (SELECT value FROM STRING_SPLIT(@Ids, ','))";
+
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = warmUpSql;
+            var param = cmd.CreateParameter();
+            param.ParameterName = "@Ids";
+            param.Value = string.Join(",", embeddingIds.Take(1000));
+            cmd.Parameters.Add(param);
+
+            using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            var preloadedCount = 0;
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                preloadedCount++;
+                // Just reading the data loads it into buffer pool
+            }
+
+            var executedActions = JsonSerializer.Serialize(new
+            {
+                preloadedEmbeddings = preloadedCount,
+                candidateCount = embeddingIds.Count
+            });
+            return (executedActions, "Executed");
+        }
+
+        return (JsonSerializer.Serialize(new { preloadedEmbeddings = 0 }), "Executed");
     }
 
     private async Task<(string executedActions, string status)> ExecuteConceptDiscoveryAsync(CancellationToken cancellationToken)
     {
-        // Detect clusters via spatial buckets
-        var discoveredClusters = await _context.AtomEmbeddings
-            .Where(ae => ae.CreatedAt >= DateTime.UtcNow.AddDays(-7) && ae.SpatialBucketX != null)
-            .GroupBy(ae => new { ae.SpatialBucketX, ae.SpatialBucketY, ae.SpatialBucketZ })
-            .CountAsync(cancellationToken);
+        // Gather recent embeddings for clustering
+        var recentEmbeddings = await _context.AtomEmbeddings
+            .Where(ae => ae.CreatedAt >= DateTime.UtcNow.AddDays(-7) 
+                && ae.SpatialBucketX != null 
+                && ae.EmbeddingVector != null)
+            .Select(ae => new EmbeddingVector
+            {
+                Id = Guid.NewGuid(),
+                Vector = ConvertSqlVectorToDoubleArray(ae.EmbeddingVector!.Value),
+                SpatialLocation = ae.SpatialGeometry,
+                AtomId = null,
+                Metadata = $"EmbeddingType={ae.EmbeddingType};AtomEmbeddingId={ae.AtomEmbeddingId}"
+            })
+            .Take(500) // Limit to prevent memory issues
+            .ToListAsync(cancellationToken);
 
-        var executedActions = JsonSerializer.Serialize(new { discoveredClusters });
+        if (recentEmbeddings.Count < 5)
+        {
+            return (JsonSerializer.Serialize(new { discoveredClusters = 0, reason = "Insufficient data" }), "Executed");
+        }
+
+        // Perform actual concept discovery through clustering
+        var discoveryResult = await _conceptDiscovery.DiscoverConceptsAsync(
+            recentEmbeddings,
+            minClusterSize: 3,
+            cancellationToken: cancellationToken);
+
+        // Bind discovered concepts to knowledge graph
+        if (discoveryResult.ClustersFound > 0)
+        {
+            await _conceptDiscovery.BindConceptsAsync(
+                discoveryResult.Concepts,
+                cancellationToken: cancellationToken);
+        }
+
+        var executedActions = JsonSerializer.Serialize(new
+        {
+            vectorsProcessed = discoveryResult.VectorsProcessed,
+            discoveredClusters = discoveryResult.ClustersFound,
+            clusteringQuality = discoveryResult.ClusteringQuality,
+            conceptsBound = discoveryResult.Concepts.Count
+        });
+
         return (executedActions, "Executed");
+    }
+
+    private static double[] ConvertSqlVectorToDoubleArray(SqlVector<float> vector)
+    {
+        var floats = vector.Memory.ToArray();
+        return Array.ConvertAll(floats, f => (double)f);
     }
 
     private async Task<(string executedActions, string status)> ExecuteModelRetrainingAsync(Hypothesis hypothesis, CancellationToken cancellationToken)
