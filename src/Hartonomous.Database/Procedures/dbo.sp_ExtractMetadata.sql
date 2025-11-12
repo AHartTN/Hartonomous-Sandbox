@@ -9,8 +9,9 @@ BEGIN
         DECLARE @PayloadLocator NVARCHAR(1024);
         DECLARE @Modality NVARCHAR(64);
         DECLARE @CanonicalText NVARCHAR(MAX);
-        DECLARE @ExtractedMetadata NVARCHAR(MAX);
+        DECLARE @ExtractedMetadata JSON;
         
+        -- Load atom metadata
         SELECT 
             @PayloadLocator = PayloadLocator,
             @Modality = Modality,
@@ -24,12 +25,14 @@ BEGIN
             RETURN -1;
         END
         
+        -- Extract metadata based on modality
+        -- For text modality with CanonicalText, perform basic analysis
         IF @Modality = 'text' AND @CanonicalText IS NOT NULL
         BEGIN
             DECLARE @WordCount INT = LEN(@CanonicalText) - LEN(REPLACE(@CanonicalText, ' ', '')) + 1;
             DECLARE @CharCount INT = LEN(@CanonicalText);
             
-            SET @ExtractedMetadata = (
+            SET @ExtractedMetadata = CAST((
                 SELECT 
                     @WordCount AS wordCount,
                     @CharCount AS charCount,
@@ -37,20 +40,22 @@ BEGIN
                     @PayloadLocator AS payloadLocator,
                     FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-            );
+            ) AS JSON);
         END
         ELSE
         BEGIN
-            SET @ExtractedMetadata = (
+            -- For other modalities or external payloads, store basic metadata
+            SET @ExtractedMetadata = CAST((
                 SELECT 
                     @Modality AS modality,
                     @PayloadLocator AS payloadLocator,
                     'External payload - metadata extraction requires payload loading' AS note,
                     FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-            );
+            ) AS JSON);
         END
         
+        -- Update atom metadata
         UPDATE dbo.Atoms
         SET Metadata = JSON_MODIFY(
             ISNULL(Metadata, '{}'),
@@ -71,4 +76,3 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO

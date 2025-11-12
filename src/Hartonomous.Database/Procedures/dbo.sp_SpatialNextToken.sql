@@ -70,4 +70,3 @@ BEGIN
     FROM @candidates
     ORDER BY ProbabilityScore DESC, SpatialDistance ASC;
 END;
-GO

@@ -13,6 +13,7 @@ BEGIN
             Similarity FLOAT
         );
         
+        -- Find duplicate pairs using self-join on embeddings
         INSERT INTO @DuplicateGroups
         SELECT TOP (@BatchSize)
             ae1.AtomId AS PrimaryAtomId,
@@ -21,7 +22,7 @@ BEGIN
         FROM dbo.AtomEmbeddings ae1
         INNER JOIN dbo.AtomEmbeddings ae2 
             ON ae1.ModelId = ae2.ModelId 
-            AND ae1.AtomId < ae2.AtomId
+            AND ae1.AtomId < ae2.AtomId -- Avoid duplicate pairs
         INNER JOIN dbo.Atoms a1 ON ae1.AtomId = a1.AtomId
         INNER JOIN dbo.Atoms a2 ON ae2.AtomId = a2.AtomId
         WHERE a1.TenantId = @TenantId
@@ -29,6 +30,7 @@ BEGIN
               AND (1.0 - VECTOR_DISTANCE('cosine', ae1.EmbeddingVector, ae2.EmbeddingVector)) >= @SimilarityThreshold
         ORDER BY Similarity DESC;
         
+        -- Return duplicate groups
         SELECT 
             dg.PrimaryAtomId,
             dg.DuplicateAtomId,
@@ -50,4 +52,3 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO

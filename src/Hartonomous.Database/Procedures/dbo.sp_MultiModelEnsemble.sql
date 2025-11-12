@@ -1,7 +1,4 @@
--- sp_MultiModelEnsemble: Blend results from multiple embedding models
--- Weighted voting with configurable model weights
-
-CREATE OR ALTER PROCEDURE dbo.sp_MultiModelEnsemble
+CREATE PROCEDURE dbo.sp_MultiModelEnsemble
     @QueryVector1 VARBINARY(MAX), -- Model 1 embedding
     @QueryVector2 VARBINARY(MAX), -- Model 2 embedding
     @QueryVector3 VARBINARY(MAX), -- Model 3 embedding
@@ -12,7 +9,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_MultiModelEnsemble
     @Model2Weight FLOAT = 0.35,
     @Model3Weight FLOAT = 0.25,
     @TopK INT = 10,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -32,7 +29,8 @@ BEGIN
         INSERT INTO @AllAtoms
         SELECT DISTINCT ae.AtomId
         FROM dbo.AtomEmbeddings ae
-        WHERE ae.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND ae.ModelId IN (@Model1Id, @Model2Id, @Model3Id);
         
         -- Score each atom with each model
@@ -77,7 +75,7 @@ BEGIN
             a.ContentType
         FROM @EnsembleResults er
         INNER JOIN dbo.Atoms a ON er.AtomId = a.AtomId
-        WHERE a.TenantId = @TenantId
+        -- No need for second TenantAtoms filter - already filtered in AllAtoms collection
         ORDER BY er.EnsembleScore DESC;
         
         RETURN 0;

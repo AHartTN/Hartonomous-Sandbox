@@ -47,4 +47,3 @@ BEGIN
     INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
     ORDER BY fn.SpatialDistance ASC;
 END;
-GO

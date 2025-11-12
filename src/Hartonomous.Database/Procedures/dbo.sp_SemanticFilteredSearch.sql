@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_SemanticFilteredSearch
-    @query_vector VARBINARY(MAX),
+    @query_vector VECTOR(1998),
     @top_k INT = 10,
     @topic_filter NVARCHAR(50) = NULL,
     @min_topic_score FLOAT = 0.5,
@@ -46,4 +46,3 @@ BEGIN
 
     PRINT '  ✓ Semantic-filtered search complete';
 END
-GO

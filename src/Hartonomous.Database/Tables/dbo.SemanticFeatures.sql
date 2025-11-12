@@ -17,4 +17,3 @@ CREATE TABLE dbo.SemanticFeatures (
     CONSTRAINT FK_SemanticFeatures_AtomEmbeddings FOREIGN KEY (AtomEmbeddingId)
         REFERENCES dbo.AtomEmbeddings(AtomEmbeddingId) ON DELETE CASCADE
 );
-GO

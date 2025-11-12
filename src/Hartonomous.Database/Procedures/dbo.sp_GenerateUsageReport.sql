@@ -1,7 +1,7 @@
 CREATE PROCEDURE dbo.sp_GenerateUsageReport
     @TenantId INT,
     @ReportType NVARCHAR(50) = 'Summary', -- 'Summary', 'Detailed', 'Forecast'
-    @TimeRange NVARCHAR(20) = 'Day' -- 'Day', 'Week', 'Month', 'Year'
+    @TimeRange NVARCHAR(20) = 'Month' -- 'Day', 'Week', 'Month', 'Year'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -9,6 +9,7 @@ BEGIN
     BEGIN TRY
         DECLARE @StartDate DATETIME2;
         
+        -- Determine time range
         IF @TimeRange = 'Day'
             SET @StartDate = DATEADD(DAY, -1, SYSUTCDATETIME());
         ELSE IF @TimeRange = 'Week'
@@ -20,6 +21,7 @@ BEGIN
         
         IF @ReportType = 'Summary'
         BEGIN
+            -- High-level metrics
             SELECT 
                 UsageType,
                 SUM(Quantity) AS TotalQuantity,
@@ -35,6 +37,7 @@ BEGIN
         END
         ELSE IF @ReportType = 'Detailed'
         BEGIN
+            -- Time-series data
             SELECT 
                 CAST(RecordedUtc AS DATE) AS UsageDate,
                 UsageType,
@@ -49,6 +52,7 @@ BEGIN
         END
         ELSE IF @ReportType = 'Forecast'
         BEGIN
+            -- Simple linear forecast (7-day moving average)
             WITH DailyUsage AS (
                 SELECT 
                     CAST(RecordedUtc AS DATE) AS UsageDate,
@@ -77,4 +81,3 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO

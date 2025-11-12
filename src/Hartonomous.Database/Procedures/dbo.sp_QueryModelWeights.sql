@@ -29,5 +29,4 @@ BEGIN
       AND (@LayerIdx IS NULL OR ml.LayerIdx = @LayerIdx)
       AND (@atom_type IS NULL OR ta.AtomType = @atom_type)
     ORDER BY ml.LayerIdx, ta.ImportanceScore DESC, ta.TensorAtomId, coeff.TensorRole;
-END;
-GO
+END

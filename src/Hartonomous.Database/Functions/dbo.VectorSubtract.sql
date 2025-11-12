@@ -1,0 +1,6 @@
+CREATE FUNCTION dbo.VectorSubtract (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorSubtract(@v1, @v2);
+END;

@@ -2,7 +2,7 @@ CREATE PROCEDURE dbo.sp_EnsembleInference
     @inputData NVARCHAR(MAX),
     @modelIds NVARCHAR(MAX),
     @taskType NVARCHAR(50) = 'classification',
-    @inputEmbedding VARBINARY(MAX) = NULL,
+    @inputEmbedding VECTOR(1998) = NULL,
     @topK INT = 10
 AS
 BEGIN
@@ -14,13 +14,13 @@ BEGIN
     END;
 
     DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
-    DECLARE @embedding VARBINARY(MAX) = @inputEmbedding;
+    DECLARE @embedding VECTOR(1998) = @inputEmbedding;
     IF @embedding IS NULL
     BEGIN
         DECLARE @embeddingJson NVARCHAR(MAX) = JSON_QUERY(@inputData, '$.embedding');
         IF @embeddingJson IS NOT NULL
         BEGIN
-            SET @embedding = CAST(@embeddingJson AS VARBINARY(MAX));
+            SET @embedding = CAST(@embeddingJson AS VECTOR(1998));
         END;
     END;
 
@@ -92,7 +92,12 @@ BEGIN
     DECLARE @modelCount INT = (SELECT COUNT(*) FROM @models);
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @durationMs,
-        OutputMetadata = (SELECT 'completed' as status, (SELECT COUNT(*) FROM @scored) as result_count, @topK as top_k, @taskType as task_type FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        OutputMetadata = JSON_OBJECT(
+            'status': 'completed',
+            'result_count': (SELECT COUNT(*) FROM @scored),
+            'top_k': @topK,
+            'task_type': @taskType
+        )
     WHERE InferenceId = @inferenceId;
 
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, ModelId, OperationType, DurationMs)
@@ -120,4 +125,3 @@ BEGIN
     FROM @scored
     ORDER BY EnsembleScore DESC, AvgDistance ASC;
 END;
-GO

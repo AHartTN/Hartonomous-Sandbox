@@ -1,7 +1,4 @@
--- sp_HybridSearch: Spatial pre-filter + Vector rerank
--- Two-phase approach: spatial index narrows candidates, then exact vector distance
-
-CREATE OR ALTER PROCEDURE dbo.sp_HybridSearch
+CREATE PROCEDURE dbo.sp_HybridSearch
     @query_vector VECTOR(1998),
     @query_dimension INT,
     @query_spatial_x FLOAT,

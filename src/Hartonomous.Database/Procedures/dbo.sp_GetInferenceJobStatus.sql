@@ -17,4 +17,3 @@ BEGIN
     FROM dbo.InferenceRequests
     WHERE InferenceId = @inferenceId;
 END;
-GO

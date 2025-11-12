@@ -1,6 +1,3 @@
--- Procedure: Compare Weights at Two Points in Time
--- Purpose: Compare tensor atom coefficients between two timestamps
-
 CREATE PROCEDURE dbo.sp_CompareWeightsAtTimes
     @Time1 DATETIME2(7),
     @Time2 DATETIME2(7),

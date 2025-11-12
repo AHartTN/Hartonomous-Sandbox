@@ -1,0 +1,6 @@
+CREATE FUNCTION dbo.VectorSoftmax (@v VARBINARY(MAX))
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorSoftmax(@v);
+END;

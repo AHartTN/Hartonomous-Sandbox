@@ -7,8 +7,7 @@ CREATE PROCEDURE dbo.sp_GenerateImage
     @guidance_scale FLOAT = 6.5,
     @ModelIds NVARCHAR(MAX) = NULL,
     @top_k INT = 4,
-    @output_format NVARCHAR(10) = 'patches',
-    @OutputAtomId BIGINT = NULL OUTPUT
+    @output_format NVARCHAR(10) = 'patches'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -16,7 +15,7 @@ BEGIN
     IF @prompt IS NULL OR LTRIM(RTRIM(@prompt)) = ''
         THROW 50100, 'Prompt is required for image generation.', 1;
 
-    DECLARE @promptEmbedding VARBINARY(MAX);
+    DECLARE @promptEmbedding VECTOR(1998);
     DECLARE @embeddingDim INT;
     EXEC dbo.sp_TextToEmbedding @text = @prompt, @ModelName = NULL, @embedding = @promptEmbedding OUTPUT, @dimension = @embeddingDim OUTPUT;
 
@@ -33,7 +32,16 @@ BEGIN
         SELECT ModelId, Weight, ModelName FROM @models FOR JSON PATH
     );
 
-    DECLARE @requestInfo NVARCHAR(MAX) = (SELECT @prompt as prompt, @width as width, @height as height, @patch_size as patch_size, @steps as steps, @guidance_scale as guidance_scale, @top_k as top_k, @output_format as output_format FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @requestInfo NVARCHAR(MAX) = JSON_OBJECT(
+        'prompt': @prompt,
+        'width': @width,
+        'height': @height,
+        'patch_size': @patch_size,
+        'steps': @steps,
+        'guidance_scale': @guidance_scale,
+        'top_k': @top_k,
+        'output_format': @output_format
+    );
 
     DECLARE @inferenceId BIGINT;
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
@@ -42,7 +50,7 @@ BEGIN
         TRY_CAST(@requestInfo AS JSON),
         TRY_CAST(@modelsJson AS JSON),
         'spatial_diffusion',
-        (SELECT 'running' as status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        JSON_OBJECT('status': 'running')
     );
     SET @inferenceId = SCOPE_IDENTITY();
 
@@ -153,12 +161,23 @@ BEGIN
         );
     END;
 
-    DECLARE @outputJson NVARCHAR(MAX) = (SELECT @output_format as generated_format, JSON_QUERY(@patchesJson) as patches, JSON_QUERY(@candidatesJson) as candidates FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @outputJson NVARCHAR(MAX) = JSON_OBJECT(
+        'generated_format': @output_format,
+        'patches': JSON_QUERY(@patchesJson),
+        'candidates': JSON_QUERY(@candidatesJson)
+    );
 
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @durationMs,
         OutputData = TRY_CAST(@outputJson AS JSON),
-        OutputMetadata = (SELECT 'completed' as status, @patchCount as patch_count, @width as width, @height as height, @steps as steps, (SELECT @guideX as x, @guideY as y, @guideZ as z FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) as guidance FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        OutputMetadata = JSON_OBJECT(
+            'status': 'completed',
+            'patch_count': @patchCount,
+            'width': @width,
+            'height': @height,
+            'steps': @steps,
+            'guidance': JSON_OBJECT('x': @guideX, 'y': @guideY, 'z': @guideZ)
+        )
     WHERE InferenceId = @inferenceId;
 
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)
@@ -203,4 +222,3 @@ BEGIN
         @durationMs AS DurationMs,
         JSON_QUERY(@candidatesJson) AS CandidateImages;
 END;
-GO

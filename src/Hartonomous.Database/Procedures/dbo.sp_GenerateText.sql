@@ -72,6 +72,8 @@ BEGIN
 
     DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
+    -- Convert VECTOR to NVARCHAR(MAX) (JSON format) for CLR function
+    -- SQL Server 2025 VECTOR type can only convert to VARCHAR/NVARCHAR/JSON, not VARBINARY
     DECLARE @promptEmbeddingJson NVARCHAR(MAX) = CAST(@promptEmbedding AS NVARCHAR(MAX));
 
     INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
@@ -140,13 +142,14 @@ BEGIN
 
     IF @promptEmbedding IS NOT NULL
     BEGIN
+        -- Store embedding as JSON (VECTOR type can only convert to NVARCHAR/JSON)
         DECLARE @promptEmbeddingBinary VARBINARY(MAX) = CAST(@promptEmbeddingJson AS VARBINARY(MAX));
         SET @stream = provenance.clr_AppendAtomicStreamSegment(
-            @stream,
-            'Embedding',
-            @streamCreated,
-            'application/json; charset=utf-16',
-            JSON_OBJECT('dimension': @embeddingDim, 'format': 'vector_json'),
+            @stream, 
+            'Embedding', 
+            @streamCreated, 
+            'application/json; charset=utf-16', 
+            JSON_OBJECT('dimension': @embeddingDim, 'format': 'vector_json'), 
             @promptEmbeddingBinary
         );
     END;
@@ -172,13 +175,17 @@ BEGIN
     SELECT @inferenceId, StepNumber, 'text_generation_step', DurationMs, ModelCount
     FROM @sequence;
 
+    -- Note: Stream column removed from GenerationStreams to allow CLR type redeploy
+    -- Provenance still tracked in AtomicStream variable above, could be persisted elsewhere if needed
+    -- INSERT INTO provenance.GenerationStreams (StreamId, Scope, Model, CreatedUtc)
+    -- VALUES (@streamId, @streamScope, @primaryModel, @streamCreated);
+
     SELECT
         @inferenceId AS InferenceId,
         @streamId AS StreamId,
         @prompt AS OriginalPrompt,
-        @generatedText AS GeneratedText,
+    @generatedText AS GeneratedText,
         @tokenCount AS TokensGenerated,
         @totalDuration AS DurationMs,
         JSON_QUERY(@tokensJson) AS TokenDetails;
-END;
-GO
+END

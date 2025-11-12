@@ -1,0 +1,3 @@
+CREATE QUEUE [dbo].[Neo4jSyncQueue]
+WITH STATUS = ON,
+     RETENTION = OFF;

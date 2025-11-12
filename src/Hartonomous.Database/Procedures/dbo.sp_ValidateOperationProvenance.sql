@@ -19,6 +19,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Validating operation provenance for ' + CAST(@OperationId AS NVARCHAR(36));
 
+    -- Get operation provenance stream
     DECLARE @ProvenanceStream provenance.AtomicStream;
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
@@ -30,11 +31,13 @@ BEGIN
         GOTO ValidationComplete;
     END
 
+    -- Validate stream metadata
     INSERT INTO @ValidationResult VALUES ('Stream Existence', 'PASS', 'Provenance stream exists');
 
     DECLARE @Scope NVARCHAR(128) = @ProvenanceStream.Scope;
     DECLARE @Model NVARCHAR(128) = @ProvenanceStream.Model;
 
+    -- Check scope
     IF @ExpectedScope IS NOT NULL
     BEGIN
         IF @Scope = @ExpectedScope
@@ -43,6 +46,7 @@ BEGIN
             INSERT INTO @ValidationResult VALUES ('Scope Validation', 'FAIL', 'Scope mismatch. Expected: ' + @ExpectedScope + ', Actual: ' + ISNULL(@Scope, N'<NULL>'));
     END
 
+    -- Check model
     IF @ExpectedModel IS NOT NULL
     BEGIN
         IF @Model = @ExpectedModel
@@ -51,12 +55,14 @@ BEGIN
             INSERT INTO @ValidationResult VALUES ('Model Validation', 'FAIL', 'Model mismatch. Expected: ' + @ExpectedModel + ', Actual: ' + ISNULL(@Model, N'<NULL>'));
     END
 
+    -- Check segment count
     DECLARE @SegmentCount INT = @ProvenanceStream.SegmentCount;
     IF @SegmentCount >= @MinSegments
         INSERT INTO @ValidationResult VALUES ('Segment Count', 'PASS', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') meets minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
     ELSE
         INSERT INTO @ValidationResult VALUES ('Segment Count', 'FAIL', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') below minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
 
+    -- Check stream age
     DECLARE @StreamCreatedUtc DATETIME2 = @ProvenanceStream.CreatedUtc;
     IF @StreamCreatedUtc IS NOT NULL
     BEGIN
@@ -71,12 +77,14 @@ BEGIN
         INSERT INTO @ValidationResult VALUES ('Stream Age', 'WARN', 'Provenance stream creation timestamp is missing');
     END
 
+    -- Validate segment sequence and content
     DECLARE @SegmentIndex INT = 0;
     WHILE @SegmentIndex < @SegmentCount
     BEGIN
         DECLARE @SegmentKind NVARCHAR(50) = @ProvenanceStream.GetSegmentKind(@SegmentIndex);
         DECLARE @SegmentTimestamp DATETIME2 = @ProvenanceStream.GetSegmentTimestamp(@SegmentIndex);
 
+        -- Check for required segment types
         IF @SegmentKind = 'Input' AND @SegmentIndex = 0
             INSERT INTO @ValidationResult VALUES ('Input Segment', 'PASS', 'Valid input segment at position 0');
         ELSE IF @SegmentKind = 'Output' AND @SegmentIndex > 0
@@ -84,6 +92,7 @@ BEGIN
         ELSE IF @SegmentKind NOT IN ('Input', 'Output', 'Embedding', 'Moderation', 'Artifact', 'Telemetry', 'Control')
             INSERT INTO @ValidationResult VALUES ('Segment Kind', 'WARN', 'Unknown segment kind: ' + ISNULL(@SegmentKind, N'<NULL>') + ' at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
 
+        -- Check timestamp ordering
         IF @SegmentIndex > 0
         BEGIN
             DECLARE @PrevTimestamp DATETIME2 = @ProvenanceStream.GetSegmentTimestamp(@SegmentIndex - 1);
@@ -97,6 +106,7 @@ BEGIN
     END
 
     ValidationComplete:
+    -- Store validation result
     INSERT INTO dbo.ProvenanceValidationResults (
         OperationId,
         ValidationResults,
@@ -114,6 +124,7 @@ BEGIN
         SYSUTCDATETIME()
     );
 
+    -- Return validation results
     SELECT
         @OperationId AS OperationId,
         CheckName,
@@ -125,4 +136,3 @@ BEGIN
     IF @Debug = 1
         PRINT 'Provenance validation completed';
 END;
-GO

@@ -17,4 +17,3 @@ BEGIN
         CompletionTimestamp = ISNULL(@completionTimestamp, CASE WHEN @status IN ('Completed', 'Failed') THEN SYSUTCDATETIME() ELSE CompletionTimestamp END)
     WHERE InferenceId = @inferenceId;
 END;
-GO

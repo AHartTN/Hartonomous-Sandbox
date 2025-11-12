@@ -14,24 +14,30 @@ BEGIN
         SET @correlationId = CAST(NEWID() AS NVARCHAR(36));
     END;
 
+    -- Parse input data to extract parameters for autonomous calculations
     DECLARE @tokenCount INT = JSON_VALUE(@inputData, '$.token_count');
     DECLARE @requiresMultiModal BIT = JSON_VALUE(@inputData, '$.requires_multimodal');
     DECLARE @requiresToolUse BIT = JSON_VALUE(@inputData, '$.requires_tools');
     DECLARE @priority NVARCHAR(50) = JSON_VALUE(@inputData, '$.priority');
     DECLARE @modelName NVARCHAR(255) = JSON_VALUE(@inputData, '$.model_name');
 
+    -- Set defaults if not provided
     SET @tokenCount = ISNULL(@tokenCount, 1000);
     SET @requiresMultiModal = ISNULL(@requiresMultiModal, 0);
     SET @requiresToolUse = ISNULL(@requiresToolUse, 0);
     SET @priority = ISNULL(@priority, 'medium');
     SET @modelName = ISNULL(@modelName, '');
 
+    -- Calculate complexity using SQL CLR function
     DECLARE @complexity INT = dbo.fn_CalculateComplexity(@tokenCount, @requiresMultiModal, @requiresToolUse);
 
+    -- Determine SLA using SQL CLR function
     DECLARE @sla NVARCHAR(20) = dbo.fn_DetermineSla(@priority, @complexity);
 
+    -- Estimate response time using SQL CLR function
     DECLARE @estimatedResponseTimeMs INT = dbo.fn_EstimateResponseTime(@modelName, @complexity);
 
+    -- Store enriched metadata
     DECLARE @metadataJson NVARCHAR(MAX) = JSON_MODIFY(
         JSON_MODIFY(
             JSON_MODIFY(
@@ -46,6 +52,7 @@ BEGIN
         }')
     );
 
+    -- Insert inference request
     INSERT INTO dbo.InferenceRequests (
         TaskType,
         InputData,
@@ -59,7 +66,7 @@ BEGIN
     VALUES (
         @taskType,
         @metadataJson,
-        'Queued',
+        'Queued', -- Changed from 'Pending' to 'Queued'
         @correlationId,
         SYSUTCDATETIME(),
         @complexity,
@@ -69,12 +76,15 @@ BEGIN
 
     SET @inferenceId = SCOPE_IDENTITY();
 
+    -- PARADIGM-COMPLIANT REFACTOR: Send message to Service Broker queue instead of polling
+    -- This replaces the C# InferenceJobWorker polling service
     BEGIN DIALOG CONVERSATION @correlationId
         FROM SERVICE [InferenceService]
         TO SERVICE 'InferenceService'
         ON CONTRACT [InferenceJobContract]
         WITH ENCRYPTION = OFF;
     
+    -- Construct XML message
     DECLARE @MessageXml XML = (
         SELECT 
             @inferenceId AS InferenceId,
@@ -86,10 +96,12 @@ BEGIN
         FOR XML PATH('InferenceJob'), TYPE
     );
     
+    -- Send message to queue (activates sp_ExecuteInference_Activated)
     SEND ON CONVERSATION @correlationId
         MESSAGE TYPE [InferenceJobRequest]
         (@MessageXml);
     
+    -- Return job info
     SELECT 
         @inferenceId AS InferenceId,
         @correlationId AS CorrelationId,
@@ -98,4 +110,3 @@ BEGIN
         @sla AS SlaTier,
         @estimatedResponseTimeMs AS EstimatedResponseTimeMs;
 END;
-GO

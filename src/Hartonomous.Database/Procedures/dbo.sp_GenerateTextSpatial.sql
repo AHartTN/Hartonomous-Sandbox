@@ -60,4 +60,3 @@ BEGIN
         @iteration AS TokensGenerated,
         'SPATIAL_GEOMETRY_R_TREE' AS Method;
 END;
-GO

@@ -1,6 +1,6 @@
 CREATE PROCEDURE dbo.sp_SemanticSearch
     @query_text NVARCHAR(MAX) = NULL,
-    @query_embedding VARBINARY(MAX) = NULL,
+    @query_embedding VECTOR(1998) = NULL,
     @query_dimension INT = 768,
     @top_k INT = 5,
     @category NVARCHAR(50) = NULL,
@@ -21,13 +21,25 @@ BEGIN
             RETURN;
         END;
 
-        RAISERROR('Text-to-embedding inference not implemented. Please provide @query_embedding parameter.', 16, 1);
-        RETURN;
+        -- Generate embedding from text using your TensorAtoms framework
+        -- sp_TextToEmbedding uses sp_GenerateWithAttention and AttentionGeneration.cs CLR
+        DECLARE @embedding_dimension INT;
+        EXEC dbo.sp_TextToEmbedding 
+            @text = @query_text,
+            @ModelName = NULL,  -- Auto-select best embedding model
+            @embedding = @query_embedding OUTPUT,
+            @dimension = @embedding_dimension OUTPUT;
+        
+        IF @query_embedding IS NULL
+        BEGIN
+            RAISERROR('Failed to generate embedding from query text. Ensure models are ingested.', 16, 1);
+            RETURN;
+        END;
     END;
 
-    DECLARE @input_data NVARCHAR(MAX) = CASE
+    DECLARE @input_data JSON = CASE
         WHEN @query_text IS NULL THEN NULL
-        ELSE (SELECT @query_text FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        ELSE CAST(JSON_OBJECT('queryText': @query_text) AS JSON)
     END;
 
     DECLARE @input_hash BINARY(32) = CASE
@@ -36,7 +48,7 @@ BEGIN
     END;
 
     DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
-    DECLARE @models_used_json NVARCHAR(MAX) = (SELECT @search_method as searchMethod FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @models_used_json JSON = CAST(JSON_OBJECT('searchMethod': @search_method) AS JSON);
 
     INSERT INTO dbo.InferenceRequests (
         TaskType,
@@ -189,14 +201,12 @@ BEGIN
     DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
     SET @ResultCount = (SELECT COUNT(*) FROM @Results);
 
-    DECLARE @OutputMetadata NVARCHAR(MAX) = (
-        SELECT
-            'completed' as status,
-            @ResultCount as results_count,
-            @search_method as search_method,
-            @DurationMs as duration_ms
-        FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-    );
+    DECLARE @OutputMetadata JSON = CAST(JSON_OBJECT(
+        'status': 'completed',
+        'results_count': @ResultCount,
+        'search_method': @search_method,
+        'duration_ms': @DurationMs
+    ) AS JSON);
 
     UPDATE dbo.InferenceRequests
     SET
@@ -224,5 +234,4 @@ BEGIN
     ORDER BY r.ExactDistance;
 
     SELECT @InferenceId AS InferenceId, @DurationMs AS DurationMs, @ResultCount AS ResultsCount;
-END
-GO
+END;

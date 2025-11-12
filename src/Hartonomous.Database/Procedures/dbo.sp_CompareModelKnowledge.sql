@@ -5,6 +5,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    PRINT 'KNOWLEDGE COMPARISON: Model ' + CAST(@ModelAId AS NVARCHAR(20)) + ' vs Model ' + CAST(@ModelBId AS NVARCHAR(20));
+
     SELECT
         'Model A' AS model_name,
         @ModelAId AS model_id,
@@ -67,5 +69,6 @@ BEGIN
         GROUP BY ta.ModelId
     ) AS stats
     ORDER BY stats.model_id;
-END;
-GO
+
+    PRINT '✓ Knowledge comparison complete';
+END

@@ -68,4 +68,3 @@ BEGIN
         COUNT(CASE WHEN TopicCreative > 0.5 THEN 1 END) as high_score_count
     FROM dbo.SemanticFeatures;
 END
-GO

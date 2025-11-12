@@ -13,4 +13,3 @@ CREATE TABLE dbo.EventHubCheckpoints
     UniqueKeyHash           AS CONVERT(VARBINARY(32), HASHBYTES('SHA2_256', CONCAT(FullyQualifiedNamespace, N'|', EventHubName, N'|', ConsumerGroup, N'|', PartitionId))) PERSISTED,
     CONSTRAINT PK_EventHubCheckpoints PRIMARY KEY CLUSTERED (CheckpointId)
 );
-GO

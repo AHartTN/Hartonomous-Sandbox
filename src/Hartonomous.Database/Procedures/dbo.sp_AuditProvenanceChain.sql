@@ -16,6 +16,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Auditing provenance chains from ' + CAST(@StartDate AS NVARCHAR(30)) + ' to ' + CAST(@EndDate AS NVARCHAR(30));
 
+    -- Get operations in date range
     DECLARE @Operations TABLE (
         OperationId UNIQUEIDENTIFIER,
         Scope NVARCHAR(100),
@@ -45,6 +46,7 @@ BEGIN
     WHERE op.CreatedAt BETWEEN @StartDate AND @EndDate
     AND (@Scope IS NULL OR op.ProvenanceStream.Scope = @Scope);
 
+    -- Calculate audit metrics
     DECLARE @TotalOperations INT = (SELECT COUNT(*) FROM @Operations);
     DECLARE @ValidOperations INT = (SELECT COUNT(*) FROM @Operations WHERE ValidationStatus = 'PASS');
     DECLARE @WarningOperations INT = (SELECT COUNT(*) FROM @Operations WHERE ValidationStatus = 'WARN');
@@ -52,20 +54,25 @@ BEGIN
     DECLARE @AverageValidationScore FLOAT = (SELECT AVG(ValidationScore) FROM @Operations);
     DECLARE @AverageSegmentCount FLOAT = (SELECT AVG(SegmentCount) FROM @Operations);
 
+    -- Check for anomalies
     DECLARE @Anomalies TABLE (AnomalyType NVARCHAR(100), Details NVARCHAR(MAX));
 
+    -- Operations with no provenance
     IF EXISTS (SELECT 1 FROM dbo.OperationProvenance WHERE CreatedAt BETWEEN @StartDate AND @EndDate AND (ProvenanceStream IS NULL OR ProvenanceStream.IsNull = 1))
         INSERT INTO @Anomalies VALUES ('Missing Provenance', 'Operations found without provenance streams');
 
+    -- Operations failing validation
     IF @FailedOperations > 0
         INSERT INTO @Anomalies VALUES ('Validation Failures', CAST(@FailedOperations AS NVARCHAR(10)) + ' operations failed validation');
 
+    -- Operations with unusual segment counts
     DECLARE @AvgSegments FLOAT = (SELECT AVG(SegmentCount) FROM @Operations);
     DECLARE @StdDevSegments FLOAT = (SELECT STDEV(SegmentCount) FROM @Operations);
 
     IF @StdDevSegments IS NOT NULL AND EXISTS (SELECT 1 FROM @Operations WHERE ABS(SegmentCount - @AvgSegments) > 2 * @StdDevSegments)
         INSERT INTO @Anomalies VALUES ('Segment Count Anomalies', 'Operations with unusual number of provenance segments detected');
 
+    -- Store audit result
     INSERT INTO dbo.ProvenanceAuditResults (
         AuditPeriodStart,
         AuditPeriodEnd,
@@ -95,6 +102,7 @@ BEGIN
         SYSUTCDATETIME()
     );
 
+    -- Return audit summary
     SELECT
         'Audit Summary' AS Metric,
         CAST(@StartDate AS NVARCHAR(30)) + ' - ' + CAST(@EndDate AS NVARCHAR(30)) AS Period,
@@ -106,11 +114,13 @@ BEGIN
         CAST(@AverageValidationScore * 100 AS DECIMAL(5,2)) AS AvgValidationScore,
         CAST(@AverageSegmentCount AS DECIMAL(10,2)) AS AvgSegmentCount;
 
+    -- Return anomalies
     SELECT
         AnomalyType,
         Details
     FROM @Anomalies;
 
+    -- Return detailed operation results
     SELECT TOP 100
         OperationId,
         Scope,
@@ -123,6 +133,5 @@ BEGIN
     ORDER BY CreatedAt DESC;
 
     IF @Debug = 1
-        PRINT 'Provenance audit completed';
+        PRINT 'Provenance audit completed, analyzed ' + CAST(@TotalOperations AS NVARCHAR(10)) + ' operations';
 END;
-GO

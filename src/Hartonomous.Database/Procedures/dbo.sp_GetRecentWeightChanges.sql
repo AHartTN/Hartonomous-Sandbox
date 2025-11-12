@@ -1,6 +1,3 @@
--- Procedure: Get Recent Weight Changes
--- Purpose: Find most recently updated tensor atom coefficients
-
 CREATE PROCEDURE dbo.sp_GetRecentWeightChanges
     @TopN INT = 100,
     @SinceDateTime DATETIME2(7) = NULL

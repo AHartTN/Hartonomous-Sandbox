@@ -17,7 +17,7 @@ BEGIN
     IF @targetFps IS NULL OR @targetFps <= 0
         SET @targetFps = 24;
 
-    DECLARE @promptEmbedding VARBINARY(MAX);
+    DECLARE @promptEmbedding VECTOR(1998);
     DECLARE @embeddingDim INT;
     EXEC dbo.sp_TextToEmbedding @text = @prompt, @ModelName = NULL, @embedding = @promptEmbedding OUTPUT, @dimension = @embeddingDim OUTPUT;
 
@@ -34,7 +34,12 @@ BEGIN
         SELECT ModelId, Weight, ModelName FROM @models FOR JSON PATH
     );
 
-    DECLARE @requestJson NVARCHAR(MAX) = (SELECT @prompt as prompt, @targetDurationMs as targetDurationMs, @targetFps as targetFps, @top_k as top_k FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @requestJson NVARCHAR(MAX) = JSON_OBJECT(
+        'prompt': @prompt,
+        'targetDurationMs': @targetDurationMs,
+        'targetFps': @targetFps,
+        'top_k': @top_k
+    );
 
     DECLARE @inferenceId BIGINT;
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
@@ -43,7 +48,7 @@ BEGIN
         TRY_CAST(@requestJson AS JSON),
         TRY_CAST(@modelsJson AS JSON),
         'temporal_recombination',
-        (SELECT 'running' as status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        JSON_OBJECT('status': 'running')
     );
     SET @inferenceId = SCOPE_IDENTITY();
 
@@ -100,7 +105,7 @@ BEGIN
         PixelCloud GEOMETRY,
         ObjectRegions GEOMETRY,
         MotionVectors GEOMETRY,
-        FrameEmbedding VARBINARY(MAX)
+        FrameEmbedding VECTOR(768)
     );
 
     IF EXISTS (SELECT 1 FROM @videoCandidates)
@@ -164,12 +169,20 @@ BEGIN
         );
     END;
 
-    DECLARE @outputJson NVARCHAR(MAX) = (SELECT JSON_QUERY(@framesJson) as frames, JSON_QUERY(@candidatesJson) as candidates, @targetFps as targetFps FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @outputJson NVARCHAR(MAX) = JSON_OBJECT(
+        'frames': JSON_QUERY(@framesJson),
+        'candidates': JSON_QUERY(@candidatesJson),
+        'targetFps': @targetFps
+    );
 
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @durationMs,
         OutputData = TRY_CAST(@outputJson AS JSON),
-        OutputMetadata = (SELECT 'completed' as status, (SELECT COUNT(*) FROM @frames) as frame_count, (SELECT COUNT(*) FROM @videoCandidates) as candidate_count FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        OutputMetadata = JSON_OBJECT(
+            'status': 'completed',
+            'frame_count': (SELECT COUNT(*) FROM @frames),
+            'candidate_count': (SELECT COUNT(*) FROM @videoCandidates)
+        )
     WHERE InferenceId = @inferenceId;
 
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)
@@ -196,4 +209,3 @@ BEGIN
         @durationMs AS DurationMs,
         JSON_QUERY(@candidatesJson) AS CandidateVideos;
 END;
-GO

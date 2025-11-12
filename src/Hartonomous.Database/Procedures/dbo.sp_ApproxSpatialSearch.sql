@@ -53,4 +53,3 @@ BEGIN
         ORDER BY ae.SpatialGeometry.STDistance(@query_point);
     END;
 END;
-GO

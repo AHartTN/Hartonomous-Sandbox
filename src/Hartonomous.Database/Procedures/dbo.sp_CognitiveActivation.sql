@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_CognitiveActivation
-    @query_embedding VARBINARY(MAX),
+    @query_embedding VECTOR(1998),
     @activation_threshold FLOAT = 0.8,
     @max_activated INT = 50
 AS
@@ -24,6 +24,9 @@ BEGIN
         ;THROW 50012, 'Activation threshold too high for cosine similarity search.', 1;
     END;
 
+    PRINT 'COGNITIVE ACTIVATION: Atom embeddings firing based on cosine similarity';
+    PRINT '  Threshold: ' + CAST(@activation_threshold AS NVARCHAR(10)) + ' | Max candidates: ' + CAST(@max_activated AS NVARCHAR(10));
+
     DECLARE @activated TABLE (
         AtomEmbeddingId BIGINT PRIMARY KEY,
         AtomId BIGINT NOT NULL,
@@ -41,6 +44,7 @@ BEGIN
     ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) ASC;
 
     DECLARE @activated_count INT = @@ROWCOUNT;
+    PRINT '  Activated nodes: ' + CAST(@activated_count AS NVARCHAR(10));
 
     SELECT
         ae.AtomEmbeddingId,
@@ -63,9 +67,9 @@ BEGIN
     ORDER BY act.ActivationStrength DESC;
 
     DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
-    DECLARE @input_json NVARCHAR(MAX) = (SELECT @activation_threshold as activationThreshold, @max_activated as maxActivated FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
-    DECLARE @output_json NVARCHAR(MAX) = (SELECT @activated_count as activatedCount FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
-    DECLARE @output_metadata NVARCHAR(MAX) = (SELECT 'completed' as status, @DurationMs as durationMs FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @input_json JSON = CAST(JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated) AS JSON);
+    DECLARE @output_json JSON = CAST(JSON_OBJECT('activatedCount': @activated_count) AS JSON);
+    DECLARE @output_metadata JSON = CAST(JSON_OBJECT('status': 'completed', 'durationMs': @DurationMs) AS JSON);
     DECLARE @InferenceId BIGINT;
 
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
@@ -80,5 +84,5 @@ BEGIN
     );
 
     SET @InferenceId = SCOPE_IDENTITY();
-END;
-GO
+    PRINT '✓ Cognitive activation complete - Inference ID: ' + CAST(@InferenceId AS NVARCHAR(20));
+END

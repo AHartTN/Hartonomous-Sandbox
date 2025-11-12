@@ -51,6 +51,8 @@ BEGIN
             WHERE ModelId = @ParentModelId
             ORDER BY LayerIdx
         ) AS layer_selection;
+
+        PRINT 'DYNAMIC EXTRACTION → Layer subset: ' + ISNULL(@layer_subset, '(empty)');
     END
     ELSE IF @selection_strategy = 'random'
     BEGIN
@@ -75,6 +77,8 @@ BEGIN
             WHERE ModelId = @ParentModelId
             ORDER BY NEWID()
         ) AS random_layers;
+
+        PRINT 'DYNAMIC EXTRACTION → Random layer subset: ' + ISNULL(@layer_subset, '(empty)');
     END
     ELSE
     BEGIN
@@ -86,6 +90,7 @@ BEGIN
 
         IF @total_atoms = 0
         BEGIN
+            PRINT 'Parent model has no tensor atoms; falling back to full copy.';
             SET @importance_threshold = NULL;
         END
         ELSE
@@ -101,7 +106,14 @@ BEGIN
                   AND ImportanceScore IS NOT NULL
                 ORDER BY ImportanceScore DESC
             ) AS ranked;
+
+            IF @importance_threshold IS NULL
+            BEGIN
+                PRINT 'Importance scores missing; no threshold applied.';
+            END;
         END;
+
+        PRINT 'DYNAMIC EXTRACTION → Importance threshold: ' + COALESCE(CAST(@importance_threshold AS NVARCHAR(32)), 'none');
     END;
 
     EXEC dbo.sp_ExtractStudentModel
@@ -109,5 +121,4 @@ BEGIN
         @layer_subset = @layer_subset,
         @importance_threshold = @importance_threshold,
         @NewModelName = @NewModelName;
-END;
-GO
+END

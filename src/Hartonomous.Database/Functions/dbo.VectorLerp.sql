@@ -1,0 +1,6 @@
+CREATE FUNCTION dbo.VectorLerp (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX), @t FLOAT)
+RETURNS VARBINARY(MAX)
+AS
+BEGIN
+    RETURN dbo.clr_VectorLerp(@v1, @v2, @t);
+END;

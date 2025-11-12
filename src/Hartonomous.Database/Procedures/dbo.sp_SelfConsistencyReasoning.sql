@@ -13,21 +13,23 @@ BEGIN
     IF @Debug = 1
         PRINT 'Starting self-consistency reasoning with ' + CAST(@NumSamples AS NVARCHAR(10)) + ' samples';
 
+    -- PARADIGM-COMPLIANT: Generate samples in a table, then use CLR aggregate for consensus
     DECLARE @Samples TABLE (
         SampleId INT,
         Response NVARCHAR(MAX),
-        ResponsePathVector VARBINARY(MAX),
-        ResponseAnswerVector VARBINARY(MAX),
+        ResponsePathVector VECTOR(1998),
+        ResponseAnswerVector VECTOR(1998),
         Confidence FLOAT,
         SampleTime DATETIME2
     );
 
+    -- Generate multiple reasoning samples
     DECLARE @SampleId INT = 1;
     WHILE @SampleId <= @NumSamples
     BEGIN
         DECLARE @SampleResponse NVARCHAR(MAX);
-        DECLARE @PathEmbedding VARBINARY(MAX);
-        DECLARE @AnswerEmbedding VARBINARY(MAX);
+        DECLARE @PathEmbedding VECTOR(1998);
+        DECLARE @AnswerEmbedding VECTOR(1998);
         DECLARE @EmbeddingDim INT;
 
         EXEC dbo.sp_GenerateText
@@ -36,12 +38,14 @@ BEGIN
             @temperature = @Temperature,
             @GeneratedText = @SampleResponse OUTPUT;
 
+        -- Get path embedding (full reasoning)
         EXEC dbo.sp_TextToEmbedding
             @text = @SampleResponse,
             @ModelName = NULL,
             @embedding = @PathEmbedding OUTPUT,
             @dimension = @EmbeddingDim OUTPUT;
 
+        -- Extract final answer (last sentence for simplicity)
         DECLARE @FinalAnswer NVARCHAR(MAX) = REVERSE(SUBSTRING(REVERSE(@SampleResponse), 1, CHARINDEX('.', REVERSE(@SampleResponse)) - 1));
         
         EXEC dbo.sp_TextToEmbedding
@@ -56,6 +60,7 @@ BEGIN
         SET @SampleId = @SampleId + 1;
     END
 
+    -- PARADIGM-COMPLIANT: Use CLR aggregate to find consensus
     DECLARE @ConsensusResult NVARCHAR(MAX);
     
     SELECT @ConsensusResult = dbo.SelfConsistency(
@@ -65,10 +70,12 @@ BEGIN
     )
     FROM @Samples;
 
+    -- Extract consensus metrics from JSON
     DECLARE @AgreementRatio FLOAT = TRY_CAST(JSON_VALUE(@ConsensusResult, '$.agreement_ratio') AS FLOAT);
     DECLARE @NumSupportingSamples INT = TRY_CAST(JSON_VALUE(@ConsensusResult, '$.num_supporting_samples') AS INT);
     DECLARE @AvgConfidence FLOAT = TRY_CAST(JSON_VALUE(@ConsensusResult, '$.avg_confidence') AS FLOAT);
 
+    -- Store self-consistency results
     INSERT INTO dbo.SelfConsistencyResults (
         ProblemId,
         Prompt,
@@ -92,6 +99,7 @@ BEGIN
         SYSUTCDATETIME()
     );
 
+    -- Return results
     SELECT
         @ProblemId AS ProblemId,
         'self_consistency' AS ReasoningType,
@@ -113,4 +121,3 @@ BEGIN
         PRINT 'Consensus Metrics: ' + ISNULL(@ConsensusResult, 'N/A');
     END
 END;
-GO

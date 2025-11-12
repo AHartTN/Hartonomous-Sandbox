@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_ExactVectorSearch
-    @query_vector VARBINARY(MAX),
+    @query_vector VECTOR(1998),
     @top_k INT = 10,
     @distance_metric NVARCHAR(20) = 'cosine',
     @embedding_type NVARCHAR(128) = NULL,
@@ -29,4 +29,3 @@ BEGIN
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
     ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
 END
-GO

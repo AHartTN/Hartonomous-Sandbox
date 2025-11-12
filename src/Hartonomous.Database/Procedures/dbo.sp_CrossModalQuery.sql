@@ -9,6 +9,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    PRINT 'CROSS-MODAL INFERENCE';
+    PRINT '  Text filter: ' + ISNULL(@text_query, '(none)');
+    PRINT '  Target modality: ' + ISNULL(@modality_filter, 'all');
+
     IF @spatial_query_x IS NOT NULL AND @spatial_query_y IS NOT NULL
     BEGIN
         DECLARE @z FLOAT = ISNULL(@spatial_query_z, 0);
@@ -51,5 +55,6 @@ BEGIN
           AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
         ORDER BY NEWID();
     END;
-END;
-GO
+
+    PRINT '✓ Cross-modal results returned';
+END

@@ -1,11 +1,8 @@
--- sp_TemporalVectorSearch: Point-in-time semantic search
--- Uses temporal tables to query historical embeddings
-
-CREATE OR ALTER PROCEDURE dbo.sp_TemporalVectorSearch
+CREATE PROCEDURE dbo.sp_TemporalVectorSearch
     @QueryVector VARBINARY(MAX),
     @AsOfDate DATETIME2,
     @TopK INT = 10,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -20,8 +17,8 @@ BEGIN
             a.ContentType
         FROM dbo.AtomEmbeddings FOR SYSTEM_TIME AS OF @AsOfDate ae
         INNER JOIN dbo.Atoms FOR SYSTEM_TIME AS OF @AsOfDate a ON ae.AtomId = a.AtomId
-        WHERE ae.TenantId = @TenantId
-              AND a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
         ORDER BY Similarity DESC;
         
         RETURN 0;

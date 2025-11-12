@@ -1,7 +1,4 @@
--- sp_FusionSearch: Full-text + Vector + Spatial fusion
--- Combines multiple ranking signals with weighted scoring
-
-CREATE OR ALTER PROCEDURE dbo.sp_FusionSearch
+CREATE PROCEDURE dbo.sp_FusionSearch
     @QueryVector VARBINARY(MAX),
     @Keywords NVARCHAR(MAX) = NULL,
     @SpatialRegion GEOGRAPHY = NULL,
@@ -9,7 +6,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_FusionSearch
     @VectorWeight FLOAT = 0.5,
     @KeywordWeight FLOAT = 0.3,
     @SpatialWeight FLOAT = 0.2,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -38,7 +35,8 @@ BEGIN
             0.0 AS KeywordScore,
             0.0 AS SpatialScore
         FROM dbo.AtomEmbeddings ae
-        WHERE ae.TenantId = @TenantId;
+        LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId);
         
         -- Add keyword scores (if keywords provided)
         IF @Keywords IS NOT NULL
@@ -81,7 +79,7 @@ BEGIN
             a.CreatedUtc
         FROM @Results r
         INNER JOIN dbo.Atoms a ON r.AtomId = a.AtomId
-        WHERE a.TenantId = @TenantId
+        -- No need for second TenantAtoms filter - already filtered in vector score computation
         ORDER BY r.CombinedScore DESC;
         
         RETURN 0;

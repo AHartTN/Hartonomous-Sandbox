@@ -26,4 +26,3 @@ BEGIN
         MESSAGE TYPE [Neo4jSyncRequest]
         (@MessageXml);
 END;
-GO

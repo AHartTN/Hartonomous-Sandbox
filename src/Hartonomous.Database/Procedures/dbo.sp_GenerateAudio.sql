@@ -4,13 +4,10 @@ CREATE PROCEDURE dbo.sp_GenerateAudio
     @sampleRate INT = 44100,
     @ModelIds NVARCHAR(MAX) = NULL,
     @top_k INT = 5,
-    @temperature FLOAT = 0.6,
-    @OutputAtomId BIGINT = NULL OUTPUT
+    @temperature FLOAT = 0.6
 AS
 BEGIN
     SET NOCOUNT ON;
-
-    SET @OutputAtomId = NULL;
 
     IF @prompt IS NULL OR LTRIM(RTRIM(@prompt)) = ''
         THROW 50110, 'Prompt is required for audio generation.', 1;
@@ -24,7 +21,7 @@ BEGIN
     IF @temperature IS NULL OR @temperature <= 0
         SET @temperature = 0.1;
 
-    DECLARE @promptEmbedding VARBINARY(MAX);
+    DECLARE @promptEmbedding VECTOR(1998);
     DECLARE @embeddingDim INT;
     EXEC dbo.sp_TextToEmbedding @text = @prompt, @ModelName = NULL, @embedding = @promptEmbedding OUTPUT, @dimension = @embeddingDim OUTPUT;
 
@@ -43,7 +40,13 @@ BEGIN
         FOR JSON PATH
     );
 
-    DECLARE @requestJson NVARCHAR(MAX) = (SELECT @prompt as prompt, @targetDurationMs as targetDurationMs, @sampleRate as sampleRate, @temperature as temperature, @top_k as top_k FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @requestJson NVARCHAR(MAX) = JSON_OBJECT(
+        'prompt': @prompt,
+        'targetDurationMs': @targetDurationMs,
+        'sampleRate': @sampleRate,
+        'temperature': @temperature,
+        'top_k': @top_k
+    );
 
     DECLARE @inferenceId BIGINT;
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
@@ -52,7 +55,7 @@ BEGIN
         TRY_CAST(@requestJson AS JSON),
         TRY_CAST(@modelsJson AS JSON),
         'vector_similarity',
-        (SELECT 'running' as status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        JSON_OBJECT('status': 'running')
     );
     SET @inferenceId = SCOPE_IDENTITY();
 
@@ -141,12 +144,20 @@ BEGIN
             FOR JSON PATH
         );
 
-        SET @outputJson = (SELECT 'retrieval_composition' as strategy, JSON_QUERY(@segmentJson) as segments, JSON_QUERY(@candidateJson) as candidates FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        SET @outputJson = JSON_OBJECT(
+            'strategy': 'retrieval_composition',
+            'segments': JSON_QUERY(@segmentJson),
+            'candidates': JSON_QUERY(@candidateJson)
+        );
 
         UPDATE dbo.InferenceRequests
         SET TotalDurationMs = @durationMs,
             OutputData = TRY_CAST(@outputJson AS JSON),
-            OutputMetadata = (SELECT 'completed' as status, (SELECT COUNT(*) FROM @segments) as segment_count, (SELECT COUNT(*) FROM @audioCandidates) as candidate_count FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+            OutputMetadata = JSON_OBJECT(
+                'status': 'completed',
+                'segment_count': (SELECT COUNT(*) FROM @segments),
+                'candidate_count': (SELECT COUNT(*) FROM @audioCandidates)
+            )
         WHERE InferenceId = @inferenceId;
 
         INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)
@@ -171,7 +182,7 @@ BEGIN
         DECLARE @seed BIGINT = CONVERT(BIGINT, CHECKSUM(@prompt));
         IF @seed < 0 SET @seed = -@seed;
 
-        DECLARE @fundamentalHz FLOAT = 220.0 + (@seed % 380); -- map prompt to 220-600 Hz
+        DECLARE @fundamentalHz FLOAT = 220.0 + (@seed % 380);
         DECLARE @secondLevel FLOAT = ((@seed / 11) % 70) / 100.0;
         DECLARE @thirdLevel FLOAT = ((@seed / 23) % 60) / 100.0;
         DECLARE @amplitude FLOAT = 0.55 + ((@seed / 7) % 35) / 100.0;
@@ -198,32 +209,28 @@ BEGIN
             );
         END;
 
-        SET @outputJson = (
-            SELECT
-                'synthetic_fallback' AS strategy,
-                @fundamentalHz AS fundamentalHz,
-                @sampleRate AS sampleRate,
-                @targetDurationMs AS durationMs,
-                2 AS channels,
-                @amplitude AS amplitude,
-                @secondLevel AS secondHarmonic,
-                @thirdLevel AS thirdHarmonic,
-                @rms AS rmsAmplitude,
-                @peak AS peakAmplitude,
-                @base64 AS base64
-            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        SET @outputJson = JSON_OBJECT(
+            'strategy': 'synthetic_fallback',
+            'fundamentalHz': @fundamentalHz,
+            'sampleRate': @sampleRate,
+            'durationMs': @targetDurationMs,
+            'channels': 2,
+            'amplitude': @amplitude,
+            'secondHarmonic': @secondLevel,
+            'thirdHarmonic': @thirdLevel,
+            'rmsAmplitude': @rms,
+            'peakAmplitude': @peak,
+            'base64': @base64
         );
 
         UPDATE dbo.InferenceRequests
         SET TotalDurationMs = @durationMs,
             OutputData = TRY_CAST(@outputJson AS JSON),
-            OutputMetadata = (
-                SELECT
-                    'completed' AS status,
-                    0 AS segment_count,
-                    0 AS candidate_count,
-                    'synthetic_fallback' AS generation_mode
-                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            OutputMetadata = JSON_OBJECT(
+                'status': 'completed',
+                'segment_count': 0,
+                'candidate_count': 0,
+                'generation_mode': 'synthetic_fallback'
             )
         WHERE InferenceId = @inferenceId;
 
@@ -243,5 +250,4 @@ BEGIN
             @waveform AS WaveformGeometry,
             @base64 AS SynthesizedAudioBase64;
     END;
-END;
-GO
+END

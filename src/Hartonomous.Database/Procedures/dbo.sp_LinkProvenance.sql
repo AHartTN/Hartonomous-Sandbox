@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_LinkProvenance
-    @ParentAtomIds NVARCHAR(MAX),
+    @ParentAtomIds NVARCHAR(MAX), -- Comma-separated list
     @ChildAtomId BIGINT,
     @DependencyType NVARCHAR(50) = 'DerivedFrom',
     @TenantId INT = 0
@@ -12,10 +12,12 @@ BEGIN
         
         DECLARE @ParentAtoms TABLE (AtomId BIGINT);
         
+        -- Parse parent atom IDs
         INSERT INTO @ParentAtoms
         SELECT CAST(value AS BIGINT)
         FROM STRING_SPLIT(@ParentAtomIds, ',');
         
+        -- Create graph edges (parent → child)
         INSERT INTO provenance.AtomGraphEdges ($from_id, $to_id, DependencyType, TenantId)
         SELECT 
             pa.AtomId,
@@ -24,6 +26,7 @@ BEGIN
             @TenantId
         FROM @ParentAtoms pa
         WHERE NOT EXISTS (
+            -- Avoid duplicate edges
             SELECT 1 
             FROM provenance.AtomGraphEdges edge
             WHERE edge.$from_id = pa.AtomId 
@@ -50,4 +53,3 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO

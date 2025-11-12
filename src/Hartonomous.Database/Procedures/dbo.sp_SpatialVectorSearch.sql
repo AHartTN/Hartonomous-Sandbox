@@ -1,12 +1,9 @@
--- sp_SpatialVectorSearch: Bounding box pre-filtering + exact k-NN
--- Performance optimized for <50K candidates
-
-CREATE OR ALTER PROCEDURE dbo.sp_SpatialVectorSearch
+CREATE PROCEDURE dbo.sp_SpatialVectorSearch
     @QueryVector VARBINARY(MAX),
     @SpatialCenter GEOMETRY = NULL,
     @RadiusMeters FLOAT = NULL,
     @TopK INT = 10,
-    @TenantId INT = 0,
+    @TenantId INT = NULL, -- Optional tenant filtering: NULL = all tenants, specific value = single tenant
     @MinSimilarity FLOAT = 0.0
 AS
 BEGIN
@@ -33,7 +30,8 @@ BEGIN
                 ae.EmbeddingVector,
                 @SpatialCenter.STDistance(ae.SpatialProjection3D) AS SpatialDistance
             FROM dbo.AtomEmbeddings ae WITH (INDEX(IX_AtomEmbeddings_Spatial))
-            WHERE ae.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
                   AND ae.SpatialProjection3D IS NOT NULL
                   AND @SpatialCenter.STDistance(ae.SpatialProjection3D) <= @RadiusMeters;
             
@@ -49,7 +47,8 @@ BEGIN
                 ae.EmbeddingVector,
                 0 AS SpatialDistance
             FROM dbo.AtomEmbeddings ae
-            WHERE ae.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
             ORDER BY ae.AtomEmbeddingId; -- Deterministic ordering
             
             SET @CandidateCount = @@ROWCOUNT;

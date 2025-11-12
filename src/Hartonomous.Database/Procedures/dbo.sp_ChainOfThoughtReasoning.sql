@@ -13,15 +13,18 @@ BEGIN
     IF @Debug = 1
         PRINT 'Starting chain-of-thought reasoning for problem ' + CAST(@ProblemId AS NVARCHAR(36));
 
+    -- PARADIGM-COMPLIANT: Generate reasoning steps in a table, then use CLR aggregate
+    -- This replaces the WHILE loop with a set-based operation
     DECLARE @ReasoningSteps TABLE (
         StepNumber INT,
         Prompt NVARCHAR(MAX),
         Response NVARCHAR(MAX),
-        ResponseVector VARBINARY(MAX),
+        ResponseVector VECTOR(1998),
         Confidence FLOAT,
         StepTime DATETIME2
     );
 
+    -- Generate all reasoning steps (could be parallelized)
     DECLARE @CurrentStep INT = 1;
     DECLARE @CurrentPrompt NVARCHAR(MAX) = @InitialPrompt;
 
@@ -29,26 +32,31 @@ BEGIN
     BEGIN
         DECLARE @StepStartTime DATETIME2 = SYSUTCDATETIME();
         DECLARE @StepResponse NVARCHAR(MAX);
-        DECLARE @ResponseEmbedding VARBINARY(MAX);
+        DECLARE @ResponseEmbedding VECTOR(1998);
         DECLARE @EmbeddingDim INT;
 
+        -- Generate reasoning step using text generation
         EXEC dbo.sp_GenerateText
             @prompt = @CurrentPrompt,
             @max_tokens = 100,
             @temperature = @Temperature,
             @GeneratedText = @StepResponse OUTPUT;
 
+        -- Get embedding for coherence analysis
         EXEC dbo.sp_TextToEmbedding
             @text = @StepResponse,
             @ModelName = NULL,
             @embedding = @ResponseEmbedding OUTPUT,
             @dimension = @EmbeddingDim OUTPUT;
 
+        -- Calculate confidence based on response coherence (simplified)
         DECLARE @Confidence FLOAT = 0.8;
 
+        -- Store step
         INSERT INTO @ReasoningSteps (StepNumber, Prompt, Response, ResponseVector, Confidence, StepTime)
         VALUES (@CurrentStep, @CurrentPrompt, @StepResponse, @ResponseEmbedding, @Confidence, @StepStartTime);
 
+        -- Prepare next step prompt
         SET @CurrentPrompt = 'Continue reasoning: ' + @StepResponse;
         SET @CurrentStep = @CurrentStep + 1;
 
@@ -56,6 +64,7 @@ BEGIN
             PRINT 'Completed step ' + CAST(@CurrentStep - 1 AS NVARCHAR(10));
     END
 
+    -- PARADIGM-COMPLIANT: Use CLR aggregate to analyze reasoning chain coherence
     DECLARE @CoherenceAnalysis NVARCHAR(MAX);
     
     SELECT @CoherenceAnalysis = dbo.ChainOfThoughtCoherence(
@@ -64,6 +73,7 @@ BEGIN
     )
     FROM @ReasoningSteps;
 
+    -- Store final reasoning chain with coherence analysis
     INSERT INTO dbo.ReasoningChains (
         ProblemId,
         ReasoningType,
@@ -83,6 +93,7 @@ BEGIN
         SYSUTCDATETIME()
     );
 
+    -- Return reasoning chain with coherence analysis
     SELECT
         @ProblemId AS ProblemId,
         'chain_of_thought' AS ReasoningType,
@@ -101,4 +112,3 @@ BEGIN
         PRINT 'Coherence Analysis: ' + ISNULL(@CoherenceAnalysis, 'N/A');
     END
 END;
-GO

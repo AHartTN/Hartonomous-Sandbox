@@ -10,6 +10,7 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
+        -- Get current pricing if not provided
         IF @CostPerUnit IS NULL
         BEGIN
             SELECT TOP 1 @CostPerUnit = UnitPrice
@@ -21,11 +22,12 @@ BEGIN
             ORDER BY EffectiveFrom DESC;
             
             IF @CostPerUnit IS NULL
-                SET @CostPerUnit = 0.0;
+                SET @CostPerUnit = 0.0; -- Default to free if no pricing found
         END
         
         DECLARE @TotalCost DECIMAL(18, 8) = @Quantity * @CostPerUnit;
         
+        -- Insert usage record
         INSERT INTO billing.UsageLedger (
             TenantId,
             UsageType,
@@ -47,6 +49,7 @@ BEGIN
             SYSUTCDATETIME()
         );
         
+        -- Check quota limits
         DECLARE @QuotaLimit BIGINT;
         DECLARE @CurrentUsage BIGINT;
         
@@ -66,6 +69,7 @@ BEGIN
             
             IF @CurrentUsage > @QuotaLimit
             BEGIN
+                -- Log quota violation
                 INSERT INTO billing.QuotaViolations (
                     TenantId,
                     UsageType,
@@ -93,4 +97,3 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO

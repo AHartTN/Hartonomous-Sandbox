@@ -1,0 +1,6 @@
+CREATE FUNCTION dbo.VectorNorm (@v VARBINARY(MAX))
+RETURNS FLOAT
+AS
+BEGIN
+    RETURN dbo.clr_VectorNorm(@v);
+END;

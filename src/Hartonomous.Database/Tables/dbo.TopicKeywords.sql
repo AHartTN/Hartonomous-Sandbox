@@ -4,4 +4,3 @@ CREATE TABLE dbo.TopicKeywords (
     keyword NVARCHAR(100),
     weight FLOAT DEFAULT 1.0
 );
-GO

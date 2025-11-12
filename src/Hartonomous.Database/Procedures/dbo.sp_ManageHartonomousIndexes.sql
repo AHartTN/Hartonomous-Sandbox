@@ -87,6 +87,7 @@ BEGIN
             ON i.object_id = ps.object_id AND i.index_id = ps.index_id
         WHERE i.name IS NOT NULL
           AND i.is_hypothetical = 0
+          AND i.is_disabled = 0
           AND i.type_desc IN ('CLUSTERED', 'NONCLUSTERED', 'SPATIAL')
           AND (@TableName IS NULL OR t.name = @TableName)
         ORDER BY SchemaName, TableName, IndexName;
@@ -136,4 +137,3 @@ BEGIN
 
     RAISERROR('Invalid operation. Use: CREATE, REBUILD, ANALYZE, OPTIMIZE, VALIDATE', 16, 1);
 END;
-GO

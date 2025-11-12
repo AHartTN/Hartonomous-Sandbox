@@ -9,6 +9,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Reconstructing operation timeline for ' + CAST(@OperationId AS NVARCHAR(36));
 
+    -- Get operation provenance stream
     DECLARE @ProvenanceStream provenance.AtomicStream;
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
@@ -46,8 +47,10 @@ BEGIN
         SET @SegmentIndex = @SegmentIndex + 1;
     END
 
+    -- Return timeline
     IF @IncludePayloads = 1
     BEGIN
+        -- Include full payload data
         DECLARE @FullTimeline TABLE (
             SequenceNumber INT,
             Timestamp DATETIME2,
@@ -80,6 +83,5 @@ BEGIN
     END
 
     IF @Debug = 1
-        PRINT 'Operation timeline reconstructed';
+        PRINT 'Operation timeline reconstructed with ' + CAST(@SegmentCount AS NVARCHAR(10)) + ' segments';
 END;
-GO

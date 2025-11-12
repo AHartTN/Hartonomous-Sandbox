@@ -5,6 +5,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    PRINT 'INFERENCE HISTORY ANALYSIS';
+    PRINT '  Time window: Last ' + CAST(@time_window_hours AS VARCHAR(10)) + ' hours';
+
     DECLARE @cutoff_time DATETIME2 = DATEADD(HOUR, -@time_window_hours, SYSUTCDATETIME());
 
     SELECT
@@ -21,5 +24,6 @@ BEGIN
         AND (@TaskType IS NULL OR TaskType = @TaskType)
     GROUP BY TaskType
     ORDER BY request_count DESC;
-END;
-GO
+
+    PRINT '✓ Inference history analysis complete';
+END

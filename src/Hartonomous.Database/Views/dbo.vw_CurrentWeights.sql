@@ -1,6 +1,3 @@
--- View: Current Weights Summary
--- Purpose: Current snapshot of all tensor atom coefficients with atom metadata
-
 CREATE VIEW dbo.vw_CurrentWeights
 AS
 SELECT 

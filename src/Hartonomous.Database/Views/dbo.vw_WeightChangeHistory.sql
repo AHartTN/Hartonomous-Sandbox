@@ -1,6 +1,3 @@
--- View: Weight Change History
--- Purpose: Temporal history of all tensor atom coefficient changes with delta calculations
-
 CREATE VIEW dbo.vw_WeightChangeHistory
 AS
 SELECT 

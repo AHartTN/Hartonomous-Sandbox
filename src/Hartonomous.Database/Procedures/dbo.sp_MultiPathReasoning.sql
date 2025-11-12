@@ -23,6 +23,7 @@ BEGIN
     IF @Debug = 1
         PRINT 'Starting multi-path reasoning with ' + CAST(@NumPaths AS NVARCHAR(10)) + ' paths';
 
+    -- Generate multiple reasoning paths
     DECLARE @PathId INT = 1;
     WHILE @PathId <= @NumPaths
     BEGIN
@@ -31,16 +32,19 @@ BEGIN
 
         WHILE @StepNumber <= @MaxDepth
         BEGIN
+            -- Generate response for this step
             DECLARE @StepResponse NVARCHAR(MAX);
             EXEC dbo.sp_GenerateText
                 @prompt = @CurrentPrompt,
                 @max_tokens = 80,
-                @temperature = 0.9,
+                @temperature = 0.9, -- Higher temperature for exploration
                 @GeneratedText = @StepResponse OUTPUT;
 
+            -- Store in reasoning tree
             INSERT INTO @ReasoningTree (PathId, StepNumber, BranchId, Prompt, Response, Score, StepTime)
             VALUES (@PathId, @StepNumber, 1, @CurrentPrompt, @StepResponse, 0.8, SYSUTCDATETIME());
 
+            -- Prepare next step (could branch here in full implementation)
             SET @CurrentPrompt = 'Continue exploring: ' + @StepResponse;
             SET @StepNumber = @StepNumber + 1;
         END
@@ -48,15 +52,18 @@ BEGIN
         SET @PathId = @PathId + 1;
     END
 
+    -- Evaluate paths (simplified scoring)
     UPDATE @ReasoningTree
-    SET Score = Score + (RAND() * 0.4 - 0.2);
+    SET Score = Score + (RAND() * 0.4 - 0.2); -- Add some randomness for demonstration
 
+    -- Find best path
     DECLARE @BestPathId INT;
     SELECT TOP 1 @BestPathId = PathId
     FROM @ReasoningTree
     GROUP BY PathId
     ORDER BY AVG(Score) DESC;
 
+    -- Store reasoning tree
     INSERT INTO dbo.MultiPathReasoning (
         ProblemId,
         BasePrompt,
@@ -78,6 +85,7 @@ BEGIN
         SYSUTCDATETIME()
     );
 
+    -- Return reasoning tree
     SELECT
         @ProblemId AS ProblemId,
         'multi_path' AS ReasoningType,
@@ -95,4 +103,3 @@ BEGIN
     IF @Debug = 1
         PRINT 'Multi-path reasoning completed, best path: ' + CAST(@BestPathId AS NVARCHAR(10));
 END;
-GO
