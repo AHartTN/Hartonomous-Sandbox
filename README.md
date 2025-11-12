@@ -202,6 +202,97 @@ See [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) for
 - **`docs/`**: Architecture, deployment, CLR guide, schema reference, Gödel Engine documentation.
 - **`tests/`**: Unit, integration, database validation, end-to-end test suites.
 
+## Multimodal Ingestion Pipeline
+
+**NEW**: Hartonomous now includes a complete **Reader → Atomizer → Ingestor** pipeline for multimodal content ingestion:
+
+### Architecture
+
+```
+Source URI (file://, http://, s3://)
+    ↓
+IContentReaderFactory.CreateReader()
+    ↓
+IContentReader.ReadChunksAsync() → IAsyncEnumerable<ReadChunk>
+    ↓
+IAtomizer<TSource>.AtomizeAsync() → IAsyncEnumerable<AtomCandidate>
+    ↓
+Quality Filtering (QualityScore ≥ MinQualityScore)
+    ↓
+Batch Processing (Channel-based parallelism)
+    ↓
+IAtomIngestionService.IngestAsync() → Atoms + embeddings + spatial indexes
+    ↓
+IngestionResult (statistics, throughput, duplicates)
+```
+
+### Example: Ingest Text File
+
+```csharp
+// Create orchestrator with text atomizer
+var readerFactory = new ContentReaderFactory(loggerFactory);
+var orchestrator = new MultimodalIngestionOrchestrator(
+    readerFactory,
+    atomIngestionService,
+    logger,
+    batchSize: 100,
+    maxParallelism: 4);
+
+// Register sentence-level atomizer
+var textAtomizer = new TextAtomizer(
+    strategy: TextChunkingStrategy.Sentence,
+    logger: logger);
+orchestrator.RegisterAtomizer("text", textAtomizer);
+
+// Ingest with progress tracking
+var result = await orchestrator.IngestAsync(
+    sourceUri: "file:///documents/report.txt",
+    modalityHint: "text",
+    progress: new Progress<IngestionProgress>(p =>
+    {
+        Console.WriteLine($"[{p.Phase}] {p.PercentComplete:F1}% - " +
+                        $"Atoms: {p.AtomsProcessed}/{p.AtomsGenerated}");
+    }));
+
+Console.WriteLine($"✅ Ingested {result.Statistics.AtomsIngested} atoms");
+Console.WriteLine($"   Throughput: {result.Statistics.ThroughputAtomsPerSecond:F2} atoms/sec");
+```
+
+### Example: Batch Ingestion
+
+```csharp
+// Register atomizers for each modality
+orchestrator.RegisterAtomizer("text", new TextAtomizer(TextChunkingStrategy.FixedSize, logger));
+orchestrator.RegisterAtomizer("image", new ImageAtomizer(ImageAtomizationStrategy.WholeImage, logger));
+orchestrator.RegisterAtomizer("audio", new AudioAtomizer(AudioAtomizationStrategy.WholeAudio, logger));
+orchestrator.RegisterAtomizer("video", new VideoAtomizer(VideoAtomizationStrategy.WholeVideo, logger));
+
+// Ingest multiple files
+var files = new[] { "doc.txt", "image.jpg", "audio.mp3", "video.mp4" };
+foreach (var file in files)
+{
+    var result = await orchestrator.IngestAsync(file);
+    // Automatic modality detection from MIME type
+}
+```
+
+### Text Atomization Strategies
+
+- **Sentence**: Regex-based splitting with abbreviation handling (dr., mr., mrs., inc., etc.)
+- **FixedSize**: Chunk with overlap, optional sentence boundary preservation
+- **Paragraph**: Split on double newlines
+- **Semantic**: (TODO) TextTiling or LLM-based coherence scoring
+- **Structural**: (TODO) Markdown/HTML structure preservation (headers, lists, code blocks)
+
+### Multimodal Atomization (In Development)
+
+- **Image**: Whole image, tile extraction, object detection (YOLO), OCR (Tesseract), salient regions
+- **Audio**: Whole audio, silence detection, speaker diarization (pyannote.audio), Whisper transcription
+- **Video**: Whole video, scene detection (PySceneDetect), keyframe extraction (FFmpeg), shot boundaries
+- **Sensor**: Fixed-duration windowing, event detection, change-point detection
+
+See `src/Hartonomous.Core/Examples/MultimodalIngestionExample.cs` for complete usage examples.
+
 ## Example: T-SQL Inference
 
 ```sql
