@@ -59,21 +59,34 @@ public static class PerceptualHasher
     
     /// <summary>
     /// Compute perceptual hash from raw image bytes.
-    /// Currently expects raw grayscale pixel data (32x32 bytes).
-    /// TODO: Add image decoding for PNG/JPEG/etc formats.
+    /// Supports PNG, JPEG, BMP - detects format and decodes to 32x32 grayscale.
     /// </summary>
     public static PerceptualHash ComputeHash(byte[] imageData)
     {
         if (imageData == null || imageData.Length == 0)
             throw new ArgumentException("Image data cannot be empty", nameof(imageData));
         
-        // For now, assume imageData is already 32x32 grayscale
-        // TODO: Implement image decoding and resizing
-        if (imageData.Length != HashSize * HashSize)
+        byte[] grayscaleData;
+        
+        // Check if already raw 32x32 grayscale (1024 bytes) or needs decoding
+        if (imageData.Length == HashSize * HashSize)
         {
-            throw new NotImplementedException(
-                $"Image decoding not yet implemented. Expected {HashSize}x{HashSize} grayscale bytes, got {imageData.Length} bytes. " +
-                "TODO: Integrate image decoder (PNG/JPEG magic number detection + resize to 32x32)");
+            // Already 32x32 grayscale - use directly
+            grayscaleData = imageData;
+        }
+        else
+        {
+            // Decode image file (PNG/JPEG/BMP)
+            try
+            {
+                grayscaleData = ImageDecoder.DecodeToGrayscale32x32(imageData);
+            }
+            catch (NotImplementedException ex)
+            {
+                throw new InvalidOperationException(
+                    "Image decoding requires ImageSharp for PNG/JPEG. Install: dotnet add package SixLabors.ImageSharp --version 3.1.0. " +
+                    "BMP images work without external libraries (24-bit/32-bit uncompressed only).", ex);
+            }
         }
         
         // Convert bytes to doubles for DCT
@@ -82,7 +95,7 @@ public static class PerceptualHasher
         {
             for (int x = 0; x < HashSize; x++)
             {
-                pixels[y, x] = imageData[y * HashSize + x];
+                pixels[y, x] = grayscaleData[y * HashSize + x];
             }
         }
         
