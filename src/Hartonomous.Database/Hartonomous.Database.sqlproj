@@ -13,13 +13,11 @@
     <EnableDefaultSqlItems>false</EnableDefaultSqlItems>
     <ProjectGuid>{00000000-0000-0000-0000-000000000000}</ProjectGuid>
   </PropertyGroup>
-  <!-- CLR assembly reference -->
-  <ItemGroup>
-    <ArtifactReference Include="..\..\deploy\SqlClrFunctions.dll">
-      <HintPath>..\..\deploy\SqlClrFunctions.dll</HintPath>
-      <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>
-    </ArtifactReference>
-  </ItemGroup>
+  <!-- CLR assembly reference suppression - DLL will be deployed separately via SQL scripts -->
+  <PropertyGroup>
+    <!-- Suppress SQL71501 errors for CLR assembly references - these are deployed at runtime, not build time -->
+    <SuppressTSqlWarnings>$(SuppressTSqlWarnings);71501</SuppressTSqlWarnings>
+  </PropertyGroup>
   <!-- Schema and object definitions -->
   <ItemGroup>
     <Build Include="Schemas\graph.sql" />
@@ -236,5 +234,77 @@
   <ItemGroup>
     <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
     <PostDeploy Include="Scripts\Post-Deployment\Script.PostDeployment.sql" />
+  </ItemGroup>
+  <!-- CLR C# Source Files - integrated directly into database project -->
+  <ItemGroup>
+    <Compile Include="..\SqlClr\AdvancedVectorAggregates.cs" Link="CLR\AdvancedVectorAggregates.cs" />
+    <Compile Include="..\SqlClr\Analysis\AutonomousAnalyticsTVF.cs" Link="CLR\Analysis\AutonomousAnalyticsTVF.cs" />
+    <Compile Include="..\SqlClr\Analysis\BillingLedgerAnalyzer.cs" Link="CLR\Analysis\BillingLedgerAnalyzer.cs" />
+    <Compile Include="..\SqlClr\Analysis\IAnalyzers.cs" Link="CLR\Analysis\IAnalyzers.cs" />
+    <Compile Include="..\SqlClr\Analysis\QueryStoreAnalyzer.cs" Link="CLR\Analysis\QueryStoreAnalyzer.cs" />
+    <Compile Include="..\SqlClr\Analysis\SystemAnalyzer.cs" Link="CLR\Analysis\SystemAnalyzer.cs" />
+    <Compile Include="..\SqlClr\Analysis\TestResultAnalyzer.cs" Link="CLR\Analysis\TestResultAnalyzer.cs" />
+    <Compile Include="..\SqlClr\AnomalyDetectionAggregates.cs" Link="CLR\AnomalyDetectionAggregates.cs" />
+    <Compile Include="..\SqlClr\AttentionGeneration.cs" Link="CLR\AttentionGeneration.cs" />
+    <Compile Include="..\SqlClr\AudioProcessing.cs" Link="CLR\AudioProcessing.cs" />
+    <Compile Include="..\SqlClr\AtomicStream.cs" Link="CLR\AtomicStream.cs" />
+    <Compile Include="..\SqlClr\AtomicStreamFunctions.cs" Link="CLR\AtomicStreamFunctions.cs" />
+    <Compile Include="..\SqlClr\AutonomousFunctions.cs" Link="CLR\AutonomousFunctions.cs" />
+    <Compile Include="..\SqlClr\BehavioralAggregates.cs" Link="CLR\BehavioralAggregates.cs" />
+    <Compile Include="..\SqlClr\ComponentStream.cs" Link="CLR\ComponentStream.cs" />
+    <Compile Include="..\SqlClr\ConceptDiscovery.cs" Link="CLR\ConceptDiscovery.cs" />
+    <Compile Include="..\SqlClr\Contracts\ITensorProvider.cs" Link="CLR\Contracts\ITensorProvider.cs" />
+    <Compile Include="..\SqlClr\Core\LandmarkProjection.cs" Link="CLR\Core\LandmarkProjection.cs" />
+    <Compile Include="..\SqlClr\Core\SqlTensorProvider.cs" Link="CLR\Core\SqlTensorProvider.cs" />
+    <Compile Include="..\SqlClr\Core\TensorMetadata.cs" Link="CLR\Core\TensorMetadata.cs" />
+    <Compile Include="..\SqlClr\Core\VectorMath.cs" Link="CLR\Core\VectorMath.cs" />
+    <Compile Include="..\SqlClr\Core\GpuAccelerator.cs" Link="CLR\Core\GpuAccelerator.cs" />
+    <Compile Include="..\SqlClr\Core\VectorUtilities.cs" Link="CLR\Core\VectorUtilities.cs" />
+    <Compile Include="..\SqlClr\Core\PooledList.cs" Link="CLR\Core\PooledList.cs" />
+    <Compile Include="..\SqlClr\Core\TimestampedVector.cs" Link="CLR\Core\TimestampedVector.cs" />
+    <Compile Include="..\SqlClr\DimensionalityReductionAggregates.cs" Link="CLR\DimensionalityReductionAggregates.cs" />
+    <Compile Include="..\SqlClr\EmbeddingFunctions.cs" Link="CLR\EmbeddingFunctions.cs" />
+    <Compile Include="..\SqlClr\FileSystemFunctions.cs" Link="CLR\FileSystemFunctions.cs" />
+    <Compile Include="..\SqlClr\GenerationFunctions.cs" Link="CLR\GenerationFunctions.cs" />
+    <Compile Include="..\SqlClr\GraphVectorAggregates.cs" Link="CLR\GraphVectorAggregates.cs" />
+    <Compile Include="..\SqlClr\ImageGeneration.cs" Link="CLR\ImageGeneration.cs" />
+    <Compile Include="..\SqlClr\ImageProcessing.cs" Link="CLR\ImageProcessing.cs" />
+    <Compile Include="..\SqlClr\MachineLearning\MahalanobisDistance.cs" Link="CLR\MachineLearning\MahalanobisDistance.cs" />
+    <Compile Include="..\SqlClr\MachineLearning\MatrixFactorization.cs" Link="CLR\MachineLearning\MatrixFactorization.cs" />
+    <Compile Include="..\SqlClr\MachineLearning\SVDCompression.cs" Link="CLR\MachineLearning\SVDCompression.cs" />
+    <Compile Include="..\SqlClr\MachineLearning\TSNEProjection.cs" Link="CLR\MachineLearning\TSNEProjection.cs" />
+    <Compile Include="..\SqlClr\ModelInference.cs" Link="CLR\ModelInference.cs" />
+    <Compile Include="..\SqlClr\ModelIngestionFunctions.cs" Link="CLR\ModelIngestionFunctions.cs" />
+    <Compile Include="..\SqlClr\MultiModalGeneration.cs" Link="CLR\MultiModalGeneration.cs" />
+    <Compile Include="..\SqlClr\NaturalLanguage\BpeTokenizer.cs" Link="CLR\NaturalLanguage\BpeTokenizer.cs" />
+    <Compile Include="..\SqlClr\NeuralVectorAggregates.cs" Link="CLR\NeuralVectorAggregates.cs" />
+    <Compile Include="..\SqlClr\PerformanceAnalysis.cs" Link="CLR\PerformanceAnalysis.cs" />
+    <Compile Include="..\SqlClr\Properties\AssemblyInfo.cs" Link="CLR\Properties\AssemblyInfo.cs" />
+    <Compile Include="..\SqlClr\ReasoningFrameworkAggregates.cs" Link="CLR\ReasoningFrameworkAggregates.cs" />
+    <Compile Include="..\SqlClr\RecommenderAggregates.cs" Link="CLR\RecommenderAggregates.cs" />
+    <Compile Include="..\SqlClr\ResearchToolAggregates.cs" Link="CLR\ResearchToolAggregates.cs" />
+    <Compile Include="..\SqlClr\SemanticAnalysis.cs" Link="CLR\SemanticAnalysis.cs" />
+    <Compile Include="..\SqlClr\SpatialOperations.cs" Link="CLR\SpatialOperations.cs" />
+    <Compile Include="..\SqlClr\SqlBytesInterop.cs" Link="CLR\SqlBytesInterop.cs" />
+    <Compile Include="..\SqlClr\StreamOrchestrator.cs" Link="CLR\StreamOrchestrator.cs" />
+    <Compile Include="..\SqlClr\TensorDataIO.cs" Link="CLR\TensorDataIO.cs" />
+    <Compile Include="..\SqlClr\TensorOperations\ClrTensorProvider.cs" Link="CLR\TensorOperations\ClrTensorProvider.cs" />
+    <Compile Include="..\SqlClr\TensorOperations\ModelSynthesis.cs" Link="CLR\TensorOperations\ModelSynthesis.cs" />
+    <Compile Include="..\SqlClr\TensorOperations\TransformerInference.cs" Link="CLR\TensorOperations\TransformerInference.cs" />
+    <Compile Include="..\SqlClr\TimeSeriesVectorAggregates.cs" Link="CLR\TimeSeriesVectorAggregates.cs" />
+    <Compile Include="..\SqlClr\VectorAggregates.cs" Link="CLR\VectorAggregates.cs" />
+    <Compile Include="..\SqlClr\VectorOperations.cs" Link="CLR\VectorOperations.cs" />
+  </ItemGroup>
+  <!-- NuGet package references for CLR dependencies -->
+  <ItemGroup>
+    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="System.Buffers" Version="4.5.1" />
+    <PackageReference Include="System.Collections.Immutable" Version="1.7.1" />
+    <PackageReference Include="System.Memory" Version="4.5.4" />
+    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
+    <PackageReference Include="System.Reflection.Metadata" Version="1.8.1" />
+    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.3" />
+    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
 </Project>

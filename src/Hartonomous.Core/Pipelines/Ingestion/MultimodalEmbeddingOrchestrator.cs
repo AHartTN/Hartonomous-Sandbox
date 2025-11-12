@@ -9,8 +9,10 @@ using Hartonomous.Core.Enums;
 namespace Hartonomous.Core.Pipelines.Ingestion
 {
     /// <summary>
-    /// Routes atoms to appropriate embedding models based on modality and orchestrates batched embedding generation.
+    /// Routes atoms to SQL CLR embedding functions based on modality and orchestrates batched embedding generation.
     /// Implements Channel-based parallelism for high-throughput embedding generation.
+    /// DATABASE-FIRST: All embeddings computed by SQL Server (CLR functions, T-SQL, database-native feature extraction).
+    /// NO external AI models. The database IS the intelligence.
     /// </summary>
     public class MultimodalEmbeddingOrchestrator
     {
@@ -18,44 +20,45 @@ namespace Hartonomous.Core.Pipelines.Ingestion
         private readonly int _batchSize;
         private readonly int _maxDegreeOfParallelism;
         
-        // Model endpoints - configure via dependency injection in production
-        private readonly string? _textModelEndpoint;
-        private readonly string? _imageModelEndpoint;
-        private readonly string? _audioModelEndpoint;
-        private readonly string? _videoModelEndpoint;
+        // SQL CLR function names for each modality
+        private readonly string? _textClrFunction;
+        private readonly string? _imageClrFunction;
+        private readonly string? _audioClrFunction;
+        private readonly string? _videoClrFunction;
 
         public MultimodalEmbeddingOrchestrator(
             IEmbeddingCache? cache = null,
             int batchSize = 32,
             int maxDegreeOfParallelism = 4,
-            string? textModelEndpoint = null,
-            string? imageModelEndpoint = null,
-            string? audioModelEndpoint = null,
-            string? videoModelEndpoint = null)
+            string? textClrFunction = null,
+            string? imageClrFunction = null,
+            string? audioClrFunction = null,
+            string? videoClrFunction = null)
         {
             _cache = cache ?? new InMemoryEmbeddingCache();
             _batchSize = batchSize;
             _maxDegreeOfParallelism = maxDegreeOfParallelism;
-            _textModelEndpoint = textModelEndpoint;
-            _imageModelEndpoint = imageModelEndpoint;
-            _audioModelEndpoint = audioModelEndpoint;
-            _videoModelEndpoint = videoModelEndpoint;
+            _textClrFunction = textClrFunction;
+            _imageClrFunction = imageClrFunction;
+            _audioClrFunction = audioClrFunction;
+            _videoClrFunction = videoClrFunction;
         }
 
         /// <summary>
-        /// Routes an atom to the appropriate embedding model based on its modality.
+        /// Routes an atom to the appropriate SQL CLR embedding function based on its modality.
         /// </summary>
-        public string GetEmbeddingModelForModality(Modality modality)
+        public string GetEmbeddingFunctionForModality(Modality modality)
         {
             return modality switch
             {
-                Modality.Text => _textModelEndpoint ?? "sentence-transformers/all-MiniLM-L6-v2",
-                Modality.Image => _imageModelEndpoint ?? "openai/clip-vit-base-patch32",
-                Modality.Audio => _audioModelEndpoint ?? "openai/whisper-base",
-                Modality.Video => _videoModelEndpoint ?? "MCG-NJU/videomae-base",
-                Modality.TimeSeries => "sensor-default", // Time-series transformers
-                Modality.Graph => "graph-sage", // GraphSAGE or GCN
-                _ => throw new NotSupportedException($"No embedding model configured for modality: {modality}")
+                Modality.Text => _textClrFunction ?? "dbo.clr_GenerateTextEmbedding",
+                Modality.Code => "dbo.clr_GenerateCodeAstVector", // Already exists - 512-dim AST vectors
+                Modality.Image => _imageClrFunction ?? "dbo.clr_GenerateImageEmbedding",
+                Modality.Audio => _audioClrFunction ?? "dbo.clr_GenerateAudioEmbedding",
+                Modality.Video => _videoClrFunction ?? "dbo.clr_GenerateVideoEmbedding",
+                Modality.TimeSeries => "dbo.clr_GenerateTimeSeriesEmbedding",
+                Modality.Graph => "dbo.clr_GenerateGraphEmbedding",
+                _ => throw new NotSupportedException($"No SQL CLR embedding function configured for modality: {modality}")
             };
         }
 
@@ -126,7 +129,7 @@ namespace Hartonomous.Core.Pipelines.Ingestion
 
         /// <summary>
         /// Processes a batch of atoms with the same modality.
-        /// Checks cache first, then invokes appropriate embedding model.
+        /// Checks cache first, then invokes appropriate SQL CLR embedding function.
         /// </summary>
         private async Task<List<EmbeddingResult>> ProcessBatchAsync(
             List<AtomEmbeddingRequest> batch,
@@ -135,7 +138,7 @@ namespace Hartonomous.Core.Pipelines.Ingestion
             if (batch.Count == 0) return new List<EmbeddingResult>();
 
             var modality = batch[0].Modality;
-            var modelName = GetEmbeddingModelForModality(modality);
+            var clrFunctionName = GetEmbeddingFunctionForModality(modality);
             var results = new List<EmbeddingResult>();
 
             // Check cache first
@@ -149,7 +152,7 @@ namespace Hartonomous.Core.Pipelines.Ingestion
                     {
                         AtomId = request.AtomId,
                         Embedding = cached,
-                        ModelName = modelName,
+                        ModelName = clrFunctionName,
                         IsCached = true
                     });
                 }
@@ -159,10 +162,10 @@ namespace Hartonomous.Core.Pipelines.Ingestion
                 }
             }
 
-            // Generate embeddings for uncached items
+            // Generate embeddings for uncached items via SQL CLR
             if (uncachedRequests.Count > 0)
             {
-                var newEmbeddings = await GenerateEmbeddingBatchAsync(uncachedRequests, modelName, cancellationToken);
+                var newEmbeddings = await GenerateEmbeddingBatchAsync(uncachedRequests, clrFunctionName, cancellationToken);
                 
                 // Cache new embeddings
                 foreach (var result in newEmbeddings)
