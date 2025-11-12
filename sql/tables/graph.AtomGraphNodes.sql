@@ -1,6 +1,9 @@
--- SQL Graph node table for Echelon 2 provenance (hot graph sync)
--- Enables MATCH queries: FROM AtomGraphNodes AS src, AtomGraphEdges, AtomGraphNodes AS dest
--- WHERE MATCH(src-(AtomGraphEdges)->dest)
+-- =============================================
+-- Table: graph.AtomGraphNodes
+-- =============================================
+-- SQL Graph node table for Atom relationships.
+-- This table was previously managed by EF Core.
+-- =============================================
 
 IF NOT EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'graph')
 BEGIN
@@ -8,35 +11,33 @@ BEGIN
 END
 GO
 
--- Drop existing table if it exists (graph tables must be dropped before recreation)
 IF OBJECT_ID('graph.AtomGraphNodes', 'U') IS NOT NULL
-BEGIN
     DROP TABLE graph.AtomGraphNodes;
-END
 GO
 
-CREATE TABLE graph.AtomGraphNodes (
-    NodeId BIGINT IDENTITY(1,1) PRIMARY KEY,
-    AtomId BIGINT NOT NULL, -- FK to dbo.Atoms
-    NodeType NVARCHAR(50) NOT NULL, -- 'Atom', 'Model', 'Concept', etc.
-    Metadata NVARCHAR(MAX), -- JSON metadata for graph analytics
-    
-    -- Spatial properties for graph embeddings
-    EmbeddingX FLOAT NULL,
-    EmbeddingY FLOAT NULL,
-    EmbeddingZ FLOAT NULL,
-    
-    -- Provenance tracking
-    CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-    
-    -- Graph node markers
-    INDEX IX_AtomGraphNodes_AtomId (AtomId),
-    INDEX IX_AtomGraphNodes_NodeType (NodeType)
+CREATE TABLE graph.AtomGraphNodes
+(
+    NodeId          BIGINT          IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    AtomId          BIGINT          NOT NULL,
+    NodeType        NVARCHAR(100)   NOT NULL,
+    NodeLabel       NVARCHAR(500)   NULL,
+    Properties      NVARCHAR(MAX)   NULL,
+    CreatedUtc      DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    UpdatedUtc      DATETIME2       NULL,
+
+    CONSTRAINT FK_AtomGraphNodes_Atoms FOREIGN KEY (AtomId) REFERENCES dbo.Atoms(AtomId) ON DELETE CASCADE,
+    CONSTRAINT CK_AtomGraphNodes_Properties_IsJson CHECK (Properties IS NULL OR ISJSON(Properties) = 1)
 ) AS NODE;
 GO
 
--- Add CHECK constraint for valid NodeType
-ALTER TABLE graph.AtomGraphNodes
-ADD CONSTRAINT CK_AtomGraphNodes_NodeType 
-CHECK (NodeType IN ('Atom', 'Model', 'Concept', 'Component', 'Embedding'));
+CREATE INDEX IX_AtomGraphNodes_AtomId ON graph.AtomGraphNodes(AtomId);
+GO
+
+CREATE INDEX IX_AtomGraphNodes_NodeType ON graph.AtomGraphNodes(NodeType);
+GO
+
+CREATE INDEX IX_AtomGraphNodes_CreatedUtc ON graph.AtomGraphNodes(CreatedUtc);
+GO
+
+PRINT 'Created table graph.AtomGraphNodes';
 GO

@@ -1,4 +1,0 @@
-CREATE QUEUE [Neo4jSyncQueue]
-WITH STATUS = ON,
-     RETENTION = OFF;
-GO

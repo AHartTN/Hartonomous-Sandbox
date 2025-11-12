@@ -4,7 +4,7 @@
 -- Queues dangerous operations for approval
 -- Sends LearnMessage to Service Broker for measurement phase
 
-CREATE OR ALTER PROCEDURE dbo.sp_Act
+CREATE PROCEDURE dbo.sp_Act
     @TenantId INT = 0,
     @AutoApproveThreshold INT = 3 -- Auto-approve hypotheses with priority >= this value
 AS

@@ -8,7 +8,7 @@ IF OBJECT_ID('dbo.sp_AtomizeCode', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_AtomizeCode;
 GO
 
-CREATE OR ALTER PROCEDURE dbo.sp_AtomizeCode
+CREATE PROCEDURE dbo.sp_AtomizeCode
     @AtomId BIGINT,
     @TenantId INT = 0,
     @Language NVARCHAR(50) = 'csharp',  -- Future: support multiple languages

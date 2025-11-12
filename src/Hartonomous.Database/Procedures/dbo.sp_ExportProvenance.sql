@@ -1,7 +1,10 @@
+-- Auto-split from dbo.ProvenanceFunctions.sql
+-- Object: PROCEDURE dbo.sp_ExportProvenance
+
 CREATE PROCEDURE dbo.sp_ExportProvenance
     @AtomId BIGINT,
     @Format NVARCHAR(20) = 'JSON', -- 'JSON', 'GraphML', 'CSV'
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -42,8 +45,7 @@ BEGIN
                 ) AS Parents
             FROM Lineage l
             INNER JOIN dbo.Atoms a ON l.AtomId = a.AtomId
-            LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+            WHERE a.TenantId = @TenantId
             FOR JSON PATH, ROOT('provenance');
         END
         ELSE IF @Format = 'GraphML'
@@ -56,10 +58,9 @@ BEGIN
             FROM provenance.AtomGraphEdges edge
             INNER JOIN dbo.Atoms a1 ON edge.$from_id = a1.AtomId
             INNER JOIN dbo.Atoms a2 ON edge.$to_id = a2.AtomId
-            LEFT JOIN dbo.TenantAtoms ta1 ON a1.AtomId = ta1.AtomId
-            LEFT JOIN dbo.TenantAtoms ta2 ON a2.AtomId = ta2.AtomId
-            WHERE (a1.AtomId = @AtomId OR a2.AtomId = @AtomId)
-                  AND (@TenantId IS NULL OR ta1.TenantId = @TenantId OR ta2.TenantId = @TenantId)
+            WHERE a1.TenantId = @TenantId
+                  AND a2.TenantId = @TenantId
+                  AND (a1.AtomId = @AtomId OR a2.AtomId = @AtomId)
             FOR XML PATH('edge'), ROOT('graph');
         END
         
@@ -71,3 +72,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_VerifyIntegrity: Tamper detection via checksum validation
+-- Compares stored checksums with recomputed values
+
+
+GO

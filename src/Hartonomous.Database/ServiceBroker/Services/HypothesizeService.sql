@@ -1,1 +1,0 @@
-CREATE SERVICE [HypothesizeService] ON QUEUE [dbo].[HypothesizeQueue] ([//Hartonomous/AutonomousLoop/HypothesizeContract]);

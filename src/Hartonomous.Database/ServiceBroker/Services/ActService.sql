@@ -1,1 +1,0 @@
-CREATE SERVICE [ActService] ON QUEUE [dbo].[ActQueue] ([//Hartonomous/AutonomousLoop/ActContract]);

@@ -1,63 +1,47 @@
-USE Hartonomous;
+-- =============================================
+-- Table: dbo.AtomEmbeddings
+-- =============================================
+-- Represents an embedding associated with an atom.
+-- This table was previously managed by EF Core.
+-- =============================================
+
+IF OBJECT_ID('dbo.AtomEmbeddings', 'U') IS NOT NULL
+    DROP TABLE dbo.AtomEmbeddings;
 GO
 
-IF OBJECT_ID(N'dbo.AtomEmbeddings', N'U') IS NULL
-BEGIN
-    CREATE TABLE dbo.AtomEmbeddings (
-        AtomEmbeddingId BIGINT IDENTITY(1,1) NOT NULL,
-        AtomId BIGINT NOT NULL,
-        EmbeddingVector VECTOR(1998) NOT NULL,
-        SpatialGeometry GEOMETRY NOT NULL,
-        SpatialCoarse GEOMETRY NOT NULL,
-        SpatialBucket INT NOT NULL,
-        SpatialBucketX INT NULL,
-        SpatialBucketY INT NULL,
-        SpatialBucketZ INT NULL,
-        ModelId INT NULL,
-        EmbeddingType NVARCHAR(50) NOT NULL DEFAULT 'semantic',
-        LastUpdated DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-        CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+CREATE TABLE dbo.AtomEmbeddings
+(
+    AtomEmbeddingId         BIGINT          IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    AtomId                  BIGINT          NOT NULL,
+    ModelId                 INT             NULL,
+    EmbeddingType           NVARCHAR(128)   NOT NULL,
+    Dimension               INT             NOT NULL DEFAULT 0,
+    EmbeddingVector         VECTOR(1998)    NULL,
+    UsesMaxDimensionPadding BIT             NOT NULL DEFAULT 0,
+    SpatialProjX            FLOAT           NULL,
+    SpatialProjY            FLOAT           NULL,
+    SpatialProjZ            FLOAT           NULL,
+    SpatialGeometry         GEOMETRY        NULL,
+    SpatialCoarse           GEOMETRY        NULL,
+    SpatialBucket           INT             NOT NULL,
+    SpatialBucketX          INT             NULL,
+    SpatialBucketY          INT             NULL,
+    SpatialBucketZ          INT             NOT NULL DEFAULT -2147483648, -- int.MinValue
+    Metadata                NVARCHAR(MAX)   NULL,
+    CreatedAt               DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
+    LastUpdated             DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
 
-        CONSTRAINT PK_AtomEmbeddings PRIMARY KEY CLUSTERED (AtomEmbeddingId),
-        CONSTRAINT FK_AtomEmbeddings_Atoms FOREIGN KEY (AtomId)
-            REFERENCES dbo.Atoms(AtomId) ON DELETE CASCADE
-    );
-END
+    CONSTRAINT FK_AtomEmbeddings_Atoms FOREIGN KEY (AtomId) REFERENCES dbo.Atoms(AtomId) ON DELETE CASCADE,
+    CONSTRAINT FK_AtomEmbeddings_Models FOREIGN KEY (ModelId) REFERENCES dbo.Models(ModelId) ON DELETE NO ACTION,
+    CONSTRAINT CK_AtomEmbeddings_Metadata_IsJson CHECK (Metadata IS NULL OR ISJSON(Metadata) = 1)
+);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AtomEmbeddings_Atom' AND object_id = OBJECT_ID(N'dbo.AtomEmbeddings'))
-BEGIN
-    CREATE INDEX IX_AtomEmbeddings_Atom ON dbo.AtomEmbeddings (AtomId);
-END
+CREATE INDEX IX_AtomEmbeddings_Atom_Model_Type ON dbo.AtomEmbeddings(AtomId, EmbeddingType, ModelId);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AtomEmbeddings_Bucket' AND object_id = OBJECT_ID(N'dbo.AtomEmbeddings'))
-BEGIN
-    CREATE INDEX IX_AtomEmbeddings_Bucket ON dbo.AtomEmbeddings (SpatialBucket);
-END
+CREATE INDEX IX_AtomEmbeddings_SpatialBucket ON dbo.AtomEmbeddings(SpatialBucketX, SpatialBucketY, SpatialBucketZ);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AtomEmbeddings_BucketXYZ' AND object_id = OBJECT_ID(N'dbo.AtomEmbeddings'))
-BEGIN
-    CREATE INDEX IX_AtomEmbeddings_BucketXYZ ON dbo.AtomEmbeddings (SpatialBucketX, SpatialBucketY, SpatialBucketZ)
-        WHERE SpatialBucketX IS NOT NULL;
-END
+PRINT 'Created table dbo.AtomEmbeddings';
 GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AtomEmbeddings_Spatial' AND object_id = OBJECT_ID(N'dbo.AtomEmbeddings'))
-BEGIN
-    CREATE SPATIAL INDEX IX_AtomEmbeddings_Spatial
-        ON dbo.AtomEmbeddings(SpatialGeometry)
-        WITH (GRIDS = (LEVEL_1 = MEDIUM, LEVEL_2 = MEDIUM, LEVEL_3 = MEDIUM, LEVEL_4 = MEDIUM));
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AtomEmbeddings_Coarse' AND object_id = OBJECT_ID(N'dbo.AtomEmbeddings'))
-BEGIN
-    CREATE SPATIAL INDEX IX_AtomEmbeddings_Coarse
-        ON dbo.AtomEmbeddings(SpatialCoarse)
-        WITH (GRIDS = (LEVEL_1 = LOW, LEVEL_2 = LOW, LEVEL_3 = LOW, LEVEL_4 = LOW));
-END
-GO
-
-PRINT 'Created AtomEmbeddings table with spatial indexes';

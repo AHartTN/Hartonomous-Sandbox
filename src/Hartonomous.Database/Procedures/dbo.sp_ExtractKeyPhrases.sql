@@ -1,3 +1,6 @@
+-- Auto-split from dbo.FullTextSearch.sql
+-- Object: PROCEDURE dbo.sp_ExtractKeyPhrases
+
 CREATE PROCEDURE dbo.sp_ExtractKeyPhrases
     @AtomId BIGINT,
     @TopK INT = 20,
@@ -22,3 +25,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_FindRelatedDocuments: Multi-signal document discovery
+-- Combines FTS + vector + graph for comprehensive results
+
+
+GO

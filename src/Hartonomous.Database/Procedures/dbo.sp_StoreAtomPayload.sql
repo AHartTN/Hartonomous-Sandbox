@@ -2,7 +2,7 @@
 -- Returns RowGuid for later retrieval
 -- Uses transaction context required by SqlFileStream API
 
-CREATE OR ALTER PROCEDURE dbo.sp_StoreAtomPayload
+CREATE PROCEDURE dbo.sp_StoreAtomPayload
     @AtomId BIGINT,
     @ContentType NVARCHAR(256),
     @PayloadData VARBINARY(MAX),

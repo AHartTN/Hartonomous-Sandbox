@@ -1,7 +1,10 @@
+-- Auto-split from dbo.FullTextSearch.sql
+-- Object: PROCEDURE dbo.sp_KeywordSearch
+
 CREATE PROCEDURE dbo.sp_KeywordSearch
     @Keywords NVARCHAR(MAX),
     @TopK INT = 10,
-    @TenantId INT = NULL, -- Optional tenant filtering
+    @TenantId INT = 0,
     @ContentTypeFilter NVARCHAR(100) = NULL
 AS
 BEGIN
@@ -17,8 +20,7 @@ BEGIN
             CAST(a.Content AS NVARCHAR(MAX)) AS ContentPreview
         FROM CONTAINSTABLE(dbo.Atoms, Content, @Keywords) fts
         INNER JOIN dbo.Atoms a ON fts.[KEY] = a.AtomId
-        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+        WHERE a.TenantId = @TenantId
               AND a.IsDeleted = 0
               AND (@ContentTypeFilter IS NULL OR a.ContentType = @ContentTypeFilter)
         ORDER BY fts.RANK DESC;
@@ -31,3 +33,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_SemanticSimilarity: Document similarity using semantic search
+-- Finds documents similar to a given document
+
+
+GO

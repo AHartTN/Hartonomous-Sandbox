@@ -93,7 +93,7 @@ BEGIN
         @top_k
     ) AS t;
 
-    DECLARE @generatedText NVARCHAR(MAX) = LTRIM(RTRIM(@prompt));
+    SET @generatedText = LTRIM(RTRIM(@prompt));
     DECLARE @tokenSuffix NVARCHAR(MAX) = (
         SELECT STRING_AGG(Token, ' ') WITHIN GROUP (ORDER BY StepNumber)
         FROM @sequence

@@ -1,7 +1,10 @@
+-- Auto-split from dbo.FullTextSearch.sql
+-- Object: PROCEDURE dbo.sp_SemanticSimilarity
+
 CREATE PROCEDURE dbo.sp_SemanticSimilarity
     @SourceAtomId BIGINT,
     @TopK INT = 10,
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -28,8 +31,7 @@ BEGIN
             a.CreatedUtc
         FROM SEMANTICSIMILARITYTABLE(dbo.Atoms, Content, @SourceAtomId) sst
         INNER JOIN dbo.Atoms a ON sst.matched_document_key = a.AtomId
-        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+        WHERE a.TenantId = @TenantId
               AND a.IsDeleted = 0
         ORDER BY sst.score DESC;
         
@@ -41,3 +43,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_ExtractKeyPhrases: Extract key phrases from document
+-- Uses semantic search key phrase extraction
+
+
+GO

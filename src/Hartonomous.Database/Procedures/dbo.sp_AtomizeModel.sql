@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_AtomizeModel
+CREATE PROCEDURE dbo.sp_AtomizeModel
     @model_blob VARBINARY(MAX),
     @model_format_hint NVARCHAR(50),
     @layer_name NVARCHAR(256),

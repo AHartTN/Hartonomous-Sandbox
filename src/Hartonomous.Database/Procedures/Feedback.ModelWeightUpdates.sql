@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_UpdateModelWeightsFromFeedback
+CREATE PROCEDURE dbo.sp_UpdateModelWeightsFromFeedback
     @learningRate FLOAT = 0.001,
     @minRatings INT = 10,
     @maxRating TINYINT = 5,

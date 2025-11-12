@@ -1,7 +1,7 @@
 -- sp_RetrieveAtomPayload: Read large payload from FILESTREAM storage
 -- Takes RowGuid as input, returns payload data and metadata
 
-CREATE OR ALTER PROCEDURE dbo.sp_RetrieveAtomPayload
+CREATE PROCEDURE dbo.sp_RetrieveAtomPayload
     @RowGuid UNIQUEIDENTIFIER = NULL,
     @PayloadId BIGINT = NULL,
     @AtomId BIGINT = NULL

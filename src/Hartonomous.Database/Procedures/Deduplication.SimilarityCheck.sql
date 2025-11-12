@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_CheckSimilarityAboveThreshold
+CREATE PROCEDURE dbo.sp_CheckSimilarityAboveThreshold
     @query_vector VECTOR(1998),
     @threshold FLOAT,
     @embedding_type NVARCHAR(128) = NULL,

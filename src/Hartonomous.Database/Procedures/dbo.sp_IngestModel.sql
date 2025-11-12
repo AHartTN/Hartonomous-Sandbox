@@ -1,3 +1,6 @@
+-- Auto-split from dbo.ModelManagement.sql
+-- Object: PROCEDURE dbo.sp_IngestModel
+
 CREATE PROCEDURE dbo.sp_IngestModel
     @ModelName NVARCHAR(200),
     @ModelType NVARCHAR(50),
@@ -125,3 +128,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_OptimizeEmbeddings: Recompute outdated embeddings
+-- Batch processing for efficiency
+
+
+GO

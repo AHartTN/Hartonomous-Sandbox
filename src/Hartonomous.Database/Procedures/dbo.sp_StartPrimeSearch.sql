@@ -6,7 +6,7 @@ GO
 -- Sends initial message to AnalyzeQueue to trigger the OODA loop
 -- The autonomous loop will process the job incrementally using Service Broker
 
-CREATE OR ALTER PROCEDURE dbo.sp_StartPrimeSearch
+CREATE PROCEDURE dbo.sp_StartPrimeSearch
     @RangeStart BIGINT,
     @RangeEnd BIGINT
 AS

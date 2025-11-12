@@ -15,66 +15,66 @@ public class HartonomousDbContext : DbContext
     }
 
     // Core model management
-    public DbSet<Model> Models => Set<Model>();
-    public DbSet<ModelLayer> ModelLayers => Set<ModelLayer>();
-    public DbSet<CachedActivation> CachedActivations => Set<CachedActivation>();
-    public DbSet<ModelMetadata> ModelMetadata => Set<ModelMetadata>();
+    // public DbSet<Model> Models => Set<Model>();
+    // public DbSet<ModelLayer> ModelLayers => Set<ModelLayer>();
+    // public DbSet<CachedActivation> CachedActivations => Set<CachedActivation>();
+    // public DbSet<ModelMetadata> ModelMetadata => Set<ModelMetadata>();
 
     // Vocabulary (token-level embeddings stored via atom substrate views)
-    public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
+    // public DbSet<TokenVocabulary> TokenVocabulary => Set<TokenVocabulary>();
 
     // Billing and metering
-    public DbSet<BillingRatePlan> BillingRatePlans => Set<BillingRatePlan>();
-    public DbSet<BillingOperationRate> BillingOperationRates => Set<BillingOperationRate>();
-    public DbSet<BillingMultiplier> BillingMultipliers => Set<BillingMultiplier>();
+    // public DbSet<BillingRatePlan> BillingRatePlans => Set<BillingRatePlan>();
+    // public DbSet<BillingOperationRate> BillingOperationRates => Set<BillingOperationRate>();
+    // public DbSet<BillingMultiplier> BillingMultipliers => Set<BillingMultiplier>();
 
     // Atomic storage (content-addressable deduplication)
-    public DbSet<AtomicPixel> AtomicPixels => Set<AtomicPixel>();
-    public DbSet<AtomicAudioSample> AtomicAudioSamples => Set<AtomicAudioSample>();
-    public DbSet<AtomicTextToken> AtomicTextTokens => Set<AtomicTextToken>();
+    // public DbSet<AtomicPixel> AtomicPixels => Set<AtomicPixel>();
+    // public DbSet<AtomicAudioSample> AtomicAudioSamples => Set<AtomicAudioSample>();
+    // public DbSet<AtomicTextToken> AtomicTextTokens => Set<AtomicTextToken>();
 
     // Multi-modal data
-    public DbSet<Image> Images => Set<Image>();
-    public DbSet<ImagePatch> ImagePatches => Set<ImagePatch>();
-    public DbSet<AudioData> AudioData => Set<AudioData>();
-    public DbSet<AudioFrame> AudioFrames => Set<AudioFrame>();
-    public DbSet<Video> Videos => Set<Video>();
-    public DbSet<VideoFrame> VideoFrames => Set<VideoFrame>();
-    public DbSet<TextDocument> TextDocuments => Set<TextDocument>();
+    // public DbSet<Image> Images => Set<Image>();
+    // public DbSet<ImagePatch> ImagePatches => Set<ImagePatch>();
+    // public DbSet<AudioData> AudioData => Set<AudioData>();
+    // public DbSet<AudioFrame> AudioFrames => Set<AudioFrame>();
+    // public DbSet<Video> Videos => Set<Video>();
+    // public DbSet<VideoFrame> VideoFrames => Set<VideoFrame>();
+    // public DbSet<TextDocument> TextDocuments => Set<TextDocument>();
 
     // Inference tracking
-    public DbSet<InferenceRequest> InferenceRequests => Set<InferenceRequest>();
-    public DbSet<InferenceStep> InferenceSteps => Set<InferenceStep>();
+    // public DbSet<InferenceRequest> InferenceRequests => Set<InferenceRequest>();
+    // public DbSet<InferenceStep> InferenceSteps => Set<InferenceStep>();
 
     // Provenance streams
-    public DbSet<GenerationStream> GenerationStreams => Set<GenerationStream>();
+    // public DbSet<GenerationStream> GenerationStreams => Set<GenerationStream>();
 
     // Atom substrate
-    public DbSet<Atom> Atoms => Set<Atom>();
-    public DbSet<AtomEmbedding> AtomEmbeddings => Set<AtomEmbedding>();
-    public DbSet<AtomEmbeddingComponent> AtomEmbeddingComponents => Set<AtomEmbeddingComponent>();
-    public DbSet<TensorAtom> TensorAtoms => Set<TensorAtom>();
-    public DbSet<TensorAtomCoefficient> TensorAtomCoefficients => Set<TensorAtomCoefficient>();
-    public DbSet<AtomRelation> AtomRelations => Set<AtomRelation>();
-    public DbSet<IngestionJob> IngestionJobs => Set<IngestionJob>();
-    public DbSet<IngestionJobAtom> IngestionJobAtoms => Set<IngestionJobAtom>();
-    public DbSet<DeduplicationPolicy> DeduplicationPolicies => Set<DeduplicationPolicy>();
-    public DbSet<LayerTensorSegment> LayerTensorSegments => Set<LayerTensorSegment>();
+    // public DbSet<Atom> Atoms => Set<Atom>();
+    // public DbSet<AtomEmbedding> AtomEmbeddings => Set<AtomEmbedding>();
+    // public DbSet<AtomEmbeddingComponent> AtomEmbeddingComponents => Set<AtomEmbeddingComponent>();
+    // public DbSet<TensorAtom> TensorAtoms => Set<TensorAtom>();
+    // public DbSet<TensorAtomCoefficient> TensorAtomCoefficients => Set<TensorAtomCoefficient>();
+    // public DbSet<AtomRelation> AtomRelations => Set<AtomRelation>();
+    // public DbSet<IngestionJob> IngestionJobs => Set<IngestionJob>();
+    // public DbSet<IngestionJobAtom> IngestionJobAtoms => Set<IngestionJobAtom>();
+    // public DbSet<DeduplicationPolicy> DeduplicationPolicies => Set<DeduplicationPolicy>();
+    // public DbSet<LayerTensorSegment> LayerTensorSegments => Set<LayerTensorSegment>();
 
     // Autonomous improvement tracking
-    public DbSet<AutonomousImprovementHistory> AutonomousImprovementHistory => Set<AutonomousImprovementHistory>();
-    public DbSet<BillingUsageLedger> BillingUsageLedger => Set<BillingUsageLedger>();
-    public DbSet<AtomPayloadStore> AtomPayloadStore => Set<AtomPayloadStore>();
-    public DbSet<InferenceCache> InferenceCache => Set<InferenceCache>();
-    public DbSet<TenantSecurityPolicy> TenantSecurityPolicy => Set<TenantSecurityPolicy>();
-    public DbSet<TestResults> TestResults => Set<TestResults>();
+    // public DbSet<AutonomousImprovementHistory> AutonomousImprovementHistory => Set<AutonomousImprovementHistory>();
+    // public DbSet<BillingUsageLedger> BillingUsageLedger => Set<BillingUsageLedger>();
+    // public DbSet<AtomPayloadStore> AtomPayloadStore => Set<AtomPayloadStore>();
+    // public DbSet<InferenceCache> InferenceCache => Set<InferenceCache>();
+    // public DbSet<TenantSecurityPolicy> TenantSecurityPolicy => Set<TenantSecurityPolicy>();
+    // public DbSet<TestResults> TestResults => Set<TestResults>();
 
     // SQL Graph entities
-    public DbSet<AtomGraphNode> AtomGraphNodes => Set<AtomGraphNode>();
-    public DbSet<AtomGraphEdge> AtomGraphEdges => Set<AtomGraphEdge>();
+    // public DbSet<AtomGraphNode> AtomGraphNodes => Set<AtomGraphNode>();
+    // public DbSet<AtomGraphEdge> AtomGraphEdges => Set<AtomGraphEdge>();
 
     // Provenance concepts
-    public DbSet<Concept> Concepts => Set<Concept>();
+    // public DbSet<Concept> Concepts => Set<Concept>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

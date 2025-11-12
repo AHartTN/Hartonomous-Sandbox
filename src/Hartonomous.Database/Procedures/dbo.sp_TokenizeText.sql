@@ -1,7 +1,7 @@
 USE Hartonomous;
 GO
 
-CREATE OR ALTER PROCEDURE dbo.sp_TokenizeText
+CREATE PROCEDURE dbo.sp_TokenizeText
     @text NVARCHAR(MAX),
     @tokenIdsJson NVARCHAR(MAX) OUTPUT
 AS

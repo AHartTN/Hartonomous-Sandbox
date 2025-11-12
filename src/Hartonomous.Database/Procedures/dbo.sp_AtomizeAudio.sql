@@ -1,8 +1,7 @@
--- sp_AtomizeAudio: Deep atomization for audio content
--- Breaks audio into AudioFrame atoms using CLR waveform analysis
--- This is Phase 2 of the atomization pipeline for audio/* content types
+-- Auto-split from dbo.sp_AtomizeAudio.sql
+-- Object: PROCEDURE dbo.sp_AtomizeAudio
 
-CREATE OR ALTER PROCEDURE dbo.sp_AtomizeAudio
+CREATE PROCEDURE dbo.sp_AtomizeAudio
     @AtomId BIGINT,
     @TenantId INT = 0,
     @FrameWindowMs INT = 100, -- Window size for each audio frame
@@ -185,26 +184,5 @@ END;
 GO
 
 -- Helper function: Compute RMS from a GEOMETRY waveform
-CREATE OR ALTER FUNCTION dbo.fn_ComputeGeometryRms(@Waveform GEOMETRY)
-RETURNS FLOAT
-AS
-BEGIN
-    IF @Waveform IS NULL OR @Waveform.STGeometryType() <> 'LINESTRING'
-        RETURN 0;
-    
-    DECLARE @PointCount INT = @Waveform.STNumPoints();
-    DECLARE @SumSquares FLOAT = 0;
-    DECLARE @PointIndex INT = 1;
-    DECLARE @Amplitude FLOAT;
-    
-    WHILE @PointIndex <= @PointCount
-    BEGIN
-        -- Y coordinate is amplitude
-        SET @Amplitude = @Waveform.STPointN(@PointIndex).STY.Value;
-        SET @SumSquares = @SumSquares + (@Amplitude * @Amplitude);
-        SET @PointIndex = @PointIndex + 1;
-    END
-    
-    RETURN SQRT(@SumSquares / @PointCount);
-END;
+
 GO

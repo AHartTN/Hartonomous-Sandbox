@@ -3,7 +3,7 @@
 -- Falls back to TF-IDF only if no embedding model is available
 GO
 
-CREATE OR ALTER PROCEDURE dbo.sp_TextToEmbedding
+CREATE PROCEDURE dbo.sp_TextToEmbedding
     @text NVARCHAR(MAX),
     @ModelName NVARCHAR(100) = NULL,
     @embedding VECTOR(1998) OUTPUT,

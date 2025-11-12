@@ -1,8 +1,11 @@
+-- Auto-split from dbo.ProvenanceFunctions.sql
+-- Object: PROCEDURE dbo.sp_QueryLineage
+
 CREATE PROCEDURE dbo.sp_QueryLineage
     @AtomId BIGINT,
     @Direction NVARCHAR(20) = 'Upstream', -- 'Upstream', 'Downstream', 'Both'
     @MaxDepth INT = 10,
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -36,8 +39,7 @@ BEGIN
                 a.CreatedUtc
             FROM UpstreamLineage ul
             INNER JOIN dbo.Atoms a ON ul.AtomId = a.AtomId
-            LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+            WHERE a.TenantId = @TenantId
             ORDER BY ul.Depth;
         END
         
@@ -69,8 +71,7 @@ BEGIN
                 a.CreatedUtc
             FROM DownstreamLineage dl
             INNER JOIN dbo.Atoms a ON dl.AtomId = a.AtomId
-            LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+            WHERE a.TenantId = @TenantId
             ORDER BY dl.Depth;
         END
         
@@ -82,3 +83,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_FindImpactedAtoms: Impact analysis for data deletion
+-- Returns all downstream atoms that would be affected
+
+
+GO

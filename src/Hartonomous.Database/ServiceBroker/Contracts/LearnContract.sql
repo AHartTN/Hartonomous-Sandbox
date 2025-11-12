@@ -1,1 +1,0 @@
-CREATE CONTRACT [//Hartonomous/AutonomousLoop/LearnContract] ([//Hartonomous/AutonomousLoop/LearnMessage] SENT BY INITIATOR);

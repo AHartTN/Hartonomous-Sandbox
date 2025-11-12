@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_Hypothesize
+CREATE PROCEDURE dbo.sp_Hypothesize
     @TenantId INT = 0
 AS
 BEGIN

@@ -1,1 +1,0 @@
-CREATE SERVICE [LearnService] ON QUEUE [dbo].[LearnQueue] ([//Hartonomous/AutonomousLoop/LearnContract]);

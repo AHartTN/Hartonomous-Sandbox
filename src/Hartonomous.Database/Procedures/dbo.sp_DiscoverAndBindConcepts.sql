@@ -3,7 +3,7 @@
 -- Phase 1: Discover concepts via clustering
 -- Phase 2: Bind atoms to discovered concepts
 
-CREATE OR ALTER PROCEDURE dbo.sp_DiscoverAndBindConcepts
+CREATE PROCEDURE dbo.sp_DiscoverAndBindConcepts
     @MinClusterSize INT = 10,
     @CoherenceThreshold FLOAT = 0.7,
     @MaxConcepts INT = 100,

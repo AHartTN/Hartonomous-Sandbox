@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_UpdateAtomEmbeddingSpatialMetadata
+CREATE PROCEDURE dbo.sp_UpdateAtomEmbeddingSpatialMetadata
     @embedding_id BIGINT
 AS
 BEGIN

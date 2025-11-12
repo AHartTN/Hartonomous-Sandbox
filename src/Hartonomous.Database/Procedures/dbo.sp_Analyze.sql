@@ -3,7 +3,7 @@
 -- Queries embeddings, detects anomalies using IsolationForest/LOF, identifies patterns
 -- Sends HypothesizeMessage to Service Broker for next phase
 
-CREATE OR ALTER PROCEDURE dbo.sp_Analyze
+CREATE PROCEDURE dbo.sp_Analyze
     @TenantId INT = 0,
     @AnalysisScope NVARCHAR(256) = 'full',
     @LookbackHours INT = 24

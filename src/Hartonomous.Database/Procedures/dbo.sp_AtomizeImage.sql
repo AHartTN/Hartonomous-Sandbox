@@ -2,7 +2,7 @@
 -- Breaks images into ImagePatch atoms using spatial grid decomposition
 -- This is Phase 2 of the atomization pipeline for image/* content types
 
-CREATE OR ALTER PROCEDURE dbo.sp_AtomizeImage
+CREATE PROCEDURE dbo.sp_AtomizeImage
     @AtomId BIGINT,
     @TenantId INT = 0,
     @PatchSize INT = 16,      -- Patch dimensions (e.g., 16x16 patches for ViT-like processing)

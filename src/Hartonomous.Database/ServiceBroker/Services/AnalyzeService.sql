@@ -1,1 +1,0 @@
-CREATE SERVICE [AnalyzeService] ON QUEUE [dbo].[AnalyzeQueue] ([//Hartonomous/AutonomousLoop/AnalyzeContract]);

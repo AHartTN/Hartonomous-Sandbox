@@ -1,8 +1,11 @@
+-- Auto-split from dbo.ModelManagement.sql
+-- Object: PROCEDURE dbo.sp_OptimizeEmbeddings
+
 CREATE PROCEDURE dbo.sp_OptimizeEmbeddings
     @ModelId INT,
     @BatchSize INT = 100,
     @MaxAgeHours INT = 24,
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -22,9 +25,8 @@ BEGIN
             a.AtomId,
             CAST(a.Content AS NVARCHAR(MAX)) AS Content
         FROM dbo.Atoms a
-        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
         LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId AND ae.ModelId = @ModelId
-        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+        WHERE a.TenantId = @TenantId
               AND a.IsDeleted = 0
               AND (
                   ae.AtomEmbeddingId IS NULL -- Missing embedding
@@ -50,18 +52,18 @@ BEGIN
             
             IF @NewEmbedding IS NOT NULL
             BEGIN
-                -- Upsert embedding (AtomEmbeddings has no TenantId column)
+                -- Upsert embedding
                 MERGE dbo.AtomEmbeddings AS target
-                USING (SELECT @CurrentAtomId AS AtomId, @ModelId AS ModelId) AS source
-                ON target.AtomId = source.AtomId AND target.ModelId = source.ModelId
+                USING (SELECT @CurrentAtomId AS AtomId, @ModelId AS ModelId, @TenantId AS TenantId) AS source
+                ON target.AtomId = source.AtomId AND target.ModelId = source.ModelId AND target.TenantId = source.TenantId
                 WHEN MATCHED THEN
                     UPDATE SET 
                         EmbeddingVector = @NewEmbedding,
                         LastComputedUtc = SYSUTCDATETIME(),
                         LastAccessedUtc = SYSUTCDATETIME()
                 WHEN NOT MATCHED THEN
-                    INSERT (AtomId, ModelId, EmbeddingVector)
-                    VALUES (@CurrentAtomId, @ModelId, @NewEmbedding);
+                    INSERT (AtomId, ModelId, EmbeddingVector, TenantId)
+                    VALUES (@CurrentAtomId, @ModelId, @NewEmbedding, @TenantId);
                 
                 SET @ProcessedCount += 1;
             END
@@ -91,3 +93,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_ScoreWithModel: Real-time inference using PREDICT
+-- Uses SQL Server ML Services or ONNX runtime
+
+
+GO

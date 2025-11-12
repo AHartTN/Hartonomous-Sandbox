@@ -1,6 +1,9 @@
+-- Auto-split from dbo.ProvenanceFunctions.sql
+-- Object: PROCEDURE dbo.sp_FindImpactedAtoms
+
 CREATE PROCEDURE dbo.sp_FindImpactedAtoms
     @AtomId BIGINT,
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -32,8 +35,7 @@ BEGIN
             COUNT(*) OVER () AS TotalImpacted
         FROM ImpactedAtoms ia
         INNER JOIN dbo.Atoms a ON ia.AtomId = a.AtomId
-        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+        WHERE a.TenantId = @TenantId
         ORDER BY ia.Depth, ia.AtomId;
         
         RETURN 0;
@@ -44,3 +46,10 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO
+
+-- sp_ExportProvenance: Export lineage as JSON
+-- Compliance/audit export format
+
+
+GO

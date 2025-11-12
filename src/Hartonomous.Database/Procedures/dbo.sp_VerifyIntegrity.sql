@@ -1,6 +1,9 @@
+-- Auto-split from dbo.ProvenanceFunctions.sql
+-- Object: PROCEDURE dbo.sp_VerifyIntegrity
+
 CREATE PROCEDURE dbo.sp_VerifyIntegrity
     @AtomId BIGINT = NULL,
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -28,8 +31,7 @@ BEGIN
                 ELSE 1
             END AS IsCorrupted
         FROM dbo.Atoms a
-        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
-        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+        WHERE a.TenantId = @TenantId
               AND a.IsDeleted = 0
               AND (@AtomId IS NULL OR a.AtomId = @AtomId);
         
@@ -63,3 +65,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO

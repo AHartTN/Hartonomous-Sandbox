@@ -4,7 +4,7 @@
 -- Stores improvement history
 -- Sends AnalyzeMessage to restart OODA loop
 
-CREATE OR ALTER PROCEDURE dbo.sp_Learn
+CREATE PROCEDURE dbo.sp_Learn
     @TenantId INT = 0
 AS
 BEGIN

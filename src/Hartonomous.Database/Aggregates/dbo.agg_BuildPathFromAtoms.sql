@@ -1,6 +1,4 @@
-CREATE AGGREGATE dbo.agg_BuildPathFromAtoms(
-    @atomId BIGINT,
-    @timestamp DATETIME
-)
-RETURNS GEOMETRY
-EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.BuildPathFromAtoms];
+CREATE AGGREGATE [dbo].[agg_BuildPathFromAtoms]
+    (@atomId BIGINT)
+RETURNS NVARCHAR (MAX)
+EXTERNAL NAME [SqlClrFunctions].[PathBuilderAggregate];

@@ -1,8 +1,11 @@
+-- Auto-split from dbo.ModelManagement.sql
+-- Object: PROCEDURE dbo.sp_ScoreWithModel
+
 CREATE PROCEDURE dbo.sp_ScoreWithModel
     @ModelId INT,
     @InputAtomIds NVARCHAR(MAX), -- Comma-separated
     @OutputFormat NVARCHAR(50) = 'JSON',
-    @TenantId INT = NULL -- Optional tenant filtering
+    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -30,7 +33,7 @@ BEGIN
             RETURN -1;
         END
         
-        -- Prepare input features (AtomEmbeddings has no TenantId column)
+        -- Prepare input features
         DECLARE @InputFeatures TABLE (
             AtomId BIGINT,
             EmbeddingVector VARBINARY(MAX)
@@ -41,56 +44,18 @@ BEGIN
             ae.AtomId,
             ae.EmbeddingVector
         FROM dbo.AtomEmbeddings ae
-        INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId;
+        INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId
+        WHERE ae.TenantId = @TenantId;
         
-        -- Execute PREDICT using reconstructed model from LayerTensorSegments
-        -- Model is already materialized as TensorAtom graph with coefficients
-        -- Run forward pass through reconstructed layers
+        -- Execute PREDICT (placeholder - actual syntax depends on ML Services setup)
+        -- SELECT * FROM PREDICT(MODEL = @ModelBytes, DATA = @InputFeatures);
         
-        DECLARE @PredictionResults TABLE (
-            AtomId BIGINT,
-            Score FLOAT,
-            PredictedLabel NVARCHAR(100)
-        );
-        
-        -- Inference pipeline: embedding → model layers → output
-        -- Use CLR function to execute tensor operations through reconstructed graph
-        
-        DECLARE @CurrentAtomId BIGINT;
-        DECLARE @EmbeddingVec VARBINARY(MAX);
-        DECLARE @InferenceResult NVARCHAR(MAX);
-        
-        DECLARE input_cursor CURSOR FOR
-        SELECT AtomId, EmbeddingVector FROM @InputFeatures;
-        
-        OPEN input_cursor;
-        FETCH NEXT FROM input_cursor INTO @CurrentAtomId, @EmbeddingVec;
-        
-        WHILE @@FETCH_STATUS = 0
-        BEGIN
-            -- Forward pass through model using TensorAtom graph
-            -- CLR function executes: layer1(x) → activation → layer2 → ... → output
-            SET @InferenceResult = dbo.clr_ExecuteModelInference(@ModelId, @EmbeddingVec);
-            
-            -- Parse inference result JSON
-            INSERT INTO @PredictionResults
-            SELECT 
-                @CurrentAtomId AS AtomId,
-                CAST(JSON_VALUE(@InferenceResult, '$.score') AS FLOAT) AS Score,
-                JSON_VALUE(@InferenceResult, '$.label') AS PredictedLabel;
-            
-            FETCH NEXT FROM input_cursor INTO @CurrentAtomId, @EmbeddingVec;
-        END
-        
-        CLOSE input_cursor;
-        DEALLOCATE input_cursor;
-        
-        -- Return predictions
+        -- For now, return mock predictions
         SELECT 
             AtomId,
-            Score,
-            PredictedLabel
-        FROM @PredictionResults
+            0.95 AS Score,
+            'ClassA' AS PredictedLabel
+        FROM @InputFeatures
         FOR JSON PATH;
         
         RETURN 0;
@@ -101,3 +66,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
+GO

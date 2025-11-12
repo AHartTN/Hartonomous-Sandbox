@@ -9,7 +9,7 @@
 -- 5. Policy-driven deduplication rules
 -- =============================================
 
-CREATE OR ALTER PROCEDURE dbo.sp_AtomIngestion
+CREATE PROCEDURE dbo.sp_AtomIngestion
     @HashInput NVARCHAR(MAX),
     @Modality NVARCHAR(50),
     @Subtype NVARCHAR(100) = NULL,
