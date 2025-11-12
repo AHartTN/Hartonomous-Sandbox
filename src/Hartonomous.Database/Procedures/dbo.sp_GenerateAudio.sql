@@ -10,6 +10,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    SET @OutputAtomId = NULL;
+
     IF @prompt IS NULL OR LTRIM(RTRIM(@prompt)) = ''
         THROW 50110, 'Prompt is required for audio generation.', 1;
 
@@ -166,22 +168,63 @@ BEGIN
     END
     ELSE
     BEGIN
-        -- TODO: Fix CLR function calls
-        -- DECLARE @synthetic VARBINARY(MAX) = dbo.clr_GenerateHarmonicTone(440.0, @targetDurationMs, @sampleRate, 2, 0.75, 0.25, 0.1);
-        -- DECLARE @waveform GEOMETRY = dbo.clr_AudioToWaveform(@synthetic, 2, @sampleRate, 4096);
-        DECLARE @synthetic VARBINARY(MAX) = NULL;
-        DECLARE @waveform GEOMETRY = NULL;
-        DECLARE @base64 NVARCHAR(MAX) = (
-            SELECT @synthetic
-            FOR XML PATH(''), BINARY BASE64
-        );
+        DECLARE @seed BIGINT = CONVERT(BIGINT, CHECKSUM(@prompt));
+        IF @seed < 0 SET @seed = -@seed;
 
-        SET @outputJson = (SELECT 'synthetic_fallback' as strategy, 440.0 as fundamentalHz, @sampleRate as sampleRate, @targetDurationMs as durationMs, 2 as channels, @base64 as base64 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+        DECLARE @fundamentalHz FLOAT = 220.0 + (@seed % 380); -- map prompt to 220-600 Hz
+        DECLARE @secondLevel FLOAT = ((@seed / 11) % 70) / 100.0;
+        DECLARE @thirdLevel FLOAT = ((@seed / 23) % 60) / 100.0;
+        DECLARE @amplitude FLOAT = 0.55 + ((@seed / 7) % 35) / 100.0;
+        IF @amplitude > 0.95 SET @amplitude = 0.95;
+
+        DECLARE @synthetic VARBINARY(MAX) = dbo.clr_GenerateHarmonicTone(@fundamentalHz, @targetDurationMs, @sampleRate, 2, @amplitude, @secondLevel, @thirdLevel);
+        DECLARE @waveform GEOMETRY = NULL;
+        DECLARE @rms FLOAT = NULL;
+        DECLARE @peak FLOAT = NULL;
+
+        IF @synthetic IS NOT NULL
+        BEGIN
+            SET @waveform = dbo.clr_AudioToWaveform(@synthetic, 2, @sampleRate, 4096);
+            SET @rms = dbo.clr_AudioComputeRms(@synthetic, 2);
+            SET @peak = dbo.clr_AudioComputePeak(@synthetic, 2);
+        END;
+
+        DECLARE @base64 NVARCHAR(MAX) = NULL;
+        IF @synthetic IS NOT NULL
+        BEGIN
+            SET @base64 = (
+                SELECT @synthetic
+                FOR XML PATH(''), BINARY BASE64
+            );
+        END;
+
+        SET @outputJson = (
+            SELECT
+                'synthetic_fallback' AS strategy,
+                @fundamentalHz AS fundamentalHz,
+                @sampleRate AS sampleRate,
+                @targetDurationMs AS durationMs,
+                2 AS channels,
+                @amplitude AS amplitude,
+                @secondLevel AS secondHarmonic,
+                @thirdLevel AS thirdHarmonic,
+                @rms AS rmsAmplitude,
+                @peak AS peakAmplitude,
+                @base64 AS base64
+            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+        );
 
         UPDATE dbo.InferenceRequests
         SET TotalDurationMs = @durationMs,
             OutputData = TRY_CAST(@outputJson AS JSON),
-            OutputMetadata = (SELECT 'completed' as status, 0 as segment_count, 0 as candidate_count FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+            OutputMetadata = (
+                SELECT
+                    'completed' AS status,
+                    0 AS segment_count,
+                    0 AS candidate_count,
+                    'synthetic_fallback' AS generation_mode
+                FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+            )
         WHERE InferenceId = @inferenceId;
 
         INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)

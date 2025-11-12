@@ -6,6 +6,6 @@ CREATE FUNCTION provenance.clr_CreateAtomicStream
     @model NVARCHAR(128),
     @metadata NVARCHAR(MAX)
 )
-RETURNS VARBINARY(MAX) -- TODO: Change back to provenance.AtomicStream
+RETURNS provenance.AtomicStream
 AS EXTERNAL NAME [SqlClrFunctions].[SqlClrFunctions.AtomicStream].[Create];
 GO

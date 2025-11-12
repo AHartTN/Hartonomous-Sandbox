@@ -3,9 +3,9 @@ using System.Runtime.CompilerServices;
 namespace Hartonomous.Core.Performance;
 
 /// <summary>
-/// GPU acceleration interface for vector operations.
-/// Simplified implementation that can be extended with ILGPU when needed.
-/// For now, provides CPU-SIMD fallback using VectorMath.
+/// CPU vector acceleration using SIMD intrinsics.
+/// ILGPU GPU acceleration disabled due to SQL CLR compatibility constraints.
+/// All operations use CPU SIMD via System.Numerics.Vectors (AVX2/SSE4).
 /// </summary>
 public sealed class GpuVectorAccelerator
 {
@@ -14,13 +14,12 @@ public sealed class GpuVectorAccelerator
 
     private GpuVectorAccelerator()
     {
-        // Future: Initialize ILGPU context and accelerator
-        // For now, all operations use CPU SIMD via VectorMath
+        // CPU-only implementation using SIMD intrinsics
+        // ILGPU disabled: SQL CLR verifier rejects unmanaged GPU memory pointers
     }
 
     /// <summary>
-    /// Compute batch cosine similarities.
-    /// Currently uses CPU SIMD. GPU implementation TODO.
+    /// Compute batch cosine similarities using CPU SIMD.
     /// </summary>
     public float[] BatchCosineSimilarity(float[][] database, float[] query)
     {
@@ -66,8 +65,7 @@ public sealed class GpuVectorAccelerator
     }
 
     /// <summary>
-    /// Matrix multiplication.
-    /// Currently uses CPU. GPU implementation TODO.
+    /// Matrix multiplication using CPU SIMD with parallel row processing.
     /// </summary>
     public float[,] MatrixMultiply(float[,] a, float[,] b)
     {
@@ -99,31 +97,27 @@ public sealed class GpuVectorAccelerator
 }
 
 /// <summary>
-/// Strategy selector for CPU vs GPU execution.
+/// Strategy selector for vector operation execution.
+/// Always returns CPU execution (GPU disabled for SQL CLR compatibility).
 /// </summary>
 public static class GpuStrategySelector
 {
     /// <summary>
-    /// Determine if GPU should be used based on data size.
-    /// Currently always returns false (CPU-only implementation).
+    /// Returns false - CPU SIMD execution only.
+    /// ILGPU disabled: SQL CLR verifier incompatible with unmanaged GPU pointers.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool ShouldUseGpu(int vectorCount, int dimension)
     {
-        // GPU overhead ~50μs, so need enough work to amortize
-        // Threshold: 100+ vectors for batch operations
-        // Currently using CPU SIMD for all operations
-        return false; // TODO: Enable when ILGPU kernels are implemented
+        return false; // CPU SIMD only (AVX2/SSE4 via System.Numerics.Vectors)
     }
 
     /// <summary>
-    /// Determine if GPU should be used for matrix operations.
+    /// Returns false - CPU parallel matrix operations only.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool ShouldUseGpuForMatrix(int rows, int cols, int innerDim)
     {
-        // GPU better for large matrices (>= 100K elements)
-        // Currently using CPU for all operations
-        return false; // TODO: Enable when ILGPU kernels are implemented
+        return false; // CPU parallel execution only
     }
 }

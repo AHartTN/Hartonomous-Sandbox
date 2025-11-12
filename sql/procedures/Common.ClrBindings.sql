@@ -776,4 +776,39 @@ RETURNS NVARCHAR(MAX)
 AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.SemanticAnalysis].ComputeSemanticFeatures;
 GO
 
+IF OBJECT_ID('dbo.clr_BuildPerformanceVector', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_BuildPerformanceVector;
+GO
+CREATE FUNCTION dbo.clr_BuildPerformanceVector(
+    @durationMs INT,
+    @tokenCount INT,
+    @hourOfDay INT,
+    @dayOfWeek INT,
+    @vectorDimension INT
+)
+RETURNS VARBINARY(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.PerformanceAnalysis].BuildPerformanceVector;
+GO
+
+IF OBJECT_ID('dbo.clr_ComputeZScore', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ComputeZScore;
+GO
+CREATE FUNCTION dbo.clr_ComputeZScore(@value FLOAT, @mean FLOAT, @stdDev FLOAT)
+RETURNS FLOAT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.PerformanceAnalysis].ComputeZScore;
+GO
+
+IF OBJECT_ID('dbo.clr_IsOutlierIQR', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_IsOutlierIQR;
+GO
+CREATE FUNCTION dbo.clr_IsOutlierIQR(@value FLOAT, @q1 FLOAT, @q3 FLOAT, @iqrMultiplier FLOAT)
+RETURNS BIT
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.PerformanceAnalysis].IsOutlierIQR;
+GO
+
+IF OBJECT_ID('dbo.clr_ExecuteModelInference', 'FN') IS NOT NULL DROP FUNCTION dbo.clr_ExecuteModelInference;
+GO
+CREATE FUNCTION dbo.clr_ExecuteModelInference(@modelId INT, @embeddingVector VARBINARY(MAX))
+RETURNS NVARCHAR(MAX)
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ModelInference].ExecuteModelInference;
+GO
+
+
 

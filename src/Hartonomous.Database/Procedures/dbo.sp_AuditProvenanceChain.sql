@@ -16,8 +16,6 @@ BEGIN
     IF @Debug = 1
         PRINT 'Auditing provenance chains from ' + CAST(@StartDate AS NVARCHAR(30)) + ' to ' + CAST(@EndDate AS NVARCHAR(30));
 
-    -- TODO: Fix AtomicStream UDT reference
-    /*
     DECLARE @Operations TABLE (
         OperationId UNIQUEIDENTIFIER,
         Scope NVARCHAR(100),
@@ -31,10 +29,10 @@ BEGIN
     INSERT INTO @Operations
     SELECT
         op.OperationId,
-        AtomicStream::Parse(op.ProvenanceStream).Scope,
-        AtomicStream::Parse(op.ProvenanceStream).Model,
+        op.ProvenanceStream.Scope,
+        op.ProvenanceStream.Model,
         op.CreatedAt,
-        AtomicStream::Parse(op.ProvenanceStream).SegmentCount,
+        op.ProvenanceStream.SegmentCount,
         pvr.OverallStatus,
         CASE pvr.OverallStatus
             WHEN 'PASS' THEN 1.0
@@ -45,7 +43,7 @@ BEGIN
     FROM dbo.OperationProvenance op
     LEFT JOIN dbo.ProvenanceValidationResults pvr ON op.OperationId = pvr.OperationId
     WHERE op.CreatedAt BETWEEN @StartDate AND @EndDate
-    AND (@Scope IS NULL OR AtomicStream::Parse(op.ProvenanceStream).Scope = @Scope);
+    AND (@Scope IS NULL OR op.ProvenanceStream.Scope = @Scope);
 
     DECLARE @TotalOperations INT = (SELECT COUNT(*) FROM @Operations);
     DECLARE @ValidOperations INT = (SELECT COUNT(*) FROM @Operations WHERE ValidationStatus = 'PASS');
@@ -56,7 +54,7 @@ BEGIN
 
     DECLARE @Anomalies TABLE (AnomalyType NVARCHAR(100), Details NVARCHAR(MAX));
 
-    IF EXISTS (SELECT 1 FROM dbo.OperationProvenance WHERE CreatedAt BETWEEN @StartDate AND @EndDate AND ProvenanceStream IS NULL)
+    IF EXISTS (SELECT 1 FROM dbo.OperationProvenance WHERE CreatedAt BETWEEN @StartDate AND @EndDate AND (ProvenanceStream IS NULL OR ProvenanceStream.IsNull = 1))
         INSERT INTO @Anomalies VALUES ('Missing Provenance', 'Operations found without provenance streams');
 
     IF @FailedOperations > 0
@@ -65,7 +63,7 @@ BEGIN
     DECLARE @AvgSegments FLOAT = (SELECT AVG(SegmentCount) FROM @Operations);
     DECLARE @StdDevSegments FLOAT = (SELECT STDEV(SegmentCount) FROM @Operations);
 
-    IF EXISTS (SELECT 1 FROM @Operations WHERE ABS(SegmentCount - @AvgSegments) > 2 * @StdDevSegments)
+    IF @StdDevSegments IS NOT NULL AND EXISTS (SELECT 1 FROM @Operations WHERE ABS(SegmentCount - @AvgSegments) > 2 * @StdDevSegments)
         INSERT INTO @Anomalies VALUES ('Segment Count Anomalies', 'Operations with unusual number of provenance segments detected');
 
     INSERT INTO dbo.ProvenanceAuditResults (
@@ -123,7 +121,6 @@ BEGIN
         CAST(ValidationScore * 100 AS DECIMAL(5,2)) AS ValidationScorePercent
     FROM @Operations
     ORDER BY CreatedAt DESC;
-    */
 
     IF @Debug = 1
         PRINT 'Provenance audit completed';

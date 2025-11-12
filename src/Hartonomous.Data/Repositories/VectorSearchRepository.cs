@@ -183,7 +183,9 @@ public class VectorSearchRepository : IVectorSearchRepository
             {
                 AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
                 VectorScore = vectorScore,
-                KeywordScore = 0.0, // TODO: Integrate sp_FusionSearch for full-text
+                KeywordScore = reader.IsDBNull(reader.GetOrdinal("KeywordScore")) 
+                    ? 0.0 
+                    : Convert.ToDouble(reader.GetValue(reader.GetOrdinal("KeywordScore"))),
                 SpatialScore = spatialScore,
                 CombinedScore = combinedScore,
                 ContentHash = null, // Not returned by sp_HybridSearch

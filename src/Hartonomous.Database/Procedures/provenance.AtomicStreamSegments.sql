@@ -1,4 +1,4 @@
-CREATE FUNCTION provenance.clr_AtomicStreamSegments(@stream VARBINARY(MAX)) -- TODO: Change back to provenance.AtomicStream
+CREATE FUNCTION provenance.clr_AtomicStreamSegments(@stream provenance.AtomicStream)
 RETURNS TABLE
 (
     segment_ordinal INT,

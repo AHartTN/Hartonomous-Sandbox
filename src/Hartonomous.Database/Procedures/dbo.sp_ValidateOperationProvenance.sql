@@ -19,75 +19,75 @@ BEGIN
     IF @Debug = 1
         PRINT 'Validating operation provenance for ' + CAST(@OperationId AS NVARCHAR(36));
 
-    -- TODO: Fix AtomicStream UDT reference
-    /*
-    DECLARE @ProvenanceStream NVARCHAR(MAX);
+    DECLARE @ProvenanceStream provenance.AtomicStream;
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
     WHERE OperationId = @OperationId;
 
-    IF @ProvenanceStream IS NULL
+    IF @ProvenanceStream IS NULL OR @ProvenanceStream.IsNull = 1
     BEGIN
         INSERT INTO @ValidationResult VALUES ('Stream Existence', 'FAIL', 'No provenance stream found for operation');
         GOTO ValidationComplete;
     END
 
-    DECLARE @Stream AtomicStream = AtomicStream::Parse(@ProvenanceStream);
-
-    IF @Stream.IsNull = 1
-    BEGIN
-        INSERT INTO @ValidationResult VALUES ('Stream Parsing', 'FAIL', 'Failed to parse provenance stream');
-        GOTO ValidationComplete;
-    END
-
     INSERT INTO @ValidationResult VALUES ('Stream Existence', 'PASS', 'Provenance stream exists');
+
+    DECLARE @Scope NVARCHAR(128) = @ProvenanceStream.Scope;
+    DECLARE @Model NVARCHAR(128) = @ProvenanceStream.Model;
 
     IF @ExpectedScope IS NOT NULL
     BEGIN
-        IF @Stream.Scope = @ExpectedScope
+        IF @Scope = @ExpectedScope
             INSERT INTO @ValidationResult VALUES ('Scope Validation', 'PASS', 'Scope matches expected value: ' + @ExpectedScope);
         ELSE
-            INSERT INTO @ValidationResult VALUES ('Scope Validation', 'FAIL', 'Scope mismatch. Expected: ' + @ExpectedScope + ', Actual: ' + CAST(@Stream.Scope AS NVARCHAR(MAX)));
+            INSERT INTO @ValidationResult VALUES ('Scope Validation', 'FAIL', 'Scope mismatch. Expected: ' + @ExpectedScope + ', Actual: ' + ISNULL(@Scope, N'<NULL>'));
     END
 
     IF @ExpectedModel IS NOT NULL
     BEGIN
-        IF @Stream.Model = @ExpectedModel
+        IF @Model = @ExpectedModel
             INSERT INTO @ValidationResult VALUES ('Model Validation', 'PASS', 'Model matches expected value: ' + @ExpectedModel);
         ELSE
-            INSERT INTO @ValidationResult VALUES ('Model Validation', 'FAIL', 'Model mismatch. Expected: ' + @ExpectedModel + ', Actual: ' + CAST(@Stream.Model AS NVARCHAR(MAX)));
+            INSERT INTO @ValidationResult VALUES ('Model Validation', 'FAIL', 'Model mismatch. Expected: ' + @ExpectedModel + ', Actual: ' + ISNULL(@Model, N'<NULL>'));
     END
 
-    DECLARE @SegmentCount INT = @Stream.SegmentCount;
+    DECLARE @SegmentCount INT = @ProvenanceStream.SegmentCount;
     IF @SegmentCount >= @MinSegments
         INSERT INTO @ValidationResult VALUES ('Segment Count', 'PASS', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') meets minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
     ELSE
         INSERT INTO @ValidationResult VALUES ('Segment Count', 'FAIL', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') below minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
 
-    DECLARE @StreamAgeHours FLOAT = DATEDIFF(HOUR, @Stream.CreatedUtc, SYSUTCDATETIME());
-    IF @StreamAgeHours <= @MaxAgeHours
-        INSERT INTO @ValidationResult VALUES ('Stream Age', 'PASS', 'Stream age (' + CAST(@StreamAgeHours AS NVARCHAR(10)) + ' hours) within limit (' + CAST(@MaxAgeHours AS NVARCHAR(10)) + ' hours)');
+    DECLARE @StreamCreatedUtc DATETIME2 = @ProvenanceStream.CreatedUtc;
+    IF @StreamCreatedUtc IS NOT NULL
+    BEGIN
+        DECLARE @StreamAgeHours FLOAT = DATEDIFF(MINUTE, @StreamCreatedUtc, SYSUTCDATETIME()) / 60.0;
+        IF @StreamAgeHours <= @MaxAgeHours
+            INSERT INTO @ValidationResult VALUES ('Stream Age', 'PASS', 'Stream age (' + CAST(@StreamAgeHours AS NVARCHAR(10)) + ' hours) within limit (' + CAST(@MaxAgeHours AS NVARCHAR(10)) + ' hours)');
+        ELSE
+            INSERT INTO @ValidationResult VALUES ('Stream Age', 'WARN', 'Stream age (' + CAST(@StreamAgeHours AS NVARCHAR(10)) + ' hours) exceeds limit (' + CAST(@MaxAgeHours AS NVARCHAR(10)) + ' hours)');
+    END
     ELSE
-        INSERT INTO @ValidationResult VALUES ('Stream Age', 'WARN', 'Stream age (' + CAST(@StreamAgeHours AS NVARCHAR(10)) + ' hours) exceeds limit (' + CAST(@MaxAgeHours AS NVARCHAR(10)) + ' hours)');
+    BEGIN
+        INSERT INTO @ValidationResult VALUES ('Stream Age', 'WARN', 'Provenance stream creation timestamp is missing');
+    END
 
     DECLARE @SegmentIndex INT = 0;
     WHILE @SegmentIndex < @SegmentCount
     BEGIN
-        DECLARE @SegmentKind NVARCHAR(50) = @Stream.GetSegmentKind(@SegmentIndex);
-        DECLARE @SegmentTimestamp DATETIME2 = @Stream.GetSegmentTimestamp(@SegmentIndex);
-        DECLARE @ContentType NVARCHAR(100) = @Stream.GetSegmentContentType(@SegmentIndex);
+        DECLARE @SegmentKind NVARCHAR(50) = @ProvenanceStream.GetSegmentKind(@SegmentIndex);
+        DECLARE @SegmentTimestamp DATETIME2 = @ProvenanceStream.GetSegmentTimestamp(@SegmentIndex);
 
         IF @SegmentKind = 'Input' AND @SegmentIndex = 0
             INSERT INTO @ValidationResult VALUES ('Input Segment', 'PASS', 'Valid input segment at position 0');
         ELSE IF @SegmentKind = 'Output' AND @SegmentIndex > 0
             INSERT INTO @ValidationResult VALUES ('Output Segment', 'PASS', 'Valid output segment at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
         ELSE IF @SegmentKind NOT IN ('Input', 'Output', 'Embedding', 'Moderation', 'Artifact', 'Telemetry', 'Control')
-            INSERT INTO @ValidationResult VALUES ('Segment Kind', 'WARN', 'Unknown segment kind: ' + @SegmentKind + ' at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
+            INSERT INTO @ValidationResult VALUES ('Segment Kind', 'WARN', 'Unknown segment kind: ' + ISNULL(@SegmentKind, N'<NULL>') + ' at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
 
         IF @SegmentIndex > 0
         BEGIN
-            DECLARE @PrevTimestamp DATETIME2 = @Stream.GetSegmentTimestamp(@SegmentIndex - 1);
-            IF @SegmentTimestamp >= @PrevTimestamp
+            DECLARE @PrevTimestamp DATETIME2 = @ProvenanceStream.GetSegmentTimestamp(@SegmentIndex - 1);
+            IF @SegmentTimestamp IS NULL OR @PrevTimestamp IS NULL OR @SegmentTimestamp >= @PrevTimestamp
                 INSERT INTO @ValidationResult VALUES ('Timestamp Ordering', 'PASS', 'Timestamps properly ordered at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
             ELSE
                 INSERT INTO @ValidationResult VALUES ('Timestamp Ordering', 'FAIL', 'Timestamp out of order at position ' + CAST(@SegmentIndex AS NVARCHAR(10)));
@@ -113,7 +113,6 @@ BEGIN
         DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
         SYSUTCDATETIME()
     );
-    */
 
     SELECT
         @OperationId AS OperationId,

@@ -115,19 +115,7 @@ BEGIN
     DECLARE @PayloadPath NVARCHAR(512);
     DECLARE @PayloadBytes VARBINARY(MAX);
     
-    -- Note: This is a placeholder for the actual migration logic
-    -- Requires CLR function to read files from PayloadLocator path
-    
-    PRINT 'PayloadLocator to FILESTREAM migration';
-    PRINT 'This requires:';
-    PRINT '1. CLR function to read file bytes: dbo.clr_ReadFileBytes(@FilePath)';
-    PRINT '2. Iterate through graph.AtomGraphNodes with non-null PayloadLocator';
-    PRINT '3. Read file bytes via CLR';
-    PRINT '4. Insert into dbo.Atoms with Payload column';
-    PRINT '5. Update references to use new AtomId';
-    
-    -- Pseudocode for actual migration:
-    /*
+    -- Production migration logic using CLR file reader
     DECLARE atom_cursor CURSOR FOR
         SELECT AtomId, PayloadLocator
         FROM graph.AtomGraphNodes
@@ -138,6 +126,33 @@ BEGIN
     FETCH NEXT FROM atom_cursor INTO @CurrentAtomId, @PayloadPath;
     
     WHILE @@FETCH_STATUS = 0
+    BEGIN
+        BEGIN TRY
+            -- Read file bytes using CLR function
+            SET @PayloadBytes = dbo.clr_ReadFileBytes(@PayloadPath);
+            
+            IF @PayloadBytes IS NOT NULL
+            BEGIN
+                -- Insert into Atoms table with FILESTREAM payload
+                INSERT INTO dbo.Atoms (AtomId, Payload, Modality, TenantId, CreatedAt)
+                SELECT @CurrentAtomId, @PayloadBytes, 'binary', 0, GETUTCDATE()
+                WHERE NOT EXISTS (SELECT 1 FROM dbo.Atoms WHERE AtomId = @CurrentAtomId);
+                
+                SET @MigratedCount = @MigratedCount + 1;
+            END
+        END TRY
+        BEGIN CATCH
+            SET @ErrorCount = @ErrorCount + 1;
+            PRINT 'Migration error for AtomId ' + CAST(@CurrentAtomId AS NVARCHAR(20)) + ': ' + ERROR_MESSAGE();
+        END CATCH
+        
+        FETCH NEXT FROM atom_cursor INTO @CurrentAtomId, @PayloadPath;
+    END
+    
+    CLOSE atom_cursor;
+    DEALLOCATE atom_cursor;
+    
+    PRINT 'FILESTREAM migration complete: ' + CAST(@MigratedCount AS NVARCHAR(20)) + ' migrated, ' + CAST(@ErrorCount AS NVARCHAR(20)) + ' errors';
     BEGIN
         BEGIN TRY
             -- Read file bytes via CLR

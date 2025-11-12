@@ -3,10 +3,13 @@ CREATE OR ALTER PROCEDURE dbo.sp_GenerateText
     @max_tokens INT = 64,
     @temperature FLOAT = 0.8,
     @ModelIds NVARCHAR(MAX) = NULL,
-    @top_k INT = 6
+    @top_k INT = 6,
+    @GeneratedText NVARCHAR(MAX) = NULL OUTPUT
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    SET @GeneratedText = NULL;
 
     IF @prompt IS NULL OR LTRIM(RTRIM(@prompt)) = ''
         THROW 50090, 'Prompt is required for text generation.', 1;
@@ -154,6 +157,8 @@ BEGIN
     SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Telemetry', SYSUTCDATETIME(), 'application/json', JSON_OBJECT('token_count': @tokenCount, 'duration_ms': @totalDuration), CAST(JSON_QUERY(@tokensJson) AS VARBINARY(MAX)));
     SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CAST(@generatedText AS VARBINARY(MAX)));
 
+    SET @GeneratedText = @generatedText;
+
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @totalDuration,
         OutputData = TRY_CAST(JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @generatedText) AS JSON),
@@ -179,7 +184,7 @@ BEGIN
         @inferenceId AS InferenceId,
         @streamId AS StreamId,
         @prompt AS OriginalPrompt,
-        @generatedText AS GeneratedText,
+    @generatedText AS GeneratedText,
         @tokenCount AS TokensGenerated,
         @totalDuration AS DurationMs,
         JSON_QUERY(@tokensJson) AS TokenDetails;

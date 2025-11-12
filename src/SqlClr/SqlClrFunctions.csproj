@@ -140,10 +140,12 @@
     <Compile Include="MachineLearning\MatrixFactorization.cs" />
     <Compile Include="MachineLearning\SVDCompression.cs" />
     <Compile Include="MachineLearning\TSNEProjection.cs" />
+    <Compile Include="ModelInference.cs" />
     <Compile Include="ModelIngestionFunctions.cs" />
     <Compile Include="MultiModalGeneration.cs" />
     <Compile Include="NaturalLanguage\BpeTokenizer.cs" />
     <Compile Include="NeuralVectorAggregates.cs" />
+    <Compile Include="PerformanceAnalysis.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="ReasoningFrameworkAggregates.cs" />
     <Compile Include="RecommenderAggregates.cs" />

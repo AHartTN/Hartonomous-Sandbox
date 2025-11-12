@@ -450,11 +450,29 @@ OUTPUT FORMAT (JSON):
         IF @Debug = 1
             PRINT 'PHASE 5: Waiting for CI/CD results...';
         
-        -- Wait for CI/CD pipeline completion
-        -- Poll build status API or check test results database
+        -- Wait for CI/CD pipeline completion by polling build status
+        DECLARE @BuildComplete BIT = 0;
+        DECLARE @WaitAttempts INT = 0;
+        DECLARE @MaxWaitAttempts INT = 60; -- 5 minutes max wait (60 * 5 seconds)
         
-        -- Placeholder: Simulate evaluation
-        WAITFOR DELAY '00:00:05';  -- Simulate pipeline execution
+        WHILE @BuildComplete = 0 AND @WaitAttempts < @MaxWaitAttempts
+        BEGIN
+            -- Check build status from Azure DevOps API or test results database
+            SELECT @BuildComplete = CASE 
+                WHEN Status IN ('Completed', 'Failed', 'Cancelled') THEN 1 
+                ELSE 0 
+            END
+            FROM dbo.CICDBuilds
+            WHERE CommitHash = @GitCommitHash
+            ORDER BY StartedAt DESC
+            OFFSET 0 ROWS FETCH FIRST 1 ROWS ONLY;
+            
+            IF @BuildComplete = 0
+            BEGIN
+                WAITFOR DELAY '00:00:05';
+                SET @WaitAttempts = @WaitAttempts + 1;
+            END
+        END;
         
         -- Use PREDICT to score the change outcome
         -- Inputs: before/after metrics, test pass/fail, performance delta

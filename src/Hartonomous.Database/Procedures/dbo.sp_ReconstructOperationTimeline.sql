@@ -9,20 +9,17 @@ BEGIN
     IF @Debug = 1
         PRINT 'Reconstructing operation timeline for ' + CAST(@OperationId AS NVARCHAR(36));
 
-    -- TODO: Fix AtomicStream UDT reference
-    /*
-    DECLARE @ProvenanceStream NVARCHAR(MAX);
+    DECLARE @ProvenanceStream provenance.AtomicStream;
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
     WHERE OperationId = @OperationId;
 
-    IF @ProvenanceStream IS NULL
+    IF @ProvenanceStream IS NULL OR @ProvenanceStream.IsNull = 1
     BEGIN
         RAISERROR('No provenance stream found for operation %s', 16, 1, @OperationId);
         RETURN;
     END
 
-    DECLARE @Stream AtomicStream = AtomicStream::Parse(@ProvenanceStream);
     DECLARE @Timeline TABLE (
         SequenceNumber INT,
         Timestamp DATETIME2,
@@ -33,18 +30,18 @@ BEGIN
     );
 
     DECLARE @SegmentIndex INT = 0;
-    DECLARE @SegmentCount INT = @Stream.SegmentCount;
+    DECLARE @SegmentCount INT = @ProvenanceStream.SegmentCount;
 
     WHILE @SegmentIndex < @SegmentCount
     BEGIN
         INSERT INTO @Timeline
         SELECT
             @SegmentIndex,
-            @Stream.GetSegmentTimestamp(@SegmentIndex),
-            @Stream.GetSegmentKind(@SegmentIndex),
-            @Stream.GetSegmentContentType(@SegmentIndex),
-            @Stream.GetSegmentMetadata(@SegmentIndex),
-            DATALENGTH(@Stream.GetSegmentPayload(@SegmentIndex));
+            @ProvenanceStream.GetSegmentTimestamp(@SegmentIndex),
+            @ProvenanceStream.GetSegmentKind(@SegmentIndex),
+            @ProvenanceStream.GetSegmentContentType(@SegmentIndex),
+            @ProvenanceStream.GetSegmentMetadata(@SegmentIndex),
+            DATALENGTH(@ProvenanceStream.GetSegmentPayload(@SegmentIndex));
 
         SET @SegmentIndex = @SegmentIndex + 1;
     END
@@ -66,11 +63,11 @@ BEGIN
             INSERT INTO @FullTimeline
             SELECT
                 @SegmentIndex,
-                @Stream.GetSegmentTimestamp(@SegmentIndex),
-                @Stream.GetSegmentKind(@SegmentIndex),
-                @Stream.GetSegmentContentType(@SegmentIndex),
-                @Stream.GetSegmentMetadata(@SegmentIndex),
-                @Stream.GetSegmentPayload(@SegmentIndex);
+                @ProvenanceStream.GetSegmentTimestamp(@SegmentIndex),
+                @ProvenanceStream.GetSegmentKind(@SegmentIndex),
+                @ProvenanceStream.GetSegmentContentType(@SegmentIndex),
+                @ProvenanceStream.GetSegmentMetadata(@SegmentIndex),
+                @ProvenanceStream.GetSegmentPayload(@SegmentIndex);
 
             SET @SegmentIndex = @SegmentIndex + 1;
         END
@@ -81,7 +78,6 @@ BEGIN
     BEGIN
         SELECT * FROM @Timeline ORDER BY SequenceNumber;
     END
-    */
 
     IF @Debug = 1
         PRINT 'Operation timeline reconstructed';

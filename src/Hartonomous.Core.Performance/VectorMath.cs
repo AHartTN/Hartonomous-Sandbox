@@ -10,7 +10,7 @@ namespace Hartonomous.Core.Performance;
 /// <summary>
 /// SIMD-optimized vector mathematics for embeddings and ML operations.
 /// Automatically uses AVX512 > AVX2 > SSE > System.Numerics.Vector > Scalar.
-/// Thread-safe, allocation-free, and GPU-capable via ILGPU integration.
+/// Thread-safe, allocation-free CPU SIMD implementation (AVX2/SSE4).
 /// </summary>
 public static class VectorMath
 {

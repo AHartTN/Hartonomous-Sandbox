@@ -86,9 +86,14 @@ BEGIN
             ISNULL(ir.TotalDurationMs, 0) AS DurationMs,
             -- Estimate token count: ~4 chars per token for English text
             (LEN(CAST(ir.InputData AS NVARCHAR(MAX))) + LEN(CAST(ir.OutputData AS NVARCHAR(MAX)))) / 4 AS TokenCount,
-            -- Create performance vector for anomaly detection
-            -- [duration_normalized, tokens_normalized, hour_of_day, day_of_week, ...]
-            CAST(NULL AS VECTOR(1998)) -- Placeholder, would compute actual vector
+            -- Create performance vector for anomaly detection using CLR function
+            dbo.clr_BuildPerformanceVector(
+                ISNULL(ir.TotalDurationMs, 0),
+                (LEN(CAST(ir.InputData AS NVARCHAR(MAX))) + LEN(CAST(ir.OutputData AS NVARCHAR(MAX)))) / 4,
+                DATEPART(HOUR, ir.RequestTimestamp),
+                DATEPART(WEEKDAY, ir.RequestTimestamp),
+                1998
+            ) AS PerformanceVector
         FROM dbo.InferenceRequests ir
         WHERE ir.RequestTimestamp >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
             AND ir.Status IN ('Completed', 'Failed')

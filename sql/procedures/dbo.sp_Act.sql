@@ -250,16 +250,27 @@ BEGIN
                 -- CONCEPT DISCOVERY: Safe, run clustering
                 ELSE IF @CurrentType = 'ConceptDiscovery'
                 BEGIN
-                    -- Trigger concept discovery (placeholder - actual CLR function to be implemented)
                     DECLARE @DiscoveredConcepts INT = 0;
                     
-                    -- For now, just detect clusters via spatial buckets
-                    SELECT @DiscoveredConcepts = COUNT(DISTINCT SpatialBucket)
-                    FROM dbo.AtomEmbeddings
-                    WHERE CreatedAt >= DATEADD(DAY, -7, SYSUTCDATETIME());
+                    -- Run actual concept discovery using CLR table function
+                    INSERT INTO @ActionResults
+                    SELECT 
+                        @CurrentHypothesisId,
+                        @CurrentType,
+                        'Executed',
+                        (
+                            SELECT COUNT(*) AS discoveredClusters,
+                                   JSON_QUERY((
+                                       SELECT ConceptId, AtomCount, Coherence, SpatialBucket
+                                       FROM dbo.fn_DiscoverConcepts(10, 0.7, 50, @TenantId)
+                                       FOR JSON PATH
+                                   )) AS clusterDetails
+                            FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
+                        ),
+                        DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
+                        NULL;
                     
-                    SET @ExecutedActionsList = (SELECT @DiscoveredConcepts AS discoveredClusters FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
-                    SET @ActionStatus = 'Executed';
+                    CONTINUE; -- Skip standard result insertion
                 END
                 
                 -- MODEL RETRAINING: DANGEROUS, queue for approval

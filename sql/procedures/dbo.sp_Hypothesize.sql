@@ -241,12 +241,14 @@ BEGIN
             END
 
             -- HYPOTHESIS 7: Fix UX based on sessions ending in an error state
-            -- This assumes an @ErrorRegion GEOMETRY variable is defined, representing error states.
-            DECLARE @ErrorRegion GEOMETRY = geometry::Point(0, 0, 0).STBuffer(10); -- Placeholder for error region
             DECLARE @FailingSessions NVARCHAR(MAX) = (
                 SELECT TOP 10 SessionId, Path.STEndPoint().ToString() AS EndPoint
                 FROM dbo.SessionPaths
-                WHERE Path.STEndPoint().STIntersects(@ErrorRegion) = 1
+                WHERE EXISTS (
+                    SELECT 1
+                    FROM dbo.ErrorStates es
+                    WHERE es.ErrorPoint.STIntersects(Path.STEndPoint()) = 1
+                )
                 FOR JSON PATH
             );
 

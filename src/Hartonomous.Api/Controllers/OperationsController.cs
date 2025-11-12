@@ -893,7 +893,7 @@ public class OperationsController : ApiControllerBase
             {
                 CpuPercent = cpuPercent,
                 MemoryPercent = memoryPercent,
-                StoragePercent = 0.0, // TODO: Query file/filestream usage
+                StoragePercent = await GetStoragePercentAsync(),
                 QueueDepths = queueDepths,
                 ActiveInferences = activeInferences,
                 TotalAtoms = totalAtoms,
@@ -923,6 +923,39 @@ public class OperationsController : ApiControllerBase
                 ErrorDetailFactory.Create(ErrorCodes.Infrastructure.DatabaseUnavailable, 
                     "An unexpected error occurred while retrieving metrics")
             }));
+        }
+    }
+
+    private async Task<double> GetStoragePercentAsync()
+    {
+        try
+        {
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync();
+
+            var query = @"
+                SELECT 
+                    SUM(CAST(FILEPROPERTY(name, 'SpaceUsed') AS BIGINT) * 8) / 1024.0 AS UsedMB,
+                    SUM(CAST(size AS BIGINT) * 8) / 1024.0 AS AllocatedMB
+                FROM sys.database_files
+                WHERE type_desc IN ('ROWS', 'FILESTREAM')";
+
+            await using var cmd = new SqlCommand(query, connection);
+            await using var reader = await cmd.ExecuteReaderAsync();
+
+            if (await reader.ReadAsync())
+            {
+                double usedMB = reader.IsDBNull(0) ? 0 : reader.GetDouble(0);
+                double allocatedMB = reader.IsDBNull(1) ? 0 : reader.GetDouble(1);
+
+                return allocatedMB > 0 ? (usedMB / allocatedMB) * 100.0 : 0.0;
+            }
+
+            return 0.0;
+        }
+        catch
+        {
+            return 0.0;
         }
     }
 

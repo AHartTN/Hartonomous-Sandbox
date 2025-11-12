@@ -9,6 +9,8 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
+    SET @GeneratedText = NULL;
+
     IF @prompt IS NULL OR LTRIM(RTRIM(@prompt)) = ''
         THROW 50090, 'Prompt is required for text generation.', 1;
 
@@ -18,7 +20,7 @@ BEGIN
     IF @temperature IS NULL OR @temperature <= 0
         SET @temperature = 0.01;
 
-    DECLARE @promptEmbedding VARBINARY(MAX);
+    DECLARE @promptEmbedding VECTOR(1998);
     DECLARE @embeddingDim INT;
     EXEC dbo.sp_TextToEmbedding @text = @prompt, @ModelName = NULL, @embedding = @promptEmbedding OUTPUT, @dimension = @embeddingDim OUTPUT;
 
@@ -40,7 +42,12 @@ BEGIN
         FOR JSON PATH
     );
 
-    DECLARE @requestPayload NVARCHAR(MAX) = (SELECT @prompt as prompt, @max_tokens as max_tokens, @temperature as temperature, @top_k as top_k FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
+    DECLARE @requestPayload NVARCHAR(MAX) = JSON_OBJECT(
+        'prompt': @prompt,
+        'max_tokens': @max_tokens,
+        'temperature': @temperature,
+        'top_k': @top_k
+    );
 
     DECLARE @inferenceId BIGINT;
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
@@ -49,7 +56,7 @@ BEGIN
         TRY_CAST(@requestPayload AS JSON),
         TRY_CAST(@modelsJson AS JSON),
         'weighted_vector_consensus',
-        (SELECT 'running' as status FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        JSON_OBJECT('status': 'running')
     );
     SET @inferenceId = SCOPE_IDENTITY();
 
@@ -67,25 +74,24 @@ BEGIN
 
     DECLARE @promptEmbeddingJson NVARCHAR(MAX) = CAST(@promptEmbedding AS NVARCHAR(MAX));
 
-    -- TODO: Fix CLR function call
-    -- INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
-    -- SELECT
-    --     ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS StepNumber,
-    --     t.AtomId,
-    --     t.Token,
-    --     t.Score,
-    --     t.Distance,
-    --     t.ModelCount,
-    --     t.DurationMs
-    -- FROM dbo.clr_GenerateTextSequence(
-    --     CAST(@promptEmbeddingJson AS VARBINARY(MAX)),
-    --     @modelsJson,
-    --     @max_tokens,
-    --     @temperature,
-    --     @top_k
-    -- ) AS t;
+    INSERT INTO @sequence (StepNumber, AtomId, Token, Score, Distance, ModelCount, DurationMs)
+    SELECT
+        ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS StepNumber,
+        t.AtomId,
+        t.Token,
+        t.Score,
+        t.Distance,
+        t.ModelCount,
+        t.DurationMs
+    FROM dbo.clr_GenerateTextSequence(
+        CAST(@promptEmbeddingJson AS VARBINARY(MAX)),
+        @modelsJson,
+        @max_tokens,
+        @temperature,
+        @top_k
+    ) AS t;
 
-    SET @GeneratedText = LTRIM(RTRIM(@prompt));
+    DECLARE @generatedText NVARCHAR(MAX) = LTRIM(RTRIM(@prompt));
     DECLARE @tokenSuffix NVARCHAR(MAX) = (
         SELECT STRING_AGG(Token, ' ') WITHIN GROUP (ORDER BY StepNumber)
         FROM @sequence
@@ -94,14 +100,14 @@ BEGIN
 
     IF @tokenSuffix IS NOT NULL AND LTRIM(RTRIM(@tokenSuffix)) <> ''
     BEGIN
-        DECLARE @basePrompt NVARCHAR(MAX) = LTRIM(RTRIM(@GeneratedText));
+        DECLARE @basePrompt NVARCHAR(MAX) = LTRIM(RTRIM(@generatedText));
         IF RIGHT(@basePrompt, 1) = ' '
         BEGIN
-            SET @GeneratedText = LTRIM(RTRIM(@basePrompt + @tokenSuffix));
+            SET @generatedText = LTRIM(RTRIM(@basePrompt + @tokenSuffix));
         END
         ELSE
         BEGIN
-            SET @GeneratedText = LTRIM(RTRIM(@basePrompt + ' ' + @tokenSuffix));
+            SET @generatedText = LTRIM(RTRIM(@basePrompt + ' ' + @tokenSuffix));
         END
     END;
 
@@ -115,10 +121,51 @@ BEGIN
         FOR JSON PATH
     );
 
+    DECLARE @streamId UNIQUEIDENTIFIER = NEWID();
+
+    DECLARE @stream provenance.AtomicStream;
+    SET @stream = CONVERT(provenance.AtomicStream, NULL);
+    DECLARE @streamCreated DATETIME2(3) = SYSUTCDATETIME();
+    DECLARE @primaryModel NVARCHAR(128) = (
+        SELECT TOP (1) ModelName FROM @models ORDER BY Weight DESC, ModelId
+    );
+    DECLARE @modelCount INT = (SELECT COUNT(*) FROM @models);
+    DECLARE @streamScope NVARCHAR(128) = 'text_generation';
+
+    DECLARE @streamMetadata NVARCHAR(MAX) = JSON_OBJECT('inference_id': @inferenceId, 'model_count': @modelCount);
+
+    SET @stream = provenance.clr_CreateAtomicStream(@streamId, @streamCreated, @streamScope, @primaryModel, @streamMetadata);
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Input', @streamCreated, 'text/plain; charset=utf-16', JSON_OBJECT('prompt_length': LEN(@prompt)), CAST(@prompt AS VARBINARY(MAX)));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Control', @streamCreated, 'application/json', JSON_OBJECT('max_tokens': @max_tokens, 'temperature': @temperature, 'top_k': @top_k), CAST(JSON_QUERY(@modelsJson) AS VARBINARY(MAX)));
+
+    IF @promptEmbedding IS NOT NULL
+    BEGIN
+        DECLARE @promptEmbeddingBinary VARBINARY(MAX) = CAST(@promptEmbeddingJson AS VARBINARY(MAX));
+        SET @stream = provenance.clr_AppendAtomicStreamSegment(
+            @stream,
+            'Embedding',
+            @streamCreated,
+            'application/json; charset=utf-16',
+            JSON_OBJECT('dimension': @embeddingDim, 'format': 'vector_json'),
+            @promptEmbeddingBinary
+        );
+    END;
+
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Telemetry', SYSUTCDATETIME(), 'application/json', JSON_OBJECT('token_count': @tokenCount, 'duration_ms': @totalDuration), CAST(JSON_QUERY(@tokensJson) AS VARBINARY(MAX)));
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CAST(@generatedText AS VARBINARY(MAX)));
+
+    SET @GeneratedText = @generatedText;
+
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @totalDuration,
-        OutputData = TRY_CAST((SELECT JSON_QUERY(@tokensJson) as tokens, @GeneratedText as generatedText FOR JSON PATH, WITHOUT_ARRAY_WRAPPER) AS JSON),
-        OutputMetadata = (SELECT 'completed' as status, @tokenCount as tokens_generated, @temperature as temperature, LEN(@prompt) as prompt_length, LEN(@GeneratedText) as result_length FOR JSON PATH, WITHOUT_ARRAY_WRAPPER)
+        OutputData = TRY_CAST(JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @generatedText) AS JSON),
+        OutputMetadata = JSON_OBJECT(
+            'status': 'completed',
+            'tokens_generated': @tokenCount,
+            'temperature': @temperature,
+            'prompt_length': LEN(@prompt),
+            'result_length': LEN(@generatedText)
+        )
     WHERE InferenceId = @inferenceId;
 
     INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)
@@ -127,9 +174,9 @@ BEGIN
 
     SELECT
         @inferenceId AS InferenceId,
-        NEWID() AS StreamId, -- Placeholder
+        @streamId AS StreamId,
         @prompt AS OriginalPrompt,
-        @GeneratedText AS GeneratedText,
+        @generatedText AS GeneratedText,
         @tokenCount AS TokensGenerated,
         @totalDuration AS DurationMs,
         JSON_QUERY(@tokensJson) AS TokenDetails;

@@ -112,26 +112,25 @@ BEGIN
         geometry GEOMETRY
     );
 
-    -- TODO: Fix CLR function call
-    -- INSERT INTO @patches (patch_x, patch_y, spatial_x, spatial_y, spatial_z, geometry)
-    -- SELECT
-    --     patch_x,
-    --     patch_y,
-    --     spatial_x,
-    --     spatial_y,
-    --     spatial_z,
-    --     patch
-    -- FROM dbo.clr_GenerateImagePatches(
-    --     @width,
-    --     @height,
-    --     @patch_size,
-    --     @steps,
-    --     @guidance_scale,
-    --     @guideX,
-    --     @guideY,
-    --     @guideZ,
-    --     @seed
-    -- );
+    INSERT INTO @patches (patch_x, patch_y, spatial_x, spatial_y, spatial_z, geometry)
+    SELECT
+        patch_x,
+        patch_y,
+        spatial_x,
+        spatial_y,
+        spatial_z,
+        patch
+    FROM dbo.clr_GenerateImagePatches(
+        @width,
+        @height,
+        @patch_size,
+        @steps,
+        @guidance_scale,
+        @guideX,
+        @guideY,
+        @guideZ,
+        @seed
+    );
 
     DECLARE @durationMs INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
     DECLARE @patchCount INT = (SELECT COUNT(*) FROM @patches);
@@ -180,21 +179,19 @@ BEGIN
     END
     ELSE
     BEGIN
-        -- TODO: Fix CLR function call
-        -- DECLARE @resultGeometry GEOMETRY = dbo.clr_GenerateImageGeometry(
-        --     @width,
-        --     @height,
-        --     @patch_size,
-        --     @steps,
-        --     @guidance_scale,
-        --     @guideX,
-        --     @guideY,
-        --     @guideZ,
-        --     @seed
-        -- );
+        DECLARE @resultGeometry GEOMETRY = dbo.clr_GenerateImageGeometry(
+            @width,
+            @height,
+            @patch_size,
+            @steps,
+            @guidance_scale,
+            @guideX,
+            @guideY,
+            @guideZ,
+            @seed
+        );
 
-        -- SELECT @inferenceId AS InferenceId, @resultGeometry AS GeneratedImageGeometry;
-        SELECT @inferenceId AS InferenceId;
+        SELECT @inferenceId AS InferenceId, @resultGeometry AS GeneratedImageGeometry;
     END;
 
     SELECT
