@@ -286,12 +286,6 @@ public class AutonomousActionRepository : IAutonomousActionRepository
         return (executedActions, "Executed");
     }
 
-    private static double[] ConvertSqlVectorToDoubleArray(SqlVector<float> vector)
-    {
-        var floats = vector.Memory.ToArray();
-        return Array.ConvertAll(floats, f => (double)f);
-    }
-
     private async Task<(string executedActions, string status)> ExecuteModelRetrainingAsync(Hypothesis hypothesis, CancellationToken cancellationToken)
     {
         // Queue for approval (dangerous operation)
