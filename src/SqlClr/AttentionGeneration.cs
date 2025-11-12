@@ -608,19 +608,58 @@ ORDER BY ta.ElementCount DESC;
             {
                 var embeddingJson = JsonConvert.SerializeObject(attentionOutput);
 
+                // CRITICAL: Query ALL modalities using GEOMETRY spatial joins
+                // This enables cross-modal generation (text→image, audio→video, etc.)
                 command.CommandText = @"
+-- Step 1: Project attention output to GEOMETRY for spatial queries
 DECLARE @embedding VECTOR(1998) = CAST(@embeddingJson AS VECTOR(1998));
+DECLARE @queryGeometry GEOMETRY = dbo.fn_ProjectTo3D(CAST(@embedding AS VARBINARY(MAX)));
 
+-- Step 2: Spatial filter using R-tree index (O(log n) candidates)
+WITH SpatialCandidates AS (
+    SELECT TOP (@spatialPool)
+        ae.AtomEmbeddingId,
+        ae.AtomId,
+        ae.SpatialGeometry.STDistance(@queryGeometry) AS SpatialDistance
+    FROM dbo.AtomEmbeddings ae WITH (INDEX(IX_AtomEmbeddings_SpatialGeometry))
+    WHERE ae.SpatialGeometry IS NOT NULL
+      AND ae.SpatialGeometry.STIntersects(
+          @queryGeometry.STBuffer(10.0) -- 10 unit search radius
+      ) = 1
+    ORDER BY ae.SpatialGeometry.STDistance(@queryGeometry)
+),
+-- Step 3: Exact vector similarity on candidates (O(k) refinement)
+RankedCandidates AS (
+    SELECT 
+        sc.AtomId,
+        a.Modality,
+        a.CanonicalText,
+        a.ContentJson,
+        VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @embedding) AS VectorDistance,
+        sc.SpatialDistance,
+        -- Blend vector + spatial scores
+        (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @embedding)) * 0.7 +
+        (1.0 / (1.0 + sc.SpatialDistance)) * 0.3 AS BlendedScore
+    FROM SpatialCandidates sc
+    INNER JOIN dbo.AtomEmbeddings ae ON sc.AtomEmbeddingId = ae.AtomEmbeddingId
+    INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
+    -- NO modality filter - return text + image + audio + video candidates!
+    WHERE ae.EmbeddingVector IS NOT NULL
+)
 SELECT TOP (@topK)
-    ae.AtomId,
-    a.CanonicalText,
-    VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @embedding) AS Distance
-FROM dbo.AtomEmbeddings ae
-INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
-WHERE a.CanonicalText IS NOT NULL
-ORDER BY Distance;
+    AtomId,
+    Modality,
+    COALESCE(CanonicalText, 
+             JSON_VALUE(ContentJson, '$.description'),
+             CONCAT('[', Modality, ' atom #', CAST(AtomId AS NVARCHAR(20)), ']')
+    ) AS DisplayText,
+    VectorDistance AS Distance,
+    BlendedScore AS Score
+FROM RankedCandidates
+ORDER BY BlendedScore DESC;
 ";
                 command.Parameters.AddWithValue("@embeddingJson", embeddingJson);
+                command.Parameters.AddWithValue("@spatialPool", topK * 10); // Get 10x for spatial filter
                 command.Parameters.AddWithValue("@topK", topK * 2); // Get extra for filtering
 
                 using (var reader = command.ExecuteReader())
@@ -635,15 +674,18 @@ ORDER BY Distance;
                             continue;
                         }
 
-                        var text = reader.IsDBNull(1) ? null : reader.GetString(1);
-                        var distance = reader.GetDouble(2);
+                        var modality = reader.IsDBNull(1) ? "unknown" : reader.GetString(1);
+                        var text = reader.IsDBNull(2) ? null : reader.GetString(2);
+                        var distance = reader.GetDouble(3);
+                        var score = reader.GetDouble(4);
 
                         candidates.Add(new Candidate
                         {
                             AtomId = atomId,
+                            Modality = modality,
                             Text = text,
                             Distance = distance,
-                            Score = 1.0 - distance // Convert distance to similarity score
+                            Score = score
                         });
 
                         if (candidates.Count >= topK)
@@ -802,6 +844,7 @@ VALUES (
         private class Candidate
         {
             public long AtomId { get; set; }
+            public string Modality { get; set; }  // NEW: Support cross-modal candidates
             public string Text { get; set; }
             public double Distance { get; set; }
             public double Score { get; set; }
