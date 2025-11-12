@@ -13,10 +13,17 @@
     <EnableDefaultSqlItems>false</EnableDefaultSqlItems>
     <ProjectGuid>{00000000-0000-0000-0000-000000000000}</ProjectGuid>
   </PropertyGroup>
-  <!-- CLR assembly reference suppression - DLL will be deployed separately via SQL scripts -->
+  <!-- CLR Integration Configuration -->
   <PropertyGroup>
-    <!-- Suppress SQL71501 errors for CLR assembly references - these are deployed at runtime, not build time -->
-    <SuppressTSqlWarnings>$(SuppressTSqlWarnings);71501</SuppressTSqlWarnings>
+    <!-- Enable CLR build and generation -->
+    <EnableSqlClrDeployment>True</EnableSqlClrDeployment>
+    <GenerateSqlClrDdl>True</GenerateSqlClrDdl>
+    <SqlPermissionLevel>UNSAFE</SqlPermissionLevel>
+    <SqlClrAnyCpu>True</SqlClrAnyCpu>
+    <SqlCLRVerifyCodeSecurity>False</SqlCLRVerifyCodeSecurity>
+    <EnableClrSigning>False</EnableClrSigning>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <RunSqlCodeAnalysis>False</RunSqlCodeAnalysis>
   </PropertyGroup>
   <!-- Schema and object definitions -->
   <ItemGroup>
