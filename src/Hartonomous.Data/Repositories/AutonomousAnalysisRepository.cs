@@ -40,7 +40,7 @@ public class AutonomousAnalysisRepository : IAutonomousAnalysisRepository
             .Select(ir => new
             {
                 InferenceId = ir.InferenceId,
-                ModelId = (long?)null, // Simplified - would need JSON parsing for actual model IDs
+                ModelsUsed = ir.ModelsUsed, // JSON array of models
                 RequestedAt = ir.RequestTimestamp,
                 CompletedAt = ir.RequestTimestamp.AddMilliseconds(ir.TotalDurationMs ?? 0),
                 DurationMs = ir.TotalDurationMs ?? 0,
@@ -49,15 +49,41 @@ public class AutonomousAnalysisRepository : IAutonomousAnalysisRepository
             })
             .ToListAsync(cancellationToken);
 
-        // Calculate token counts after materializing the query
-        var inferencesWithTokens = recentInferences.Select(ir => new
+        // Calculate token counts and parse model IDs from JSON
+        var inferencesWithTokens = recentInferences.Select(ir =>
         {
-            ir.InferenceId,
-            ir.ModelId,
-            ir.RequestedAt,
-            ir.CompletedAt,
-            ir.DurationMs,
-            TokenCount = (ir.InputLength + ir.OutputLength) / 4
+            long? modelId = null;
+            if (!string.IsNullOrEmpty(ir.ModelsUsed))
+            {
+                try
+                {
+                    using var doc = System.Text.Json.JsonDocument.Parse(ir.ModelsUsed);
+                    if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array &&
+                        doc.RootElement.GetArrayLength() > 0)
+                    {
+                        var firstModel = doc.RootElement[0];
+                        if (firstModel.TryGetProperty("ModelId", out var modelIdProp) &&
+                            modelIdProp.TryGetInt64(out var parsedId))
+                        {
+                            modelId = parsedId;
+                        }
+                    }
+                }
+                catch
+                {
+                    // Invalid JSON - keep modelId as null
+                }
+            }
+
+            return new
+            {
+                ir.InferenceId,
+                ModelId = modelId,
+                ir.RequestedAt,
+                ir.CompletedAt,
+                ir.DurationMs,
+                TokenCount = (ir.InputLength + ir.OutputLength) / 4
+            };
         }).ToList();
 
         var totalInferences = inferencesWithTokens.Count;
