@@ -1,0 +1,1 @@
+CREATE QUEUE [dbo].[LearnQueue] WITH STATUS = ON;

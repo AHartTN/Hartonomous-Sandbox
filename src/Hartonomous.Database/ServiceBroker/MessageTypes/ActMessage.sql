@@ -1,0 +1,1 @@
+CREATE MESSAGE TYPE [//Hartonomous/AutonomousLoop/ActMessage] VALIDATION = WELL_FORMED_XML;

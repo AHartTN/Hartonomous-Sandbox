@@ -1,0 +1,1 @@
+CREATE SERVICE [//Hartonomous/Service/Initiator] ON QUEUE [dbo].[InitiatorQueue] ([//Hartonomous/AutonomousLoop/AnalyzeContract], [//Hartonomous/AutonomousLoop/HypothesizeContract], [//Hartonomous/AutonomousLoop/ActContract], [//Hartonomous/AutonomousLoop/LearnContract]);

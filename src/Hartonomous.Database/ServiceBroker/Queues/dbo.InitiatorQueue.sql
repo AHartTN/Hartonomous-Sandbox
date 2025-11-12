@@ -1,0 +1,1 @@
+CREATE QUEUE [dbo].[InitiatorQueue] WITH STATUS = ON;

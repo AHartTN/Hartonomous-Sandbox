@@ -1,0 +1,1 @@
+CREATE QUEUE [dbo].[AnalyzeQueue] WITH STATUS = ON;

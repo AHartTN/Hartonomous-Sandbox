@@ -1,0 +1,1 @@
+CREATE QUEUE [dbo].[ActQueue] WITH STATUS = ON;
