@@ -175,17 +175,25 @@ public class VectorSearchRepository : IVectorSearchRepository
         {
             var vectorScore = 1.0 - reader.GetDouble(reader.GetOrdinal("exact_distance"));
             var spatialScore = reader.GetDouble(reader.GetOrdinal("spatial_distance"));
+            var keywordScore = reader.IsDBNull(reader.GetOrdinal("KeywordScore")) 
+                ? 0.0 
+                : Convert.ToDouble(reader.GetValue(reader.GetOrdinal("KeywordScore")));
             
-            // Simplified scoring: keyword not yet integrated
-            var combinedScore = (vectorScore * vectorWeight) + (spatialScore * spatialWeight);
+            // RRF (Reciprocal Rank Fusion) hybrid scoring: 1/(k + rank) for each component
+            // Assumes sp_HybridSearch returns ranked results (rank can be derived from order)
+            // Simplified: use weighted combination where higher scores = better ranks
+            const double k = 60.0; // RRF constant (commonly 60)
+            var vectorRRF = 1.0 / (k + (1.0 - vectorScore) * 100.0);
+            var spatialRRF = 1.0 / (k + (1.0 - spatialScore) * 100.0);
+            var keywordRRF = keywordScore > 0 ? 1.0 / (k + (1.0 - keywordScore) * 100.0) : 0.0;
+            
+            var combinedScore = (vectorRRF * vectorWeight) + (spatialRRF * spatialWeight) + (keywordRRF * keywordWeight);
             
             results.Add(new HybridSearchResult
             {
                 AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
                 VectorScore = vectorScore,
-                KeywordScore = reader.IsDBNull(reader.GetOrdinal("KeywordScore")) 
-                    ? 0.0 
-                    : Convert.ToDouble(reader.GetValue(reader.GetOrdinal("KeywordScore"))),
+                KeywordScore = keywordScore,
                 SpatialScore = spatialScore,
                 CombinedScore = combinedScore,
                 ContentHash = null, // Not returned by sp_HybridSearch

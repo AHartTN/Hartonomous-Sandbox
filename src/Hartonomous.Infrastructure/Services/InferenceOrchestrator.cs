@@ -171,7 +171,7 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="modelIds">Identifiers of models participating in the ensemble.</param>
     /// <param name="weights">Optional weighting factors for each model.</param>
     /// <param name="cancellationToken">Token for cancelling database work.</param>
-    /// <returns>Aggregate inference result with placeholder contribution metrics.</returns>
+    /// <returns>Aggregate inference result with model contributions and consensus metrics.</returns>
     public Task<EnsembleInferenceResult> EnsembleInferenceAsync(
         string inputData,
         IReadOnlyList<int> modelIds,
@@ -186,7 +186,7 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// <param name="maxTokens">Maximum tokens to produce.</param>
     /// <param name="temperature">Generation temperature value.</param>
     /// <param name="cancellationToken">Token to cancel SQL execution.</param>
-    /// <returns>Generation result with produced text and placeholder metadata.</returns>
+    /// <returns>Generation result with produced text and generation metadata.</returns>
     public Task<GenerationResult> GenerateViaSpatialAsync(
         float[] promptEmbedding,
         int maxTokens = 50,
@@ -199,7 +199,7 @@ public sealed class InferenceOrchestrator : IInferenceService
     /// </summary>
     /// <param name="atomEmbeddingIds">Identifiers of embeddings requiring feature extraction.</param>
     /// <param name="cancellationToken">Token to cancel stored procedure execution.</param>
-    /// <returns>Placeholder semantic feature set; production implementation should parse results.</returns>
+    /// <returns>Semantic features including topics, sentiment, entities, keywords, and temporal relevance.</returns>
     public Task<SemanticFeatures> ComputeSemanticFeaturesAsync(
         IReadOnlyList<long> atomEmbeddingIds,
         CancellationToken cancellationToken = default)

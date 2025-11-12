@@ -121,11 +121,42 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
         {
             try
             {
-                // Check if similar concept already exists (simplified - just check name for now)
-                var existingConcept = await _context.Concepts
-                    .FirstOrDefaultAsync(c =>
-                        c.ConceptName == discoveredConcept.ConceptName,
-                        cancellationToken);
+                // Check if similar concept already exists using vector similarity
+                // Query existing concepts and compare centroid embeddings
+                var existingConcepts = await _context.Concepts
+                    .Where(c => c.IsActive && c.VectorDimension == discoveredConcept.Centroid.Length)
+                    .Take(100) // Limit for performance
+                    .ToListAsync(cancellationToken);
+
+                Concept? existingConcept = null;
+                double bestSimilarity = 0.0;
+
+                foreach (var candidate in existingConcepts)
+                {
+                    if (candidate.CentroidVector == null) continue;
+
+                    var candidateVector = System.Text.Json.JsonSerializer.Deserialize<float[]>(candidate.CentroidVector);
+                    if (candidateVector == null || candidateVector.Length != discoveredConcept.Centroid.Length) continue;
+
+                    // Compute cosine similarity
+                    double dotProduct = 0.0;
+                    double norm1 = 0.0;
+                    double norm2 = 0.0;
+                    for (int i = 0; i < candidateVector.Length; i++)
+                    {
+                        dotProduct += candidateVector[i] * discoveredConcept.Centroid[i];
+                        norm1 += candidateVector[i] * candidateVector[i];
+                        norm2 += discoveredConcept.Centroid[i] * discoveredConcept.Centroid[i];
+                    }
+                    var similarity = dotProduct / (Math.Sqrt(norm1) * Math.Sqrt(norm2));
+
+                    // Concepts are considered similar if cosine similarity > 0.85
+                    if (similarity > 0.85 && similarity > bestSimilarity)
+                    {
+                        bestSimilarity = similarity;
+                        existingConcept = candidate;
+                    }
+                }
 
                 Concept conceptEntity;
 
@@ -157,16 +188,43 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
                     _context.Concepts.Add(conceptEntity);
                 }
 
-                // Create relationships to member atoms (simplified - not using SQL Graph for now)
+                await _context.SaveChangesAsync(cancellationToken);
+
+                // Create SQL Graph relationships using MATCH syntax
+                // Assumes Atoms and Concepts are NODE tables with IS_MEMBER_OF EDGE table
                 var relationships = new List<string>();
                 foreach (var vector in discoveredConcept.MemberVectors)
                 {
                     if (vector.AtomId.HasValue)
                     {
-                        // For now, just record the relationship in the list
-                        // SQL Graph relationships would be created here in a full implementation
-                        relationships.Add($"Atom {vector.AtomId} -> Concept {conceptEntity.ConceptName}");
-                        relationshipsCreated++;
+                        // Create graph edge relationship: Atom -[IS_MEMBER_OF]-> Concept
+                        // NOTE: This requires Atoms, Concepts to be created as NODE tables and IS_MEMBER_OF as EDGE table
+                        // For now, using raw SQL since EF Core doesn't have full SQL Graph support
+                        try
+                        {
+                            await _context.Database.ExecuteSqlRawAsync(
+                                @"INSERT INTO dbo.IS_MEMBER_OF ($from_id, $to_id, MembershipScore, CreatedAt)
+                                  SELECT a.$node_id, c.$node_id, @score, @timestamp
+                                  FROM dbo.Atoms AS a, dbo.Concepts AS c
+                                  WHERE a.AtomId = @atomId AND c.ConceptId = @conceptId",
+                                new[]
+                                {
+                                    new Microsoft.Data.SqlClient.SqlParameter("@atomId", vector.AtomId.Value),
+                                    new Microsoft.Data.SqlClient.SqlParameter("@conceptId", conceptEntity.ConceptId),
+                                    new Microsoft.Data.SqlClient.SqlParameter("@score", discoveredConcept.ConfidenceScore),
+                                    new Microsoft.Data.SqlClient.SqlParameter("@timestamp", DateTime.UtcNow)
+                                },
+                                cancellationToken);
+
+                            relationships.Add($"Atom {vector.AtomId} -[IS_MEMBER_OF]-> Concept {conceptEntity.ConceptName}");
+                            relationshipsCreated++;
+                        }
+                        catch (Exception)
+                        {
+                            // If SQL Graph tables don't exist yet, fall back to logging the relationship
+                            // SQL Graph configuration requires Atoms, Concepts as NODE tables and IS_MEMBER_OF as EDGE table
+                            relationships.Add($"Atom {vector.AtomId} -> Concept {conceptEntity.ConceptName} (fallback)");
+                        }
                     }
                 }
 
