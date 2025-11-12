@@ -15,8 +15,21 @@ using SixLabors.ImageSharp.Processing;
 namespace Hartonomous.Infrastructure.Services.Inference;
 
 /// <summary>
-/// Runs ONNX model inference using weights stored in YOUR TensorAtoms table.
-/// No external API calls - all inference runs on YOUR ingested model weights.
+/// DEPRECATED/TEMPORARY: External ONNX Runtime inference service.
+/// 
+/// This is a HACK for bootstrapping before models are properly ingested into the database.
+/// The Hartonomous architecture does NOT use ONNX Runtime - it decomposes models into:
+/// - TensorAtoms (weights as GEOMETRY for queryable tensors)
+/// - ModelLayers (layer structure)
+/// - TensorAtomCoefficients (weight coefficients)
+/// - TokenVocabulary (extracted vocabularies from model metadata)
+/// 
+/// Real inference uses:
+/// - sp_GenerateWithAttention (T-SQL)
+/// - AttentionGeneration.cs CLR functions (query TensorAtoms.WeightsGeometry via STPointN())
+/// - TokenVocabulary lookups (not GetHashCode() hacks)
+/// 
+/// This service will be removed once initial models are ingested via ModelIngestionOrchestrator.
 /// </summary>
 public sealed class OnnxInferenceService
 {
@@ -151,7 +164,15 @@ public sealed class OnnxInferenceService
 
     private long[] TokenizeText(string text)
     {
-        // Simplified tokenization - real implementation would use BPE/WordPiece
+        // HACK: This should query TokenVocabulary table populated during model ingestion.
+        // When models are ingested via OnnxModelParser/GGUFParser, their vocab.json/merges.txt
+        // metadata is extracted and stored in dbo.TokenVocabulary with proper token IDs.
+        // 
+        // Real implementation:
+        // var tokens = await _tokenVocabularyRepository.GetTokensByTextAsync(words);
+        // return tokens.Select(t => (long)t.tokenId).ToArray();
+        //
+        // This GetHashCode() approach is a temporary hack until models are ingested.
         return text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                    .Select(word => (long)word.GetHashCode())
                    .ToArray();
