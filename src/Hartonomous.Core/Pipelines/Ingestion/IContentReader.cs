@@ -97,7 +97,7 @@ public sealed class ReadChunk
 /// <summary>
 /// Factory for creating readers based on source URIs
 /// </summary>
-public interface IContentReaderFactory
+public interface IContentReaderFactory : IDisposable
 {
     /// <summary>
     /// Create a reader for the given source URI

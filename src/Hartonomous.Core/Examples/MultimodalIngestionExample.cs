@@ -193,6 +193,56 @@ public sealed class MultimodalIngestionExample
 
         return result;
     }
+
+    /// <summary>
+    /// Example 4: Ingest from HTTP URL with streaming
+    /// </summary>
+    public async Task<IngestionResult> IngestFromHttpAsync(
+        string url,
+        CancellationToken cancellationToken = default)
+    {
+        var readerFactory = new ContentReaderFactory(_loggerFactory);
+        var orchestrator = new MultimodalIngestionOrchestrator(
+            readerFactory,
+            _atomIngestionService,
+            _loggerFactory.CreateLogger<MultimodalIngestionOrchestrator>());
+
+        // Register atomizers
+        orchestrator.RegisterAtomizer("text", new TextAtomizer(
+            TextChunkingStrategy.Sentence,
+            _loggerFactory.CreateLogger<TextAtomizer>()));
+        
+        orchestrator.RegisterAtomizer("image", new ImageAtomizer(
+            ImageAtomizationStrategy.WholeImage,
+            _loggerFactory.CreateLogger<ImageAtomizer>()));
+
+        // Ingest with custom HTTP headers (e.g., authentication)
+        var result = await orchestrator.IngestAsync(
+            sourceUri: url,
+            modalityHint: "auto", // Detect from Content-Type header
+            options: new Dictionary<string, object>
+            {
+                ["headers"] = new Dictionary<string, string>
+                {
+                    ["Authorization"] = "Bearer YOUR_TOKEN_HERE",
+                    ["User-Agent"] = "Hartonomous/1.0"
+                }
+            },
+            progress: new Progress<IngestionProgress>(p =>
+            {
+                Console.WriteLine($"[HTTP Ingestion] {p.Phase}: {p.BytesProcessed:N0} bytes");
+            }),
+            cancellationToken: cancellationToken);
+
+        if (result.Success)
+        {
+            Console.WriteLine($"✅ Ingested from {url}");
+            Console.WriteLine($"   Atoms: {result.Statistics.AtomsIngested}");
+            Console.WriteLine($"   Downloaded: {result.Statistics.BytesRead:N0} bytes");
+        }
+
+        return result;
+    }
 }
 
 /// <summary>

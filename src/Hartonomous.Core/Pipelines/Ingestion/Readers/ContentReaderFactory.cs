@@ -13,10 +13,12 @@ public sealed class ContentReaderFactory : IContentReaderFactory
 {
     private readonly ILoggerFactory _loggerFactory;
     private readonly Dictionary<string, Func<string, Dictionary<string, object>?, IContentReader>> _readerFactories;
+    private readonly HttpReaderFactory _httpReaderFactory;
 
     public ContentReaderFactory(ILoggerFactory loggerFactory)
     {
         _loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+        _httpReaderFactory = new HttpReaderFactory(loggerFactory);
         
         _readerFactories = new Dictionary<string, Func<string, Dictionary<string, object>?, IContentReader>>(
             StringComparer.OrdinalIgnoreCase)
@@ -81,7 +83,20 @@ public sealed class ContentReaderFactory : IContentReaderFactory
 
     private IContentReader CreateHttpReader(string sourceUri, Dictionary<string, object>? options)
     {
-        // TODO: Implement HttpReader for streaming HTTP responses
-        throw new NotImplementedException("HTTP reader not yet implemented");
+        var uri = new Uri(sourceUri);
+        
+        // Extract custom headers from options if provided
+        Dictionary<string, string>? customHeaders = null;
+        if (options?.TryGetValue("headers", out var headersObj) == true)
+        {
+            customHeaders = headersObj as Dictionary<string, string>;
+        }
+
+        return _httpReaderFactory.CreateReader(uri, customHeaders);
+    }
+
+    public void Dispose()
+    {
+        _httpReaderFactory?.Dispose();
     }
 }
