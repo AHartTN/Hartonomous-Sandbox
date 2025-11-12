@@ -116,8 +116,8 @@ public class VectorSearchRepository : IVectorSearchRepository
 
     /// <summary>
     /// Performs hybrid search combining vector and spatial ranking via SQL Server CLR
-    /// Delegates to sp_HybridSearch which uses VECTOR_DISTANCE native function
-    /// Note: Full-text keyword search requires separate CONTAINSTABLE integration
+    /// Delegates to sp_HybridSearch which uses VECTOR_DISTANCE native function + spatial STDistance
+    /// sp_HybridSearch returns results already ranked by vector distance; spatial_distance is informational
     /// </summary>
     public async Task<IReadOnlyList<HybridSearchResult>> HybridSearchAsync(
         byte[] queryVector,
@@ -129,19 +129,11 @@ public class VectorSearchRepository : IVectorSearchRepository
         double spatialWeight = 0.2,
         int tenantId = 0)
     {
-        // Validate weights
-        var totalWeight = vectorWeight + keywordWeight + spatialWeight;
-        if (Math.Abs(totalWeight - 1.0) > 0.01)
-        {
-            throw new ArgumentException("Weights must sum to 1.0");
-        }
-
         var results = new List<HybridSearchResult>();
 
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        // Call sp_HybridSearch which combines VECTOR_DISTANCE + spatial distance + optional full-text
         using var command = new SqlCommand("dbo.sp_HybridSearch", connection)
         {
             CommandType = CommandType.StoredProcedure,
@@ -170,35 +162,39 @@ public class VectorSearchRepository : IVectorSearchRepository
         command.Parameters.AddWithValue("@srid", 0);
 
         using var reader = await command.ExecuteReaderAsync();
+        
+        // sp_HybridSearch performs:
+        // 1. Spatial filter (STDistance) → ~100 candidates
+        // 2. Exact vector rerank (VECTOR_DISTANCE) → top K
+        // Results are pre-ranked by exact_distance (cosine)
+        int rank = 1;
         while (await reader.ReadAsync())
         {
-            var vectorScore = 1.0 - reader.GetDouble(reader.GetOrdinal("exact_distance"));
-            var spatialScore = reader.GetDouble(reader.GetOrdinal("spatial_distance"));
-            var keywordScore = reader.IsDBNull(reader.GetOrdinal("KeywordScore")) 
-                ? 0.0 
-                : Convert.ToDouble(reader.GetValue(reader.GetOrdinal("KeywordScore")));
+            var exactDistance = reader.GetDouble(reader.GetOrdinal("exact_distance"));
+            var spatialDistance = reader.GetDouble(reader.GetOrdinal("spatial_distance"));
             
-            // RRF (Reciprocal Rank Fusion) hybrid scoring: 1/(k + rank) for each component
-            // Assumes sp_HybridSearch returns ranked results (rank can be derived from order)
-            // Simplified: use weighted combination where higher scores = better ranks
-            const double k = 60.0; // RRF constant (commonly 60)
-            var vectorRRF = 1.0 / (k + (1.0 - vectorScore) * 100.0);
-            var spatialRRF = 1.0 / (k + (1.0 - spatialScore) * 100.0);
-            var keywordRRF = keywordScore > 0 ? 1.0 / (k + (1.0 - keywordScore) * 100.0) : 0.0;
+            var vectorScore = 1.0 - exactDistance; // Cosine similarity
             
-            var combinedScore = (vectorRRF * vectorWeight) + (spatialRRF * spatialWeight) + (keywordRRF * keywordWeight);
+            // Normalize spatial distance to 0-1 score (inverse distance)
+            // Assume max meaningful spatial distance is 1000 units
+            var spatialScore = spatialDistance > 0 ? Math.Max(0, 1.0 - (spatialDistance / 1000.0)) : 1.0;
+            
+            // Weighted combination (no RRF needed - already ranked by stored proc)
+            var combinedScore = (vectorScore * vectorWeight) + (spatialScore * spatialWeight);
             
             results.Add(new HybridSearchResult
             {
                 AtomId = reader.GetInt64(reader.GetOrdinal("AtomId")),
                 VectorScore = vectorScore,
-                KeywordScore = keywordScore,
+                KeywordScore = 0.0, // Keywords not implemented in sp_HybridSearch yet
                 SpatialScore = spatialScore,
                 CombinedScore = combinedScore,
                 ContentHash = null, // Not returned by sp_HybridSearch
                 ContentType = reader.GetString(reader.GetOrdinal("Modality")),
                 CreatedUtc = DateTime.UtcNow // Not returned by sp_HybridSearch
             });
+            
+            rank++;
         }
 
         return results;

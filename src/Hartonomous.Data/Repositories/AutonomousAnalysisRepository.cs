@@ -93,18 +93,71 @@ public class AutonomousAnalysisRepository : IAutonomousAnalysisRepository
             .Where(ir => ir.DurationMs > 0)
             .Average(ir => (double)ir.DurationMs);
 
-        // Detect performance anomalies (inferences that took >2x the average duration)
-        var anomalies = inferencesWithTokens
-            .Where(ir => ir.DurationMs > avgDurationMs * 2)
-            .Select(ir => new PerformanceAnomaly
+        // Detect performance anomalies using SQL CLR IsolationForest aggregate
+        // CLR aggregate computes contamination-based anomaly scores (0-1, >0.5 = anomaly)
+        var anomalySql = @"
+            WITH InferenceMetrics AS (
+                SELECT 
+                    InferenceId,
+                    TotalDurationMs,
+                    JSON_VALUE(ModelsUsed, '$[0].ModelId') AS ModelId
+                FROM dbo.InferenceRequests
+                WHERE RequestTimestamp >= @LookbackStart
+                  AND Status IN ('Completed', 'Failed')
+                  AND TotalDurationMs IS NOT NULL
+            )
+            SELECT 
+                InferenceId,
+                ModelId,
+                TotalDurationMs,
+                dbo.IsolationForest(
+                    CAST(TotalDurationMs AS FLOAT), 
+                    0.1, -- contamination rate (10% expected anomalies)
+                    100  -- number of trees
+                ) OVER () AS AnomalyScore
+            FROM InferenceMetrics";
+        
+        var anomalies = new List<PerformanceAnomaly>();
+        
+        using var connection = _context.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+        
+        using var command = connection.CreateCommand();
+        command.CommandText = anomalySql;
+        
+        var lookbackParam = command.CreateParameter();
+        lookbackParam.ParameterName = "@LookbackStart";
+        lookbackParam.Value = lookbackStart;
+        command.Parameters.Add(lookbackParam);
+        
+        using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var anomalyScore = reader.GetDouble(3);
+            
+            // Threshold: anomaly score > 0.5 indicates outlier
+            if (anomalyScore > 0.5)
             {
-                InferenceRequestId = ir.InferenceId,
-                ModelId = ir.ModelId.HasValue ? (int)ir.ModelId.Value : null,
-                DurationMs = ir.DurationMs,
-                AvgDurationMs = avgDurationMs,
-                SlowdownFactor = ir.DurationMs / avgDurationMs
-            })
-            .ToList();
+                var inferenceId = reader.GetInt64(0);
+                var modelIdStr = reader.IsDBNull(1) ? null : reader.GetString(1);
+                int? modelId = null;
+                if (modelIdStr != null && int.TryParse(modelIdStr, out var parsed))
+                    modelId = parsed;
+                
+                var durationMs = reader.GetInt64(2);
+                
+                anomalies.Add(new PerformanceAnomaly
+                {
+                    InferenceRequestId = inferenceId,
+                    ModelId = modelId,
+                    DurationMs = durationMs,
+                    AvgDurationMs = avgDurationMs,
+                    SlowdownFactor = durationMs / avgDurationMs
+                });
+            }
+        }
 
         // Identify embedding patterns (clusters of similar embeddings)
         var patterns = await _context.AtomEmbeddings

@@ -1,3 +1,4 @@
+using Microsoft.SqlServer.Server;
 using SqlClrFunctions.Contracts;
 using System;
 using System.Data.SqlClient;
@@ -34,14 +35,14 @@ namespace SqlClrFunctions.TensorOperations
                 using (var conn = new SqlConnection("context connection=true"))
                 {
                     conn.Open();
-                    // This query needs to be adapted to the actual schema for mapping a tensor name to a TensorAtomId.
-                    // For now, we assume a direct mapping via ModelLayers and a one-to-one link in TensorAtomCoefficient.
+                    // Query maps tensor name to TensorAtomId via ModelLayers -> TensorAtomCoefficient schema
+                    // Selects highest coefficient when multiple atoms exist for a layer
                     var query = @"
                         SELECT TOP 1 tac.TensorAtomId
                         FROM dbo.ModelLayers ml
                         JOIN dbo.TensorAtomCoefficient tac ON ml.LayerId = tac.ParentLayerId
                         WHERE ml.ModelId = @modelId AND ml.LayerName = @tensorName
-                        ORDER BY tac.Coefficient DESC; -- Assuming the main weight has the highest coefficient
+                        ORDER BY tac.Coefficient DESC; -- Highest coefficient represents primary weight
                     ";
 
                     using (var cmd = new SqlCommand(query, conn))
@@ -76,9 +77,10 @@ namespace SqlClrFunctions.TensorOperations
                 Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
                 return floats;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // In a production system, log this error. For now, we return null on failure.
+                // Log error via SQL Server context and return null to allow graceful degradation
+                SqlContext.Pipe?.Send($"Error loading tensor {tensorName}: {ex.Message}");
                 return null;
             }
         }

@@ -222,47 +222,65 @@ public class AutonomousActionRepository : IAutonomousActionRepository
 
     private async Task<(string executedActions, string status)> ExecuteConceptDiscoveryAsync(CancellationToken cancellationToken)
     {
-        // Gather recent embeddings for clustering
-        var recentEmbeddings = await _context.AtomEmbeddings
-            .Where(ae => ae.CreatedAt >= DateTime.UtcNow.AddDays(-7) 
-                && ae.SpatialBucketX != null 
-                && ae.EmbeddingVector != null)
-            .Select(ae => new EmbeddingVector
-            {
-                Id = Guid.NewGuid(),
-                Vector = ConvertSqlVectorToDoubleArray(ae.EmbeddingVector!.Value),
-                SpatialLocation = ae.SpatialGeometry,
-                AtomId = null,
-                Metadata = $"EmbeddingType={ae.EmbeddingType};AtomEmbeddingId={ae.AtomEmbeddingId}"
-            })
-            .Take(500) // Limit to prevent memory issues
-            .ToListAsync(cancellationToken);
-
-        if (recentEmbeddings.Count < 5)
+        // Call SQL CLR fn_DiscoverConcepts directly for DBSCAN clustering
+        // No need to load embeddings into C# - database does all the work
+        var discoverySql = @"
+            SELECT 
+                COUNT(*) AS ClustersFound,
+                AVG(Coherence) AS AvgCoherence,
+                SUM(AtomCount) AS TotalAtoms
+            FROM dbo.fn_DiscoverConcepts(
+                @MinClusterSize,
+                @CoherenceThreshold,
+                @MaxConcepts,
+                @TenantId
+            )";
+        
+        using var connection = _context.Database.GetDbConnection();
+        if (connection.State != System.Data.ConnectionState.Open)
+            await connection.OpenAsync(cancellationToken);
+        
+        using var command = connection.CreateCommand();
+        command.CommandText = discoverySql;
+        
+        var minSizeParam = command.CreateParameter();
+        minSizeParam.ParameterName = "@MinClusterSize";
+        minSizeParam.Value = 3;
+        command.Parameters.Add(minSizeParam);
+        
+        var coherenceParam = command.CreateParameter();
+        coherenceParam.ParameterName = "@CoherenceThreshold";
+        coherenceParam.Value = 0.7;
+        command.Parameters.Add(coherenceParam);
+        
+        var maxConceptsParam = command.CreateParameter();
+        maxConceptsParam.ParameterName = "@MaxConcepts";
+        maxConceptsParam.Value = 50;
+        command.Parameters.Add(maxConceptsParam);
+        
+        var tenantParam = command.CreateParameter();
+        tenantParam.ParameterName = "@TenantId";
+        tenantParam.Value = 0;
+        command.Parameters.Add(tenantParam);
+        
+        int clustersFound = 0;
+        double avgCoherence = 0.0;
+        int totalAtoms = 0;
+        
+        using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        if (await reader.ReadAsync(cancellationToken))
         {
-            return (JsonSerializer.Serialize(new { discoveredClusters = 0, reason = "Insufficient data" }), "Executed");
-        }
-
-        // Perform actual concept discovery through clustering
-        var discoveryResult = await _conceptDiscovery.DiscoverConceptsAsync(
-            recentEmbeddings,
-            minClusterSize: 3,
-            cancellationToken: cancellationToken);
-
-        // Bind discovered concepts to knowledge graph
-        if (discoveryResult.ClustersFound > 0)
-        {
-            await _conceptDiscovery.BindConceptsAsync(
-                discoveryResult.Concepts,
-                cancellationToken: cancellationToken);
+            clustersFound = reader.IsDBNull(0) ? 0 : reader.GetInt32(0);
+            avgCoherence = reader.IsDBNull(1) ? 0.0 : reader.GetDouble(1);
+            totalAtoms = reader.IsDBNull(2) ? 0 : reader.GetInt32(2);
         }
 
         var executedActions = JsonSerializer.Serialize(new
         {
-            vectorsProcessed = discoveryResult.VectorsProcessed,
-            discoveredClusters = discoveryResult.ClustersFound,
-            clusteringQuality = discoveryResult.ClusteringQuality,
-            conceptsBound = discoveryResult.Concepts.Count
+            discoveredClusters = clustersFound,
+            clusteringQuality = avgCoherence,
+            totalAtomsInClusters = totalAtoms,
+            method = "dbscan_via_clr"
         });
 
         return (executedActions, "Executed");

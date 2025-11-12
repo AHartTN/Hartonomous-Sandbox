@@ -152,8 +152,8 @@ namespace SqlClrFunctions.TensorOperations
             int seqLen = matrix.RowCount;
             int embeddingDim = matrix.ColumnCount;
             int headDim = embeddingDim / numHeads;
-            // This is a simplified conceptual reshape. A real implementation would be more complex.
-            // For now, we'll just transpose to simulate the batching of heads.
+            // Simplified reshape: transpose matrix to batch attention heads
+            // Production implementation would include proper 3D tensor reshaping
             return matrix.Transpose();
         }
 

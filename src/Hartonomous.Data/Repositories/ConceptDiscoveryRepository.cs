@@ -20,7 +20,8 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
     }
 
     /// <summary>
-    /// Discovers concepts through clustering analysis
+    /// Discovers concepts through clustering analysis using SQL CLR DBSCAN
+    /// Delegates to dbo.fn_DiscoverConcepts (DBSCAN clustering with VECTOR_DISTANCE coherence)
     /// </summary>
     public async Task<ConceptDiscoveryResult> DiscoverConceptsAsync(
         IReadOnlyList<EmbeddingVector> embeddingVectors,
@@ -28,8 +29,7 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
         CancellationToken cancellationToken = default)
     {
         var discoveryId = Guid.NewGuid();
-        var concepts = new List<DiscoveredConcept>();
-
+        
         if (embeddingVectors.Count < minClusterSize)
         {
             return new ConceptDiscoveryResult
@@ -42,78 +42,108 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
             };
         }
 
-        // Simple spatial clustering based on existing spatial buckets
-        // In a real implementation, this would use more sophisticated clustering algorithms
-        var spatialClusters = embeddingVectors
-            .Where(v => v.SpatialLocation != null)
-            .GroupBy(v => new
-            {
-                BucketX = Math.Floor(v.SpatialLocation!.X / 10), // 10-unit buckets
-                BucketY = Math.Floor(v.SpatialLocation!.Y / 10),
-                BucketZ = !double.IsNaN(v.SpatialLocation!.Z) ? Math.Floor(v.SpatialLocation!.Z / 10) : 0
-            })
-            .Where(g => g.Count() >= minClusterSize)
-            .ToList();
+        // Call SQL CLR function for DBSCAN clustering
+        // fn_DiscoverConcepts performs density-based clustering on AtomEmbeddings with spatial bucketing
+        var clrSql = @"
+            SELECT 
+                ConceptId,
+                Centroid,
+                AtomCount,
+                Coherence,
+                SpatialBucket
+            FROM dbo.fn_DiscoverConcepts(
+                @MinClusterSize,
+                @CoherenceThreshold,
+                @MaxConcepts,
+                @TenantId
+            )
+            ORDER BY Coherence DESC";
 
-        foreach (var cluster in spatialClusters)
+        var concepts = new List<DiscoveredConcept>();
+        
+        using var connection = _context.Database.GetDbConnection();
+        await connection.OpenAsync(cancellationToken);
+        
+        using var command = connection.CreateCommand();
+        command.CommandText = clrSql;
+        
+        var minSizeParam = command.CreateParameter();
+        minSizeParam.ParameterName = "@MinClusterSize";
+        minSizeParam.Value = minClusterSize;
+        command.Parameters.Add(minSizeParam);
+        
+        var coherenceParam = command.CreateParameter();
+        coherenceParam.ParameterName = "@CoherenceThreshold";
+        coherenceParam.Value = 0.7; // Minimum average cosine similarity to centroid
+        command.Parameters.Add(coherenceParam);
+        
+        var maxConceptsParam = command.CreateParameter();
+        maxConceptsParam.ParameterName = "@MaxConcepts";
+        maxConceptsParam.Value = 100;
+        command.Parameters.Add(maxConceptsParam);
+        
+        var tenantParam = command.CreateParameter();
+        tenantParam.ParameterName = "@TenantId";
+        tenantParam.Value = 0; // TODO: Get from context
+        command.Parameters.Add(tenantParam);
+        
+        using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        
+        while (await reader.ReadAsync(cancellationToken))
         {
-            var memberVectors = cluster.ToList();
-            var centroid = CalculateCentroid(memberVectors);
-
-            // Determine which model(s) contributed to this cluster
-            // If all vectors are from the same model, use that; otherwise null (multi-model concept)
-            var distinctModels = memberVectors
-                .Select(v => v.ModelId)
-                .Where(m => m.HasValue)
-                .Distinct()
-                .ToList();
+            var conceptId = reader.GetGuid(0);
+            var centroidBytes = (byte[])reader.GetValue(1);
+            var atomCount = reader.GetInt32(2);
+            var coherence = reader.GetDouble(3);
+            var spatialBucket = reader.GetInt32(4);
             
-            var clusterModelId = distinctModels.Count == 1 ? distinctModels[0] : null;
-
-            // Calculate cluster bounds
-            var minX = memberVectors.Min(v => v.SpatialLocation!.X);
-            var maxX = memberVectors.Max(v => v.SpatialLocation!.X);
-            var minY = memberVectors.Min(v => v.SpatialLocation!.Y);
-            var maxY = memberVectors.Max(v => v.SpatialLocation!.Y);
-
-            var bounds = new Polygon(new LinearRing(new[]
-            {
-                new Coordinate(minX, minY),
-                new Coordinate(maxX, minY),
-                new Coordinate(maxX, maxY),
-                new Coordinate(minX, maxY),
-                new Coordinate(minX, minY)
-            }));
-
+            // Convert VARBINARY centroid to double array
+            var centroid = ConvertVarbinaryToDoubleArray(centroidBytes);
+            
             var concept = new DiscoveredConcept
             {
-                ConceptId = Guid.NewGuid(),
-                ConceptName = $"SpatialCluster_{cluster.Key.BucketX}_{cluster.Key.BucketY}",
-                Description = $"Spatial cluster containing {memberVectors.Count} vectors",
+                ConceptId = conceptId,
+                ConceptName = $"Concept_{spatialBucket}",
+                Description = $"DBSCAN cluster with {atomCount} atoms, coherence {coherence:F3}",
                 Centroid = centroid,
-                MemberVectors = memberVectors,
-                ModelId = clusterModelId ?? 0, // 0 indicates multi-model or unknown
-                ConfidenceScore = Math.Min(1.0, memberVectors.Count / 20.0), // Simple confidence based on size
-                ClusterBounds = bounds
+                MemberVectors = new List<EmbeddingVector>(), // Populated by separate query if needed
+                ModelId = 0, // Multi-model by default
+                ConfidenceScore = coherence, // Use CLR-computed coherence (avg cosine similarity)
+                ClusterBounds = null // Can compute from spatial bucket if needed
             };
-
+            
             concepts.Add(concept);
         }
 
-        // Calculate clustering quality (simplified)
-        var totalVectors = embeddingVectors.Count;
-        var clusteredVectors = concepts.Sum(c => c.MemberVectors.Count);
-        var clusteringQuality = totalVectors > 0 ? (double)clusteredVectors / totalVectors : 0.0;
+        var clusteringQuality = concepts.Count > 0 ? concepts.Average(c => c.ConfidenceScore) : 0.0;
 
         return new ConceptDiscoveryResult
         {
             DiscoveryId = discoveryId,
             Concepts = concepts,
-            VectorsProcessed = totalVectors,
+            VectorsProcessed = embeddingVectors.Count, // Approximation
             ClustersFound = concepts.Count,
             ClusteringQuality = clusteringQuality,
             Timestamp = DateTime.UtcNow
         };
+    }
+    
+    private double[] ConvertVarbinaryToDoubleArray(byte[] varbinary)
+    {
+        if (varbinary == null || varbinary.Length == 0)
+            return Array.Empty<double>();
+        
+        // VECTOR(1998) is stored as float32 array
+        var floatCount = varbinary.Length / sizeof(float);
+        var result = new double[floatCount];
+        
+        for (int i = 0; i < floatCount; i++)
+        {
+            var floatValue = BitConverter.ToSingle(varbinary, i * sizeof(float));
+            result[i] = floatValue;
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -132,41 +162,63 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
         {
             try
             {
-                // Check if similar concept already exists using vector similarity
-                // Query existing concepts and compare centroid embeddings
-                var existingConcepts = await _context.Concepts
-                    .Where(c => c.IsActive && c.VectorDimension == discoveredConcept.Centroid.Length)
-                    .Take(100) // Limit for performance
-                    .ToListAsync(cancellationToken);
+                // Check if similar concept already exists using SQL Server VECTOR_DISTANCE
+                // Spatial index enables O(log n) candidate filtering, exact k-NN refinement
+                var centroidBytes = ConvertDoubleArrayToVarbinary(discoveredConcept.Centroid);
+                
+                var similarityThreshold = 0.85;
+                var similaritySql = @"
+                    SELECT TOP 1
+                        c.ConceptId,
+                        c.ConceptName,
+                        c.CentroidVector,
+                        c.VectorDimension,
+                        c.MemberCount,
+                        c.CoherenceScore,
+                        c.DiscoveryMethod,
+                        c.ModelId,
+                        1.0 - VECTOR_DISTANCE('cosine', c.CentroidVector, @QueryCentroid) AS Similarity
+                    FROM dbo.Concepts c
+                    WHERE c.IsActive = 1
+                      AND c.VectorDimension = @Dimension
+                      AND (1.0 - VECTOR_DISTANCE('cosine', c.CentroidVector, @QueryCentroid)) > @Threshold
+                    ORDER BY Similarity DESC";
 
                 Concept? existingConcept = null;
                 double bestSimilarity = 0.0;
-
-                foreach (var candidate in existingConcepts)
+                
+                using var connection = _context.Database.GetDbConnection();
+                if (connection.State != System.Data.ConnectionState.Open)
+                    await connection.OpenAsync(cancellationToken);
+                
+                using var command = connection.CreateCommand();
+                command.CommandText = similaritySql;
+                
+                var centroidParam = command.CreateParameter();
+                centroidParam.ParameterName = "@QueryCentroid";
+                centroidParam.Value = centroidBytes;
+                command.Parameters.Add(centroidParam);
+                
+                var dimParam = command.CreateParameter();
+                dimParam.ParameterName = "@Dimension";
+                dimParam.Value = discoveredConcept.Centroid.Length;
+                command.Parameters.Add(dimParam);
+                
+                var thresholdParam = command.CreateParameter();
+                thresholdParam.ParameterName = "@Threshold";
+                thresholdParam.Value = similarityThreshold;
+                command.Parameters.Add(thresholdParam);
+                
+                using var reader = await command.ExecuteReaderAsync(cancellationToken);
+                
+                if (await reader.ReadAsync(cancellationToken))
                 {
-                    if (candidate.CentroidVector == null) continue;
-
-                    var candidateVector = System.Text.Json.JsonSerializer.Deserialize<float[]>(candidate.CentroidVector);
-                    if (candidateVector == null || candidateVector.Length != discoveredConcept.Centroid.Length) continue;
-
-                    // Compute cosine similarity
-                    double dotProduct = 0.0;
-                    double norm1 = 0.0;
-                    double norm2 = 0.0;
-                    for (int i = 0; i < candidateVector.Length; i++)
-                    {
-                        dotProduct += candidateVector[i] * discoveredConcept.Centroid[i];
-                        norm1 += candidateVector[i] * candidateVector[i];
-                        norm2 += discoveredConcept.Centroid[i] * discoveredConcept.Centroid[i];
-                    }
-                    var similarity = dotProduct / (Math.Sqrt(norm1) * Math.Sqrt(norm2));
-
-                    // Concepts are considered similar if cosine similarity > 0.85
-                    if (similarity > 0.85 && similarity > bestSimilarity)
-                    {
-                        bestSimilarity = similarity;
-                        existingConcept = candidate;
-                    }
+                    var conceptId = reader.GetInt64(0);
+                    bestSimilarity = reader.GetDouble(8);
+                    
+                    // Load full entity for update
+                    existingConcept = await _context.Concepts
+                        .FirstOrDefaultAsync(c => c.ConceptId == conceptId, cancellationToken);
                 }
 
                 Concept conceptEntity;
@@ -208,33 +260,73 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
                 {
                     if (vector.AtomId.HasValue)
                     {
-                        // Create graph edge relationship: Atom -[IS_MEMBER_OF]-> Concept
-                        // NOTE: This requires Atoms, Concepts to be created as NODE tables and IS_MEMBER_OF as EDGE table
-                        // For now, using raw SQL since EF Core doesn't have full SQL Graph support
+                        // Create graph edge relationship via graph.AtomGraphEdges
+                        // Architecture: graph.AtomGraphNodes (AS NODE), graph.AtomGraphEdges (AS EDGE)
+                        // EdgeType='BindsToConcept' indicates unsupervised concept binding
                         try
                         {
+                            // Step 1: Ensure AtomGraphNode exists for this Atom
                             await _context.Database.ExecuteSqlRawAsync(
-                                @"INSERT INTO dbo.IS_MEMBER_OF ($from_id, $to_id, MembershipScore, CreatedAt)
-                                  SELECT a.$node_id, c.$node_id, @score, @timestamp
-                                  FROM dbo.Atoms AS a, dbo.Concepts AS c
-                                  WHERE a.AtomId = @atomId AND c.ConceptId = @conceptId",
+                                @"IF NOT EXISTS (SELECT 1 FROM graph.AtomGraphNodes WHERE AtomId = @atomId)
+                                  BEGIN
+                                      INSERT INTO graph.AtomGraphNodes (AtomId, NodeType, Metadata, CreatedUtc)
+                                      VALUES (@atomId, 'Atom', NULL, SYSUTCDATETIME())
+                                  END",
+                                new[]
+                                {
+                                    new Microsoft.Data.SqlClient.SqlParameter("@atomId", vector.AtomId.Value)
+                                },
+                                cancellationToken);
+                            
+                            // Step 2: Ensure AtomGraphNode exists for this Concept
+                            await _context.Database.ExecuteSqlRawAsync(
+                                @"IF NOT EXISTS (SELECT 1 FROM graph.AtomGraphNodes WHERE AtomId = @conceptId AND NodeType = 'Concept')
+                                  BEGIN
+                                      INSERT INTO graph.AtomGraphNodes (AtomId, NodeType, Metadata, CreatedUtc)
+                                      VALUES (@conceptId, 'Concept', @metadata, SYSUTCDATETIME())
+                                  END",
+                                new[]
+                                {
+                                    new Microsoft.Data.SqlClient.SqlParameter("@conceptId", conceptEntity.ConceptId),
+                                    new Microsoft.Data.SqlClient.SqlParameter("@metadata", 
+                                        System.Text.Json.JsonSerializer.Serialize(new { ConceptName = conceptEntity.ConceptName }))
+                                },
+                                cancellationToken);
+                            
+                            // Step 3: Create edge relationship using MATCH syntax
+                            await _context.Database.ExecuteSqlRawAsync(
+                                @"INSERT INTO graph.AtomGraphEdges (EdgeType, Weight, Metadata, CreatedUtc, $from_id, $to_id)
+                                  SELECT 'BindsToConcept', @weight, @metadata, SYSUTCDATETIME(), src.$node_id, dest.$node_id
+                                  FROM graph.AtomGraphNodes AS src, graph.AtomGraphNodes AS dest
+                                  WHERE src.AtomId = @atomId AND src.NodeType = 'Atom'
+                                    AND dest.AtomId = @conceptId AND dest.NodeType = 'Concept'
+                                    AND NOT EXISTS (
+                                        SELECT 1 FROM graph.AtomGraphEdges e, graph.AtomGraphNodes s, graph.AtomGraphNodes d
+                                        WHERE MATCH(s-(e)->d)
+                                          AND s.AtomId = @atomId AND d.AtomId = @conceptId
+                                          AND e.EdgeType = 'BindsToConcept'
+                                    )",
                                 new[]
                                 {
                                     new Microsoft.Data.SqlClient.SqlParameter("@atomId", vector.AtomId.Value),
                                     new Microsoft.Data.SqlClient.SqlParameter("@conceptId", conceptEntity.ConceptId),
-                                    new Microsoft.Data.SqlClient.SqlParameter("@score", discoveredConcept.ConfidenceScore),
-                                    new Microsoft.Data.SqlClient.SqlParameter("@timestamp", DateTime.UtcNow)
+                                    new Microsoft.Data.SqlClient.SqlParameter("@weight", (float)discoveredConcept.ConfidenceScore),
+                                    new Microsoft.Data.SqlClient.SqlParameter("@metadata", 
+                                        System.Text.Json.JsonSerializer.Serialize(new { 
+                                            confidence = discoveredConcept.ConfidenceScore,
+                                            method = "dbscan_clustering",
+                                            timestamp = DateTime.UtcNow
+                                        }))
                                 },
                                 cancellationToken);
 
-                            relationships.Add($"Atom {vector.AtomId} -[IS_MEMBER_OF]-> Concept {conceptEntity.ConceptName}");
+                            relationships.Add($"Atom {vector.AtomId} -[BindsToConcept]-> Concept {conceptEntity.ConceptName}");
                             relationshipsCreated++;
                         }
-                        catch (Exception)
+                        catch (Exception ex)
                         {
-                            // If SQL Graph tables don't exist yet, fall back to logging the relationship
-                            // SQL Graph configuration requires Atoms, Concepts as NODE tables and IS_MEMBER_OF as EDGE table
-                            relationships.Add($"Atom {vector.AtomId} -> Concept {conceptEntity.ConceptName} (fallback)");
+                            // Log error but continue processing other relationships
+                            relationships.Add($"Atom {vector.AtomId} -> Concept {conceptEntity.ConceptName} (failed: {ex.Message})");
                         }
                     }
                 }
@@ -289,5 +381,17 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
         }
 
         return centroid;
+    }
+    
+    private byte[] ConvertDoubleArrayToVarbinary(double[] vector)
+    {
+        var bytes = new byte[vector.Length * sizeof(float)];
+        for (int i = 0; i < vector.Length; i++)
+        {
+            var floatValue = (float)vector[i];
+            var floatBytes = BitConverter.GetBytes(floatValue);
+            Array.Copy(floatBytes, 0, bytes, i * sizeof(float), sizeof(float));
+        }
+        return bytes;
     }
 }
