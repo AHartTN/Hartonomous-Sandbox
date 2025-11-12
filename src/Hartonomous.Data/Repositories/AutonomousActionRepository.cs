@@ -1,4 +1,5 @@
 using Hartonomous.Core.Entities;
+using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Shared;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
@@ -14,11 +15,16 @@ public class AutonomousActionRepository : IAutonomousActionRepository
 {
     private readonly HartonomousDbContext _context;
     private readonly IConceptDiscoveryRepository _conceptDiscovery;
+    private readonly ITenantContext _tenantContext;
 
-    public AutonomousActionRepository(HartonomousDbContext context, IConceptDiscoveryRepository conceptDiscovery)
+    public AutonomousActionRepository(
+        HartonomousDbContext context, 
+        IConceptDiscoveryRepository conceptDiscovery,
+        ITenantContext tenantContext)
     {
         _context = context;
         _conceptDiscovery = conceptDiscovery;
+        _tenantContext = tenantContext;
     }
 
     /// <summary>
@@ -255,10 +261,10 @@ public class AutonomousActionRepository : IAutonomousActionRepository
         
         var tenantParam = command.CreateParameter();
         tenantParam.ParameterName = "@TenantId";
-        // TODO: Get actual TenantId from ambient context or pass as parameter
-        // Use NULL for cross-tenant discovery (admin/analytics), or specific tenantId for tenant-isolated discovery
-        // For now using default tenant 1 for background autonomous processing
-        tenantParam.Value = 1;
+        // Get tenant ID from ambient context (HTTP claims for web requests, fixed for background jobs)
+        // Use NULL for cross-tenant discovery (admin/analytics only)
+        var currentTenantId = _tenantContext.GetCurrentTenantId();
+        tenantParam.Value = currentTenantId.HasValue ? (object)currentTenantId.Value : DBNull.Value;
         command.Parameters.Add(tenantParam);
         
         var maxConceptsParam = command.CreateParameter();
