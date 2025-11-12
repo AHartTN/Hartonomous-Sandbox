@@ -103,6 +103,35 @@ public sealed class AdvancedImageAtomizer : IImageAtomizer
 
     private AtomCandidate CreateWholeImageAtom(byte[] imageData, string format, AtomizationContext context)
     {
+        // Compute perceptual hash for deduplication (if image is 32x32 grayscale)
+        // For other formats/sizes, this will throw NotImplementedException until we add image decoding
+        string? perceptualHashHex = null;
+        try
+        {
+            if (imageData.Length == 1024) // 32x32 grayscale
+            {
+                var pHash = PerceptualHasher.ComputeHash(imageData);
+                perceptualHashHex = pHash.Hash.ToString("X16");
+            }
+        }
+        catch (NotImplementedException)
+        {
+            // Image decoding not yet implemented, skip perceptual hashing
+            _logger.LogDebug("Perceptual hashing skipped - image decoding not yet implemented");
+        }
+        
+        var metadata = new Dictionary<string, object>
+        {
+            ["imageFormat"] = format,
+            ["imageSizeBytes"] = imageData.Length,
+            ["strategy"] = "whole-image"
+        };
+        
+        if (perceptualHashHex != null)
+        {
+            metadata["perceptualHash"] = perceptualHashHex;
+        }
+        
         return new AtomCandidate
         {
             Modality = "image",
@@ -115,14 +144,9 @@ public sealed class AdvancedImageAtomizer : IImageAtomizer
                 StartByteOffset = 0,
                 EndByteOffset = imageData.Length
             },
-            Metadata = new Dictionary<string, object>
-            {
-                ["imageFormat"] = format,
-                ["imageSizeBytes"] = imageData.Length,
-                ["strategy"] = "whole-image"
-            },
+            Metadata = metadata,
             QualityScore = 1.0,
-            HashInput = Convert.ToBase64String(imageData) // TODO: Replace with perceptual hash
+            HashInput = perceptualHashHex ?? Convert.ToBase64String(imageData)
         };
     }
 
