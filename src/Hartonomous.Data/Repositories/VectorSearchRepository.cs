@@ -141,8 +141,7 @@ public class VectorSearchRepository : IVectorSearchRepository
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        // For now, call sp_HybridSearch for spatial + vector only
-        // Full keyword integration would require sp_FusionSearch or CONTAINSTABLE
+        // Call sp_HybridSearch which combines VECTOR_DISTANCE + spatial distance + optional full-text
         using var command = new SqlCommand("dbo.sp_HybridSearch", connection)
         {
             CommandType = CommandType.StoredProcedure,

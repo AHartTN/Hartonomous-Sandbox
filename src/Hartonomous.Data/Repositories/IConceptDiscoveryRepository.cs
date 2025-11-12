@@ -13,7 +13,7 @@ public interface IConceptDiscoveryRepository
     /// <summary>
     /// Discovers concepts through clustering analysis
     /// </summary>
-    /// <param name="embeddingVectors">Vectors to analyze for clustering</param>
+    /// <param name="embeddingVectors">Vectors to analyze for clustering (may contain multiple models)</param>
     /// <param name="minClusterSize">Minimum size for a valid cluster</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Discovered concepts with their clusters</returns>
@@ -57,6 +57,11 @@ public class EmbeddingVector
     /// Associated atom ID if applicable
     /// </summary>
     public Guid? AtomId { get; set; }
+
+    /// <summary>
+    /// Model ID that generated this embedding (from AtomEmbeddings.ModelId)
+    /// </summary>
+    public int? ModelId { get; set; }
 
     /// <summary>
     /// Metadata about the vector source
@@ -129,6 +134,11 @@ public class DiscoveredConcept
     /// Vectors belonging to this concept
     /// </summary>
     public IReadOnlyList<EmbeddingVector> MemberVectors { get; set; } = Array.Empty<EmbeddingVector>();
+
+    /// <summary>
+    /// ID of the model used to generate the embeddings
+    /// </summary>
+    public int ModelId { get; set; }
 
     /// <summary>
     /// Confidence score for this concept (0-1)

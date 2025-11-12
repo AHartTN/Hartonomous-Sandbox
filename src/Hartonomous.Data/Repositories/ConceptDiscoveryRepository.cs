@@ -60,6 +60,16 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
             var memberVectors = cluster.ToList();
             var centroid = CalculateCentroid(memberVectors);
 
+            // Determine which model(s) contributed to this cluster
+            // If all vectors are from the same model, use that; otherwise null (multi-model concept)
+            var distinctModels = memberVectors
+                .Select(v => v.ModelId)
+                .Where(m => m.HasValue)
+                .Distinct()
+                .ToList();
+            
+            var clusterModelId = distinctModels.Count == 1 ? distinctModels[0] : null;
+
             // Calculate cluster bounds
             var minX = memberVectors.Min(v => v.SpatialLocation!.X);
             var maxX = memberVectors.Max(v => v.SpatialLocation!.X);
@@ -82,6 +92,7 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
                 Description = $"Spatial cluster containing {memberVectors.Count} vectors",
                 Centroid = centroid,
                 MemberVectors = memberVectors,
+                ModelId = clusterModelId ?? 0, // 0 indicates multi-model or unknown
                 ConfidenceScore = Math.Min(1.0, memberVectors.Count / 20.0), // Simple confidence based on size
                 ClusterBounds = bounds
             };
@@ -181,7 +192,7 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
                         MemberCount = discoveredConcept.MemberVectors.Count,
                         CoherenceScore = discoveredConcept.ConfidenceScore,
                         DiscoveryMethod = "spatial_clustering",
-                        ModelId = 1, // Default model for now
+                        ModelId = discoveredConcept.ModelId,
                         DiscoveredAt = DateTime.UtcNow,
                         IsActive = true
                     };
