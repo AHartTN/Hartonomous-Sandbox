@@ -1,6 +1,8 @@
 # SQL Server CLR Binding Redirect Instructions
 
-**Purpose:** Document the exact host-level configuration that must be applied to `sqlservr.exe.config` so SQL Server 2025 resolves the ILGPU/MathNet dependency stack shipped with the Hartonomous CLR assembly. Perform these steps manually on every SQL Server host (primary, HA, DR). Elevated OS privileges are required—automations in this repository do not touch the SQL Server installation directory.
+**Purpose:** Document the exact host-level configuration that must be applied to `sqlservr.exe.config` so SQL Server 2025 resolves the dependency stack shipped with the Hartonomous CLR assembly. Perform these steps manually on every SQL Server host (primary, HA, DR). Elevated OS privileges are required—automations in this repository do not touch the SQL Server installation directory.
+
+**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), .NET Framework 4.8.1. ILGPU disabled/commented due to CLR verifier incompatibility; code preserved for potential future implementation outside SQL CLR.
 
 ## 1. Locate the SQL Server `Binn` Directory
 
@@ -17,6 +19,8 @@ The configuration file must be named `sqlservr.exe.config` and reside alongside 
 ## 2. Apply Binding Redirect Policy
 
 Edit/Create `sqlservr.exe.config` with the following `<runtime>` section. Preserve any existing entries that the instance already relies on.
+
+**Note**: The configuration below includes binding redirects for all 14 deployed assemblies. Most critical is Newtonsoft.Json redirect to use GAC version 13.0.0.0 (deployed as 13.0.3 for SQL dependency resolution).
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>

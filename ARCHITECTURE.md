@@ -51,7 +51,7 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
 
 **Assembly**: `src/SqlClr/SqlClrFunctions.csproj` compiles to `SqlClrFunctions.dll` targeting .NET Framework 4.8.1. Deployed with 13 dependencies (14 total assemblies) via `scripts/deploy-clr-secure.ps1`.
 
-**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), no GPU acceleration. ILGPU removed due to CLR verifier incompatibility with unmanaged pointers.
+**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), no GPU acceleration. ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged pointers; code preserved for potential future implementation outside SQL CLR.
 
 **Security Model**: CLR assemblies are deployed with minimum required permissions:
 

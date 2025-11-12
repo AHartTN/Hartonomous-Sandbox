@@ -17,7 +17,7 @@ Hartonomous deploys a .NET Framework 4.8.1 CLR assembly (`SqlClrFunctions.dll`) 
 - **Spatial Operations**: Trilateration projection (high-dimensional → 3D GEOMETRY), landmark projection
 - **Stream Orchestration**: AtomicStream, ComponentStream UDTs for event stream serialization
 
-**Hardware Acceleration**: Uses `VectorMath` class with CPU SIMD intrinsics (AVX2 on modern Intel/AMD CPUs, SSE4 fallback). No GPU acceleration (ILGPU removed due to CLR verifier incompatibility with unmanaged pointers).
+**Hardware Acceleration**: Uses `VectorMath` class with CPU SIMD intrinsics (AVX2 on modern Intel/AMD CPUs, SSE4 fallback). No GPU acceleration (ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged pointers; code preserved for potential future implementation outside SQL CLR).
 
 ## .NET Framework 4.8.1 Constraints
 
@@ -556,7 +556,7 @@ ORDER BY Timestamp DESC;
 
 ### Why No GPU Acceleration?
 
-**ILGPU Removed**: ILGPU 0.8.0 (and earlier 1.5.1) failed SQL Server CLR verifier due to unmanaged GPU memory pointers. SQL Server CLR requires verifiable pure managed code only.
+**ILGPU Disabled**: ILGPU 0.8.0 (and earlier 1.5.1) failed SQL Server CLR verifier due to unmanaged GPU memory pointers. SQL Server CLR requires verifiable pure managed code only. ILGPU code is disabled/commented in SqlClrFunctions project but preserved for potential future implementation outside SQL CLR.
 
 **Current Approach**: CPU SIMD via `VectorMath` class using `System.Numerics.Vectors` (AVX2/SSE4 intrinsics). This provides 8-16x speedup over scalar operations without CLR verifier issues.
 

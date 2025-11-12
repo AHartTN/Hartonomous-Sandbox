@@ -66,7 +66,7 @@
 - `SqlClrFunctions.csproj` targets `net481`
 - 14 assemblies deployed
 - CPU SIMD-only (AVX2/SSE4 via VectorMath class)
-- No GPU acceleration (ILGPU removed due to CLR verifier incompatibility)
+- No GPU acceleration (ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged pointers; code preserved for potential future use outside SQL CLR)
 
 SQL Server CLR assemblies run inside the SQL Server process, which uses .NET Framework.
 
@@ -154,7 +154,7 @@ SQL Server CLR assemblies run inside the SQL Server process, which uses .NET Fra
 
 **Vector Operations**: CPU SIMD only (AVX2/SSE4 via `VectorMath` class in `Core/VectorMath.cs`)
 
-**GPU Acceleration**: None. ILGPU removed due to CLR verifier incompatibility with unmanaged GPU memory pointers.
+**GPU Acceleration**: None. ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged GPU memory pointers. Code preserved for potential future implementation outside SQL CLR (e.g., API/worker processes).
 
 **Deployment Script**: `scripts/deploy-clr-secure.ps1` deploys all 14 assemblies with idempotent cleanup (drops all CLR objects including stored procedures type 'PC' before assemblies).
 
@@ -536,7 +536,7 @@ SQL Server 2025 Process (Windows)
 
 **Vector Operations**: CPU SIMD (AVX2/SSE4) via VectorMath class in Core/VectorMath.cs
 
-**GPU Acceleration**: None. ILGPU removed due to CLR verifier incompatibility with unmanaged pointers.
+**GPU Acceleration**: None. ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged pointers. Code preserved for potential future implementation outside SQL CLR.
 
 **Deployment Script**: `scripts/deploy-clr-secure.ps1` handles idempotent cleanup and assembly registration with `sys.sp_add_trusted_assembly`.
 

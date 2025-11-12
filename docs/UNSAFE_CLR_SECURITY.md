@@ -3,11 +3,14 @@
 ## Executive Summary
 
 Hartonomous SQL CLR assemblies require **UNSAFE** permission level due to use of:
-- **ILGPU** for GPU acceleration (CUDA/OpenCL device access)
-- **SIMD intrinsics** (System.Numerics.Vectors AVX2/AVX-512)
+- **CPU SIMD intrinsics** (System.Numerics.Vectors AVX2/SSE4)
 - **MathNet.Numerics** (unmanaged memory allocation for matrix operations)
 - **FILESTREAM** (memory-mapped file access for tensor payloads)
 - **Newtonsoft.Json** (zero-allocation span operations)
+
+**GPU Acceleration**: ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged GPU memory pointers. Code preserved for potential future implementation outside SQL CLR.
+
+**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), .NET Framework 4.8.1.
 
 This document outlines the security implications, deployment options, and production best practices.
 
@@ -29,31 +32,45 @@ SQL Server CLR assemblies can have three permission levels:
 
 ## Why Hartonomous Requires UNSAFE
 
-### 1. ILGPU GPU Acceleration (NEW)
-- **Library:** ILGPU 1.5.1
-- **Reason:** Direct GPU device access (CUDA/OpenCL) requires unmanaged memory allocation
-- **Impact:** 100-1000x performance improvement for large vectors (10K+ dimensions)
-- **Fallback:** Automatic CPU fallback if GPU unavailable
+### 1. CPU SIMD Intrinsics (AVX2/SSE4)
 
-### 2. SIMD Intrinsics (AVX2/AVX-512)
-- **Library:** System.Numerics.Vectors
-- **Reason:** Hardware SIMD instructions require unsafe memory operations
-- **Impact:** 8-16x performance improvement for vector operations (1998D embeddings)
+**Library**: System.Numerics.Vectors
 
-### 3. MathNet.Numerics
-- **Library:** MathNet.Numerics 5.0.0
-- **Reason:** Matrix factorization (SVD, QR) uses unmanaged BLAS/LAPACK routines
-- **Functions:** Transformer attention, dimensionality reduction, anomaly detection
+**Reason**: Hardware SIMD instructions require unsafe memory operations
 
-### 4. FILESTREAM
-- **API:** SqlFileStream (memory-mapped files)
-- **Reason:** Direct file system access for tensor atom payloads (multi-GB data)
-- **Alternative:** Loading multi-GB blobs into SQL memory would cause OOM
+**Impact**: 8-16x performance improvement for vector operations (1998D embeddings)
 
-### 5. Newtonsoft.Json
-- **Library:** Newtonsoft.Json 13.0.4
-- **Reason:** High-performance JSON serialization with Span<T> (zero-allocation)
-- **Functions:** Model ingestion, generation, semantic analysis
+### 2. MathNet.Numerics
+
+**Library**: MathNet.Numerics 5.0.0
+
+**Reason**: Matrix factorization (SVD, QR) uses unmanaged BLAS/LAPACK routines
+
+**Functions**: Transformer attention, dimensionality reduction, anomaly detection
+
+### 3. FILESTREAM
+
+**API**: SqlFileStream (memory-mapped files)
+
+**Reason**: Direct file system access for tensor atom payloads (multi-GB data)
+
+**Alternative**: Loading multi-GB blobs into SQL memory would cause OOM
+
+### 4. Newtonsoft.Json
+
+**Library**: Newtonsoft.Json 13.0.3 (deployed as assembly, runtime uses GAC version 13.0.0.0 via binding redirect)
+
+**Reason**: High-performance JSON serialization with Span&lt;T&gt; (zero-allocation)
+
+**Functions**: Model ingestion, generation, semantic analysis
+
+### 5. ILGPU (Disabled)
+
+**Status**: ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged GPU memory pointers. Code preserved in SqlClrFunctions project for potential future implementation outside SQL CLR (e.g., API/worker processes using .NET 10).
+
+**Fallback**: All GPU operations delegate to VectorMath class for CPU SIMD execution (AVX2/SSE4).
+
+**Performance**: CPU SIMD provides 8-16x speedup over scalar operations, sufficient for SQL CLR workloads (< 10K operations per call).
 
 **NONE of these libraries can be used with SAFE or EXTERNAL_ACCESS.**
 
@@ -171,8 +188,8 @@ EXEC sys.sp_add_trusted_assembly
 - [ ] Verify trusted assembly registered: `SELECT * FROM sys.trusted_assemblies WHERE description LIKE '%Hartonomous%'`
 
 ### Post-Deployment Validation
-- [ ] Test GPU detection: `SELECT dbo.clr_VectorDotProduct(0x..., 0x...)`
-- [ ] Verify GPU fallback: Test on machine without GPU (should automatically use CPU)
+
+- [ ] Test vector operations: `SELECT dbo.clr_VectorDotProduct(0x..., 0x...)`
 - [ ] Test FILESTREAM functions: `EXEC dbo.clr_StoreTensorAtomPayload @tensorAtomId = 1, @payload = 0x...`
 - [ ] Test JSON conversion: `SELECT dbo.clr_BytesToFloatArrayJson(0x...)`
 
@@ -209,9 +226,10 @@ EXEC sys.sp_add_trusted_assembly
 - This is an **architectural limitation**, not a bug
 
 **Implications:**
-- Modern .NET services (Hartonomous.Api, Hartonomous.Workers) can use .NET 10 with latest ILGPU
-- SQL CLR is limited to .NET Framework 4.8.1 + ILGPU 1.5.1
-- GPU acceleration in SQL CLR uses ILGPU 1.5.1 (CUDA 11.x, OpenCL 2.0)
+
+- Modern .NET services (Hartonomous.Api, Hartonomous.Workers) can use .NET 10
+- SQL CLR is limited to .NET Framework 4.8.1
+- CPU SIMD acceleration in SQL CLR uses System.Numerics.Vectors (AVX2/SSE4)
 
 ---
 
@@ -265,33 +283,33 @@ SELECT name, permission_set_desc FROM sys.assemblies WHERE name = 'SqlClrFunctio
 
 ---
 
-## GPU Acceleration Security Considerations
+## CPU SIMD Performance Considerations
 
-### ILGPU Device Access
-- **Risk:** Direct GPU memory access could be exploited for side-channel attacks
-- **Mitigation:** ILGPU only accesses GPU memory, not system memory or other processes
-- **Isolation:** Each SQL Server session gets isolated GPU memory buffers
+### Current Architecture
 
-### Automatic Fallback
-- **Safety:** If GPU is unavailable or ILGPU initialization fails, code automatically falls back to CPU
-- **No errors:** Users never see GPU-related errors, ensuring stability
+**VectorMath Class**: CPU SIMD implementation using System.Numerics.Vectors (AVX2/SSE4 intrinsics)
+
+**Performance**: 8-16x speedup over scalar operations for vector operations (1998D embeddings)
+
+**Automatic Detection**: AVX2 used on modern Intel/AMD CPUs, SSE4 fallback on older hardware
 
 ### Performance vs. Security Trade-off
+
 | Configuration | Performance | Security |
 |---------------|-------------|----------|
-| **GPU + UNSAFE** | ⚡⚡⚡ Fastest (100-1000x) | ⚠️ Requires trusted assembly |
-| **CPU SIMD + UNSAFE** | ⚡⚡ Fast (8-16x) | ⚠️ Requires trusted assembly |
-| **CPU Scalar (no CLR)** | ⚡ Baseline (1x) | ✅ No UNSAFE required |
+| **CPU SIMD + UNSAFE** | Fast (8-16x) | Requires trusted assembly |
+| **CPU Scalar (no CLR)** | Baseline (1x) | No UNSAFE required |
 
-**Recommendation:** Use GPU acceleration in production with trusted assembly deployment.
+**Recommendation**: Use CPU SIMD with trusted assembly deployment for production.
 
 ---
 
 ## Monitoring and Auditing
 
-### Monitor GPU Usage
+### Monitor CLR Function Usage
+
 ```sql
--- Check if GPU is being used
+-- Check CLR function execution
 SELECT 
     session_id,
     command,
@@ -333,22 +351,28 @@ EXEC msdb.dbo.sp_add_alert
 ## FAQ
 
 ### Q: Why not use SQL Server 2025 VECTOR type instead of CLR?
+
 **A:** Native VECTOR type only supports basic operations (distance, similarity). Hartonomous requires:
+
 - Transformer inference (multi-head attention, feed-forward)
 - Dimensionality reduction (SVD, t-SNE)
 - Anomaly detection (Isolation Forest, Mahalanobis distance)
-- GPU acceleration (100-1000x performance)
+- CPU SIMD acceleration (8-16x performance)
 
 ### Q: Can I use Azure SQL Database?
+
 **A:** No. UNSAFE CLR is not supported in Azure SQL Database. Use Azure SQL Managed Instance or on-premise SQL Server 2025.
 
-### Q: What if I don't have a GPU?
-**A:** GpuAccelerator automatically detects GPU availability and falls back to CPU SIMD code. No configuration required.
+### Q: Does the CLR deployment require GPU hardware?
+
+**A:** No. Current deployment uses CPU SIMD only (AVX2/SSE4). No GPU required.
 
 ### Q: How do I update the assembly after code changes?
+
 **A:** Re-run `deploy-clr-secure.ps1`. It computes the new SHA-512 hash and updates the trusted assembly list.
 
 ### Q: What if an attacker modifies SqlClrFunctions.dll?
+
 **A:** The SHA-512 hash check will fail and the assembly will be rejected. This is the core security benefit of trusted assemblies.
 
 ---
@@ -358,7 +382,6 @@ EXEC msdb.dbo.sp_add_alert
 - [SQL Server CLR Integration Security](https://learn.microsoft.com/en-us/sql/relational-databases/clr-integration/security/clr-integration-security)
 - [sys.sp_add_trusted_assembly](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sys-sp-add-trusted-assembly-transact-sql)
 - [CLR Strict Security](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/clr-strict-security)
-- [ILGPU Documentation](https://github.com/m4rs-mt/ILGPU)
 - [MathNet.Numerics](https://numerics.mathdotnet.com/)
 
 ---
@@ -368,7 +391,7 @@ EXEC msdb.dbo.sp_add_alert
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0.0 | 2025-11-11 | Initial documentation covering UNSAFE requirements, deployment options, security implications |
-| 1.1.0 | 2025-11-11 | Added ILGPU GPU acceleration security considerations, device detection, automatic fallback |
+| 1.1.0 | 2025-11-11 | Updated to reflect CPU SIMD-only deployment (14 assemblies), ILGPU disabled/commented, removed GPU security content |
 
 ---
 

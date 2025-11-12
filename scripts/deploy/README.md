@@ -49,7 +49,7 @@ This directory contains modular PowerShell deployment scripts for deploying the 
          │  • Azure Arc agent 1.58.x   │
          │  ├─ SQL Server 2025 (Linux) │
          │  │  • Database: Hartonomous  │
-         │  │  • CLR: UNSAFE + ILGPU    │
+         │  │  • CLR: UNSAFE (CPU SIMD) │
          │  │  • FILESTREAM enabled     │
          │  │  • Service Broker: OODA   │
          │  └─ systemd services:        │
@@ -71,7 +71,7 @@ Each script is idempotent and returns JSON for pipeline consumption:
 | `01-prerequisites.ps1` | Validates deployment readiness | • SQL Server version check (14.x+)<br>• Platform detection (Linux/Windows)<br>• CLR settings verification<br>• Azure Arc agent detection |
 | `02-database-create.ps1` | Creates Hartonomous database | • Platform-specific paths<br>• Query Store enabled<br>• In-Memory OLTP support<br>• Compatibility level 160 |
 | `03-filestream.ps1` | Configures FILESTREAM support | • Linux path: `/var/opt/mssql/data/filestream`<br>• SQL 2019+ version check<br>• `sp_configure` verification<br>• Filegroup + file creation |
-| `04-clr-assembly.ps1` | Deploys UNSAFE CLR assembly | • SHA-512 hash computation<br>• `sys.sp_add_trusted_assembly` registration<br>• Dependency order: DROP funcs→aggs→types→assembly<br>• PERMISSION_SET = UNSAFE for ILGPU |
+| `04-clr-assembly.ps1` | Deploys UNSAFE CLR assembly | • SHA-512 hash computation<br>• `sys.sp_add_trusted_assembly` registration<br>• Dependency order: DROP funcs→aggs→types→assembly<br>• PERMISSION_SET = UNSAFE for CPU SIMD |
 | `05-ef-migrations.ps1` | Applies EF Core migrations | • `dotnet ef migrations script --idempotent`<br>• NetTopologySuite spatial types<br>• `__EFMigrationsHistory` verification |
 | `06-service-broker.ps1` | Sets up Service Broker | • OODA loop message types<br>• Queues: Observation, Orientation, Decision, Action<br>• `ALTER DATABASE SET ENABLE_BROKER` |
 | `07-verification.ps1` | Validates deployment | • 6 comprehensive checks<br>• Critical: DB, CLR, Migrations<br>• Optional: FILESTREAM, Service Broker, Spatial |
@@ -101,12 +101,17 @@ Three stages:
 
 ### Why UNSAFE CLR?
 
-**UNSAFE CLR assemblies are ONLY deployed to on-premises Arc servers** for GPU acceleration:
+**UNSAFE CLR assemblies are ONLY deployed to on-premises Arc servers** for CPU SIMD acceleration:
 
-- ILGPU library requires unmanaged memory access
-- cuBLAS for CUDA GPU tensor operations
+- System.Numerics.Vectors requires unsafe memory operations for SIMD intrinsics (AVX2/SSE4)
+- MathNet.Numerics uses unmanaged BLAS/LAPACK routines for matrix operations
+- FILESTREAM requires unsafe memory-mapped file access
 - Cannot use Azure SQL Database (no CLR support)
-- Cannot use SAFE/EXTERNAL_ACCESS (ILGPU needs UNSAFE)
+- Cannot use SAFE/EXTERNAL_ACCESS (SIMD requires UNSAFE)
+
+**ILGPU Status**: ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged GPU memory pointers. Code preserved in SqlClrFunctions project for potential future implementation outside SQL CLR (e.g., API/worker processes using .NET 10).
+
+**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), .NET Framework 4.8.1.
 
 **MS Docs Reference:** [CLR strict security](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/clr-strict-security)
 
@@ -340,7 +345,7 @@ az connectedmachine show --name hart-server --resource-group rg-hartonomous --qu
 
 ### CLR Assembly Size
 
-- **Current size:** ~15-30 MB (with ILGPU dependencies)
+- **Current size:** ~8-12 MB (14 assemblies: CPU SIMD dependencies)
 - **SQL Server limit:** ~2 GB per assembly (theoretical)
 - **Recommendation:** Keep under 100 MB for deployment speed
 - **Deployment method:** Embedded hex string in T-SQL (04-clr-assembly.ps1 converts binary to `0x...`)
