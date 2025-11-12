@@ -55,8 +55,13 @@ class Program
                 // Register Hartonomous infrastructure
                 services.AddHartonomousInfrastructure(context.Configuration);
 
-                // Register CDC checkpoint manager (file-based for now)
-                services.AddSingleton<ICdcCheckpointManager, FileCdcCheckpointManager>();
+                // Register CDC checkpoint manager (database-backed for production resilience)
+                services.AddSingleton<ICdcCheckpointManager, SqlCdcCheckpointManager>(sp =>
+                {
+                    var connectionFactory = sp.GetRequiredService<ISqlServerConnectionFactory>();
+                    var logger = sp.GetRequiredService<ILogger<SqlCdcCheckpointManager>>();
+                    return new SqlCdcCheckpointManager(connectionFactory, logger, "CesConsumer");
+                });
 
                 // Register CDC event mapper
                 services.AddSingleton<IEventMapperBidirectional<CdcChangeEvent, BaseEvent>>(
