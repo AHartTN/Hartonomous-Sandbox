@@ -152,7 +152,7 @@ public class AutonomousAnalysisRepository : IAutonomousAnalysisRepository
                 {
                     InferenceRequestId = inferenceId,
                     ModelId = modelId,
-                    DurationMs = durationMs,
+                    DurationMs = (int)durationMs,
                     AvgDurationMs = avgDurationMs,
                     SlowdownFactor = durationMs / avgDurationMs
                 });
