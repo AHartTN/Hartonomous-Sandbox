@@ -5,7 +5,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_QueryLineage
     @AtomId BIGINT,
     @Direction NVARCHAR(20) = 'Upstream', -- 'Upstream', 'Downstream', 'Both'
     @MaxDepth INT = 10,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -39,7 +39,8 @@ BEGIN
                 a.CreatedUtc
             FROM UpstreamLineage ul
             INNER JOIN dbo.Atoms a ON ul.AtomId = a.AtomId
-            WHERE a.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
             ORDER BY ul.Depth;
         END
         
@@ -71,7 +72,8 @@ BEGIN
                 a.CreatedUtc
             FROM DownstreamLineage dl
             INNER JOIN dbo.Atoms a ON dl.AtomId = a.AtomId
-            WHERE a.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
             ORDER BY dl.Depth;
         END
         
@@ -90,7 +92,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_FindImpactedAtoms
     @AtomId BIGINT,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -122,7 +124,8 @@ BEGIN
             COUNT(*) OVER () AS TotalImpacted
         FROM ImpactedAtoms ia
         INNER JOIN dbo.Atoms a ON ia.AtomId = a.AtomId
-        WHERE a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
         ORDER BY ia.Depth, ia.AtomId;
         
         RETURN 0;
@@ -141,7 +144,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_ExportProvenance
     @AtomId BIGINT,
     @Format NVARCHAR(20) = 'JSON', -- 'JSON', 'GraphML', 'CSV'
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -182,7 +185,8 @@ BEGIN
                 ) AS Parents
             FROM Lineage l
             INNER JOIN dbo.Atoms a ON l.AtomId = a.AtomId
-            WHERE a.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
             FOR JSON PATH, ROOT('provenance');
         END
         ELSE IF @Format = 'GraphML'
@@ -195,9 +199,10 @@ BEGIN
             FROM provenance.AtomGraphEdges edge
             INNER JOIN dbo.Atoms a1 ON edge.$from_id = a1.AtomId
             INNER JOIN dbo.Atoms a2 ON edge.$to_id = a2.AtomId
-            WHERE a1.TenantId = @TenantId
-                  AND a2.TenantId = @TenantId
-                  AND (a1.AtomId = @AtomId OR a2.AtomId = @AtomId)
+            LEFT JOIN dbo.TenantAtoms ta1 ON a1.AtomId = ta1.AtomId
+            LEFT JOIN dbo.TenantAtoms ta2 ON a2.AtomId = ta2.AtomId
+            WHERE (a1.AtomId = @AtomId OR a2.AtomId = @AtomId)
+                  AND (@TenantId IS NULL OR ta1.TenantId = @TenantId OR ta2.TenantId = @TenantId)
             FOR XML PATH('edge'), ROOT('graph');
         END
         
@@ -216,7 +221,7 @@ GO
 
 CREATE OR ALTER PROCEDURE dbo.sp_VerifyIntegrity
     @AtomId BIGINT = NULL,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -244,7 +249,8 @@ BEGIN
                 ELSE 1
             END AS IsCorrupted
         FROM dbo.Atoms a
-        WHERE a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND a.IsDeleted = 0
               AND (@AtomId IS NULL OR a.AtomId = @AtomId);
         

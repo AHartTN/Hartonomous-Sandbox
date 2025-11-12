@@ -137,7 +137,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_OptimizeEmbeddings
     @ModelId INT,
     @BatchSize INT = 100,
     @MaxAgeHours INT = 24,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -157,8 +157,9 @@ BEGIN
             a.AtomId,
             CAST(a.Content AS NVARCHAR(MAX)) AS Content
         FROM dbo.Atoms a
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
         LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId AND ae.ModelId = @ModelId
-        WHERE a.TenantId = @TenantId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND a.IsDeleted = 0
               AND (
                   ae.AtomEmbeddingId IS NULL -- Missing embedding
@@ -184,18 +185,18 @@ BEGIN
             
             IF @NewEmbedding IS NOT NULL
             BEGIN
-                -- Upsert embedding
+                -- Upsert embedding (AtomEmbeddings has no TenantId column)
                 MERGE dbo.AtomEmbeddings AS target
-                USING (SELECT @CurrentAtomId AS AtomId, @ModelId AS ModelId, @TenantId AS TenantId) AS source
-                ON target.AtomId = source.AtomId AND target.ModelId = source.ModelId AND target.TenantId = source.TenantId
+                USING (SELECT @CurrentAtomId AS AtomId, @ModelId AS ModelId) AS source
+                ON target.AtomId = source.AtomId AND target.ModelId = source.ModelId
                 WHEN MATCHED THEN
                     UPDATE SET 
                         EmbeddingVector = @NewEmbedding,
                         LastComputedUtc = SYSUTCDATETIME(),
                         LastAccessedUtc = SYSUTCDATETIME()
                 WHEN NOT MATCHED THEN
-                    INSERT (AtomId, ModelId, EmbeddingVector, TenantId)
-                    VALUES (@CurrentAtomId, @ModelId, @NewEmbedding, @TenantId);
+                    INSERT (AtomId, ModelId, EmbeddingVector)
+                    VALUES (@CurrentAtomId, @ModelId, @NewEmbedding);
                 
                 SET @ProcessedCount += 1;
             END
@@ -234,7 +235,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_ScoreWithModel
     @ModelId INT,
     @InputAtomIds NVARCHAR(MAX), -- Comma-separated
     @OutputFormat NVARCHAR(50) = 'JSON',
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -262,7 +263,7 @@ BEGIN
             RETURN -1;
         END
         
-        -- Prepare input features
+        -- Prepare input features (AtomEmbeddings has no TenantId column)
         DECLARE @InputFeatures TABLE (
             AtomId BIGINT,
             EmbeddingVector VARBINARY(MAX)
@@ -273,8 +274,7 @@ BEGIN
             ae.AtomId,
             ae.EmbeddingVector
         FROM dbo.AtomEmbeddings ae
-        INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId
-        WHERE ae.TenantId = @TenantId;
+        INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId;
         
         -- Execute PREDICT using reconstructed model from LayerTensorSegments
         -- Model is already materialized as TensorAtom graph with coefficients

@@ -253,15 +253,18 @@ public class AutonomousActionRepository : IAutonomousActionRepository
         coherenceParam.Value = 0.7;
         command.Parameters.Add(coherenceParam);
         
+        var tenantParam = command.CreateParameter();
+        tenantParam.ParameterName = "@TenantId";
+        // TODO: Get actual TenantId from ambient context or pass as parameter
+        // Use NULL for cross-tenant discovery (admin/analytics), or specific tenantId for tenant-isolated discovery
+        // For now using default tenant 1 for background autonomous processing
+        tenantParam.Value = 1;
+        command.Parameters.Add(tenantParam);
+        
         var maxConceptsParam = command.CreateParameter();
         maxConceptsParam.ParameterName = "@MaxConcepts";
         maxConceptsParam.Value = 50;
         command.Parameters.Add(maxConceptsParam);
-        
-        var tenantParam = command.CreateParameter();
-        tenantParam.ParameterName = "@TenantId";
-        tenantParam.Value = 0;
-        command.Parameters.Add(tenantParam);
         
         int clustersFound = 0;
         double avgCoherence = 0.0;

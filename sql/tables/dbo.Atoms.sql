@@ -15,18 +15,17 @@ CREATE TABLE dbo.Atoms
     SourceType          NVARCHAR(128)   NULL,
     SourceUri           NVARCHAR(2048)  NULL,
     
-    -- The ContentHash is the primary key for deduplication and lives with the payload.
-    -- This column provides a cached, denormalized reference for convenience.
+    -- ContentHash is globally unique - one atom per unique content across ALL tenants
+    -- SHA-256 ensures content-addressable storage with true deduplication
     ContentHash         BINARY(32)      NOT NULL,
 
-    -- ReferenceCount tracks how many times this exact content has been ingested.
-    ReferenceCount      INT             NOT NULL DEFAULT 1,
+    -- ReferenceCount tracks how many tenants reference this atom
+    ReferenceCount      INT             NOT NULL DEFAULT 0,
 
     CanonicalText       NVARCHAR(MAX)   NULL,
     Metadata            NVARCHAR(MAX)   NULL, -- Storing as NVARCHAR for broader compatibility, can be validated as JSON.
     Semantics           NVARCHAR(MAX)   NULL, -- Storing as NVARCHAR for broader compatibility, can be validated as JSON.
     
-    TenantId            INT             NOT NULL DEFAULT 0,
     IsDeleted           BIT             NOT NULL DEFAULT 0,
     
     CreatedAt           DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -35,10 +34,10 @@ CREATE TABLE dbo.Atoms
 );
 GO
 
--- Unique index on ContentHash for fast deduplication lookups
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Atoms_ContentHash_TenantId' AND object_id = OBJECT_ID(N'dbo.Atoms'))
+-- GLOBAL unique index on ContentHash - one atom per content across entire system
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'UX_Atoms_ContentHash' AND object_id = OBJECT_ID(N'dbo.Atoms'))
 BEGIN
-    CREATE UNIQUE INDEX UX_Atoms_ContentHash_TenantId ON dbo.Atoms(ContentHash, TenantId) WHERE IsDeleted = 0;
+    CREATE UNIQUE INDEX UX_Atoms_ContentHash ON dbo.Atoms(ContentHash) WHERE IsDeleted = 0;
 END
 GO
 

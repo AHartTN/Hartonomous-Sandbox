@@ -4,7 +4,7 @@
 CREATE OR ALTER PROCEDURE dbo.sp_KeywordSearch
     @Keywords NVARCHAR(MAX),
     @TopK INT = 10,
-    @TenantId INT = 0,
+    @TenantId INT = NULL, -- Optional tenant filtering
     @ContentTypeFilter NVARCHAR(100) = NULL
 AS
 BEGIN
@@ -20,7 +20,8 @@ BEGIN
             CAST(a.Content AS NVARCHAR(MAX)) AS ContentPreview
         FROM CONTAINSTABLE(dbo.Atoms, Content, @Keywords) fts
         INNER JOIN dbo.Atoms a ON fts.[KEY] = a.AtomId
-        WHERE a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND a.IsDeleted = 0
               AND (@ContentTypeFilter IS NULL OR a.ContentType = @ContentTypeFilter)
         ORDER BY fts.RANK DESC;
@@ -41,7 +42,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_SemanticSimilarity
     @SourceAtomId BIGINT,
     @TopK INT = 10,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -68,7 +69,8 @@ BEGIN
             a.CreatedUtc
         FROM SEMANTICSIMILARITYTABLE(dbo.Atoms, Content, @SourceAtomId) sst
         INNER JOIN dbo.Atoms a ON sst.matched_document_key = a.AtomId
-        WHERE a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND a.IsDeleted = 0
         ORDER BY sst.score DESC;
         
@@ -117,7 +119,7 @@ GO
 CREATE OR ALTER PROCEDURE dbo.sp_FindRelatedDocuments
     @AtomId BIGINT,
     @TopK INT = 10,
-    @TenantId INT = 0,
+    @TenantId INT = NULL, -- Optional tenant filtering
     @IncludeSemanticText BIT = 1,
     @IncludeVectorSimilarity BIT = 1,
     @IncludeGraphNeighbors BIT = 1
@@ -151,9 +153,10 @@ BEGIN
         BEGIN
             DECLARE @QueryEmbedding VARBINARY(MAX);
             
+            -- Get query embedding without tenant filter (AtomEmbeddings has no TenantId)
             SELECT @QueryEmbedding = EmbeddingVector
             FROM dbo.AtomEmbeddings
-            WHERE AtomId = @AtomId AND TenantId = @TenantId;
+            WHERE AtomId = @AtomId;
             
             IF @QueryEmbedding IS NOT NULL
             BEGIN
@@ -163,7 +166,8 @@ BEGIN
                         ae.AtomId,
                         1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryEmbedding) AS VectorScore
                     FROM dbo.AtomEmbeddings ae
-                    WHERE ae.TenantId = @TenantId
+                    LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+                    WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
                           AND ae.AtomId != @AtomId
                 ) AS source
                 ON target.RelatedAtomId = source.AtomId
@@ -212,7 +216,8 @@ BEGIN
             a.CreatedUtc
         FROM @Results r
         INNER JOIN dbo.Atoms a ON r.RelatedAtomId = a.AtomId
-        WHERE a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
         ORDER BY r.CombinedScore DESC;
         
         RETURN 0;

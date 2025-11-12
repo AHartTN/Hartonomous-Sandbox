@@ -222,7 +222,8 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
                 SUM(b.Amount) AS TotalBillingAmount,
                 MAX(ir.RequestTimestamp) AS LastActivityUtc
             FROM dbo.Tenants t
-            LEFT JOIN dbo.Atoms a ON t.TenantId = a.TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON t.TenantId = ta.TenantId
+            LEFT JOIN dbo.Atoms a ON ta.AtomId = a.AtomId
             LEFT JOIN dbo.AtomEmbeddings ae ON t.TenantId = ae.TenantId
             LEFT JOIN dbo.InferenceRequests ir ON t.TenantId = ir.TenantId
                 AND ir.RequestTimestamp >= @StartDate AND ir.RequestTimestamp < @EndDate

@@ -26,7 +26,8 @@ BEGIN
             @ContentType = p.ContentType
         FROM dbo.Atoms a
         JOIN dbo.AtomPayloadStore p ON a.AtomId = p.AtomId
-        WHERE a.AtomId = @AtomId AND a.TenantId = @TenantId;
+        INNER JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE a.AtomId = @AtomId AND ta.TenantId = @TenantId;
         
         IF @Content IS NULL
         BEGIN

@@ -17,5 +17,5 @@ RETURNS TABLE (
     Coherence FLOAT,
     SpatialBucket INT
 )
-AS EXTERNAL NAME SqlClrFunctions.[Hartonomous.SqlClr.ConceptDiscovery].fn_DiscoverConcepts;
+AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.ConceptDiscovery].fn_DiscoverConcepts;
 GO

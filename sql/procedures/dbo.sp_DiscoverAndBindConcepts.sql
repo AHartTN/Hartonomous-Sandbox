@@ -9,7 +9,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_DiscoverAndBindConcepts
     @MaxConcepts INT = 100,
     @SimilarityThreshold FLOAT = 0.6,
     @MaxConceptsPerAtom INT = 5,
-    @TenantId INT = 0,
+    @TenantId INT = NULL, -- Optional tenant filtering
     @DryRun BIT = 0
 AS
 BEGIN
@@ -107,7 +107,7 @@ BEGIN
         
         WHILE @@FETCH_STATUS = 0
         BEGIN
-            -- Find atoms similar to this concept
+            -- Find atoms similar to this concept (AtomEmbeddings has no TenantId)
             INSERT INTO @AtomBindings
             SELECT 
                 ae.AtomId,
@@ -115,7 +115,8 @@ BEGIN
                 1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @ConceptCentroid) AS Similarity,
                 0 AS IsPrimary -- Will set primary in second pass
             FROM dbo.AtomEmbeddings ae
-            WHERE ae.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
                   AND (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @ConceptCentroid)) >= @SimilarityThreshold;
             
             FETCH NEXT FROM concept_cursor INTO @CurrentConceptId, @ConceptCentroid;

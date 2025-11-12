@@ -41,23 +41,23 @@ namespace SqlClrFunctions
             {
                 conn.Open();
 
-                // Step 1: Load spatial bucket statistics
+                // Step 1: Load spatial bucket statistics filtered by tenant via TenantAtoms junction
                 var bucketQuery = @"
                     SELECT 
-                        SpatialBucket,
+                        ae.SpatialBucket,
                         COUNT(*) AS AtomCount,
-                        AVG(CAST(EmbeddingVector AS FLOAT)) AS AvgMagnitude
-                    FROM dbo.AtomEmbeddings
-                    WHERE TenantId = @TenantId
-                          AND SpatialBucket IS NOT NULL
-                    GROUP BY SpatialBucket
+                        AVG(CAST(ae.EmbeddingVector AS FLOAT)) AS AvgMagnitude
+                    FROM dbo.AtomEmbeddings ae
+                    INNER JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+                    WHERE ae.SpatialBucket IS NOT NULL AND ta.TenantId = @TenantId
+                    GROUP BY ae.SpatialBucket
                     HAVING COUNT(*) >= @MinClusterSize
                     ORDER BY COUNT(*) DESC";
 
                 using (var cmd = new System.Data.SqlClient.SqlCommand(bucketQuery, conn))
                 {
-                    cmd.Parameters.AddWithValue("@TenantId", tenant);
                     cmd.Parameters.AddWithValue("@MinClusterSize", minSize);
+                    cmd.Parameters.AddWithValue("@TenantId", tenant);
 
                     using (var reader = cmd.ExecuteReader())
                     {
@@ -174,10 +174,10 @@ namespace SqlClrFunctions
             var bucketIds = string.Join(",", cluster.Select(c => c.Bucket));
 
             var centroidQuery = $@"
-                SELECT TOP 1 EmbeddingVector
-                FROM dbo.AtomEmbeddings
-                WHERE TenantId = @TenantId
-                      AND SpatialBucket IN ({bucketIds})
+                SELECT TOP 1 ae.EmbeddingVector
+                FROM dbo.AtomEmbeddings ae
+                INNER JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+                WHERE ae.SpatialBucket IN ({bucketIds}) AND ta.TenantId = @TenantId
                 ORDER BY NEWID()"; // Random representative (could use actual centroid computation)
 
             using (var cmd = new System.Data.SqlClient.SqlCommand(centroidQuery, conn))
@@ -205,20 +205,20 @@ namespace SqlClrFunctions
 
             var coherenceQuery = $@"
                 SELECT AVG(
-                    1.0 - VECTOR_DISTANCE('cosine', EmbeddingVector, @Centroid)
+                    1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @Centroid)
                 ) AS Coherence
                 FROM (
-                    SELECT TOP 100 EmbeddingVector
-                    FROM dbo.AtomEmbeddings
-                    WHERE TenantId = @TenantId
-                          AND SpatialBucket IN ({bucketIds})
+                    SELECT TOP 100 ae.EmbeddingVector
+                    FROM dbo.AtomEmbeddings ae
+                    INNER JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+                    WHERE ae.SpatialBucket IN ({bucketIds}) AND ta.TenantId = @TenantId
                     ORDER BY NEWID()
                 ) AS Sample";
 
             using (var cmd = new System.Data.SqlClient.SqlCommand(coherenceQuery, conn))
             {
-                cmd.Parameters.AddWithValue("@TenantId", tenantId);
                 cmd.Parameters.Add("@Centroid", System.Data.SqlDbType.VarBinary).Value = centroid;
+                cmd.Parameters.AddWithValue("@TenantId", tenantId);
 
                 var result = cmd.ExecuteScalar();
                 return result == DBNull.Value ? 0.0 : Convert.ToDouble(result);

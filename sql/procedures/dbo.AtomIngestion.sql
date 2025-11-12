@@ -19,44 +19,57 @@ BEGIN
         -- Compute content hash (SHA-256 for content-addressable storage)
         DECLARE @ContentHash BINARY(32) = HASHBYTES('SHA2_256', @Content);
         
-        -- Check for duplicate (content-addressable deduplication)
+        -- Check for duplicate globally (true content-addressable deduplication)
         SELECT @AtomId = AtomId
         FROM dbo.Atoms
-        WHERE ContentHash = @ContentHash AND TenantId = @TenantId;
+        WHERE ContentHash = @ContentHash;
         
         IF @AtomId IS NOT NULL
         BEGIN
-            -- Atom already exists, return existing ID
+            -- Atom exists globally, create tenant reference in junction table
+            IF NOT EXISTS (SELECT 1 FROM dbo.TenantAtoms WHERE TenantId = @TenantId AND AtomId = @AtomId)
+            BEGIN
+                INSERT INTO dbo.TenantAtoms (TenantId, AtomId)
+                VALUES (@TenantId, @AtomId);
+            END
+            
+            -- Increment reference count
+            UPDATE dbo.Atoms SET ReferenceCount = ReferenceCount + 1 WHERE AtomId = @AtomId;
+            
             SELECT 
                 @AtomId AS AtomId,
-                'Duplicate' AS Status,
+                'Deduplicated' AS Status,
                 @ContentHash AS ContentHash;
             
             COMMIT TRANSACTION;
             RETURN 0;
         END
         
-        -- Insert new atom
+        -- Insert new atom (globally unique by ContentHash)
         INSERT INTO dbo.Atoms (
             ContentHash,
             Modality,
             Subtype,
             PayloadLocator,
             Metadata,
-            TenantId,
-            IsActive
+            IsActive,
+            ReferenceCount
         )
         VALUES (
             @ContentHash,
             LEFT(@ContentType, CHARINDEX('/', @ContentType + '/') - 1),
             SUBSTRING(@ContentType, CHARINDEX('/', @ContentType) + 1, 128),
-            'atom://' + CONVERT(NVARCHAR(64), @ContentHash, 2),  -- Generate URI from hash
+            'atom://' + CONVERT(NVARCHAR(64), @ContentHash, 2),
             @Metadata,
-            @TenantId,
-            1
+            1,
+            1  -- First reference
         );
         
         SET @AtomId = SCOPE_IDENTITY();
+        
+        -- Create tenant reference
+        INSERT INTO dbo.TenantAtoms (TenantId, AtomId)
+        VALUES (@TenantId, @AtomId);
         
         -- Phase 2: Deep Atomization (break content into sub-atoms based on type)
         -- This is the "atomize as far down as we can" principle

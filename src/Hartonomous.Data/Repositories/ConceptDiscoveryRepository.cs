@@ -84,7 +84,7 @@ public class ConceptDiscoveryRepository : IConceptDiscoveryRepository
         
         var tenantParam = command.CreateParameter();
         tenantParam.ParameterName = "@TenantId";
-        tenantParam.Value = 0; // TODO: Get from context
+        tenantParam.Value = DBNull.Value; // NULL = system-level cross-tenant discovery (Azure Entra ID claims not yet implemented)
         command.Parameters.Add(tenantParam);
         
         using var reader = await command.ExecuteReaderAsync(cancellationToken);

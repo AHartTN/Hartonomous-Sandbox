@@ -35,24 +35,30 @@ BEGIN
 
     BEGIN TRY
         -- =============================================
-        -- PHASE 1: EXACT HASH DEDUPLICATION
+        -- PHASE 1: EXACT HASH DEDUPLICATION (GLOBAL)
         -- =============================================
 
         -- Compute content hash for exact deduplication
         DECLARE @ContentHash BINARY(32) = HASHBYTES('SHA2_256', @HashInput);
 
-        -- Check for exact hash match (fastest deduplication)
+        -- Check for exact hash match globally (content-addressable storage)
         SELECT TOP 1
             @AtomId = a.AtomId,
             @WasDuplicate = 1,
-            @DuplicateReason = 'Exact content hash match',
+            @DuplicateReason = 'Exact content hash match (global deduplication)',
             @SemanticSimilarity = NULL
         FROM dbo.Atoms a
-        WHERE a.ContentHash = @ContentHash
-          AND a.TenantId = @TenantId;
+        WHERE a.ContentHash = @ContentHash;
 
         IF @AtomId IS NOT NULL
         BEGIN
+            -- Atom already exists globally - create TenantAtoms entry if needed
+            IF NOT EXISTS (SELECT 1 FROM dbo.TenantAtoms WHERE TenantId = @TenantId AND AtomId = @AtomId)
+            BEGIN
+                INSERT INTO dbo.TenantAtoms (TenantId, AtomId, CreatedAt)
+                VALUES (@TenantId, @AtomId, SYSUTCDATETIME());
+            END
+
             -- Increment reference count for existing atom
             UPDATE dbo.Atoms
             SET ReferenceCount = ReferenceCount + 1,

@@ -6,7 +6,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_SpatialVectorSearch
     @SpatialCenter GEOMETRY = NULL,
     @RadiusMeters FLOAT = NULL,
     @TopK INT = 10,
-    @TenantId INT = 0,
+    @TenantId INT = NULL, -- Optional tenant filtering: NULL = all tenants, specific value = single tenant
     @MinSimilarity FLOAT = 0.0
 AS
 BEGIN
@@ -33,7 +33,8 @@ BEGIN
                 ae.EmbeddingVector,
                 @SpatialCenter.STDistance(ae.SpatialProjection3D) AS SpatialDistance
             FROM dbo.AtomEmbeddings ae WITH (INDEX(IX_AtomEmbeddings_Spatial))
-            WHERE ae.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
                   AND ae.SpatialProjection3D IS NOT NULL
                   AND @SpatialCenter.STDistance(ae.SpatialProjection3D) <= @RadiusMeters;
             
@@ -49,7 +50,8 @@ BEGIN
                 ae.EmbeddingVector,
                 0 AS SpatialDistance
             FROM dbo.AtomEmbeddings ae
-            WHERE ae.TenantId = @TenantId
+            LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+            WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
             ORDER BY ae.AtomEmbeddingId; -- Deterministic ordering
             
             SET @CandidateCount = @@ROWCOUNT;
@@ -85,7 +87,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_TemporalVectorSearch
     @QueryVector VARBINARY(MAX),
     @AsOfDate DATETIME2,
     @TopK INT = 10,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -100,8 +102,8 @@ BEGIN
             a.ContentType
         FROM dbo.AtomEmbeddings FOR SYSTEM_TIME AS OF @AsOfDate ae
         INNER JOIN dbo.Atoms FOR SYSTEM_TIME AS OF @AsOfDate a ON ae.AtomId = a.AtomId
-        WHERE ae.TenantId = @TenantId
-              AND a.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
         ORDER BY Similarity DESC;
         
         RETURN 0;
@@ -125,7 +127,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_FusionSearch
     @VectorWeight FLOAT = 0.5,
     @KeywordWeight FLOAT = 0.3,
     @SpatialWeight FLOAT = 0.2,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -154,7 +156,8 @@ BEGIN
             0.0 AS KeywordScore,
             0.0 AS SpatialScore
         FROM dbo.AtomEmbeddings ae
-        WHERE ae.TenantId = @TenantId;
+        LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId);
         
         -- Add keyword scores (if keywords provided)
         IF @Keywords IS NOT NULL
@@ -197,7 +200,7 @@ BEGIN
             a.CreatedUtc
         FROM @Results r
         INNER JOIN dbo.Atoms a ON r.AtomId = a.AtomId
-        WHERE a.TenantId = @TenantId
+        -- No need for second TenantAtoms filter - already filtered in vector score computation
         ORDER BY r.CombinedScore DESC;
         
         RETURN 0;
@@ -224,7 +227,7 @@ CREATE OR ALTER PROCEDURE dbo.sp_MultiModelEnsemble
     @Model2Weight FLOAT = 0.35,
     @Model3Weight FLOAT = 0.25,
     @TopK INT = 10,
-    @TenantId INT = 0
+    @TenantId INT = NULL -- Optional tenant filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -244,7 +247,8 @@ BEGIN
         INSERT INTO @AllAtoms
         SELECT DISTINCT ae.AtomId
         FROM dbo.AtomEmbeddings ae
-        WHERE ae.TenantId = @TenantId
+        LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+        WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND ae.ModelId IN (@Model1Id, @Model2Id, @Model3Id);
         
         -- Score each atom with each model
@@ -289,7 +293,7 @@ BEGIN
             a.ContentType
         FROM @EnsembleResults er
         INNER JOIN dbo.Atoms a ON er.AtomId = a.AtomId
-        WHERE a.TenantId = @TenantId
+        -- No need for second TenantAtoms filter - already filtered in AllAtoms collection
         ORDER BY er.EnsembleScore DESC;
         
         RETURN 0;
