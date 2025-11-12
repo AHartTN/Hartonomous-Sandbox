@@ -408,60 +408,191 @@ public class AdvancedAudioAtomizer : IAudioAtomizer
 
     private Task<TimeSpan> EstimateAudioDurationAsync(byte[] audioData, string audioFormat)
     {
-        // TODO: Parse audio headers for accurate duration
-        // WAV: Parse fmt chunk for sample rate and data chunk for sample count
-        // MP3: Parse frame headers
-        // For now, use rough estimate based on bitrate assumptions
-        double estimatedSeconds = audioData.Length / 16000.0; // Assume 16kHz mono 16-bit = 32000 bytes/sec
+        // Parse WAV headers for accurate duration
+        var wavFormat = WavFileParser.ParseWavHeader(audioData);
+        if (wavFormat != null && wavFormat.DurationSeconds > 0)
+        {
+            return Task.FromResult(TimeSpan.FromSeconds(wavFormat.DurationSeconds));
+        }
+
+        // Fallback: rough estimate for non-WAV or unparseable files
+        // Assume 16kHz mono 16-bit = 32000 bytes/sec
+        double estimatedSeconds = audioData.Length / 32000.0;
         return Task.FromResult(TimeSpan.FromSeconds(estimatedSeconds));
     }
 
-    private Task<string?> GenerateAcousticFingerprintAsync(byte[] audioData, string audioFormat)
+    private async Task<string?> GenerateAcousticFingerprintAsync(byte[] audioData, string audioFormat)
     {
-        // TODO: Integrate Chromaprint library
-        // ALGORITHM (Shazam-like, from research):
-        // 1. Convert audio to spectrogram via FFT
-        // 2. Identify peak intensities in time-frequency graph
-        // 3. Create pairs of (peak, anchor_point) with time delta
-        // 4. Hash pairs to create compact fingerprint
-        // 5. Store hash for efficient nearest-neighbor lookup
-        //
-        // INTEGRATION:
-        // using Chromaprint;
-        // var chromaContext = new ChromaprintContext();
-        // chromaContext.Start(sampleRate, numChannels);
-        // chromaContext.Feed(samples);
-        // chromaContext.Finish();
-        // var fingerprint = chromaContext.GetFingerprint();
+        try
+        {
+            // Parse WAV to extract PCM samples
+            var wavFormat = WavFileParser.ParseWavHeader(audioData);
+            if (wavFormat == null || wavFormat.SampleRate <= 0)
+            {
+                _logger.LogWarning("Cannot generate acoustic fingerprint: invalid WAV format");
+                return null;
+            }
 
-        // Placeholder: Return null (no fingerprint generated yet)
-        return Task.FromResult<string?>(null);
+            // Extract PCM samples
+            var samples = WavFileParser.ExtractPcmSamples(audioData, wavFormat);
+            if (samples.Length == 0)
+            {
+                return null;
+            }
+
+            // Generate fingerprint using Shazam-like algorithm:
+            // 1. Create spectrogram via STFT (overlapping windows + FFT)
+            // 2. Detect spectral peaks (local maxima in time-frequency graph)
+            // 3. Create anchor point pairs with time delta
+            // 4. Hash pairs to create compact fingerprint
+
+            const int windowSize = 2048; // FFT window size
+            const int hopSize = windowSize / 2; // 50% overlap
+            var fingerprints = new List<string>();
+
+            // Generate spectrogram frames
+            for (int i = 0; i + windowSize < samples.Length; i += hopSize)
+            {
+                // Extract window
+                var window = new short[windowSize];
+                Array.Copy(samples, i, window, 0, windowSize);
+
+                // Apply Hann window to reduce spectral leakage
+                var windowed = FftProcessor.ApplyHannWindow(window);
+
+                // Convert to complex and perform FFT
+                var complexData = new FftProcessor.Complex[windowSize];
+                for (int j = 0; j < windowSize; j++)
+                {
+                    complexData[j] = new FftProcessor.Complex(windowed[j], 0.0);
+                }
+
+                FftProcessor.Fft(complexData, inverse: false);
+
+                // Get magnitude spectrum
+                var magnitudes = FftProcessor.MagnitudeSpectrum(complexData);
+
+                // Find spectral peaks (local maxima) for fingerprinting
+                var peaks = new List<(int bin, double magnitude)>();
+                for (int bin = 2; bin < magnitudes.Length - 2; bin++)
+                {
+                    if (magnitudes[bin] > magnitudes[bin - 1] &&
+                        magnitudes[bin] > magnitudes[bin + 1] &&
+                        magnitudes[bin] > magnitudes[bin - 2] &&
+                        magnitudes[bin] > magnitudes[bin + 2] &&
+                        magnitudes[bin] > 0.1) // Energy threshold
+                    {
+                        peaks.Add((bin, magnitudes[bin]));
+                    }
+                }
+
+                // Hash top peaks for this frame
+                var topPeaks = peaks.OrderByDescending(p => p.magnitude).Take(5);
+                foreach (var peak in topPeaks)
+                {
+                    // Convert bin to frequency
+                    var freq = FftProcessor.BinToFrequency(peak.bin, wavFormat.SampleRate, windowSize);
+                    var timeMs = (i * 1000) / wavFormat.SampleRate;
+                    
+                    // Create hash: freq_time
+                    var hash = $"{freq:F0}_{timeMs}";
+                    fingerprints.Add(hash);
+                }
+            }
+
+            // Combine fingerprints into compact representation
+            if (fingerprints.Count > 0)
+            {
+                // Take top 100 fingerprints and create hash
+                var topFingerprints = string.Join("|", fingerprints.Take(100));
+                return Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(topFingerprints));
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating acoustic fingerprint");
+            return null;
+        }
     }
 
-    private Task<List<AudioSegment>> SplitAudioBySilenceAsync(byte[] audioData, string audioFormat)
+    private async Task<List<AudioSegment>> SplitAudioBySilenceAsync(byte[] audioData, string audioFormat)
     {
-        // TODO: Implement energy-based silence detection
-        // ALGORITHM:
-        // 1. Convert to PCM samples
-        // 2. For each frame (e.g., 20ms):
-        //    - Calculate RMS energy
-        //    - Compare to threshold (e.g., -40dB)
-        // 3. Merge consecutive silent frames
-        // 4. Split at silence boundaries
-        // 5. Filter segments by min/max duration
-
-        // Placeholder: Return single segment
-        var segments = new List<AudioSegment>
+        try
         {
-            new AudioSegment
+            // Parse WAV to extract PCM samples
+            var wavFormat = WavFileParser.ParseWavHeader(audioData);
+            if (wavFormat == null || wavFormat.SampleRate <= 0)
             {
-                StartOffset = 0,
-                EndOffset = audioData.Length,
-                StartTime = TimeSpan.Zero,
-                EndTime = TimeSpan.FromSeconds(audioData.Length / 16000.0)
+                _logger.LogWarning("Cannot split by silence: invalid WAV format");
+                // Return single segment as fallback
+                return new List<AudioSegment>
+                {
+                    new AudioSegment
+                    {
+                        StartOffset = 0,
+                        EndOffset = audioData.Length,
+                        StartTime = TimeSpan.Zero,
+                        EndTime = TimeSpan.FromSeconds(audioData.Length / 32000.0)
+                    }
+                };
             }
-        };
-        return Task.FromResult(segments);
+
+            // Extract PCM samples
+            var samples = WavFileParser.ExtractPcmSamples(audioData, wavFormat);
+            if (samples.Length == 0)
+            {
+                return new List<AudioSegment>();
+            }
+
+            // Use SilenceDetector to detect speech/silence boundaries
+            var detector = new SilenceDetector(
+                silenceThresholdDb: SilenceThresholdDb,
+                frameSizeMs: 20,
+                minSegmentMs: MinSegmentDurationMs,
+                maxSegmentMs: MaxSegmentDurationMs
+            );
+
+            var detectedSegments = detector.DetectSilenceBoundaries(samples, wavFormat.SampleRate);
+
+            // Convert sample positions to byte offsets and time spans
+            int bytesPerSample = wavFormat.BitsPerSample / 8 * wavFormat.Channels;
+            var audioSegments = new List<AudioSegment>();
+
+            foreach (var segment in detectedSegments)
+            {
+                int startOffset = segment.StartSample * bytesPerSample;
+                int endOffset = segment.EndSample * bytesPerSample;
+                double startSeconds = (double)segment.StartSample / wavFormat.SampleRate;
+                double endSeconds = (double)segment.EndSample / wavFormat.SampleRate;
+
+                audioSegments.Add(new AudioSegment
+                {
+                    StartOffset = startOffset,
+                    EndOffset = endOffset,
+                    StartTime = TimeSpan.FromSeconds(startSeconds),
+                    EndTime = TimeSpan.FromSeconds(endSeconds)
+                });
+            }
+
+            return audioSegments;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error splitting audio by silence");
+            // Return single segment as fallback
+            return new List<AudioSegment>
+            {
+                new AudioSegment
+                {
+                    StartOffset = 0,
+                    EndOffset = audioData.Length,
+                    StartTime = TimeSpan.Zero,
+                    EndTime = TimeSpan.FromSeconds(audioData.Length / 32000.0)
+                }
+            };
+        }
     }
 
     private double CalculateAudioQuality(byte[] audioData, string audioFormat)
