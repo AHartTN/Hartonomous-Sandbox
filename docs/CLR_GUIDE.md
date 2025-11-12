@@ -4,16 +4,20 @@
 
 ## Overview
 
-Hartonomous deploys a .NET Framework 4.8.1 CLR assembly (`SqlClrFunctions.dll`) into SQL Server 2025 to provide SIMD-accelerated vector operations, transformer inference, anomaly detection, multimodal processing, and stream orchestration. CLR functions execute in-process with sub-millisecond latency, enabling T-SQL to call advanced AI operations directly.
+Hartonomous deploys a .NET Framework 4.8.1 CLR assembly (`SqlClrFunctions.dll`) into SQL Server 2025 to provide **CPU SIMD-accelerated** vector operations, transformer inference, anomaly detection, multimodal processing, and stream orchestration. CLR functions execute in-process with sub-millisecond latency, enabling T-SQL to call advanced AI operations directly.
+
+**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), no GPU acceleration
 
 **Key Capabilities**:
 
-- **Vector Math**: Dot product, cosine similarity, Euclidean distance, vector aggregates (AVX2/SIMD)
+- **Vector Math**: Dot product, cosine similarity, Euclidean distance, vector aggregates (AVX2/SSE4 SIMD)
 - **Transformer Inference**: Multi-head attention, feed-forward layers, layer normalization
 - **Anomaly Detection**: Isolation Forest, Mahalanobis distance, threshold-based scores
 - **Multimodal Processing**: Audio waveform generation, image patch extraction, text/image/audio fusion
 - **Spatial Operations**: Trilateration projection (high-dimensional → 3D GEOMETRY), landmark projection
 - **Stream Orchestration**: AtomicStream, ComponentStream UDTs for event stream serialization
+
+**Hardware Acceleration**: Uses `VectorMath` class with CPU SIMD intrinsics (AVX2 on modern Intel/AMD CPUs, SSE4 fallback). No GPU acceleration (ILGPU removed due to CLR verifier incompatibility with unmanaged pointers).
 
 ## .NET Framework 4.8.1 Constraints
 
@@ -85,9 +89,11 @@ SELECT dbo.clr_EuclideanDistance(@vec1, @vec2) AS Distance;
 
 **Implementation Notes**:
 
-- Uses `unsafe` pointer arithmetic for AVX2 SIMD acceleration
-- Processes 8 floats per instruction (AVX2) or 16 floats (AVX-512)
-- **Performance**: 8-16x speedup over scalar operations for 1998-dimension vectors
+- Uses `VectorMath` class with CPU SIMD intrinsics (AVX2/SSE4)
+- `GpuAccelerator` is a wrapper that always returns `IsGpuAvailable=false` and `DeviceType="CPU-SIMD"`
+- All operations delegate to `VectorMath` for CPU execution
+- Processes 8 floats per instruction (AVX2) or 4 floats (SSE4) depending on CPU support
+- **Performance**: 8-16x speedup over scalar operations for 1998-dimension vectors (vs baseline, not GPU)
 
 ### Vector Aggregates (`VectorAggregates.cs`)
 
@@ -215,12 +221,21 @@ dotnet build SqlClrFunctions.csproj -c Release
 
 **Dependencies** (copied to `dependencies/` by `scripts/copy-dependencies.ps1`):
 
-- `System.Numerics.Vectors.dll`
-- `MathNet.Numerics.dll`
-- `Newtonsoft.Json.dll`
-- `System.ServiceModel.Internals.dll`
-- `SMDiagnostics.dll`
-- `System.Runtime.Serialization.dll`
+1. `System.Runtime.CompilerServices.Unsafe.dll` - Unsafe memory operations
+2. `System.Buffers.dll` - Memory buffer management
+3. `System.Numerics.Vectors.dll` - SIMD vector types
+4. `System.Memory.dll` - Span<T> and Memory<T>
+5. `System.Runtime.InteropServices.RuntimeInformation.dll` - Platform detection
+6. `System.Collections.Immutable.dll` - Immutable collections
+7. `System.Reflection.Metadata.dll` - Metadata reading
+8. `System.ServiceModel.Internals.dll` - WCF internals
+9. `SMDiagnostics.dll` - Service model diagnostics
+10. `System.Drawing.dll` - Graphics/image operations
+11. `System.Runtime.Serialization.dll` - Data contract serialization
+12. `Newtonsoft.Json.dll` - JSON serialization (runtime uses GAC version)
+13. `MathNet.Numerics.dll` - Advanced mathematics
+
+**Total**: 14 assemblies (13 dependencies + SqlClrFunctions)
 
 ### Deployment: Development (Local)
 
@@ -308,7 +323,7 @@ WITH PERMISSION_SET = SAFE;
 
 **Why UNSAFE is Required**:
 
-1. **SIMD Intrinsics**: `System.Numerics.Vectors` uses `unsafe` pointer arithmetic for AVX2
+1. **CPU SIMD Intrinsics**: `System.Numerics.Vectors` uses `unsafe` pointer arithmetic for AVX2/SSE4
 2. **MathNet.Numerics**: High-performance math operations require unmanaged memory
 3. **FILESTREAM**: Direct memory-mapped file access for model weights
 4. **Newtonsoft.Json**: Zero-allocation span operations use unsafe casts
@@ -375,18 +390,20 @@ SELECT * FROM sys.trusted_assemblies;
 
 ## Performance Characteristics
 
-### SIMD Acceleration
+### SIMD Acceleration (CPU Only)
 
-**AVX2 (8 floats per instruction)**:
+**AVX2 (8 floats per instruction)** - Modern Intel/AMD CPUs (2013+):
 
 - Dot product (1998D vectors): ~18,500 ops/sec (9.25x speedup vs scalar)
 - Cosine similarity: ~17,000 ops/sec
 - Euclidean distance: ~16,500 ops/sec
 
-**AVX-512 (16 floats per instruction)** (when available):
+**SSE4 Fallback (4 floats per instruction)** - Older CPUs:
 
-- Dot product: ~35,000 ops/sec (17.5x speedup)
-- Requires CPU support (Intel Xeon Scalable 2nd gen+, AMD Zen 4+)
+- Dot product: ~9,000 ops/sec (4.5x speedup)
+- Automatic fallback when AVX2 unavailable
+
+**Note**: GPU acceleration (ILGPU) was removed due to CLR verifier incompatibility with unmanaged GPU memory pointers. All operations use CPU SIMD only.
 
 ### JSON Serialization (Newtonsoft.Json)
 
@@ -447,15 +464,24 @@ SELECT * FROM sys.trusted_assemblies;
 
 **Cause**: Dependency DLL missing or not deployed in correct order.
 
-**Fix**: Deploy dependencies first:
+**Fix**: Deploy dependencies in correct order (see deploy-clr-secure.ps1 for exact order):
 
-1. `System.Numerics.Vectors.dll`
-2. `MathNet.Numerics.dll`
-3. `Newtonsoft.Json.dll`
-4. `System.ServiceModel.Internals.dll`, `SMDiagnostics.dll`, `System.Runtime.Serialization.dll`
-5. `SqlClrFunctions.dll` (last)
+1. `System.Runtime.CompilerServices.Unsafe.dll`
+2. `System.Buffers.dll`
+3. `System.Numerics.Vectors.dll`
+4. `System.Memory.dll`
+5. `System.Runtime.InteropServices.RuntimeInformation.dll`
+6. `System.Collections.Immutable.dll`
+7. `System.Reflection.Metadata.dll`
+8. `System.ServiceModel.Internals.dll`
+9. `SMDiagnostics.dll`
+10. `System.Drawing.dll`
+11. `System.Runtime.Serialization.dll`
+12. `Newtonsoft.Json.dll`
+13. `MathNet.Numerics.dll`
+14. `SqlClrFunctions.dll` (last)
 
-**Automated**: Run `scripts/copy-dependencies.ps1` to populate `dependencies/` folder.
+**Automated**: Run `scripts/deploy-clr-secure.ps1` to deploy all 14 assemblies in correct order.
 
 ### Error: "Assembly is malformed or not a pure .NET assembly"
 
@@ -526,33 +552,26 @@ FROM (
 ORDER BY Timestamp DESC;
 ```
 
-## Future Enhancements
+## Architecture Notes
 
-### GPU Acceleration (ILGPU) - Planned
+### Why No GPU Acceleration?
 
-**Status**: Stub exists (`GpuVectorAccelerator.cs` with TODO comments), not yet implemented.
+**ILGPU Removed**: ILGPU 0.8.0 (and earlier 1.5.1) failed SQL Server CLR verifier due to unmanaged GPU memory pointers. SQL Server CLR requires verifiable pure managed code only.
 
-**Architecture**:
+**Current Approach**: CPU SIMD via `VectorMath` class using `System.Numerics.Vectors` (AVX2/SSE4 intrinsics). This provides 8-16x speedup over scalar operations without CLR verifier issues.
 
-- ILGPU.NET for GPU kernel compilation
-- Fallback to CPU SIMD when GPU unavailable
-- Requires `UNSAFE` for GPU memory interop
+**GpuAccelerator Class**: Remains as a no-op wrapper (`IsGpuAvailable=false`, `DeviceType="CPU-SIMD"`) that delegates all operations to `VectorMath`. This preserves the API surface for potential future GPU integration outside SQL CLR (e.g., in API/worker processes).
 
-**When Implemented**:
-
-- Deployment: Add `ILGPU.dll`, `ILGPU.Algorithms.dll` to assembly list
-- **Performance**: 100-1000x for large batch operations (>1M vectors)
-- **Hardware**: Requires NVIDIA/AMD GPU with compute capability
-
-**Tracking**: See [docs/REFACTOR_TARGET.md](REFACTOR_TARGET.md) for roadmap.
+**Performance**: For SQL CLR workloads (< 10K operations per call), CPU SIMD is sufficient. Large-scale ML inference should use external services (Azure OpenAI, ONNX Runtime, etc.) and persist results to SQL Server.
 
 ## References
 
 - [README.md](../README.md) - Getting started guide
 - [ARCHITECTURE.md](../ARCHITECTURE.md) - System architecture
 - [DEPLOYMENT.md](../DEPLOYMENT.md) - Deployment guide
+- [UNSAFE_CLR_SECURITY.md](UNSAFE_CLR_SECURITY.md) - Security implications and best practices
+- [SQLSERVER_BINDING_REDIRECTS.md](../SQLSERVER_BINDING_REDIRECTS.md) - Newtonsoft.Json GAC binding configuration
 - [Microsoft Docs: CLR Integration](https://learn.microsoft.com/en-us/sql/relational-databases/clr-integration/common-language-runtime-integration-overview)
 - [Microsoft Docs: CLR Strict Security](https://learn.microsoft.com/en-us/sql/database-engine/configure-windows/clr-strict-security)
 - [Microsoft Docs: CREATE ASSEMBLY](https://learn.microsoft.com/en-us/sql/t-sql/statements/create-assembly-transact-sql)
 - [Microsoft Docs: sys.sp_add_trusted_assembly](https://learn.microsoft.com/en-us/sql/relational-databases/system-stored-procedures/sys-sp-add-trusted-assembly-transact-sql)
-- [HIGH_PERFORMANCE_CLR_PLAN.md](HIGH_PERFORMANCE_CLR_PLAN.md) - Binding redirects and ILGPU dependency plan

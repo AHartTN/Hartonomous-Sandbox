@@ -223,8 +223,28 @@ WHERE drs.database_id = DB_ID('Hartonomous');
 **⚠️ CRITICAL SECURITY NOTICE:** All CLR assemblies require **UNSAFE** permissions. See **[UNSAFE CLR Security Documentation](docs/UNSAFE_CLR_SECURITY.md)** for:
 - Security implications and attack scenarios
 - Production deployment with trusted assemblies (sys.sp_add_trusted_assembly)
-- GPU acceleration security considerations
+- CPU SIMD acceleration (AVX2/SSE4) security considerations
 - Migration from TRUSTWORTHY ON to secure deployment
+
+**Current Deployment**: 14 assemblies (CPU SIMD-only, no GPU acceleration)
+
+**Assembly List** (in dependency order):
+1. `System.Runtime.CompilerServices.Unsafe.dll` - Unsafe memory operations
+2. `System.Buffers.dll` - Memory buffer management  
+3. `System.Numerics.Vectors.dll` - SIMD vector types (AVX2/SSE4)
+4. `System.Memory.dll` - Span<T> and Memory<T>
+5. `System.Runtime.InteropServices.RuntimeInformation.dll` - Platform detection
+6. `System.Collections.Immutable.dll` - Immutable collections
+7. `System.Reflection.Metadata.dll` - Metadata reading
+8. `System.ServiceModel.Internals.dll` - WCF internals
+9. `SMDiagnostics.dll` - Service model diagnostics
+10. `System.Drawing.dll` - Graphics/image operations
+11. `System.Runtime.Serialization.dll` - Data contract serialization
+12. `Newtonsoft.Json.dll` - JSON serialization (runtime uses GAC version 13.0.0.0 via binding redirect in sqlservr.exe.config)
+13. `MathNet.Numerics.dll` - Advanced mathematics library
+14. `SqlClrFunctions.dll` - Main Hartonomous CLR assembly
+
+**Newtonsoft.Json GAC Binding**: Deployed as assembly for SQL Server dependency resolution, but runtime loads GAC version 13.0.0.0 (installed by Visual Studio/.NET SDK) via binding redirect configured in `deploy/sqlservr.exe.config`.
 
 **Strong-Name Signing** (production requirement):
 
@@ -482,11 +502,12 @@ builder.Configuration.AddAzureKeyVault(
 ### Database Verification
 
 ```sql
--- 1. Check CLR assemblies
+-- Check CLR assemblies
 SELECT name, permission_set_desc, is_visible
 FROM sys.assemblies 
 WHERE is_user_defined = 1;
--- Expected: SqlClrFunctions, System.Numerics.Vectors, MathNet.Numerics, Newtonsoft.Json, etc.
+-- Expected: 14 assemblies (System.Runtime.CompilerServices.Unsafe → SqlClrFunctions)
+-- NOTE: Newtonsoft.Json deployed for dependency resolution, runtime uses GAC version via binding redirect
 
 -- 2. Check Service Broker
 SELECT is_broker_enabled FROM sys.databases WHERE name = 'Hartonomous';

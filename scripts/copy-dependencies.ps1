@@ -16,15 +16,15 @@ Write-Host "`n========================================" -ForegroundColor Cyan
 Write-Host "COPYING ALL DEPENDENCIES" -ForegroundColor Cyan
 Write-Host "========================================`n" -ForegroundColor Cyan
 
-# NuGet packages
+# NuGet packages - ILGPU 0.8.0 + Unsafe 4.5.3 = compatible dependency tree
 $nugetPackages = @(
-    @{Name="ILGPU"; Path="ilgpu\0.9.2\lib\net47\ILGPU.dll"},
-    @{Name="ILGPU.Algorithms"; Path="ilgpu.algorithms\0.9.2\lib\net47\ILGPU.Algorithms.dll"},
+    @{Name="ILGPU"; Path="ilgpu\0.8.0\lib\net47\Release\ILGPU.dll"},
+    @{Name="ILGPU.Algorithms"; Path="ilgpu.algorithms\0.8.0\lib\net47\Release\ILGPU.Algorithms.dll"},
     @{Name="MathNet.Numerics"; Path="mathnet.numerics\5.0.0\lib\net48\MathNet.Numerics.dll"},
-    @{Name="Newtonsoft.Json"; Path="newtonsoft.json\13.0.4\lib\net45\Newtonsoft.Json.dll"},
+    @{Name="Newtonsoft.Json"; Path="newtonsoft.json\13.0.3\lib\net45\Newtonsoft.Json.dll"},
     @{Name="System.Collections.Immutable"; Path="system.collections.immutable\1.7.1\lib\net461\System.Collections.Immutable.dll"},
     @{Name="System.Reflection.Metadata"; Path="system.reflection.metadata\1.8.1\lib\net461\System.Reflection.Metadata.dll"},
-    @{Name="System.Runtime.CompilerServices.Unsafe"; Path="system.runtime.compilerservices.unsafe\4.7.1\lib\net461\System.Runtime.CompilerServices.Unsafe.dll"},
+    @{Name="System.Runtime.CompilerServices.Unsafe"; Path="system.runtime.compilerservices.unsafe\4.5.3\lib\net461\System.Runtime.CompilerServices.Unsafe.dll"},
     @{Name="System.Buffers"; Path="system.buffers\4.5.1\lib\net461\System.Buffers.dll"},
     @{Name="System.Memory"; Path="system.memory\4.5.4\lib\net461\System.Memory.dll"},
     @{Name="System.Numerics.Vectors"; Path="system.numerics.vectors\4.5.0\lib\net46\System.Numerics.Vectors.dll"},

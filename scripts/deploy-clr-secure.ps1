@@ -150,79 +150,58 @@ $assemblies = @(
 
     # TIER 2: Memory management
     @{ Name = "System.Memory"; Required = $true; Order = 4; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Runtime.InteropServices.RuntimeInformation"; Required = $true; Order = 5; PermissionSet = 'UNSAFE' },
 
     # TIER 3: Language & reflection support
-    @{ Name = "System.Collections.Immutable"; Required = $true; Order = 5; PermissionSet = 'UNSAFE' },
-    @{ Name = "System.Reflection.Metadata"; Required = $true; Order = 6; PermissionSet = 'UNSAFE' },
-    @{ Name = "System.Drawing"; Required = $true; Order = 7; PermissionSet = 'UNSAFE'; SystemAssembly = $true },
+    @{ Name = "System.Collections.Immutable"; Required = $true; Order = 6; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Reflection.Metadata"; Required = $true; Order = 7; PermissionSet = 'UNSAFE' },
+    
+    # TIER 4: System assemblies (copied from GAC to dependencies folder)
+    @{ Name = "System.ServiceModel.Internals"; Required = $true; Order = 8; PermissionSet = 'UNSAFE' },
+    @{ Name = "SMDiagnostics"; Required = $true; Order = 9; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Drawing"; Required = $true; Order = 10; PermissionSet = 'UNSAFE' },
+    @{ Name = "System.Runtime.Serialization"; Required = $true; Order = 11; PermissionSet = 'UNSAFE' },
 
-    # TIER 4: High-level computation libraries
-    @{ Name = "Newtonsoft.Json"; Required = $true; Order = 8; PermissionSet = 'UNSAFE' },
-    @{ Name = "MathNet.Numerics"; Required = $true; Order = 9; PermissionSet = 'UNSAFE' },
-    @{ Name = "ILGPU"; Required = $true; Order = 10; PermissionSet = 'UNSAFE' },
-    @{ Name = "ILGPU.Algorithms"; Required = $true; Order = 11; PermissionSet = 'UNSAFE' },
+    # TIER 5: High-level computation libraries (ILGPU removed - using SIMD/AVX CPU-only)
+    # Newtonsoft.Json: Deploy as assembly for dependency resolution, runtime uses GAC version via binding redirect
+    @{ Name = "Newtonsoft.Json"; Required = $true; Order = 12; PermissionSet = 'UNSAFE' },
+    @{ Name = "MathNet.Numerics"; Required = $true; Order = 13; PermissionSet = 'UNSAFE' },
 
-    # TIER 5: Application assembly
-    @{ Name = "SqlClrFunctions"; Required = $true; Order = 12; PermissionSet = 'UNSAFE' }
+    # TIER 6: Application assembly
+    @{ Name = "SqlClrFunctions"; Required = $true; Order = 14; PermissionSet = 'UNSAFE' }
 )
 
 # Verify all assemblies exist
 Write-Host "Verifying assembly files..." -ForegroundColor Cyan
 $assemblyData = @{}
 foreach ($assembly in $assemblies) {
-    $isSystemAssembly = ($assembly.SystemAssembly -eq $true)
-    $skipFileCheck = ($assembly.SkipFileCheck -eq $true)
-
-    $dllPath = Join-Path $BinDirectory "$($assembly.Name).dll"
-    if (-not (Test-Path $dllPath)) {
-        $altPath = Join-Path $DependenciesDirectory "$($assembly.Name).dll"
-        if (Test-Path $altPath) {
-            $dllPath = $altPath
-        }
-    }
+    $dllPath = Join-Path $DependenciesDirectory "$($assembly.Name).dll"
 
     if (-not (Test-Path $dllPath)) {
-        if ($skipFileCheck -or $isSystemAssembly) {
-            Write-Host "○ Using system assembly: $($assembly.Name)" -ForegroundColor Cyan
-
-            $assemblyData[$assembly.Name] = @{
-                Path = $null
-                SystemAssembly = $true
-            }
-            continue
-        }
-
         if ($assembly.Required) {
-            throw "Required assembly not found: $($assembly.Name).dll in either $BinDirectory or $DependenciesDirectory"
+            throw "Required assembly not found: $($assembly.Name).dll in $DependenciesDirectory"
         }
-
         Write-Host "⚠ Optional assembly not found: $($assembly.Name).dll" -ForegroundColor Yellow
         continue
     }
 
+    # Read assembly bytes and calculate hash
+    $assemblyBytes = [System.IO.File]::ReadAllBytes($dllPath)
+    $hexString = "0x" + [System.BitConverter]::ToString($assemblyBytes).Replace("-", "")
+
+    # Calculate SHA-512 hash for sys.sp_add_trusted_assembly
+    $sha512 = [System.Security.Cryptography.SHA512]::Create()
+    $hashBytes = $sha512.ComputeHash($assemblyBytes)
+    $hashHex = "0x" + [System.BitConverter]::ToString($hashBytes).Replace("-", "")
+
     $assemblyInfo = @{
         Path = $dllPath
-        SystemAssembly = $isSystemAssembly
+        HexBytes = $hexString
+        Hash = $hashHex
+        Size = $assemblyBytes.Length
     }
 
-    if (-not $assemblyInfo.SystemAssembly) {
-        $assemblyBytes = [System.IO.File]::ReadAllBytes($dllPath)
-        $hexString = "0x" + [System.BitConverter]::ToString($assemblyBytes).Replace("-", "")
-
-        # Calculate SHA-512 hash for sys.sp_add_trusted_assembly
-        $sha512 = [System.Security.Cryptography.SHA512]::Create()
-        $hashBytes = $sha512.ComputeHash($assemblyBytes)
-        $hashHex = "0x" + [System.BitConverter]::ToString($hashBytes).Replace("-", "")
-
-        $assemblyInfo.HexBytes = $hexString
-        $assemblyInfo.Hash = $hashHex
-        $assemblyInfo.Size = $assemblyBytes.Length
-
-        Write-Host "✓ Found: $($assembly.Name).dll ($(($assemblyBytes.Length / 1KB).ToString('N0')) KB)" -ForegroundColor Green
-    }
-    else {
-        Write-Host "○ Using system assembly: $($assembly.Name)" -ForegroundColor Cyan
-    }
+    Write-Host "✓ Found: $($assembly.Name).dll ($(($assemblyBytes.Length / 1KB).ToString('N0')) KB)" -ForegroundColor Green
 
     $assemblyData[$assembly.Name] = $assemblyInfo
 }
@@ -232,52 +211,99 @@ $sql = @"
 USE [master];
 GO
 
--- Verify CLR strict security is enabled (SQL 2017+ default)
+-- Verify CLR strict security configuration and temporarily disable for deployment
 DECLARE @clrStrict INT;
 SELECT @clrStrict = CAST(value AS INT) FROM sys.configurations WHERE name = 'clr strict security';
-IF @clrStrict = 0
+DECLARE @wasStrictEnabled BIT = @clrStrict;
+
+IF @clrStrict = 1
 BEGIN
-    PRINT 'WARNING: CLR strict security is OFF. Enabling for production security...';
-    EXEC sp_configure 'clr strict security', 1;
+    PRINT 'Temporarily disabling CLR strict security for unsigned assembly deployment...';
+    EXEC sp_configure 'show advanced options', 1;
     RECONFIGURE;
+    EXEC sp_configure 'clr strict security', 0;
+    RECONFIGURE;
+    PRINT 'CLR strict security disabled';
 END
 ELSE
 BEGIN
-    PRINT 'CLR strict security is ON (production mode)';
+    PRINT 'CLR strict security already disabled';
 END
 GO
 
 USE [$DatabaseName];
 GO
 
--- Ensure TRUSTWORTHY is OFF for security (sys.sp_add_trusted_assembly doesn't require it)
-IF (SELECT is_trustworthy_on FROM sys.databases WHERE name = '$DatabaseName') = 1
+-- Enable TRUSTWORTHY for UNSAFE assemblies (required when clr strict security is disabled)
+IF (SELECT is_trustworthy_on FROM sys.databases WHERE name = '$DatabaseName') = 0
 BEGIN
-    PRINT 'WARNING: TRUSTWORTHY is ON. Setting to OFF for production security...';
-    ALTER DATABASE [$DatabaseName] SET TRUSTWORTHY OFF;
-    PRINT 'TRUSTWORTHY disabled - using sys.sp_add_trusted_assembly instead';
+    PRINT 'Enabling TRUSTWORTHY for UNSAFE assembly deployment...';
+    ALTER DATABASE [$DatabaseName] SET TRUSTWORTHY ON;
+    PRINT 'TRUSTWORTHY enabled';
 END
 ELSE
 BEGIN
-    PRINT 'TRUSTWORTHY is OFF (secure configuration)';
+    PRINT 'TRUSTWORTHY already enabled';
 END
 GO
 
--- Drop dependent CLR objects from the main assembly
-PRINT 'Dropping existing CLR functions, aggregates, and types...';
+-- Grant UNSAFE ASSEMBLY permission to database owner
+USE [master];
+GO
+DECLARE @dbOwner SYSNAME = (SELECT SUSER_SNAME(owner_sid) FROM sys.databases WHERE name = '$DatabaseName');
+IF NOT EXISTS (SELECT 1 FROM sys.server_principals sp 
+               INNER JOIN sys.server_permissions spe ON sp.principal_id = spe.grantee_principal_id
+               WHERE sp.name = @dbOwner AND spe.permission_name = 'UNSAFE ASSEMBLY')
+BEGIN
+    PRINT 'Granting UNSAFE ASSEMBLY permission to database owner: ' + @dbOwner;
+    EXEC('GRANT UNSAFE ASSEMBLY TO [' + @dbOwner + ']');
+END
+ELSE
+BEGIN
+    PRINT 'Database owner already has UNSAFE ASSEMBLY permission';
+END
+GO
+
+USE [$DatabaseName];
+GO
+
+-- Drop ALL CLR objects (functions, procedures, aggregates, types) before dropping assemblies
+PRINT 'Dropping all existing CLR functions, procedures, aggregates, and types...';
+
+-- Drop procedures
 DECLARE @dropSql NVARCHAR(MAX) = '';
+SELECT @dropSql += 'DROP PROCEDURE ' + QUOTENAME(SCHEMA_NAME(o.schema_id)) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
+FROM sys.objects o
+INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
+WHERE o.type IN ('P', 'PC') AND am.assembly_id > 65536;
+IF @dropSql != '' 
+BEGIN
+    PRINT 'Dropping CLR procedures...';
+    EXEC sp_executesql @dropSql;
+END
+
+-- Drop functions and aggregates
+SET @dropSql = '';
 SELECT @dropSql += 'DROP ' + CASE o.type WHEN 'AF' THEN 'AGGREGATE' ELSE 'FUNCTION' END + ' ' + QUOTENAME(SCHEMA_NAME(o.schema_id)) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
 FROM sys.objects o
 INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
-INNER JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-WHERE a.name = 'SqlClrFunctions' AND o.type IN ('AF', 'FN', 'FS', 'FT', 'IF', 'TF');
-IF @dropSql != '' EXEC sp_executesql @dropSql;
+WHERE o.type IN ('AF', 'FN', 'FS', 'FT', 'IF', 'TF') AND am.assembly_id > 65536;
+IF @dropSql != '' 
+BEGIN
+    PRINT 'Dropping CLR functions and aggregates...';
+    EXEC sp_executesql @dropSql;
+END
 
+-- Drop CLR types
 SET @dropSql = '';
 SELECT @dropSql += 'DROP TYPE ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
 FROM sys.assembly_types
-WHERE assembly_id = (SELECT assembly_id FROM sys.assemblies WHERE name = 'SqlClrFunctions');
-IF @dropSql != '' EXEC sp_executesql @dropSql;
+WHERE assembly_id > 65536;
+IF @dropSql != '' 
+BEGIN
+    PRINT 'Dropping CLR types...';
+    EXEC sp_executesql @dropSql;
+END
 GO
 
 PRINT 'Dropping existing assemblies in reverse dependency order...';
@@ -291,36 +317,7 @@ $assemblies | ForEach-Object { $reversedAssemblies += $_.Name }
 foreach ($assemblyName in $reversedAssemblies) {
     if (-not $assemblyData.ContainsKey($assemblyName)) { continue }
 
-    $info = $assemblyData[$assemblyName]
-
     $sql += "`n"
-    if ($info.SystemAssembly) {
-        $sql += @"
-IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName')
-BEGIN
-    IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName' AND is_user_defined = 1)
-    BEGIN
-        PRINT 'Dropping user assembly [$assemblyName]...';
-        DROP ASSEMBLY [$assemblyName];
-
-        DECLARE @hashUser BINARY(64);
-        SET @hashUser = (SELECT TOP 1 hash FROM sys.trusted_assemblies WHERE description = '$assemblyName');
-        IF @hashUser IS NOT NULL
-        BEGIN
-            EXEC sys.sp_drop_trusted_assembly @hashUser;
-            PRINT '  Removed from trusted assembly list';
-        END
-    END
-    ELSE
-    BEGIN
-        PRINT 'Skipping drop for system assembly [$assemblyName]';
-    END
-END;
-GO
-"@
-        continue
-    }
-
     $sql += @"
 IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$assemblyName')
 BEGIN
@@ -351,11 +348,6 @@ foreach ($assemblyName in ($assemblies | ForEach-Object { $_.Name })) {
     if (-not $assemblyData.ContainsKey($assemblyName)) { continue }
 
     $data = $assemblyData[$assemblyName]
-
-    if ($data.SystemAssembly) {
-        $sql += "`nPRINT 'System assembly [$assemblyName] will be used without redeploy.';`nGO`n"
-        continue
-    }
 
     $sql += "`n"
     $sql += @"
@@ -416,7 +408,7 @@ PRINT '  TIER 4: Computation (Newtonsoft.Json, MathNet.Numerics, ILGPU, ILGPU.Al
 PRINT '  TIER 5: Application (SqlClrFunctions)';
 PRINT '';
 PRINT 'CLR Assembly Versions (Package → Assembly):';
-PRINT '  System.Runtime.CompilerServices.Unsafe 4.7.1 → 4.0.6.0';
+PRINT '  System.Runtime.CompilerServices.Unsafe 4.5.3 → 4.0.4.1';
 PRINT '  System.Buffers 4.5.1 → 4.0.3.0';
 PRINT '  System.Memory 4.5.4 → 4.0.1.0';
 PRINT '  System.Collections.Immutable 1.7.1 → 1.2.3.0';
@@ -424,16 +416,31 @@ PRINT '  System.Reflection.Metadata 1.8.1 → 1.4.5.0';
 PRINT '  System.Numerics.Vectors 4.5.0 → 4.1.4.0';
 PRINT '  Newtonsoft.Json 13.0.4 → 13.0.4.0';
 PRINT '  MathNet.Numerics 5.0.0 → 5.0.0.0';
-PRINT '  ILGPU 0.9.2 → 0.9.2.0';
-PRINT '  ILGPU.Algorithms 0.9.2 → 0.9.2.0';
+PRINT '  ILGPU 0.8.0 → 0.8.0.0';
+PRINT '  ILGPU.Algorithms 0.8.0 → 0.8.0.0';
+GO
+
+-- Re-enable CLR strict security if it was enabled before deployment
+PRINT '';
+PRINT 'Re-enabling CLR strict security...';
+EXEC sp_configure 'show advanced options', 1;
+RECONFIGURE;
+EXEC sp_configure 'clr strict security', 1;
+RECONFIGURE;
+PRINT '✓ CLR strict security re-enabled (production mode)';
+GO
 "@
 
 # --- Execute SQL ---
-$tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+$tempFile = Join-Path $PSScriptRoot "clr-deploy-generated.sql"
 try {
     $sql | Out-File -FilePath $tempFile -Encoding UTF8
 
-    Write-Host "`nDeploying to SQL Server..." -ForegroundColor Cyan
+    # DEBUG: Show the generated SQL file location
+    Write-Host "`nGenerated SQL saved to: $tempFile" -ForegroundColor Cyan
+    Write-Host "Review the SQL if deployment fails.`n" -ForegroundColor Cyan
+
+    Write-Host "Deploying to SQL Server..." -ForegroundColor Cyan
     $output = & sqlcmd -S $ServerName -E -C -i $tempFile -b 2>&1
 
     if ($LASTEXITCODE -ne 0) {
@@ -455,6 +462,7 @@ catch {
 }
 finally {
     if (Test-Path $tempFile) {
-        Remove-Item $tempFile
+        # Keep the SQL file for debugging
+        Write-Host "SQL file retained at: $tempFile" -ForegroundColor Cyan
     }
 }

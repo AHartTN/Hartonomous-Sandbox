@@ -1,29 +1,26 @@
 # VERSION AND COMPATIBILITY AUDIT
 
-**Generated**: November 11, 2024  
-**Purpose**: Ensure latest and greatest technologies, resolve dependency hell, eliminate compatibility issues  
-**Methodology**: MS Docs research + web search + codebase analysis
+**Generated**: November 11, 2025  
+**Purpose**: Document current deployment state and technology stack  
+**Methodology**: MS Docs research + codebase analysis
 
 ---
 
 ## Executive Summary
 
-**Current State**: ✅ **EXCELLENT** - Repository uses cutting-edge technology stack with latest .NET 10 RC2 and SQL Server 2025 preview features.
+**Current Deployment State**:
 
-**Key Findings**:
-- ✅ .NET 10 (RC2) across all modern services
-- ✅ EF Core 10.0.0-rc.2.25502.107 with SQL Server 2025 features (native VECTOR, native JSON)
-- ✅ Microsoft.Data.SqlClient 6.1.2 (latest, includes 50x faster vector operations)
-- ✅ SQL CLR correctly uses .NET Framework 4.8.1 (SQL Server 2025 requirement)
-- ⚠️ **36 packages need upgrades** to latest stable/RC versions
-- ⚠️ **Version mixing**: Some projects use .NET 9 packages when .NET 10 available
-- ⚠️ **3 duplicate CLR project files** (SqlClrFunctions.csproj, -CLEAN, -BACKUP) with inconsistent versions
+- .NET 10 (RC2) across all modern services
+- EF Core 10.0.0-rc.2.25502.107 with SQL Server 2025 features (native VECTOR, native JSON)
+- Microsoft.Data.SqlClient 6.1.2 (includes 50x faster vector operations)
+- SQL CLR uses .NET Framework 4.8.1 (14 assemblies, CPU SIMD-only, no GPU acceleration)
 
-**Critical Compatibility Requirements**:
-1. **SQL Server 2025 Native VECTOR**: Requires EF Core 10.0+ AND Microsoft.Data.SqlClient 6.1.0+
-2. **SQL Server 2025 Native JSON**: Requires EF Core 10.0+ AND compatibility level 170+ (UseAzureSql() or explicit config)
-3. **SQL CLR**: Must use .NET Framework 4.8.1 (SQL Server 2025 does NOT support .NET Core CLR)
-4. **SIMD/AVX-512**: Available in .NET 8+, optimal in .NET 10 with AVX10.2 support
+**Technology Stack Requirements**:
+
+1. **SQL Server 2025 Native VECTOR**: EF Core 10.0+ AND Microsoft.Data.SqlClient 6.1.0+
+2. **SQL Server 2025 Native JSON**: EF Core 10.0+ AND compatibility level 170+
+3. **SQL CLR**: .NET Framework 4.8.1 only (SQL Server 2025 does NOT support .NET Core CLR)
+4. **CPU SIMD**: AVX2/SSE4 via System.Numerics.Vectors (no GPU acceleration)
 
 ---
 
@@ -31,11 +28,11 @@
 
 ### Current State
 
-| Project Category | Target Framework | EF Core Version | Status |
-|-----------------|------------------|-----------------|--------|
-| **Modern Services** (Api, Infrastructure, Data, Core, Workers, Admin) | `net10.0` | 10.0.0-rc.2.25502.107 | ✅ CORRECT |
-| **SQL CLR** (SqlClrFunctions.csproj, Database.Clr) | `net481` (.NET Framework 4.8.1) | N/A | ✅ CORRECT (SQL Server requirement) |
-| **Tests** (Unit, Integration, E2E) | `net10.0` | 10.0.0-rc.2.25502.107 | ✅ CORRECT |
+| Project Category | Target Framework | EF Core Version |
+|-----------------|------------------|-----------------|
+| **Modern Services** (Api, Infrastructure, Data, Core, Workers, Admin) | `net10.0` | 10.0.0-rc.2.25502.107 |
+| **SQL CLR** (SqlClrFunctions.csproj) | `net481` (.NET Framework 4.8.1) | N/A |
+| **Tests** (Unit, Integration, E2E) | `net10.0` | 10.0.0-rc.2.25502.107 |
 
 ### Why .NET 10 + EF Core 10?
 
@@ -62,14 +59,16 @@
 
 ### SQL CLR Constraint
 
-**Critical**: SQL Server 2025 CLR integration **ONLY supports .NET Framework 4.8.1** (not .NET Core/5/6/7/8/9/10).
+**SQL Server 2025 CLR integration ONLY supports .NET Framework 4.8.1** (not .NET Core/5/6/7/8/9/10).
 
-**Evidence**:
-- `SqlClrFunctions.csproj` correctly targets `net481`
-- `Hartonomous.Database.Clr.csproj` correctly targets `net481`
-- SQL Server documentation confirms no .NET Core CLR support
+**Current Deployment**:
 
-**This is NOT a limitation** - it's a SQL Server architecture design. CLR assemblies run in SQL Server's process space, which uses .NET Framework.
+- `SqlClrFunctions.csproj` targets `net481`
+- 14 assemblies deployed
+- CPU SIMD-only (AVX2/SSE4 via VectorMath class)
+- No GPU acceleration (ILGPU removed due to CLR verifier incompatibility)
+
+SQL Server CLR assemblies run inside the SQL Server process, which uses .NET Framework.
 
 ---
 
@@ -129,19 +128,35 @@
 | Package | Current Version | Latest Version | Status | Action |
 |---------|----------------|----------------|--------|--------|
 | **BenchmarkDotNet** | 0.14.0 | 0.14.0 | ✅ LATEST | None |
-| **ILGPU** | 1.5.1 | 1.5.1 | ✅ LATEST | None |
 | **Microsoft.Playwright** | 1.48.0 | 1.49.0 | ⚠️ OUTDATED | ⬆️ Upgrade to 1.49.0 |
 | **Testcontainers** | 4.2.0 | 4.2.0 | ✅ LATEST | None |
 
 ### SQL CLR Dependencies (.NET Framework 4.8.1)
 
-| Package | Current Version | Latest .NET Framework Compatible | Status | Action |
-|---------|----------------|----------------------------------|--------|--------|
-| **Microsoft.SqlServer.Types** | 160.1000.6 | 160.1000.6 | ✅ LATEST | None |
-| **MathNet.Numerics** | 5.0.0 | 5.0.0 | ✅ LATEST (net481 compatible) | None |
-| **Newtonsoft.Json** | 13.0.3 | 13.0.4 | ⚠️ OUTDATED | ⬆️ Upgrade to 13.0.4 |
-| **System.Numerics.Vectors** | 4.5.0 | 4.5.0 | ✅ LATEST (built-in to .NET Framework) | None |
-| **System.Text.Json** | 6.0.0, 8.0.5 | 8.0.11 | ⚠️ OUTDATED | ⬆️ Upgrade to 8.0.11 |
+**Current Deployment**: 14 assemblies (CPU SIMD-only, no GPU acceleration)
+
+**Deployed Assemblies** (in dependency order):
+
+1. `System.Runtime.CompilerServices.Unsafe.dll` - Version 4.5.3
+2. `System.Buffers.dll` - Version 4.5.1
+3. `System.Numerics.Vectors.dll` - Version 4.5.0
+4. `System.Memory.dll` - Version 4.5.4
+5. `System.Runtime.InteropServices.RuntimeInformation.dll` - Version 4.3.0
+6. `System.Collections.Immutable.dll` - Version 1.7.1
+7. `System.Reflection.Metadata.dll` - Version 1.8.1
+8. `System.ServiceModel.Internals.dll` - GAC copy
+9. `SMDiagnostics.dll` - GAC copy
+10. `System.Drawing.dll` - GAC copy
+11. `System.Runtime.Serialization.dll` - GAC copy
+12. `Newtonsoft.Json.dll` - Version 13.0.3 (deployed for dependency resolution, runtime uses GAC version 13.0.0.0 via binding redirect in sqlservr.exe.config)
+13. `MathNet.Numerics.dll` - Version 5.0.0
+14. `SqlClrFunctions.dll` - Main assembly
+
+**Vector Operations**: CPU SIMD only (AVX2/SSE4 via `VectorMath` class in `Core/VectorMath.cs`)
+
+**GPU Acceleration**: None. ILGPU removed due to CLR verifier incompatibility with unmanaged GPU memory pointers.
+
+**Deployment Script**: `scripts/deploy-clr-secure.ps1` deploys all 14 assemblies with idempotent cleanup (drops all CLR objects including stored procedures type 'PC' before assemblies).
 
 ---
 
@@ -494,46 +509,35 @@ SQL Server 2025 Process (Windows)
 
 ---
 
-## 9. Conclusion
+## 9. Current Deployment State
 
-**Current State**: ✅ **EXCELLENT** - Hartonomous uses cutting-edge .NET 10 + EF Core 10 + SQL Server 2025 stack.
+**Technology Stack**:
 
-**Immediate Actions** (Week 1):
-1. ✅ Upgrade Microsoft.Extensions.* packages to 10.0 RC2 (eliminate .NET 9 mixing)
-2. ✅ Standardize OpenTelemetry to 1.12.0-1.13.1 (eliminate 1.9.0 legacy)
-3. ✅ Remove duplicate SQL CLR projects (eliminate version conflicts)
-4. ✅ Remove System.Data.SqlClient legacy package
-5. ✅ Standardize Newtonsoft.Json to 13.0.4
+- .NET 10 RC2 + EF Core 10 RC2 + SQL Server 2025
+- Microsoft.Data.SqlClient 6.1.2 (50x faster vector operations)
+- SQL CLR: 14 assemblies, .NET Framework 4.8.1, CPU SIMD-only (no GPU)
 
-**Follow-Up Actions** (Week 2):
-1. ⬆️ Upgrade Azure.Storage.Queues to 12.26.0
-2. ⬆️ Upgrade Polly to 8.5.0
-3. ⬆️ Upgrade Microsoft.Playwright to 1.49.0
-4. 📝 Update README.md with version prerequisites
-5. 📝 Update DEPLOYMENT.md with compatibility matrix
-6. 📝 Update CLR_GUIDE.md with .NET Framework explanation
+**SQL CLR Assembly Deployment**:
 
-**Ongoing Monitoring**:
-1. 👀 Monitor EF Core 10 GA release (Q1 2026)
-2. 👀 Monitor .NET 10 GA release (Q1 2026)
-3. 🔒 Run `dotnet list package --vulnerable` weekly
-4. 📊 Run `validate-package-versions.ps1` monthly
+1. System.Runtime.CompilerServices.Unsafe 4.5.3
+2. System.Buffers 4.5.1
+3. System.Numerics.Vectors 4.5.0
+4. System.Memory 4.5.4
+5. System.Runtime.InteropServices.RuntimeInformation 4.3.0
+6. System.Collections.Immutable 1.7.1
+7. System.Reflection.Metadata 1.8.1
+8. System.ServiceModel.Internals (GAC copy)
+9. SMDiagnostics (GAC copy)
+10. System.Drawing (GAC copy)
+11. System.Runtime.Serialization (GAC copy)
+12. Newtonsoft.Json 13.0.3 (deployed for dependency resolution, runtime uses GAC 13.0.0.0 via binding redirect)
+13. MathNet.Numerics 5.0.0
+14. SqlClrFunctions (main assembly)
 
-**Key Takeaways**:
-- ✅ No fundamental architecture changes needed
-- ✅ All SQL Server 2025 features are correctly supported
-- ✅ SQL CLR .NET Framework 4.8.1 requirement is correct and optimal
-- ⚠️ Version mixing is the primary issue (easily fixable)
-- ⚠️ OpenTelemetry fragmentation needs consolidation
-- ⚠️ Duplicate CLR projects should be deleted
+**Vector Operations**: CPU SIMD (AVX2/SSE4) via VectorMath class in Core/VectorMath.cs
 
-**Security Posture**: Monitor for vulnerabilities, keep packages updated, prefer stable releases over RC when GA available.
+**GPU Acceleration**: None. ILGPU removed due to CLR verifier incompatibility with unmanaged pointers.
 
-**Performance Impact**: Upgrading to latest packages provides:
-- 50x faster vector operations (already have via SqlClient 6.1.2)
-- 15% average speedup from .NET 10 Dynamic PGO (already have)
-- 20-30% faster JSON queries when migrating to native `json` type (planned P2)
+**Deployment Script**: `scripts/deploy-clr-secure.ps1` handles idempotent cleanup and assembly registration with `sys.sp_add_trusted_assembly`.
 
----
-
-**Next Steps**: Execute Phase 1 upgrades, then create `scripts/validate-package-versions.ps1`, then update documentation.
+**SQL Server Configuration**: Binding redirect for Newtonsoft.Json configured in `deploy/sqlservr.exe.config` to use GAC version 13.0.0.0 at runtime.

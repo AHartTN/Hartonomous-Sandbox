@@ -4,7 +4,7 @@
 
 ## Overview
 
-Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The database is the runtime, storage substrate, and intelligence layer. Stored procedures execute the OODA loop (Observe → Orient → Decide → Act), CLR functions provide SIMD-accelerated vector operations and transformer inference, and .NET 10 services orchestrate ingestion, expose REST APIs, and sync provenance to Neo4j.
+Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The database is the runtime, storage substrate, and intelligence layer. Stored procedures execute the OODA loop (Observe → Orient → Decide → Act), CLR functions provide **CPU SIMD-accelerated** vector operations and transformer inference, and .NET 10 services orchestrate ingestion, expose REST APIs, and sync provenance to Neo4j.
 
 **Core Principle**: The database is not a passive store—it is the active AI runtime. T-SQL is the AI interface. Model weights, embeddings, and provenance live in SQL tables with geometry projections, temporal history, and graph relationships.
 
@@ -49,29 +49,33 @@ Hartonomous runs the entire autonomous AI loop inside SQL Server 2025. The datab
 
 ### 2. CLR Intelligence Layer (SqlClrFunctions)
 
-**Assembly**: `src/SqlClr/SqlClrFunctions.csproj` compiles to `SqlClrFunctions.dll` targeting .NET Framework 4.8.1. Deployed via `scripts/deploy-database-unified.ps1` or `sql/procedures/Common.ClrBindings.sql`.
+**Assembly**: `src/SqlClr/SqlClrFunctions.csproj` compiles to `SqlClrFunctions.dll` targeting .NET Framework 4.8.1. Deployed with 13 dependencies (14 total assemblies) via `scripts/deploy-clr-secure.ps1`.
+
+**Current Deployment**: 14 assemblies, CPU SIMD-only (AVX2/SSE4), no GPU acceleration. ILGPU removed due to CLR verifier incompatibility with unmanaged pointers.
 
 **Security Model**: CLR assemblies are deployed with minimum required permissions:
 
-- **SAFE**: Deterministic functions without external resource access (preferred where possible)
-- **UNSAFE**: Required for SIMD intrinsics (`System.Runtime.Intrinsics`), file I/O (FILESTREAM), and unmanaged memory operations
-  - Registered via `sp_add_trusted_assembly` (assembly hash whitelisting)
+- **UNSAFE**: Required for CPU SIMD intrinsics (`System.Numerics.Vectors`), FILESTREAM, and unsafe memory operations
+  - Registered via `sys.sp_add_trusted_assembly` (assembly hash whitelisting)
   - Database property `TRUSTWORTHY OFF` (never enable `TRUSTWORTHY` for security)
-  - Requires `sysadmin` or `CONTROL SERVER` for deployment
-  - See [scripts/CLR_SECURITY_ANALYSIS.md](../scripts/CLR_SECURITY_ANALYSIS.md) for security surface analysis
+  - `clr strict security = 1` in production (SQL Server 2017+ default)
+  - Requires strong-name signed assemblies in production
+  - See [docs/UNSAFE_CLR_SECURITY.md](../docs/UNSAFE_CLR_SECURITY.md) for security implications
 
 **Permission Set Rationale**:
 
-- Vector operations (`VectorOperations.cs`, `VectorAggregates.cs`): `UNSAFE` (SIMD intrinsics via `System.Runtime.Intrinsics.X86.Avx2`)
-- Transformer inference (`TransformerInference.cs`): `UNSAFE` (SIMD + unmanaged memory allocation)
-- FILESTREAM operations: `UNSAFE` (file system access)
-- Pure math/statistical functions: `SAFE` (no external dependencies)
+- Vector operations (`VectorOperations.cs`, `VectorAggregates.cs`): `UNSAFE` (CPU SIMD via `System.Numerics.Vectors`, AVX2/SSE4)
+- Transformer inference (`TransformerInference.cs`): `UNSAFE` (SIMD + unsafe memory allocation)
+- FILESTREAM operations: `UNSAFE` (file system access for model weights)
+- MathNet.Numerics operations: `UNSAFE` (high-performance math with unmanaged memory)
 
 **Vector Analytics**:
 
-- `VectorAggregates.cs`, `AdvancedVectorAggregates.cs`: SIMD-accelerated vector aggregates (mean, covariance, correlation)
+- `VectorAggregates.cs`, `AdvancedVectorAggregates.cs`: CPU SIMD-accelerated vector aggregates (mean, covariance, correlation)
 - `TimeSeriesVectorAggregates.cs`: Time-series vector operations
-- `VectorOperations.cs`: Core SIMD operations (dot product, cosine similarity, Euclidean distance)
+- `VectorOperations.cs`: Core CPU SIMD operations (dot product, cosine similarity, Euclidean distance)
+- `Core/VectorMath.cs`: Low-level CPU SIMD implementations using `System.Numerics.Vectors` (AVX2/SSE4)
+- `Core/GpuAccelerator.cs`: Wrapper class (always returns `IsGpuAvailable=false`, delegates to `VectorMath`)
 - Invoked by `sql/procedures/Functions.*` and `Inference.VectorSearchSuite.sql`
 
 **Transformer Inference**:
@@ -290,7 +294,7 @@ ORDER BY dbo.clr_VectorDistance(@embedding, EmbeddingVector) ASC;
 4. **Graph Queries**: Built-in `MATCH` syntax for provenance traversal. No separate graph database.
 5. **Temporal Tables**: Point-in-time queries for compliance, audit, and time-travel debugging.
 6. **Service Broker**: Message queue with ACID guarantees. No external Kafka/RabbitMQ.
-7. **CLR Integration**: SIMD-accelerated custom functions in-process. No microservice latency.
+7. **CLR Integration**: CPU SIMD-accelerated custom functions in-process (AVX2/SSE4). No microservice latency, no GPU hardware dependency.
 
 ### Why GEOMETRY for Embeddings?
 
