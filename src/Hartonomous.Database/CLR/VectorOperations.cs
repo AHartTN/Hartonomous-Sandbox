@@ -2,9 +2,9 @@ using System;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Vector operations for AI inference

@@ -4,7 +4,7 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Transactions;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Provides CLR functions for reading and writing tensor payload data

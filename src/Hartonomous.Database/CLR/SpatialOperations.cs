@@ -3,9 +3,9 @@ using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// CLR functions for spatial operations and projections.

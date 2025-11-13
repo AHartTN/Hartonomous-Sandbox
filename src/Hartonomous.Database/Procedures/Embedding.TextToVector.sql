@@ -260,7 +260,7 @@ BEGIN
     FROM NumberSeries AS ns
     LEFT JOIN @vector AS v ON v.Component = ns.idx;
 
-    SET @embedding = TRY_CAST(@embeddingJson AS VECTOR(1998));
+    SET @embedding = TRY_CAST(CONVERT(NVARCHAR(MAX), @embeddingJson) AS VECTOR(1998));
 
     IF @embedding IS NULL
         THROW 50082, 'Failed to construct embedding vector from vocabulary projection.', 1;

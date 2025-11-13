@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// User-Defined Aggregates for vector statistics operating on SQL Server 2025 VECTOR type

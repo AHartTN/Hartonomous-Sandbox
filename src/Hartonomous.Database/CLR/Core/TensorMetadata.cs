@@ -1,4 +1,4 @@
-namespace SqlClrFunctions.Core
+namespace Hartonomous.Clr.Core
 {
     /// <summary>
     /// Metadata describing a tensor's properties

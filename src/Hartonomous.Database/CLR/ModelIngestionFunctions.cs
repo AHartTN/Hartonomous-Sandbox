@@ -7,7 +7,7 @@ using System.Text;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// CLR functions for model ingestion pipeline.

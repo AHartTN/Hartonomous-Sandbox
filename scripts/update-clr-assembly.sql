@@ -1,4 +1,4 @@
--- Update SqlClrFunctions assembly with new FileSystemFunctions.cs
+-- Update Hartonomous.Clr assembly with new FileSystemFunctions.cs
 
 USE Hartonomous;
 GO
@@ -7,7 +7,7 @@ GO
 DECLARE @oldHash VARBINARY(64);
 SELECT @oldHash = hash
 FROM sys.trusted_assemblies
-WHERE description = N'SqlClrFunctions for Hartonomous autonomous improvement';
+WHERE description = N'Hartonomous.Clr for Hartonomous autonomous improvement';
 
 IF @oldHash IS NOT NULL
 BEGIN
@@ -22,21 +22,21 @@ DECLARE @newHash VARBINARY(64);
 -- Calculate hash from file
 DECLARE @assemblyBinary VARBINARY(MAX);
 SELECT @assemblyBinary = BulkColumn
-FROM OPENROWSET(BULK N'd:\Repositories\Hartonomous\src\SqlClr\bin\Release\SqlClrFunctions.dll', SINGLE_BLOB) AS assembly_file;
+FROM OPENROWSET(BULK N'd:\Repositories\Hartonomous\src\SqlClr\bin\Release\Hartonomous.Clr.dll', SINGLE_BLOB) AS assembly_file;
 
 SET @newHash = HASHBYTES('SHA2_512', @assemblyBinary);
 
 EXEC sys.sp_add_trusted_assembly 
     @hash = @newHash, 
-    @description = N'SqlClrFunctions for Hartonomous autonomous improvement';
+    @description = N'Hartonomous.Clr for Hartonomous autonomous improvement';
 
 PRINT 'Added new trusted assembly hash';
 PRINT 'Hash: ' + CONVERT(NVARCHAR(200), @newHash, 1);
 GO
 
 -- Step 3: Update the assembly
-ALTER ASSEMBLY SqlClrFunctions
-FROM 'd:\Repositories\Hartonomous\src\SqlClr\bin\Release\SqlClrFunctions.dll';
+ALTER ASSEMBLY Hartonomous.Clr
+FROM 'd:\Repositories\Hartonomous\src\SqlClr\bin\Release\Hartonomous.Clr.dll';
 
 PRINT 'Assembly updated with FileSystemFunctions.cs';
 GO
@@ -44,5 +44,5 @@ GO
 -- Step 4: Verify
 SELECT name, permission_set_desc, create_date, modify_date
 FROM sys.assemblies
-WHERE name = 'SqlClrFunctions';
+WHERE name = 'Hartonomous.Clr';
 GO

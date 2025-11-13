@@ -3,7 +3,7 @@ using System.Linq;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Single;
 
-namespace SqlClrFunctions.MachineLearning
+namespace Hartonomous.Clr.MachineLearning
 {
     /// <summary>
     /// Proper SVD-based dimensionality reduction (replaces variance-picking "autoencoder").

@@ -127,10 +127,7 @@ BEGIN
         FROM @RecentInferences;
         
         -- PARADIGM-COMPLIANT: Use IsolationForestScore aggregate instead of simple threshold
-        SELECT @IsolationForestScores = dbo.IsolationForestScore(
-            MetricVector,
-            10 -- numTrees
-        )
+        SELECT @IsolationForestScores = dbo.IsolationForestScore(MetricVector)
         FROM @PerformanceMetrics;
         
         -- PARADIGM-COMPLIANT: Use LocalOutlierFactor for density-based detection

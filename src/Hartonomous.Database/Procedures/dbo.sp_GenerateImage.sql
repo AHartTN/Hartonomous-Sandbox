@@ -169,7 +169,7 @@ BEGIN
 
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @durationMs,
-        OutputData = TRY_CAST(@outputJson AS JSON),
+        OutputData = @outputJson,
         OutputMetadata = JSON_OBJECT(
             'status': 'completed',
             'patch_count': @patchCount,

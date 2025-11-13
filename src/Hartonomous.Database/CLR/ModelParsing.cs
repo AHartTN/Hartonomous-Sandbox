@@ -6,7 +6,7 @@ using Hartonomous.Infrastructure.Services.ModelFormats.Readers; // Assuming this
 using Hartonomous.Infrastructure.Services.ModelFormats; // For IModelFormatReader
 using System.IO;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Provides CLR functions for parsing model files to extract tensor data.

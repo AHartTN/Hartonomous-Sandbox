@@ -7,7 +7,7 @@ using System.Data.SqlTypes;
 using System.Diagnostics;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// SQL CLR functions for generating text sequences using model ensembles and vector search.

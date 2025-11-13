@@ -1,10 +1,10 @@
 using Microsoft.SqlServer.Server;
-using SqlClrFunctions.Contracts;
+using Hartonomous.Clr.Contracts;
 using System;
 using System.Data.SqlClient;
 using System.Data.SqlTypes;
 
-namespace SqlClrFunctions.TensorOperations
+namespace Hartonomous.Clr.TensorOperations
 {
     /// <summary>
     /// An implementation of ITensorProvider that loads tensor data from the

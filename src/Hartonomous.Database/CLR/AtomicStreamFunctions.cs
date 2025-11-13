@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     public static class AtomicStreamFunctions
     {

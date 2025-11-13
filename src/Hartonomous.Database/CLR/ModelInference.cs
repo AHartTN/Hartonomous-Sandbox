@@ -6,7 +6,7 @@ using Microsoft.SqlServer.Server;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Single;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Model inference engine using reconstructed TensorAtom graph

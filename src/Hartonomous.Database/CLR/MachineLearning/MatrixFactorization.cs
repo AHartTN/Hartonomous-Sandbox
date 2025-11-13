@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions.MachineLearning
+namespace Hartonomous.Clr.MachineLearning
 {
     /// <summary>
     /// Proper SGD-based matrix factorization for collaborative filtering.

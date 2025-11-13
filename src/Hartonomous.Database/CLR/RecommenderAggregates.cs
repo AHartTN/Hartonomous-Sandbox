@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// RECOMMENDER SYSTEM AGGREGATES
@@ -405,7 +405,7 @@ namespace SqlClrFunctions
             var interactionArray = ratings.Select(r => (r.Item1, r.Item2, (float)r.Item3)).ToArray();
             
             // Run proper SGD matrix factorization with 100 iterations
-            var (userFactors, itemFactors) = SqlClrFunctions.MachineLearning.MatrixFactorization.Factorize(
+            var (userFactors, itemFactors) = Hartonomous.Clr.MachineLearning.MatrixFactorization.Factorize(
                 interactionArray,
                 numUsers: numUsers,
                 numItems: numItems,
@@ -419,7 +419,7 @@ namespace SqlClrFunctions
             double sumSquaredError = 0;
             foreach (var (user, item, rating) in ratings)
             {
-                float prediction = SqlClrFunctions.MachineLearning.MatrixFactorization.PredictRating(
+                float prediction = Hartonomous.Clr.MachineLearning.MatrixFactorization.PredictRating(
                     userFactors[user], 
                     itemFactors[item]
                 );

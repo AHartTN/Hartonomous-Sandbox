@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
-using SqlClrFunctions.Contracts;
+using Hartonomous.Clr.Contracts;
 using Microsoft.SqlServer.Types;
 
-namespace SqlClrFunctions.Core
+namespace Hartonomous.Clr.Core
 {
     /// <summary>
     /// SQL CLR implementation of ITensorProvider.

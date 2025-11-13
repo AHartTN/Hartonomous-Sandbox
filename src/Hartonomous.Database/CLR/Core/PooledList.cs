@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SqlClrFunctions.Core;
+namespace Hartonomous.Clr.Core;
 
 /// <summary>
 /// Allocation-conscious list for SQL CLR aggregates.

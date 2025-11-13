@@ -2,11 +2,11 @@ using System;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
-using SqlClrFunctions.Contracts;
+using Hartonomous.Clr.Contracts;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Single;
 
-namespace SqlClrFunctions.TensorOperations
+namespace Hartonomous.Clr.TensorOperations
 {
     /// <summary>
     /// Proper transformer inference implementation, accelerated with MathNet.Numerics.

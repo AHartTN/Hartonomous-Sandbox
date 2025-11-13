@@ -102,15 +102,14 @@ BEGIN
 
     IF @tokenSuffix IS NOT NULL AND LTRIM(RTRIM(@tokenSuffix)) <> ''
     BEGIN
-        DECLARE @basePrompt NVARCHAR(MAX) = LTRIM(RTRIM(@generatedText));
-        IF RIGHT(@basePrompt, 1) = ' '
-        BEGIN
-            SET @generatedText = LTRIM(RTRIM(@basePrompt + @tokenSuffix));
-        END
+        DECLARE @basePrompt NVARCHAR(MAX) = LTRIM(RTRIM(@GeneratedText));
+        DECLARE @i INT = 1;
+        -- Generate next token
+        IF @i % 3 = 0 -- Randomly attach without space
+            SET @GeneratedText = LTRIM(RTRIM(@basePrompt + @tokenSuffix));
         ELSE
-        BEGIN
-            SET @generatedText = LTRIM(RTRIM(@basePrompt + ' ' + @tokenSuffix));
-        END
+            -- Attach with space
+            SET @GeneratedText = LTRIM(RTRIM(@basePrompt + ' ' + @tokenSuffix));
     END;
 
     DECLARE @totalDuration INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
@@ -125,8 +124,8 @@ BEGIN
 
     DECLARE @streamId UNIQUEIDENTIFIER = NEWID();
 
-    DECLARE @stream provenance.AtomicStream;
-    SET @stream = CONVERT(provenance.AtomicStream, NULL);
+    DECLARE @stream dbo.AtomicStream;
+    SET @stream = CONVERT(dbo.AtomicStream, NULL);
     DECLARE @streamCreated DATETIME2(3) = SYSUTCDATETIME();
     DECLARE @primaryModel NVARCHAR(128) = (
         SELECT TOP (1) ModelName FROM @models ORDER BY Weight DESC, ModelId
@@ -155,19 +154,19 @@ BEGIN
     END;
 
     SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Telemetry', SYSUTCDATETIME(), 'application/json', JSON_OBJECT('token_count': @tokenCount, 'duration_ms': @totalDuration), CAST(JSON_QUERY(@tokensJson) AS VARBINARY(MAX)));
-    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CAST(@generatedText AS VARBINARY(MAX)));
-
-    SET @GeneratedText = @generatedText;
+    SET @stream = provenance.clr_AppendAtomicStreamSegment(@stream, 'Output', SYSUTCDATETIME(), 'text/plain; charset=utf-16', JSON_OBJECT('token_count': @tokenCount), CAST(@GeneratedText AS VARBINARY(MAX)));
+    -- Store resulting text in OUTPUT parameter (for caller convenience)
+    -- @GeneratedText is already set
 
     UPDATE dbo.InferenceRequests
     SET TotalDurationMs = @totalDuration,
-        OutputData = TRY_CAST(JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @generatedText) AS JSON),
+        OutputData = JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @GeneratedText),
         OutputMetadata = JSON_OBJECT(
             'status': 'completed',
             'tokens_generated': @tokenCount,
             'temperature': @temperature,
             'prompt_length': LEN(@prompt),
-            'result_length': LEN(@generatedText)
+            'result_length': LEN(@GeneratedText)
         )
     WHERE InferenceId = @inferenceId;
 
@@ -184,7 +183,7 @@ BEGIN
         @inferenceId AS InferenceId,
         @streamId AS StreamId,
         @prompt AS OriginalPrompt,
-    @generatedText AS GeneratedText,
+    @GeneratedText AS GeneratedText,
         @tokenCount AS TokensGenerated,
         @totalDuration AS DurationMs,
         JSON_QUERY(@tokensJson) AS TokenDetails;

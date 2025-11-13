@@ -152,12 +152,7 @@ BEGIN
 
         UPDATE dbo.InferenceRequests
         SET TotalDurationMs = @durationMs,
-            OutputData = TRY_CAST(@outputJson AS JSON),
-            OutputMetadata = JSON_OBJECT(
-                'status': 'completed',
-                'segment_count': (SELECT COUNT(*) FROM @segments),
-                'candidate_count': (SELECT COUNT(*) FROM @audioCandidates)
-            )
+            OutputData = @outputJson
         WHERE InferenceId = @inferenceId;
 
         INSERT INTO dbo.InferenceSteps (InferenceId, StepNumber, OperationType, DurationMs, RowsReturned)

@@ -1,4 +1,4 @@
-namespace SqlClrFunctions.Contracts
+namespace Hartonomous.Clr.Contracts
 {
     /// <summary>
     /// Defines a contract for a service that can provide tensor data (weights)

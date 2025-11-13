@@ -9,7 +9,7 @@ using System.IO;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// CLR helpers for image diffusion routines executed from T-SQL.

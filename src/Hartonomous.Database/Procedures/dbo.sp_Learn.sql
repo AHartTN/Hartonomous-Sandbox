@@ -217,7 +217,7 @@ BEGIN
                         @ModelName = 'Qwen3-Coder-32B',
                         @TrainingSample = @GeneratedCode,
                         @RewardSignal = @SuccessScore,
-                        @LearningRate = 0.0001,
+                        @learningRate = 0.0001,
                         @TenantId = @TenantId;
                     
                     -- Log the weight update

@@ -24,7 +24,6 @@ BEGIN
         
         -- Phase 1: Discover concepts
         DECLARE @DiscoveredConcepts TABLE (
-            ConceptId UNIQUEIDENTIFIER,
             Centroid VARBINARY(MAX),
             AtomCount INT,
             Coherence FLOAT,
@@ -43,21 +42,51 @@ BEGIN
         
         IF @DryRun = 0
         BEGIN
-            -- Persist discovered concepts
+            -- Temp table to capture generated ConceptIds
+            DECLARE @InsertedConcepts TABLE (
+                ConceptId BIGINT,
+                Centroid VARBINARY(MAX),
+                AtomCount INT,
+                Coherence FLOAT,
+                SpatialBucket INT
+            );
+
+            -- Persist discovered concepts and capture generated IDs
             INSERT INTO provenance.Concepts (
-                ConceptId,
+                ConceptName,
+                Description,
+                CentroidVector,
                 Centroid,
+                VectorDimension,
+                MemberCount,
                 AtomCount,
+                CoherenceScore,
                 Coherence,
                 SpatialBucket,
+                DiscoveryMethod,
+                ModelId,
                 TenantId
             )
+            OUTPUT 
+                INSERTED.ConceptId,
+                INSERTED.Centroid,
+                INSERTED.AtomCount,
+                INSERTED.Coherence,
+                INSERTED.SpatialBucket
+            INTO @InsertedConcepts
             SELECT 
-                ConceptId,
+                'Cluster_' + CAST(ROW_NUMBER() OVER (ORDER BY Coherence DESC) AS NVARCHAR(50)),
+                'Auto-discovered concept cluster',
                 Centroid,
+                Centroid,
+                0, -- VectorDimension - will be computed
+                AtomCount,
                 AtomCount,
                 Coherence,
+                Coherence,
                 SpatialBucket,
+                'DBSCAN_Spatial',
+                1, -- Default ModelId - adjust as needed
                 @TenantId
             FROM @DiscoveredConcepts;
             
@@ -81,42 +110,41 @@ BEGIN
                 NULL, -- No delta for new concepts
                 'Discovered',
                 @TenantId
-            FROM @DiscoveredConcepts;
+            FROM @InsertedConcepts;
         END
         
-        -- Phase 2: Bind atoms to concepts
-        DECLARE @ConceptsToBind TABLE (ConceptId UNIQUEIDENTIFIER);
-        INSERT INTO @ConceptsToBind SELECT ConceptId FROM @DiscoveredConcepts;
+        -- Phase 2: Bind atoms to concepts (use inserted concepts for binding)
+        DECLARE @ConceptsToBind TABLE (ConceptId BIGINT);
+        INSERT INTO @ConceptsToBind SELECT ConceptId FROM @InsertedConcepts;
         
         DECLARE @AtomBindings TABLE (
             AtomId BIGINT,
-            ConceptId UNIQUEIDENTIFIER,
+            ConceptId BIGINT,
             Similarity FLOAT,
             IsPrimary BIT
         );
         
         -- For each concept, find matching atoms
-        DECLARE @CurrentConceptId UNIQUEIDENTIFIER;
+        DECLARE @CurrentConceptId BIGINT;
         DECLARE @ConceptCentroid VARBINARY(MAX);
         
         DECLARE concept_cursor CURSOR LOCAL FAST_FORWARD FOR
-        SELECT ConceptId, Centroid FROM @DiscoveredConcepts;
+        SELECT ConceptId, Centroid FROM @InsertedConcepts;
         
         OPEN concept_cursor;
         FETCH NEXT FROM concept_cursor INTO @CurrentConceptId, @ConceptCentroid;
         
         WHILE @@FETCH_STATUS = 0
         BEGIN
-            -- Find atoms similar to this concept
-            INSERT INTO @AtomBindings
+            -- Use enterprise CLR function that properly handles binary VECTOR format
+            -- fn_BindAtomsToCentroid accepts VARBINARY and handles VECTOR_DISTANCE internally
+            INSERT INTO @AtomBindings (AtomId, ConceptId, Similarity, IsPrimary)
             SELECT 
-                ae.AtomId,
+                AtomId,
                 @CurrentConceptId AS ConceptId,
-                1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @ConceptCentroid) AS Similarity,
+                Similarity,
                 0 AS IsPrimary -- Will set primary in second pass
-            FROM dbo.AtomEmbeddings ae
-            WHERE ae.TenantId = @TenantId
-                  AND (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @ConceptCentroid)) >= @SimilarityThreshold;
+            FROM dbo.fn_BindAtomsToCentroid(@ConceptCentroid, @SimilarityThreshold, @TenantId);
             
             FETCH NEXT FROM concept_cursor INTO @CurrentConceptId, @ConceptCentroid;
         END

@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// DIMENSIONALITY REDUCTION AGGREGATES
@@ -316,7 +316,7 @@ namespace SqlClrFunctions
 
             // Use bridge library for PROPER t-SNE implementation
             // Replaces: "Simplified t-SNE" that was actually random projection
-            var tsne = new SqlClrFunctions.MachineLearning.TSNEProjection(seed: 42);
+            var tsne = new Hartonomous.Clr.MachineLearning.TSNEProjection(seed: 42);
             
             // Convert List<float[]> to float[][]
             var vectorArray = vectors.ToArray();
@@ -528,7 +528,7 @@ namespace SqlClrFunctions
 
         private static float[] ParseVectorJson(string json)
         {
-            return SqlClrFunctions.Core.VectorUtilities.ParseVectorJson(json);
+            return Hartonomous.Clr.Core.VectorUtilities.ParseVectorJson(json);
         }
     }
 }

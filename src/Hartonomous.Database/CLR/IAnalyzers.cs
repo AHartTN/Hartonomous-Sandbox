@@ -1,6 +1,6 @@
 using System.Collections.Generic;
 
-namespace SqlClrFunctions.Analysis
+namespace Hartonomous.Clr.Analysis
 {
     // Data Transfer Objects (DTOs) for analysis results
 

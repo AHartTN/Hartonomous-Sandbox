@@ -7,7 +7,7 @@ using Newtonsoft.Json;
 using Microsoft.SqlServer.Types;
 using System.IO;
 
-namespace SqlClrFunctions.TensorOperations
+namespace Hartonomous.Clr.TensorOperations
 {
     /// <summary>
     /// Contains the "shape-to-model" synthesis logic.

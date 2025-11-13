@@ -94,7 +94,7 @@ BEGIN
         JSON_VALUE(@ConsensusResult, '$.consensus_answer'),
         @AgreementRatio,
         (SELECT * FROM @Samples FOR JSON PATH),
-        TRY_CAST(@ConsensusResult AS JSON),
+        @ConsensusResult,
         DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
         SYSUTCDATETIME()
     );

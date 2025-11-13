@@ -17,7 +17,7 @@ BEGIN
     DECLARE @embedding VECTOR(1998) = @inputEmbedding;
     IF @embedding IS NULL
     BEGIN
-        DECLARE @embeddingJson NVARCHAR(MAX) = JSON_QUERY(@inputData, '$.embedding');
+        DECLARE @embeddingJson NVARCHAR(MAX) = CONVERT(NVARCHAR(MAX), JSON_QUERY(@inputData, '$.embedding'));
         IF @embeddingJson IS NOT NULL
         BEGIN
             SET @embedding = CAST(@embeddingJson AS VECTOR(1998));
@@ -49,8 +49,8 @@ BEGIN
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy)
     VALUES (
         @taskType,
-        TRY_CAST(@inputData AS JSON),
-        TRY_CAST(@modelsJson AS JSON),
+        CONVERT(NVARCHAR(MAX), @inputData),
+        CONVERT(NVARCHAR(MAX), @modelsJson),
         'weighted_average'
     );
     SET @inferenceId = SCOPE_IDENTITY();

@@ -6,7 +6,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using System.Data;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// SQL CLR functions for autonomous AI operations.

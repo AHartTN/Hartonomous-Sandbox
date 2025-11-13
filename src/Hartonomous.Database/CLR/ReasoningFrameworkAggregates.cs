@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// ADVANCED REASONING FRAMEWORK AGGREGATES

@@ -1,10 +1,10 @@
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
 
-namespace SqlClrFunctions.ModelReaders
+namespace Hartonomous.Clr.ModelReaders
 {
     /// <summary>
     /// A self-contained, synchronous reader for GGUF model files,

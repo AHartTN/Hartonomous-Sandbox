@@ -4,7 +4,7 @@ using System.Linq;
 using System.Data;
 using System.Data.SqlClient;
 
-namespace SqlClrFunctions.NaturalLanguage
+namespace Hartonomous.Clr.NaturalLanguage
 {
     /// <summary>
     /// Proper Byte Pair Encoding (BPE) tokenizer implementation.

@@ -2,7 +2,7 @@ using System;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Performance vector construction for anomaly detection

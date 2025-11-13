@@ -4,7 +4,7 @@ using System.Data.SqlTypes;
 using System.IO;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions;
+namespace Hartonomous.Clr;
 
 [Serializable]
 [SqlUserDefinedType(Format.UserDefined, MaxByteSize = -1, IsByteOrdered = false)]
@@ -25,17 +25,16 @@ public struct ComponentStream : INullable, IBinarySerialize
     public SqlInt64 TotalComponents => !_isNull ? new SqlInt64(_totalCount) : SqlInt64.Zero;
 
     [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = true)]
-    public ComponentStream Initialize()
+    public void Initialize()
     {
         _runs ??= new List<ComponentRun>(16);
         _runs.Clear();
         _totalCount = 0;
         _isNull = false;
-        return this;
     }
 
     [SqlMethod(IsDeterministic = false, IsPrecise = true, IsMutator = true)]
-    public ComponentStream Append(SqlInt64 atomId, SqlInt32 repetitions)
+    public void Append(SqlInt64 atomId, SqlInt32 repetitions)
     {
         EnsureWritable();
 
@@ -43,7 +42,6 @@ public struct ComponentStream : INullable, IBinarySerialize
         var count = ValidateRepetitions(repetitions);
 
         AppendRun(id, count);
-        return this;
     }
 
     [SqlMethod(IsDeterministic = true, IsPrecise = true)]

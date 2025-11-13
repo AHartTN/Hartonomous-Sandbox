@@ -4,7 +4,7 @@ using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Unsupervised concept discovery via clustering
@@ -19,7 +19,7 @@ namespace SqlClrFunctions
         /// </summary>
         [SqlFunction(
             FillRowMethodName = "FillConceptRow",
-            TableDefinition = "ConceptId UNIQUEIDENTIFIER, Centroid VARBINARY(MAX), AtomCount INT, Coherence FLOAT, SpatialBucket INT",
+            TableDefinition = "Centroid VARBINARY(MAX), AtomCount INT, Coherence FLOAT, SpatialBucket INT",
             IsDeterministic = false,
             IsPrecise = false,
             DataAccess = DataAccessKind.Read
@@ -45,8 +45,7 @@ namespace SqlClrFunctions
                 var bucketQuery = @"
                     SELECT 
                         ae.SpatialBucket,
-                        COUNT(*) AS AtomCount,
-                        AVG(CAST(ae.EmbeddingVector AS FLOAT)) AS AvgMagnitude
+                        COUNT(*) AS AtomCount
                     FROM dbo.AtomEmbeddings ae
                     INNER JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
                     WHERE ae.SpatialBucket IS NOT NULL AND ta.TenantId = @TenantId
@@ -67,7 +66,7 @@ namespace SqlClrFunctions
                             buckets.Add((
                                 reader.GetInt32(0),
                                 reader.GetInt32(1),
-                                reader.IsDBNull(2) ? 0 : reader.GetDouble(2)
+                                0.0 // Placeholder - AvgMag not used in clustering
                             ));
                         }
 
@@ -86,7 +85,6 @@ namespace SqlClrFunctions
                             {
                                 concepts.Add(new ConceptCandidate
                                 {
-                                    ConceptId = Guid.NewGuid(),
                                     Centroid = centroid,
                                     AtomCount = cluster.Sum(b => b.Count),
                                     Coherence = coherence,
@@ -103,14 +101,12 @@ namespace SqlClrFunctions
 
         public static void FillConceptRow(
             object obj,
-            out SqlGuid conceptId,
             out SqlBytes centroid,
             out SqlInt32 atomCount,
             out SqlDouble coherence,
             out SqlInt32 spatialBucket)
         {
             var concept = (ConceptCandidate)obj;
-            conceptId = new SqlGuid(concept.ConceptId);
             centroid = new SqlBytes(concept.Centroid);
             atomCount = new SqlInt32(concept.AtomCount);
             coherence = new SqlDouble(concept.Coherence);
@@ -227,7 +223,6 @@ namespace SqlClrFunctions
 
         private class ConceptCandidate
         {
-            public Guid ConceptId { get; set; }
             public byte[] Centroid { get; set; }
             public int AtomCount { get; set; }
             public double Coherence { get; set; }
@@ -341,6 +336,84 @@ namespace SqlClrFunctions
             conceptId = new SqlGuid(binding.ConceptId);
             similarity = new SqlDouble(binding.Similarity);
             isPrimary = new SqlBoolean(binding.IsPrimary);
+        }
+
+        /// <summary>
+        /// Enterprise-grade function to bind atoms to a concept centroid
+        /// Handles VARBINARY centroid (binary VECTOR format) and computes similarities via CLR
+        /// This avoids T-SQL's inability to CAST VARBINARY to VECTOR
+        /// </summary>
+        [SqlFunction(
+            FillRowMethodName = "FillAtomBindingRow",
+            TableDefinition = "AtomId BIGINT, Similarity FLOAT",
+            IsDeterministic = false,
+            IsPrecise = false,
+            DataAccess = DataAccessKind.Read
+        )]
+        public static System.Collections.IEnumerable fn_BindAtomsToCentroid(
+            SqlBytes conceptCentroid,
+            SqlDouble similarityThreshold,
+            SqlInt32 tenantId)
+        {
+            if (conceptCentroid.IsNull || conceptCentroid.Length == 0)
+                return new List<AtomBinding>();
+
+            double threshold = similarityThreshold.IsNull ? 0.6 : similarityThreshold.Value;
+            int tenant = tenantId.IsNull ? 0 : tenantId.Value;
+
+            var bindings = new List<AtomBinding>();
+
+            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            {
+                conn.Open();
+
+        // Query using VARBINARY parameter - cast to VECTOR(1998) in the query
+        // CLR can pass binary VECTOR format, but must cast in SQL
+        var query = @"
+            SELECT 
+                ae.AtomId,
+                1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, CAST(@Centroid AS VECTOR(1998))) AS Similarity
+            FROM dbo.AtomEmbeddings ae
+            INNER JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
+            WHERE ta.TenantId = @TenantId
+            HAVING (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, CAST(@Centroid AS VECTOR(1998)))) >= @Threshold
+            ORDER BY Similarity DESC";                using (var cmd = new System.Data.SqlClient.SqlCommand(query, conn))
+                {
+                    cmd.Parameters.Add("@Centroid", System.Data.SqlDbType.VarBinary, -1).Value = conceptCentroid.Value;
+                    cmd.Parameters.AddWithValue("@TenantId", tenant);
+                    cmd.Parameters.AddWithValue("@Threshold", threshold);
+
+                    using (var reader = cmd.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            bindings.Add(new AtomBinding
+                            {
+                                AtomId = reader.GetInt64(0),
+                                Similarity = reader.GetDouble(1)
+                            });
+                        }
+                    }
+                }
+            }
+
+            return bindings;
+        }
+
+        public static void FillAtomBindingRow(
+            object obj,
+            out SqlInt64 atomId,
+            out SqlDouble similarity)
+        {
+            var binding = (AtomBinding)obj;
+            atomId = new SqlInt64(binding.AtomId);
+            similarity = new SqlDouble(binding.Similarity);
+        }
+
+        private class AtomBinding
+        {
+            public long AtomId { get; set; }
+            public double Similarity { get; set; }
         }
 
         private class BindingResult

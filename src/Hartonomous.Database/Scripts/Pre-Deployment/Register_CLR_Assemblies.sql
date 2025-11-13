@@ -132,26 +132,58 @@ PRINT '  Assembly is signed with SqlClrKey.snk and will use SqlClrLogin';
 PRINT '';
 GO
 
--- Register System.Drawing from .NET Framework GAC (required by SqlClrFunctions)
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Drawing')
+-- ALL dependencies from $(DependenciesPath) - NEVER use GAC versions
+-- These are the EXACT versions required by SqlClrFunctions.dll dependency tree
+-- Must run Scripts\Trust-GAC-Assemblies.sql FIRST to trust these assemblies
+
+-- System.Runtime.CompilerServices.Unsafe (4.0.4.1)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Runtime.CompilerServices.Unsafe')
 BEGIN
-    PRINT '  Registering System.Drawing assembly from GAC...';
-    CREATE ASSEMBLY [System.Drawing]
-    FROM 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Drawing.dll'
+    PRINT '  Registering System.Runtime.CompilerServices.Unsafe...';
+    CREATE ASSEMBLY [System.Runtime.CompilerServices.Unsafe]
+    FROM '$(DependenciesPath)\System.Runtime.CompilerServices.Unsafe.dll'
     WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.Drawing registered';
+    PRINT '  ✓ System.Runtime.CompilerServices.Unsafe registered';
 END
 ELSE
-    PRINT '  ○ System.Drawing already registered';
+    PRINT '  ○ System.Runtime.CompilerServices.Unsafe already registered';
 
 GO
 
--- Register System.Numerics.Vectors from .NET Framework GAC (required by SqlClrFunctions)
+-- System.Buffers (4.0.3.0)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Buffers')
+BEGIN
+    PRINT '  Registering System.Buffers...';
+    CREATE ASSEMBLY [System.Buffers]
+    FROM '$(DependenciesPath)\System.Buffers.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Buffers registered';
+END
+ELSE
+    PRINT '  ○ System.Buffers already registered';
+
+GO
+
+-- System.Memory (4.0.1.1)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Memory')
+BEGIN
+    PRINT '  Registering System.Memory...';
+    CREATE ASSEMBLY [System.Memory]
+    FROM '$(DependenciesPath)\System.Memory.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Memory registered';
+END
+ELSE
+    PRINT '  ○ System.Memory already registered';
+
+GO
+
+-- System.Numerics.Vectors (4.1.4.0) - CORRECT version from dependencies
 IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Numerics.Vectors')
 BEGIN
-    PRINT '  Registering System.Numerics.Vectors assembly from GAC...';
+    PRINT '  Registering System.Numerics.Vectors (4.1.4.0)...';
     CREATE ASSEMBLY [System.Numerics.Vectors]
-    FROM 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Numerics.Vectors.dll'
+    FROM '$(DependenciesPath)\System.Numerics.Vectors.dll'
     WITH PERMISSION_SET = UNSAFE;
     PRINT '  ✓ System.Numerics.Vectors registered';
 END
@@ -160,20 +192,87 @@ ELSE
 
 GO
 
--- Register MathNet.Numerics dependency (required for mathematical operations)
+-- System.Collections.Immutable (1.2.5.0)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Collections.Immutable')
+BEGIN
+    PRINT '  Registering System.Collections.Immutable...';
+    CREATE ASSEMBLY [System.Collections.Immutable]
+    FROM '$(DependenciesPath)\System.Collections.Immutable.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Collections.Immutable registered';
+END
+ELSE
+    PRINT '  ○ System.Collections.Immutable already registered';
+
+GO
+
+-- System.Reflection.Metadata (1.4.5.0)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Reflection.Metadata')
+BEGIN
+    PRINT '  Registering System.Reflection.Metadata...';
+    CREATE ASSEMBLY [System.Reflection.Metadata]
+    FROM '$(DependenciesPath)\System.Reflection.Metadata.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Reflection.Metadata registered';
+END
+ELSE
+    PRINT '  ○ System.Reflection.Metadata already registered';
+
+GO
+
+-- System.Drawing (from dependencies, not GAC)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Drawing')
+BEGIN
+    PRINT '  Registering System.Drawing...';
+    CREATE ASSEMBLY [System.Drawing]
+    FROM '$(DependenciesPath)\System.Drawing.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Drawing registered';
+END
+ELSE
+    PRINT '  ○ System.Drawing already registered';
+
+GO
+
+-- MathNet.Numerics (5.0.0.0)
 IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'MathNet.Numerics')
 BEGIN
-    PRINT '  Registering MathNet.Numerics assembly...';
-    PRINT '  Path: $(MathNetPath)';
-    
-    CREATE ASSEMBLY [MathNet.Numerics] 
-    FROM '$(MathNetPath)' 
+    PRINT '  Registering MathNet.Numerics...';
+    CREATE ASSEMBLY [MathNet.Numerics]
+    FROM '$(DependenciesPath)\MathNet.Numerics.dll'
     WITH PERMISSION_SET = UNSAFE;
-    
     PRINT '  ✓ MathNet.Numerics registered';
 END
 ELSE
     PRINT '  ○ MathNet.Numerics already registered';
+
+GO
+
+-- Microsoft.SqlServer.Types (16.0.0.0)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Microsoft.SqlServer.Types')
+BEGIN
+    PRINT '  Registering Microsoft.SqlServer.Types...';
+    CREATE ASSEMBLY [Microsoft.SqlServer.Types]
+    FROM '$(DependenciesPath)\Microsoft.SqlServer.Types.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ Microsoft.SqlServer.Types registered';
+END
+ELSE
+    PRINT '  ○ Microsoft.SqlServer.Types already registered';
+
+GO
+
+-- Newtonsoft.Json (13.0.0.0)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Newtonsoft.Json')
+BEGIN
+    PRINT '  Registering Newtonsoft.Json...';
+    CREATE ASSEMBLY [Newtonsoft.Json]
+    FROM '$(DependenciesPath)\Newtonsoft.Json.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ Newtonsoft.Json registered';
+END
+ELSE
+    PRINT '  ○ Newtonsoft.Json already registered';
 
 PRINT '';
 GO

@@ -1,6 +1,6 @@
 using System;
 
-namespace SqlClrFunctions.Analysis
+namespace Hartonomous.Clr.Analysis
 {
     /// <summary>
     /// Orchestrates a comprehensive analysis of the system by composing multiple,

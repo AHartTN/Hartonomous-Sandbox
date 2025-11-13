@@ -10,7 +10,7 @@ BEGIN
         PRINT 'Reconstructing operation timeline for ' + CAST(@OperationId AS NVARCHAR(36));
 
     -- Get operation provenance stream
-    DECLARE @ProvenanceStream provenance.AtomicStream;
+    DECLARE @ProvenanceStream dbo.AtomicStream;
     SELECT @ProvenanceStream = ProvenanceStream
     FROM dbo.OperationProvenance
     WHERE OperationId = @OperationId;

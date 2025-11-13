@@ -4,7 +4,7 @@ using System.IO;
 using System.Text;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// File system operations for autonomous deployment and FILESTREAM migration

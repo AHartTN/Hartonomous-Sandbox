@@ -27,7 +27,7 @@ CREATE FUNCTION [dbo].[fn_CalculateComplexity](
     @requiresToolUse BIT
 )
 RETURNS INT
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.fn_CalculateComplexity;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.fn_CalculateComplexity;
 GO
 
 -- Deploy fn_DetermineSla function
@@ -40,7 +40,7 @@ CREATE FUNCTION [dbo].[fn_DetermineSla](
     @complexity INT
 )
 RETURNS NVARCHAR(20)
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.fn_DetermineSla;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.fn_DetermineSla;
 GO
 
 -- Deploy fn_EstimateResponseTime function
@@ -53,7 +53,7 @@ CREATE FUNCTION [dbo].[fn_EstimateResponseTime](
     @complexity INT
 )
 RETURNS INT
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.fn_EstimateResponseTime;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.fn_EstimateResponseTime;
 GO
 
 -- Deploy fn_ParseModelCapabilities function
@@ -71,7 +71,7 @@ RETURNS TABLE (
     max_context_window INT,
     embedding_dimension INT
 )
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.fn_ParseModelCapabilities;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.fn_ParseModelCapabilities;
 GO
 
 -- Deploy sp_LearnFromPerformance procedure
@@ -90,7 +90,7 @@ CREATE PROCEDURE [dbo].[sp_LearnFromPerformance](
     @confidenceScore FLOAT OUTPUT,
     @isSystemHealthy BIT OUTPUT
 )
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.sp_LearnFromPerformance;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.sp_LearnFromPerformance;
 GO
 
 -- Deploy sp_AnalyzeSystem procedure
@@ -109,7 +109,7 @@ CREATE PROCEDURE [dbo].[sp_AnalyzeSystem](
     @anomaliesJson NVARCHAR(MAX) OUTPUT,
     @patternsJson NVARCHAR(MAX) OUTPUT
 )
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.sp_AnalyzeSystem;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.sp_AnalyzeSystem;
 GO
 
 -- Deploy sp_ExecuteActions procedure
@@ -126,7 +126,7 @@ CREATE PROCEDURE [dbo].[sp_ExecuteActions](
     @failedActions INT OUTPUT,
     @resultsJson NVARCHAR(MAX) OUTPUT
 )
-AS EXTERNAL NAME SqlClrFunctions.AutonomousFunctions.sp_ExecuteActions;
+AS EXTERNAL NAME Hartonomous.Clr.AutonomousFunctions.sp_ExecuteActions;
 GO
 
 -- Grant execute permissions to public

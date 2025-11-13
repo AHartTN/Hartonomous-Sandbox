@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 
-namespace SqlClrFunctions.Core
+namespace Hartonomous.Clr.Core
 {
     /// <summary>
     /// Provides a centralized, high-performance implementation of common vector mathematical operations,

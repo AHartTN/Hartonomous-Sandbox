@@ -1,6 +1,6 @@
 using System;
 
-namespace SqlClrFunctions.Core;
+namespace Hartonomous.Clr.Core;
 
 /// <summary>
 /// Lightweight struct representing a timestamped embedding vector for SQL CLR aggregates.

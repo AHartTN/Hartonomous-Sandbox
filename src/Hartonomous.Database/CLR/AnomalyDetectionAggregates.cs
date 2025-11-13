@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// ANOMALY DETECTION AND OUTLIER ANALYSIS AGGREGATES
@@ -498,13 +498,13 @@ namespace SqlClrFunctions
             
             // Compute FULL covariance matrix (not diagonal approximation)
             var vectorArray = vectors.ToArray();
-            var covariance = SqlClrFunctions.MachineLearning.MahalanobisDistance.ComputeCovarianceMatrix(vectorArray);
+            var covariance = Hartonomous.Clr.MachineLearning.MahalanobisDistance.ComputeCovarianceMatrix(vectorArray);
 
             // Compute Mahalanobis distance for each vector using full covariance
             double[] distances = new double[vectors.Count];
             for (int v = 0; v < vectors.Count; v++)
             {
-                distances[v] = SqlClrFunctions.MachineLearning.MahalanobisDistance.Compute(
+                distances[v] = Hartonomous.Clr.MachineLearning.MahalanobisDistance.Compute(
                     vectors[v], 
                     referenceVector, 
                     covariance

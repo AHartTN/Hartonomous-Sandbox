@@ -7,7 +7,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Advanced generation functions with multi-head attention mechanism.
@@ -99,7 +99,7 @@ namespace SqlClrFunctions
                     // Add input atoms to provenance stream
                     foreach (var atomId in inputIds)
                     {
-                        stream = stream.AddSegment(
+                        stream.AddSegment(
                             AtomicStreamSegmentKind.Input.ToString(),
                             new SqlDateTime(DateTime.UtcNow),
                             "application/atom-reference",
@@ -153,7 +153,7 @@ namespace SqlClrFunctions
 
                         // Add generation step to provenance stream
                         var stepMetadata = $"{{\"step\":{step},\"candidateCount\":{candidates.Count},\"score\":{filtered[0].Score:F4}}}";
-                        stream = stream.AddSegment(
+                        stream.AddSegment(
                             AtomicStreamSegmentKind.Output.ToString(),
                             new SqlDateTime(DateTime.UtcNow),
                             "application/atom-reference",

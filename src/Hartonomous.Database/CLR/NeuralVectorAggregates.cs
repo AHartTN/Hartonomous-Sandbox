@@ -5,9 +5,9 @@ using System.IO;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// NEURAL NETWORK-INSPIRED AGGREGATES
@@ -277,7 +277,7 @@ namespace SqlClrFunctions
             var vectorArray = vectors.ToArray();
             
             // Run proper SVD compression
-            var compressed = SqlClrFunctions.MachineLearning.SVDCompression.Compress(
+            var compressed = Hartonomous.Clr.MachineLearning.SVDCompression.Compress(
                 vectorArray, 
                 targetDim
             );

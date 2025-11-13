@@ -2,9 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Data.SqlTypes;
 using System.IO;
+using System.Text;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     [Serializable]
     [SqlUserDefinedType(Format.UserDefined, MaxByteSize = -1, IsByteOrdered = false)]
@@ -57,7 +58,7 @@ namespace SqlClrFunctions
         public SqlInt32 SegmentCount => !_isNull && _segments != null ? new SqlInt32(_segments.Count) : SqlInt32.Zero;
 
         [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = false)]
-        public AtomicStream Initialize(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
+        public void Initialize(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
         {
             if (streamId.IsNull || streamId.Value == Guid.Empty)
             {
@@ -72,19 +73,18 @@ namespace SqlClrFunctions
             _segments ??= new List<Segment>(8);
             _segments.Clear();
             _isNull = false;
-
-            return this;
         }
 
         [SqlMethod(IsDeterministic = false, IsPrecise = false)]
         public static AtomicStream Create(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
         {
-            var stream = Null;
-            return stream.Initialize(streamId, createdUtc, scope, model, metadata);
+            var stream = new AtomicStream();
+            stream.Initialize(streamId, createdUtc, scope, model, metadata);
+            return stream;
         }
 
         [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = false)]
-        public AtomicStream AddSegment(SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
+        public void AddSegment(SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
         {
             EnsureInitialized();
 
@@ -99,14 +99,13 @@ namespace SqlClrFunctions
                 clone);
 
             _segments.Add(segment);
-
-            return this;
         }
 
         [SqlMethod(IsDeterministic = false, IsPrecise = false)]
         public static AtomicStream AppendSegment(AtomicStream stream, SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
         {
-            return stream.AddSegment(kind, timestampUtc, contentType, metadata, payload);
+            stream.AddSegment(kind, timestampUtc, contentType, metadata, payload);
+            return stream;
         }
 
         [SqlMethod(IsDeterministic = true, IsPrecise = true)]

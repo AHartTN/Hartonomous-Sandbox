@@ -15,12 +15,12 @@ BEGIN
     
     WHILE @PointIndex <= @PointCount
     BEGIN
-        -- Y coordinate is amplitude
-        SET @Amplitude = @Waveform.STPointN(@PointIndex).STY.Value;
+        -- Y coordinate is amplitude - must cast to float
+        SET @Amplitude = CAST(@Waveform.STPointN(@PointIndex).STY AS FLOAT);
         SET @SumSquares = @SumSquares + (@Amplitude * @Amplitude);
         SET @PointIndex = @PointIndex + 1;
     END
     
     RETURN SQRT(@SumSquares / @PointCount);
 END;
-GO
+GO

@@ -15,7 +15,7 @@ BEGIN
         BEGIN TRANSACTION;
         
         -- Retrieve the parent audio atom
-        DECLARE @Content VARBINARY(MAX);
+        DECLARE @Content NVARCHAR(MAX);
         DECLARE @ContentType NVARCHAR(100);
         DECLARE @Metadata NVARCHAR(MAX);
         
@@ -90,13 +90,12 @@ BEGIN
             SET @FrameEndTime = (@EndSample * 1.0) / @SampleRate;
             
             -- Extract the waveform segment for this frame
-            -- Use GEOMETRY::STLineSubstring to extract the time slice
-            DECLARE @StartFraction FLOAT = @FrameStartTime / (@TotalSamples * 1.0 / @SampleRate);
-            DECLARE @EndFraction FLOAT = @FrameEndTime / (@TotalSamples * 1.0 / @SampleRate);
+            -- TODO: Implement proper line substring extraction
+            -- GEOMETRY doesn't have STLineSubstring - would need to extract points and rebuild
+            -- For now, use full waveform (less accurate but functional)
+            SET @FrameWaveform = @WaveformGeometry;
             
             BEGIN TRY
-                -- Extract the line segment for this time window
-                SET @FrameWaveform = @WaveformGeometry.STLineSubstring(@StartFraction, @EndFraction);
                 
                 -- Compute local RMS for this frame
                 -- Approximate using the waveform geometry points

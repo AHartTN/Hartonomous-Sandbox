@@ -7,7 +7,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Text analytics helpers to accelerate semantic feature extraction inside SQL Server.

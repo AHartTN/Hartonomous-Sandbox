@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Microsoft.SqlServer.Server;
 
-namespace SqlClrFunctions.Analysis
+namespace Hartonomous.Clr.Analysis
 {
     /// <summary>
     /// Concrete implementation for analyzing cost hotspots from the dbo.BillingUsageLedger table.

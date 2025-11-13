@@ -1,7 +1,7 @@
 using System;
 using System.Data.SqlTypes;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     internal static class SqlBytesInterop
     {

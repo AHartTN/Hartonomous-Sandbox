@@ -110,7 +110,7 @@ PRINT '============================================================';
 PRINT '';
 
 -- Drop main assembly and its objects first
-PRINT 'Dropping CLR functions, aggregates, and types from SqlClrFunctions...';
+PRINT 'Dropping CLR functions, aggregates, and types from Hartonomous.Clr...';
 DECLARE @dropSql NVARCHAR(MAX) = '';
 
 -- Drop functions and aggregates
@@ -127,7 +127,7 @@ SELECT @dropSql += 'DROP ' +
 FROM sys.objects o
 INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
 INNER JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-WHERE a.name = 'SqlClrFunctions' 
+WHERE a.name = 'Hartonomous.Clr' 
   AND o.type IN ('AF', 'FN', 'FS', 'FT', 'IF', 'TF');
 
 IF @dropSql != '' 
@@ -140,7 +140,7 @@ END
 SET @dropSql = '';
 SELECT @dropSql += 'DROP TYPE ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
 FROM sys.assembly_types
-WHERE assembly_id = (SELECT assembly_id FROM sys.assemblies WHERE name = 'SqlClrFunctions');
+WHERE assembly_id = (SELECT assembly_id FROM sys.assemblies WHERE name = 'Hartonomous.Clr');
 
 IF @dropSql != '' 
 BEGIN
@@ -153,10 +153,10 @@ GO
 PRINT 'Dropping assemblies...';
 
 -- Application assembly
-IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions')
+IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Hartonomous.Clr')
 BEGIN
-    DROP ASSEMBLY [SqlClrFunctions];
-    PRINT '  ✓ Dropped SqlClrFunctions';
+    DROP ASSEMBLY [Hartonomous.Clr];
+    PRINT '  ✓ Dropped Hartonomous.Clr';
 END
 
 -- High-level libraries
@@ -330,10 +330,10 @@ GO
 -- ============================================================
 
 PRINT 'TIER 5: Application assembly...';
-PRINT '  [12/12] SqlClrFunctions';
+PRINT '  [12/12] Hartonomous.Clr';
 
-CREATE ASSEMBLY [SqlClrFunctions]
-FROM 'C:\Path\to\DLLs\SqlClrFunctions.dll'
+CREATE ASSEMBLY [Hartonomous.Clr]
+FROM 'C:\Path\to\DLLs\Hartonomous.Clr.dll'
 WITH PERMISSION_SET = UNSAFE;
 GO
 
@@ -366,7 +366,7 @@ WHERE a.name IN (
     'ILGPU.Algorithms',
     'MathNet.Numerics',
     'Newtonsoft.Json',
-    'SqlClrFunctions'
+    'Hartonomous.Clr'
 )
 ORDER BY
     CASE a.name
@@ -381,7 +381,7 @@ ORDER BY
         WHEN 'ILGPU.Algorithms' THEN 9
         WHEN 'MathNet.Numerics' THEN 10
         WHEN 'Newtonsoft.Json' THEN 11
-        WHEN 'SqlClrFunctions' THEN 12
+        WHEN 'Hartonomous.Clr' THEN 12
     END;
 GO
 

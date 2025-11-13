@@ -79,7 +79,7 @@ BEGIN
                 BEGIN
                     -- Call image generation procedure
                     EXEC dbo.sp_GenerateImage 
-                        @Prompt = @InputData,
+                        @prompt = @InputData,
                         @ModelId = @ModelId,
                         @TenantId = @TenantId,
                         @OutputAtomId = @GenerationStreamId OUTPUT;
@@ -91,7 +91,7 @@ BEGIN
                 BEGIN
                     -- Call audio generation procedure
                     EXEC dbo.sp_GenerateAudio
-                        @Prompt = @InputData,
+                        @prompt = @InputData,
                         @ModelId = @ModelId,
                         @TenantId = @TenantId,
                         @OutputAtomId = @GenerationStreamId OUTPUT;

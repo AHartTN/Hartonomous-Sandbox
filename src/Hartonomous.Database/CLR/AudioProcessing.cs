@@ -3,7 +3,7 @@ using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Audio processing operations handled in-process via SQL CLR.

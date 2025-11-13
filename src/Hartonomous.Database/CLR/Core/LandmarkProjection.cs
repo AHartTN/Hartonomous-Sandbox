@@ -1,7 +1,7 @@
 using System;
 using System.Numerics;
 
-namespace SqlClrFunctions.Core
+namespace Hartonomous.Clr.Core
 {
     /// <summary>
     /// Performs a landmark-based projection to reduce high-dimensional vectors to 3D space.

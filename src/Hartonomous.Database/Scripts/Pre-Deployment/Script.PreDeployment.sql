@@ -24,8 +24,8 @@ SQLCMD Variables:
 PRINT 'Starting pre-deployment setup...';
 GO
 
--- **FIRST**: Register CLR assembly (functions defined in DACPAC reference this)
-:r .\Register_CLR_Assemblies.sql
+-- **SKIPPED**: CLR assembly registration done externally via Register-All-CLR-Dependencies.sql
+-- :r .\Register_CLR_Assemblies.sql
 
 -- FILESTREAM filegroup (required for VARBINARY(MAX) FILESTREAM columns)
 :r .\Setup_FILESTREAM_Filegroup.sql

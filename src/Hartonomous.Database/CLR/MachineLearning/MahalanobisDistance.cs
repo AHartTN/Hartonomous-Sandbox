@@ -2,7 +2,7 @@ using System;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Single;
 
-namespace SqlClrFunctions.MachineLearning
+namespace Hartonomous.Clr.MachineLearning
 {
     /// <summary>
     /// Proper Mahalanobis distance with full covariance matrix.

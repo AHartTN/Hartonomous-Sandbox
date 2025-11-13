@@ -6,9 +6,9 @@ using System.Linq;
 using System.Text;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
+using Hartonomous.Clr.Core;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// AUTONOMOUS RESEARCH & TOOL EXECUTION AGGREGATES

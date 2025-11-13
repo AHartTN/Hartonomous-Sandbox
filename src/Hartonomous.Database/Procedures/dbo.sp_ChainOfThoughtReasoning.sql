@@ -89,7 +89,7 @@ BEGIN
         (SELECT * FROM @ReasoningSteps FOR JSON PATH),
         @MaxSteps,
         DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()),
-        TRY_CAST(@CoherenceAnalysis AS JSON),
+        @CoherenceAnalysis,
         SYSUTCDATETIME()
     );
 

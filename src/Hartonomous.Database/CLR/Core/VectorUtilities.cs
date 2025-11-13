@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using Newtonsoft.Json;
 
-namespace SqlClrFunctions.Core;
+namespace Hartonomous.Clr.Core;
 
 /// <summary>
 /// Shared vector utility methods for SQL CLR aggregates.

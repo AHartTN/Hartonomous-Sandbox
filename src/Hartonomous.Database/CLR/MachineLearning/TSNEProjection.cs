@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Numerics;
 
-namespace SqlClrFunctions.MachineLearning
+namespace Hartonomous.Clr.MachineLearning
 {
     /// <summary>
     /// Proper t-SNE implementation with gradient descent on KL divergence.

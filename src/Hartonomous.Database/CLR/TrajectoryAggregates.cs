@@ -6,7 +6,7 @@ using System.IO;
 using System.Collections.Generic;
 using Microsoft.SqlServer.Types;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Represents a 3D point with a timestamp, used for building trajectories.

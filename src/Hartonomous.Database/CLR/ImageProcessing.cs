@@ -4,7 +4,7 @@ using System.Text;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// Image processing helpers executed inside SQL CLR.

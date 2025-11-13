@@ -360,11 +360,11 @@ namespace Hartonomous.SqlClr
             }
 
             // Load BPE vocabulary and merges
-            var vocabulary = SqlClrFunctions.NaturalLanguage.BpeTokenizer.LoadVocabularyFromJson(conn, vocabJson);
-            var merges = SqlClrFunctions.NaturalLanguage.BpeTokenizer.LoadMergesFromText(mergesText);
+            var vocabulary = Hartonomous.Clr.NaturalLanguage.BpeTokenizer.LoadVocabularyFromJson(conn, vocabJson);
+            var merges = Hartonomous.Clr.NaturalLanguage.BpeTokenizer.LoadMergesFromText(mergesText);
             
             // Create BPE tokenizer with loaded data
-            var tokenizer = new SqlClrFunctions.NaturalLanguage.BpeTokenizer(
+            var tokenizer = new Hartonomous.Clr.NaturalLanguage.BpeTokenizer(
                 vocabulary,
                 merges,
                 unknownTokenId: 0,
@@ -388,8 +388,8 @@ namespace Hartonomous.SqlClr
             int embeddingDim)
         {
             // Use bridge library for enterprise-grade transformer inference
-            var provider = new SqlClrFunctions.Core.SqlTensorProvider();
-            var transformer = new SqlClrFunctions.TensorOperations.TransformerInference(provider);
+            var provider = new Hartonomous.Clr.Core.SqlTensorProvider();
+            var transformer = new Hartonomous.Clr.TensorOperations.TransformerInference(provider);
             
             // Convert long[] to int[] (token IDs)
             var tokenIds = new int[tokens.Length];

@@ -8,7 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using System.Linq;
 using Newtonsoft.Json;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// SQL CLR functions for code analysis and AST-as-GEOMETRY pipeline.

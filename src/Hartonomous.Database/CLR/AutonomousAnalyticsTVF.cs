@@ -6,7 +6,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 
-namespace SqlClrFunctions.Analysis
+namespace Hartonomous.Clr.Analysis
 {
     /// <summary>
     /// Public static class containing the Table-Valued Function (TVF) for autonomous analysis.

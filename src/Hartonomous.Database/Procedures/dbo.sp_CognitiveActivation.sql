@@ -67,19 +67,19 @@ BEGIN
     ORDER BY act.ActivationStrength DESC;
 
     DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
-    DECLARE @input_json JSON = CAST(JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated) AS JSON);
-    DECLARE @output_json JSON = CAST(JSON_OBJECT('activatedCount': @activated_count) AS JSON);
-    DECLARE @output_metadata JSON = CAST(JSON_OBJECT('status': 'completed', 'durationMs': @DurationMs) AS JSON);
+    DECLARE @input_json JSON = JSON_OBJECT('activationThreshold': @activation_threshold, 'maxActivated': @max_activated);
+    DECLARE @output_json JSON = JSON_OBJECT('activatedCount': @activated_count);
+    DECLARE @output_metadata JSON = JSON_OBJECT('status': 'completed', 'durationMs': @DurationMs);
     DECLARE @InferenceId BIGINT;
 
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
     VALUES (
         'cognitive_activation',
-        @input_json,
+        CAST(@input_json AS NVARCHAR(MAX)),
         'atom_embeddings',
         'cognitive_activation',
-        @output_json,
-        @output_metadata,
+        CAST(@output_json AS NVARCHAR(MAX)),
+        CAST(@output_metadata AS NVARCHAR(MAX)),
         @DurationMs
     );
 

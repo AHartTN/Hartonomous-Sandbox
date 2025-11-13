@@ -6,7 +6,7 @@ using System;
 // using ILGPU.Runtime.CPU;
 // using ILGPU.Runtime.OpenCL;
 
-namespace SqlClrFunctions.Core
+namespace Hartonomous.Clr.Core
 {
     /// <summary>
     /// GPU acceleration removed - now using SIMD/AVX CPU optimizations via VectorMath.

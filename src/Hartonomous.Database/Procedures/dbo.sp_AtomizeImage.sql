@@ -58,9 +58,9 @@ BEGIN
         DECLARE @TotalPatches INT = @PatchesX * @PatchesY;
         
         -- Create spatial representation of the full image
-        -- Use GEOMETRY POLYGON where corners are at (0,0) and (width, height)
-        DECLARE @ImageBoundary GEOMETRY;
-        SET @ImageBoundary = GEOMETRY::STGeomFromText(
+        -- Use geometry POLYGON where corners are at (0,0) and (width, height)
+        DECLARE @ImageBoundary geometry;
+        SET @ImageBoundary = geometry::STGeomFromText(
             'POLYGON((0 0, ' + CAST(@ImageWidth AS NVARCHAR(20)) + ' 0, ' + 
             CAST(@ImageWidth AS NVARCHAR(20)) + ' ' + CAST(@ImageHeight AS NVARCHAR(20)) + ', ' +
             '0 ' + CAST(@ImageHeight AS NVARCHAR(20)) + ', 0 0))', 

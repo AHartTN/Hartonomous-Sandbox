@@ -82,7 +82,7 @@ BEGIN
             -- The clr_GenerateCodeAstVector returns a JSON array, convert it to the VECTOR type
             IF @AstVectorJson IS NOT NULL AND JSON_VALUE(@AstVectorJson, '$.error') IS NULL
             BEGIN
-                SET @Embedding = CAST(@AstVectorJson AS VECTOR(1998));
+                SET @Embedding = CAST(CONVERT(NVARCHAR(MAX), @AstVectorJson) AS VECTOR(1998));
                 SET @EmbeddingType = 'ast_structural'; -- Set a specific type for this embedding
             END
         END

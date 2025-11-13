@@ -3,10 +3,10 @@ using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using SqlClrFunctions.Core;
-using SqlClrFunctions.MachineLearning;
+using Hartonomous.Clr.Core;
+using Hartonomous.Clr.MachineLearning;
 
-namespace SqlClrFunctions
+namespace Hartonomous.Clr
 {
     /// <summary>
     /// SQL CLR functions for SVD-as-GEOMETRY pipeline.
