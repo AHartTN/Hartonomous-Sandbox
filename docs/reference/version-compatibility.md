@@ -1,8 +1,10 @@
-# VERSION AND COMPATIBILITY AUDIT
+# Version and Compatibility Reference
 
-**Generated**: November 11, 2025  
-**Purpose**: Document current deployment state and technology stack  
-**Methodology**: MS Docs research + codebase analysis
+**Last Updated**: November 13, 2025  
+**.NET Version**: .NET 10 RC2  
+**SQL Server**: SQL Server 2025  
+**EF Core**: 10.0.0-rc.2.25502.107  
+**SQL CLR**: .NET Framework 4.8.1 (14 assemblies)
 
 ---
 
