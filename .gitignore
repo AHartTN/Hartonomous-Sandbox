@@ -79,3 +79,8 @@ tools/**/model_cache/
 *.tmp
 *.temp
 *.log
+
+# Generated deployment files
+scripts/clr-deploy-generated.sql
+deploy/SqlClrFunctions.dll
+*.dacpac
