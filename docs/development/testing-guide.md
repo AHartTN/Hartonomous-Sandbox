@@ -1,8 +1,10 @@
 # Testing Guide
 
 **Last Updated**: November 13, 2025  
-**Purpose**: Comprehensive testing strategy and execution plan for the Hartonomous platform  
-**Status**: 110 unit tests passing, 2/28 integration tests passing, significant coverage gaps identified
+**Test Projects**: 6 (UnitTests, Core.Tests, IntegrationTests, DatabaseTests, SqlClr.Tests, EndToEndTests)  
+**Unit Tests**: 110 passing  
+**Integration Tests**: 28 total (2 passing, 26 infrastructure-blocked)  
+**Status**: Comprehensive unit coverage, integration tests blocked by infrastructure setup
 
 ---
 

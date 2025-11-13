@@ -1,6 +1,13 @@
 # Hartonomous Database Schema
 
-**Comprehensive schema reference for SQL Server 2025 database.**
+**Last Updated**: November 13, 2025  
+**SQL Server Version**: 2025  
+**Tables**: 89  
+**Stored Procedures**: 97  
+**Functions**: 11  
+**Schemas**: 2 (dbo, graph, provenance)
+
+---
 
 ## Overview
 
@@ -14,7 +21,11 @@ Hartonomous uses SQL Server 2025 as the primary data substrate with advanced fea
 - **In-Memory OLTP** for billing ledger and inference cache
 - **Service Broker** for OODA loop messaging
 
-All tables defined in `sql/tables/`, configured via EF Core in `src/Hartonomous.Data/Configurations/`, and deployed by `scripts/deploy-database-unified.ps1`.
+**Database Project**: `src/Hartonomous.Database/Hartonomous.Database.sqlproj`  
+**Deployment**: DACPAC-based via `scripts/deploy-database-unified.ps1`  
+**Schema Definition**: All tables, procedures, and functions defined in `.sql` files under `src/Hartonomous.Database/`
+
+**IMPORTANT**: Schema changes are made in DACPAC `.sql` files, NOT via EF Core migrations. EF Core is configured for read-only schema (scaffolding from existing database).
 
 ## Core Domain Tables
 
