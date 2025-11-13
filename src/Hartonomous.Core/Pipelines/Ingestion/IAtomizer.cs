@@ -45,15 +45,23 @@ public sealed class AtomCandidate
     public required string Modality { get; init; }
     public required string Subtype { get; init; }
     
-    // Content (exactly ONE should be non-null)
+    // Content (for atomic decomposition, prefer AtomicValue)
+    public byte[]? AtomicValue { get; init; }  // NEW: Small atomic payload (1-64 bytes)
     public string? CanonicalText { get; init; }
-    public byte[]? BinaryPayload { get; init; }
+    public byte[]? BinaryPayload { get; init; }  // DEPRECATED: Use AtomicValue instead
     public string? ContentJson { get; init; }
+    
+    // Content addressing
+    public string? ContentHash { get; init; }  // NEW: For explicit hash (e.g., from SHA-256)
     
     // Provenance
     public required string SourceUri { get; init; }
     public required string SourceType { get; init; }
     public AtomBoundary? Boundary { get; init; } // Where in source this atom came from
+    
+    // Spatial indexing
+    public string? SpatialKey { get; init; }  // NEW: GEOMETRY WKT for multi-dimensional position
+    public string? SpatialGeography { get; init; }  // NEW: GEOGRAPHY WKT for true geospatial
     
     // Relationships
     public long? ParentAtomId { get; init; } // For hierarchical atoms (e.g., sentence → paragraph)
