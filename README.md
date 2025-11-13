@@ -2,14 +2,15 @@
 
 ## Database-First AI Platform for SQL Server 2025
 
-Hartonomous is an enterprise-grade AI platform built on SQL Server 2025, combining the power of modern .NET services with database-native intelligence. By leveraging SQL Server's vector search, CLR integration, and Service Broker capabilities, Hartonomous provides a unified substrate for multimodal AI workloads, autonomous reasoning loops, and full audit trails—all within your existing database infrastructure.
+Hartonomous is an enterprise-grade AI platform built on SQL Server 2025 that implements a **"Periodic Table of Knowledge"** architecture. Everything—text, images, audio, video, and even AI model weights—is decomposed into fundamental, deduplicated atoms stored as primitive data types. By leveraging SQL Server's vector search, CLR integration, and content-addressable storage (CAS), Hartonomous eliminates redundancy while providing full provenance tracking and regulatory compliance—all within your existing database infrastructure.
 
 ## Why Hartonomous?
 
-- **Database-Native AI**: Run inference, embedding generation, and vector search directly in SQL Server—no separate vector databases or external services required
+- **Atomic Knowledge Decomposition**: Break all content down to fundamental units (pixels, samples, weights, characters) with content-addressable deduplication—the "Periodic Table of Knowledge"
+- **Database-Native AI**: Run inference, embedding generation, and vector search directly in SQL Server—no separate vector databases, no FILESTREAM blobs required
+- **Spatial Intelligence**: Exploit GEOMETRY/GEOGRAPHY types for multi-dimensional indexing beyond geospatial—RGB color space, audio waveforms, tensor positions, embedding projections
 - **Full Audit Trail**: Complete provenance tracking with temporal tables, graph relationships, and Neo4j integration for regulatory compliance and explainability
 - **Enterprise Ready**: Built on SQL Server 2025 with .NET 10, designed for production workloads with resilience patterns, rate limiting, and comprehensive monitoring
-- **Multimodal Support**: Unified architecture for text, images, audio, video, and sensor data with extensible atomization pipeline
 - **Autonomous Operations**: OODA loop (Observe → Orient → Decide → Act) implemented via Service Broker for self-optimizing systems
 
 ## Key Features
@@ -48,9 +49,19 @@ EXEC dbo.sp_Analyze @observationJson = '{"metricName": "ResponseTime", "value": 
 - **Neo4j Integration**: Inference traces, model evolution, and reasoning paths mirrored for explainability
 - **Full Lineage**: Track every AI decision with evidence, alternatives, confidence scores, and model versions
 
+### Atomic Decomposition ("Periodic Table of Knowledge")
+
+- **Radical Atomization**: Break all content into fundamental units—pixels (RGB triplets), audio samples (int16), model weights (float32), characters (UTF-8)
+- **Content-Addressable Storage**: SHA-256 deduplication means identical pixels/weights/samples stored exactly once
+- **No FILESTREAM**: Eliminate large blob storage entirely—10GB model becomes millions of deduplicated 4-byte float atoms
+- **Spatial Indexing**: Use GEOMETRY for multi-dimensional data—RGB color space, tensor positions, audio waveforms, time-series coordinates
+- **Cross-Modal Reuse**: Same RGB value shared across thousands of images, same weight values across model checkpoints
+
+See [docs/architecture/atomic-decomposition.md](docs/architecture/atomic-decomposition.md) for complete philosophy and implementation details.
+
 ## Prerequisites
 
-- **SQL Server 2025** with CLR, FILESTREAM, and Service Broker enabled
+- **SQL Server 2025** with CLR and Service Broker enabled
 - **.NET 10 SDK** for building solutions
 - **PowerShell 7+** for deployment automation
 - **Neo4j 5.x** (Community or Enterprise) for provenance graph and audit trail
@@ -58,8 +69,10 @@ EXEC dbo.sp_Analyze @observationJson = '{"metricName": "ResponseTime", "value": 
 **Optional**:
 
 - Azure AD tenant for authentication
-- Azure Storage for blob ingestion
+- Azure Storage for blob ingestion (pre-atomization)
 - OpenTelemetry endpoint for distributed tracing
+
+**Note**: FILESTREAM is NOT required—atomic decomposition eliminates need for large blob storage.
 
 ## Quick Start
 
@@ -91,16 +104,16 @@ Run the unified deployment script to create schema, deploy CLR, and configure Se
 
 **Options**:
 
-- `-SkipFilestream`: Skip FILESTREAM setup
 - `-SkipClr`: Skip CLR assembly deployment
 - `-DryRun`: Show SQL commands without executing
 
 This script:
 
-- Enables CLR integration, FILESTREAM, and Service Broker
+- Enables CLR integration and Service Broker (FILESTREAM not required)
 - Executes schema scripts from `sql/tables`, `sql/procedures`, `sql/functions`
 - Deploys CLR assemblies and registers functions/aggregates
 - Sets up Service Broker message types, contracts, queues, and services
+- Creates spatial indexes for atomic decomposition queries
 
 ### 4. Start Neo4j
 
@@ -192,6 +205,7 @@ See [docs/api/rest-api.md](docs/api/rest-api.md) for complete API documentation.
 ## Documentation
 
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - Database-first design, CLR layer, OODA loop, provenance tracking
+- **[Atomic Decomposition](docs/architecture/atomic-decomposition.md)** - "Periodic Table of Knowledge" philosophy, radical atomization, spatial indexing
 - **[REST API Reference](docs/api/rest-api.md)** - Complete endpoint documentation with examples
 - **[Deployment Guide](docs/deployment/deployment-guide.md)** - Production deployment and configuration
 - **[Database Schema](docs/development/database-schema.md)** - Complete schema reference and design patterns
