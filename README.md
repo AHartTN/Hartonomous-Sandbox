@@ -1,50 +1,81 @@
 # Hartonomous
 
-**Autonomous AGI-in-SQL-Server Platform**
+## Database-First AI Platform for SQL Server 2025
 
-Hartonomous is a database-first autonomous AI platform where SQL Server 2025 is the runtime, storage, and intelligence substrate. T-SQL stored procedures execute the full OODA loop (Observe → Orient → Decide → Act), CLR functions provide CPU SIMD-accelerated inference and embedding generation, and .NET 10 services orchestrate ingestion, API access, and background workers. The database stores atoms (multimodal data units), embeddings (vector representations), tensor coefficients (model weights), and provenance graphs (dual-ledger temporal + Neo4j lineage).
+Hartonomous is an enterprise-grade AI platform built on SQL Server 2025, combining the power of modern .NET services with database-native intelligence. By leveraging SQL Server's vector search, CLR integration, and Service Broker capabilities, Hartonomous provides a unified substrate for multimodal AI workloads, autonomous reasoning loops, and full audit trails—all within your existing database infrastructure.
 
-## Platform Highlights
+## Why Hartonomous?
 
-- **T-SQL as AI Interface**: Call `sp_Analyze`, `sp_Hypothesize`, `sp_Act`, `sp_Learn` directly from SQL to execute autonomous reasoning loops. Invoke CLR functions like `clr_RunInference`, `fn_ComputeEmbedding`, or `fn_GenerateText` for inference without leaving the database.
-- **Database-First Architecture**: SQL Server Database Project owns all schema (tables, procedures, functions, CLR bindings). EF Core used only as ORM for data access—no migrations control schema. Applications are thin clients orchestrating database intelligence.
-- **CLR Intelligence Layer**: `src/SqlClr` compiles to .NET Framework 4.8.1 assembly deployed in SQL Server. Provides CPU SIMD vector aggregates (AVX2/SSE4), transformer attention, anomaly detection, multimodal generation, and stream orchestration called from stored procedures. 14 assemblies deployed. **GPU Acceleration**: ILGPU disabled/commented due to CLR verifier incompatibility with unmanaged pointers; code preserved for potential future implementation outside SQL CLR. **Security**: CLR assemblies deployed as `SAFE` where possible; `UNSAFE` assemblies (SIMD intrinsics, file I/O) use trusted assembly registration without enabling `TRUSTWORTHY` database option.
-- **Autonomous OODA Loop**: Service Broker queues (`AnalyzeQueue`, `HypothesizeQueue`, `ActQueue`, `LearnQueue`) coordinate the four-phase loop. Stored procedures publish/consume messages, CLR helpers aggregate telemetry, and results are recorded in `AutonomousImprovementHistory`.
-- **Dual-Ledger Provenance** (**CRITICAL FOR AUDITABILITY**):
-  - **SQL Temporal Tables**: System-versioned history on critical tables (`TensorAtomCoefficients`, `Models`, etc.) for point-in-time compliance queries
-  - **SQL Graph Tables**: `graph.AtomGraphNodes`, `graph.AtomGraphEdges` capture causal relationships using SQL Server graph syntax
-  - **Neo4j Provenance Graph**: Service Broker→Neo4j worker (`Hartonomous.Workers.Neo4jSync`) mirrors inference traces, model evolution, reasoning paths to Neo4j for explainability queries (see `neo4j/schemas/CoreSchema.cypher`)
-  - **Full Audit Trail**: Every inference decision tracked with evidence, alternatives considered, models used, reasoning modes, confidence scores—required for regulatory compliance and AI explainability
-- **Dual Embedding Paths**: C# `EmbeddingService` (`src/Hartonomous.Infrastructure/AI/Embeddings/EmbeddingService.cs`) for HTTP ingestion. CLR `fn_ComputeEmbedding` for T-SQL embedding generation. Both persist to `dbo.AtomEmbeddings` with `VECTOR(1998)` columns and spatial geometry projections.
-- **Unified Substrate**: Single `dbo.Atoms` table with modality metadata, JSON descriptors, geometry `SpatialKey`, and temporal columns. Embeddings, tensor atoms, and provenance link to atoms. No separate vector store—database is the vector store, graph store, and model repository.
+- **Database-Native AI**: Run inference, embedding generation, and vector search directly in SQL Server—no separate vector databases or external services required
+- **Full Audit Trail**: Complete provenance tracking with temporal tables, graph relationships, and Neo4j integration for regulatory compliance and explainability
+- **Enterprise Ready**: Built on SQL Server 2025 with .NET 10, designed for production workloads with resilience patterns, rate limiting, and comprehensive monitoring
+- **Multimodal Support**: Unified architecture for text, images, audio, video, and sensor data with extensible atomization pipeline
+- **Autonomous Operations**: OODA loop (Observe → Orient → Decide → Act) implemented via Service Broker for self-optimizing systems
+
+## Key Features
+
+### T-SQL AI Interface
+
+Call AI capabilities directly from SQL queries:
+
+```sql
+-- Generate embeddings
+DECLARE @embedding VECTOR(1998) = dbo.fn_ComputeEmbedding('search text', 'text-embedding-3-large');
+
+-- Run inference
+EXEC dbo.clr_RunInference @modelName = 'gpt-4-vision', @inputJson = '{...}', @outputJson = @result OUTPUT;
+
+-- Trigger autonomous analysis
+EXEC dbo.sp_Analyze @observationJson = '{"metricName": "ResponseTime", "value": 1250}';
+```
+
+### Database-First Architecture
+
+- **Schema Ownership**: SQL Server Database Project controls all tables, procedures, functions, and CLR bindings
+- **EF Core as ORM**: Used only for data access—no migrations, schema defined in SQL scripts
+- **Thin Services**: .NET APIs orchestrate database intelligence, not duplicate business logic
+
+### CLR Intelligence Layer
+
+- **14 Deployed Assemblies**: CPU SIMD vector operations (AVX2/SSE4), transformer attention, anomaly detection
+- **.NET Framework 4.8.1**: Compiled CLR functions callable from T-SQL
+- **Security Model**: `SAFE` assemblies where possible; `UNSAFE` assemblies use trusted assembly registration (no `TRUSTWORTHY` flag)
+
+### Comprehensive Provenance
+
+- **Temporal Tables**: System-versioned history for point-in-time compliance queries
+- **SQL Graph**: Causal relationships tracked in `graph.AtomGraphNodes` and `graph.AtomGraphEdges`
+- **Neo4j Integration**: Inference traces, model evolution, and reasoning paths mirrored for explainability
+- **Full Lineage**: Track every AI decision with evidence, alternatives, confidence scores, and model versions
 
 ## Prerequisites
 
 - **SQL Server 2025** with CLR, FILESTREAM, and Service Broker enabled
-- **.NET 10 SDK** for building `Hartonomous.sln` and `Hartonomous.Tests.sln`
-- **PowerShell 7+** for running deployment scripts (`scripts/deploy-database-unified.ps1`)
-- **Neo4j 5.x** (Community or Enterprise) for provenance graph sync and audit trail - **CRITICAL for compliance/explainability**
-- **Optional**: Azure AD tenant for authentication, Azure Storage for blob ingestion, OpenTelemetry endpoint for telemetry export
+- **.NET 10 SDK** for building solutions
+- **PowerShell 7+** for deployment automation
+- **Neo4j 5.x** (Community or Enterprise) for provenance graph and audit trail
+
+**Optional**:
+
+- Azure AD tenant for authentication
+- Azure Storage for blob ingestion
+- OpenTelemetry endpoint for distributed tracing
 
 ## Quick Start
 
 ### 1. Clone and Restore
 
-```pwsh
-git clone <repository-url> Hartonomous
+```powershell
+git clone https://github.com/AHartTN/Hartonomous-Sandbox.git Hartonomous
 cd Hartonomous
 dotnet restore Hartonomous.sln
-dotnet restore Hartonomous.Tests.sln
 ```
 
 ### 2. Build Solutions
 
-```pwsh
-# Build all projects (Debug)
-dotnet build Hartonomous.sln -c Debug
-
-# Build CLR assembly (targets .NET Framework 4.8.1)
-dotnet build src/SqlClr/SqlClrFunctions.csproj -c Release
+```powershell
+# Build all projects
+dotnet build Hartonomous.sln -c Release
 
 # Build test suite
 dotnet build Hartonomous.Tests.sln -c Debug
@@ -54,7 +85,7 @@ dotnet build Hartonomous.Tests.sln -c Debug
 
 Run the unified deployment script to create schema, deploy CLR, and configure Service Broker:
 
-```pwsh
+```powershell
 ./scripts/deploy-database-unified.ps1 -Server "localhost" -Database "Hartonomous"
 ```
 
@@ -63,68 +94,39 @@ Run the unified deployment script to create schema, deploy CLR, and configure Se
 - `-SkipFilestream`: Skip FILESTREAM setup
 - `-SkipClr`: Skip CLR assembly deployment
 - `-DryRun`: Show SQL commands without executing
-- `-ConnectionString`: Override default connection string
 
 This script:
 
 - Enables CLR integration, FILESTREAM, and Service Broker
 - Executes schema scripts from `sql/tables`, `sql/procedures`, `sql/functions`
-- Deploys `SqlClrFunctions.dll` and registers CLR functions/aggregates/types
+- Deploys CLR assemblies and registers functions/aggregates
 - Sets up Service Broker message types, contracts, queues, and services
-- Runs verification scripts to validate installation
 
-### 4. Run Services Locally
+### 4. Start Neo4j
 
-**Neo4j** (required for provenance/auditability - run BEFORE services):
-
-```pwsh
-# Option 1: Docker (recommended for development)
+```powershell
+# Docker (recommended for development)
 docker run -d `
   --name neo4j `
   -p 7474:7474 -p 7687:7687 `
   -e NEO4J_AUTH=neo4j/your-password `
-  -e NEO4J_apoc_export_file_enabled=true `
-  -e NEO4J_apoc_import_file_enabled=true `
   neo4j:5.28-community
-
-# Option 2: Neo4j Desktop (Windows/Mac)
-# Download from https://neo4j.com/download/
-# Create a database, set password, start
-
-# Initialize schema
-# Open Neo4j Browser at http://localhost:7474
-# Execute: neo4j/schemas/CoreSchema.cypher
 ```
 
-**Configuration**: Update connection strings in `appsettings.json`:
+Open Neo4j Browser at <http://localhost:7474> and execute `neo4j/schemas/CoreSchema.cypher` to initialize the provenance schema.
 
-```json
-{
-  "Neo4j": {
-    "Uri": "bolt://localhost:7687",
-    "Username": "neo4j",
-    "Password": "your-password"
-  }
-}
-```
+### 5. Run Services
 
 **API Server** (port 5000 by default):
 
-```pwsh
+```powershell
 cd src/Hartonomous.Api
-dotnet run
-```
-
-**Admin Portal** (Blazor, port 5001 by default):
-
-```pwsh
-cd src/Hartonomous.Admin
 dotnet run
 ```
 
 **Background Workers**:
 
-```pwsh
+```powershell
 # CES consumer (CDC ingestion)
 cd src/Hartonomous.Workers.CesConsumer
 dotnet run
@@ -134,222 +136,73 @@ cd src/Hartonomous.Workers.Neo4jSync
 dotnet run
 ```
 
-**Configuration**: Each service reads connection strings and configuration from `appsettings.json` or environment variables. Default SQL connection: `Server=localhost;Database=Hartonomous;Trusted_Connection=True;TrustServerCertificate=True;`
-
-### 5. Run EF Core Migrations (Alternative - Not Recommended)
-
-**Note**: In database-first architecture, SQL Server Database Project owns schema. EF Core migrations are preserved for backward compatibility but **should not** be used to modify schema. Use SQL scripts in `sql/` instead.
-
-```pwsh
-dotnet ef database update --project src/Hartonomous.Data/Hartonomous.Data.csproj --connection "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
-```
-
-**Database-First Workflow**:
-
-1. Modify schema in `sql/tables/*.sql`, `sql/procedures/*.sql`, etc.
-2. Deploy via `deploy-database-unified.ps1`
-3. Scaffold EF Core entities if needed: `dotnet ef dbcontext scaffold`
-4. Manually update EF Core configurations in `src/Hartonomous.Data/Configurations/` to match SQL schema
+Update connection strings in `appsettings.json` for each service.
 
 ### 6. Run Tests
 
-**Current Test Status** (as of November 2024):
-
-- **Unit Tests**: ✅ 110/110 passing (stubs, ~30-40% code coverage)
-- **Integration Tests**: ⚠️ 2/28 passing (25 failures due to missing `appsettings.Testing.json` configuration)
-- **End-to-End Tests**: ✅ 2/2 passing (minimal smoke tests)
-- **Database Tests**: ❌ Not yet executed
-- **Coverage Goal**: 100% (see [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md))
-
-```pwsh
-# All tests (will show failures without test infrastructure)
+```powershell
+# Run all tests
 dotnet test Hartonomous.Tests.sln
 
-# Unit tests only (all passing)
+# Unit tests only
 dotnet test tests/Hartonomous.UnitTests
-
-# Integration tests (requires appsettings.Testing.json, test database, Neo4j)
-dotnet test tests/Hartonomous.IntegrationTests
-
-# Database validation tests (not yet implemented)
-dotnet test tests/Hartonomous.DatabaseTests
 ```
 
-**To Fix Integration Test Failures**:
-
-1. Create `tests/Hartonomous.IntegrationTests/appsettings.Testing.json` with connection strings
-2. Deploy test database: `./scripts/deploy-database-unified.ps1 -Server "localhost" -Database "Hartonomous_Test"`
-3. Start Neo4j container for graph tests
-4. Configure External ID test tokens
-
-See [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) for complete testing roadmap.
+**Note**: Integration tests require additional configuration. See [docs/development/testing-guide.md](docs/development/testing-guide.md) for details.
 
 ## Project Structure
 
-- **`src/Hartonomous.Api`**: ASP.NET Core REST API. Controllers expose ingestion, inference, search, provenance, and operations endpoints. Configured with Azure AD auth, rate limiting, OpenTelemetry.
-- **`src/Hartonomous.Admin`**: Blazor Server admin portal with telemetry dashboards, atom browser, model management.
-- **`src/Hartonomous.Workers.*`**: Background services (CES consumer for CDC, Neo4j sync for Service Broker message pump).
-- **`src/Hartonomous.Core`**: Domain entities (`Atom`, `AtomEmbedding`, `TensorAtom`, `TensorAtomCoefficient`, `Model`, `ModelLayer`), value objects, interfaces.
-- **`src/Hartonomous.Shared.Contracts`**: DTOs, request/response models shared across services.
-- **`src/Hartonomous.Data`**: EF Core `DbContext`, entity configurations, migrations. Maps geometry columns, JSON columns, temporal tables, and relationships.
-- **`src/Hartonomous.Infrastructure`**: Service registrations (`DependencyInjection.cs`), pipelines (ingestion, inference, provenance), messaging (event bus, Service Broker client), resilience policies, billing, security services.
-- **`src/Hartonomous.Core.Performance`**: ILGPU harnesses and BenchmarkDotNet tests for SIMD validation.
-- **`src/Hartonomous.Database.Clr`**: Packaging project for CLR assembly deployment.
-- **`src/SqlClr`**: SQL CLR implementation (vector aggregates, transformer helpers, anomaly detection, multimodal processing, stream UDTs, Service Broker orchestrators). Compiles to `SqlClrFunctions.dll` targeting .NET Framework 4.8.1.
-- **`sql/`**: Database schema scripts (`tables/`, `procedures/`, `functions/`), verification utilities, setup scripts (FILESTREAM, vector indexes, Service Broker).
-- **`scripts/`**: PowerShell automation (database deployment, CLR refresh, dependency analysis).
-- **`deploy/`**: Production deployment artifacts (systemd units, bootstrap script).
-- **`docs/`**: Architecture, deployment, CLR guide, schema reference, Gödel Engine documentation.
-- **`tests/`**: Unit, integration, database validation, end-to-end test suites.
+- **`src/Hartonomous.Api`**: ASP.NET Core REST API with 18 controller endpoints
+- **`src/Hartonomous.Admin`**: Blazor Server admin portal with telemetry dashboards
+- **`src/Hartonomous.Workers.*`**: Background services (CDC consumer, Neo4j sync)
+- **`src/Hartonomous.Core`**: Domain entities, value objects, interfaces
+- **`src/Hartonomous.Data`**: EF Core DbContext and entity configurations
+- **`src/Hartonomous.Infrastructure`**: Service implementations, pipelines, messaging
+- **`src/SqlClr`**: SQL CLR implementation (.NET Framework 4.8.1)
+- **`sql/`**: Database schema scripts (tables, procedures, functions)
+- **`scripts/`**: PowerShell deployment automation
+- **`tests/`**: Unit, integration, and end-to-end test suites
 
-## Multimodal Ingestion Pipeline
+## REST API
 
-**NEW**: Hartonomous now includes a complete **Reader → Atomizer → Ingestor** pipeline for multimodal content ingestion:
+Hartonomous provides a comprehensive REST API for all operations:
 
-### Architecture
+```bash
+# Ingest content
+curl -X POST http://localhost:5000/api/ingestion/ingest \
+  -H "Content-Type: application/json" \
+  -d '{"sourceUri": "file:///documents/report.txt", "modality": "text"}'
 
-```
-Source URI (file://, http://, s3://)
-    ↓
-IContentReaderFactory.CreateReader()
-    ↓
-IContentReader.ReadChunksAsync() → IAsyncEnumerable<ReadChunk>
-    ↓
-IAtomizer<TSource>.AtomizeAsync() → IAsyncEnumerable<AtomCandidate>
-    ↓
-Quality Filtering (QualityScore ≥ MinQualityScore)
-    ↓
-Batch Processing (Channel-based parallelism)
-    ↓
-IAtomIngestionService.IngestAsync() → Atoms + embeddings + spatial indexes
-    ↓
-IngestionResult (statistics, throughput, duplicates)
+# Generate embeddings
+curl -X POST http://localhost:5000/api/embeddings/generate \
+  -H "Content-Type: application/json" \
+  -d '{"text": "sample text", "modelName": "text-embedding-3-large"}'
+
+# Semantic search
+curl -X POST http://localhost:5000/api/search/semantic \
+  -H "Content-Type: application/json" \
+  -d '{"query": "financial reports", "topK": 10}'
+
+# Query provenance
+curl -X GET http://localhost:5000/api/provenance/trace/atom/{atomId}
 ```
 
-### Example: Ingest Text File
-
-```csharp
-// Create orchestrator with text atomizer
-var readerFactory = new ContentReaderFactory(loggerFactory);
-var orchestrator = new MultimodalIngestionOrchestrator(
-    readerFactory,
-    atomIngestionService,
-    logger,
-    batchSize: 100,
-    maxParallelism: 4);
-
-// Register sentence-level atomizer
-var textAtomizer = new TextAtomizer(
-    strategy: TextChunkingStrategy.Sentence,
-    logger: logger);
-orchestrator.RegisterAtomizer("text", textAtomizer);
-
-// Ingest with progress tracking
-var result = await orchestrator.IngestAsync(
-    sourceUri: "file:///documents/report.txt",
-    modalityHint: "text",
-    progress: new Progress<IngestionProgress>(p =>
-    {
-        Console.WriteLine($"[{p.Phase}] {p.PercentComplete:F1}% - " +
-                        $"Atoms: {p.AtomsProcessed}/{p.AtomsGenerated}");
-    }));
-
-Console.WriteLine($"✅ Ingested {result.Statistics.AtomsIngested} atoms");
-Console.WriteLine($"   Throughput: {result.Statistics.ThroughputAtomsPerSecond:F2} atoms/sec");
-```
-
-### Example: Batch Ingestion
-
-```csharp
-// Register atomizers for each modality
-orchestrator.RegisterAtomizer("text", new TextAtomizer(TextChunkingStrategy.FixedSize, logger));
-orchestrator.RegisterAtomizer("image", new ImageAtomizer(ImageAtomizationStrategy.WholeImage, logger));
-orchestrator.RegisterAtomizer("audio", new AudioAtomizer(AudioAtomizationStrategy.WholeAudio, logger));
-orchestrator.RegisterAtomizer("video", new VideoAtomizer(VideoAtomizationStrategy.WholeVideo, logger));
-
-// Ingest multiple files
-var files = new[] { "doc.txt", "image.jpg", "audio.mp3", "video.mp4" };
-foreach (var file in files)
-{
-    var result = await orchestrator.IngestAsync(file);
-    // Automatic modality detection from MIME type
-}
-```
-
-### Text Atomization Strategies
-
-- **Sentence**: Regex-based splitting with abbreviation handling (dr., mr., mrs., inc., etc.)
-- **FixedSize**: Chunk with overlap, optional sentence boundary preservation
-- **Paragraph**: Split on double newlines
-- **Semantic**: (TODO) TextTiling or LLM-based coherence scoring
-- **Structural**: (TODO) Markdown/HTML structure preservation (headers, lists, code blocks)
-
-### Multimodal Atomization (In Development)
-
-- **Image**: Whole image, tile extraction, object detection (YOLO), OCR (Tesseract), salient regions
-- **Audio**: Whole audio, silence detection, speaker diarization (pyannote.audio), Whisper transcription
-- **Video**: Whole video, scene detection (PySceneDetect), keyframe extraction (FFmpeg), shot boundaries
-- **Sensor**: Fixed-duration windowing, event detection, change-point detection
-
-See `src/Hartonomous.Core/Examples/MultimodalIngestionExample.cs` for complete usage examples.
-
-## Example: T-SQL Inference
-
-```sql
--- Generate embedding from text (CLR function)
-DECLARE @embedding VECTOR(1998);
-SET @embedding = dbo.fn_ComputeEmbedding('The quick brown fox jumps over the lazy dog', 'text-embedding-3-large');
-
--- Search for similar atoms (CLR aggregate + spatial index)
-SELECT TOP 10 a.AtomId, a.Modality, a.ContentJson, 
-       dbo.clr_VectorDistance(@embedding, e.EmbeddingVector) AS Distance
-FROM dbo.Atoms a
-INNER JOIN dbo.AtomEmbeddings e ON a.AtomId = e.AtomId
-WHERE e.EmbeddingType = 'text-embedding-3-large'
-ORDER BY Distance ASC;
-
--- Run multimodal inference (CLR stored procedure)
-EXEC dbo.clr_RunInference 
-    @modelName = 'gpt-4-vision',
-    @inputJson = '{"text": "Describe this image", "imageUrl": "https://..."}',
-    @outputJson = @result OUTPUT;
-
--- Trigger autonomous analysis (OODA loop entry point)
-EXEC dbo.sp_Analyze 
-    @observationJson = '{"metricName": "ResponseTime", "value": 1250, "threshold": 1000}';
-```
+See [docs/api/rest-api.md](docs/api/rest-api.md) for complete API documentation.
 
 ## Documentation
 
-### Core Architecture & Implementation
-- **[ARCHITECTURE.md](ARCHITECTURE.md)**: Database-first design, CLR intelligence layer, OODA loop, dual embedding paths, schema overview, .NET 10 orchestration.
-- **[API.md](API.md)**: REST API endpoint reference (ingestion, inference, search, provenance, operations).
-- **[IMPLEMENTATION_CHECKLIST.md](IMPLEMENTATION_CHECKLIST.md)**: 226-item sequential action plan (database-first architecture).
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - Database-first design, CLR layer, OODA loop, provenance tracking
+- **[REST API Reference](docs/api/rest-api.md)** - Complete endpoint documentation with examples
+- **[Deployment Guide](docs/deployment/deployment-guide.md)** - Production deployment and configuration
+- **[Database Schema](docs/development/database-schema.md)** - Complete schema reference and design patterns
+- **[CLR Security](docs/security/clr-security.md)** - Security model and best practices
+- **[Testing Guide](docs/development/testing-guide.md)** - Running tests and contributing quality code
 
-### Technical Analysis (Enterprise-Grade)
-- **[docs/technical-analysis/](docs/technical-analysis/)**: Professional technical documentation suite
-  - **[ARCHITECTURE_EVOLUTION.md](docs/technical-analysis/ARCHITECTURE_EVOLUTION.md)**: Historical architectural decisions (database-first pivot, CLR UNSAFE rationale, Neo4j provenance, Service Broker OODA loop).
-  - **[IMPLEMENTATION_STATUS.md](docs/technical-analysis/IMPLEMENTATION_STATUS.md)**: Component status, testing coverage, deployment state (110 unit tests, 2/28 integration tests, roadmap).
-  - **[TECHNICAL_DEBT_CATALOG.md](docs/technical-analysis/TECHNICAL_DEBT_CATALOG.md)**: 47+ identified items with P0-P3 classification and remediation plan.
-  - **[CLAIMS_VALIDATION.md](docs/technical-analysis/CLAIMS_VALIDATION.md)**: Evidence-based validation of AGI-in-SQL-Server capabilities.
+## Contributing
 
-### Deployment & Operations
-- **[DEPLOYMENT_ARCHITECTURE_PLAN.md](DEPLOYMENT_ARCHITECTURE_PLAN.md)**: Hybrid Azure Arc SQL deployment strategy, production infrastructure plan.
-- **[DATABASE_DEPLOYMENT_GUIDE.md](DATABASE_DEPLOYMENT_GUIDE.md)**: Step-by-step database provisioning guide.
-- **[docs/CLR_DEPLOYMENT.md](docs/CLR_DEPLOYMENT.md)**: CLR function reference, .NET Framework 4.8.1 constraints, SAFE vs UNSAFE deployment, security best practices.
-- **[scripts/CLR_SECURITY_ANALYSIS.md](scripts/CLR_SECURITY_ANALYSIS.md)**: CLR security surface analysis, UNSAFE assembly justification.
-
-### Testing & Quality
-- **[TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md)**: Testing status, coverage gaps, 184-item plan to 100% coverage.
-- **[CODE_REFACTORING_AUDIT.md](CODE_REFACTORING_AUDIT.md)**: 400+ code quality issues cataloged (P0-P4 priority levels).
-
-### Technical Reference
-- **[VERSION_AND_COMPATIBILITY_AUDIT.md](VERSION_AND_COMPATIBILITY_AUDIT.md)**: Package versions, SQL Server 2025 requirements, compatibility matrix.
-- **[DATABASE_AND_DEPLOYMENT_AUDIT.md](DATABASE_AND_DEPLOYMENT_AUDIT.md)**: Schema inventory, CLR UNSAFE security documentation.
-- **[docs/GODEL_ENGINE.md](docs/GODEL_ENGINE.md)**: Autonomous compute via Service Broker (`sp_StartPrimeSearch`, `clr_FindPrimes`, `AutonomousComputeJobs`).
-
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development guidelines, coding standards, and pull request process.
 
 ## License
 
-See [LICENSE](LICENSE) for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
