@@ -1,7 +1,0 @@
-CREATE FUNCTION dbo.VectorAdd (@v1 VARBINARY(MAX), @v2 VARBINARY(MAX))
-RETURNS VARBINARY(MAX)
-AS
-BEGIN
-    RETURN dbo.clr_VectorAdd(@v1, @v2);
-END;
-GO

@@ -141,6 +141,3 @@ BEGIN
     END CATCH;
 END;
 GO
-
-PRINT 'Successfully created procedure dbo.sp_AtomizeModel.';
-GO

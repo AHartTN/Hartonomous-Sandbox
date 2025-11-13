@@ -109,10 +109,3 @@ BEGIN
     IF @Debug = 1
         PRINT 'Transformer-style inference completed with ' + CAST(@Layers AS NVARCHAR(10)) + ' layers';
 END;
-GO
-
-PRINT 'Attention generation procedures created successfully';
-PRINT 'sp_GenerateWithAttention: Core attention-based generation';
-PRINT 'sp_AttentionInference: Multi-step attention reasoning';
-PRINT 'sp_TransformerStyleInference: Full transformer pipeline';
-GO

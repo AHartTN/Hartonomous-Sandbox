@@ -1,11 +1,30 @@
 /*
- Pre-Deployment Script Template							
---------------------------------------------------------------------------------------
- This file contains SQL statements that will be executed before the build script.	
- Use SQLCMD syntax to include a file in the pre-deployment script.			
- Example:      :r .\myfile.sql								
- Use SQLCMD syntax to reference a variable in the pre-deployment script.		
- Example:      :setvar TableName MyTable							
-               SELECT * FROM [$(TableName)]					
---------------------------------------------------------------------------------------
+================================================================================
+Pre-Deployment Script - Environment-Specific Setup
+================================================================================
+Executed BEFORE deployment plan (but plan calculated before script runs)
+
+Requirements:
+- FILESTREAM filegroup: Required for binary payload storage
+  Tables: TensorAtomPayloads, LayerTensorSegments, AtomPayloadStore
+  
+- In-Memory OLTP filegroup: Required for memory-optimized tables
+  Tables: BillingUsageLedger_InMemory
+
+SQLCMD Variables:
+- $(DefaultDataPath): Physical directory for database files (environment-specific)
+- $(DatabaseName): Target database name
+================================================================================
 */
+
+PRINT 'Starting pre-deployment setup...';
+GO
+
+-- FILESTREAM filegroup (required for VARBINARY(MAX) FILESTREAM columns)
+:r .\Setup_FILESTREAM_Filegroup.sql
+
+-- In-Memory OLTP filegroup (required for MEMORY_OPTIMIZED = ON tables)
+:r .\Setup_InMemory_Filegroup.sql
+
+PRINT 'Pre-deployment setup complete.';
+GO

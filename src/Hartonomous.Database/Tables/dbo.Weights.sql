@@ -1,6 +1,6 @@
 CREATE TABLE dbo.Weights (
     WeightId BIGINT IDENTITY(1,1) NOT NULL,
-    LayerID INT NOT NULL,
+    LayerID BIGINT NOT NULL,  -- Fixed: Changed from INT to BIGINT to match ModelLayers.LayerId
     NeuronIndex INT NOT NULL,
     WeightType NVARCHAR(50) NOT NULL DEFAULT 'parameter',
     Value REAL NOT NULL,

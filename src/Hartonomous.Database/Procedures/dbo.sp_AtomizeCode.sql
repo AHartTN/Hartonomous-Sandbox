@@ -1,13 +1,6 @@
 -- sp_AtomizeCode: AST-as-GEOMETRY pipeline for source code ingestion
 -- Parses source code using Roslyn, generates structural vector, projects to GEOMETRY, stores in CodeAtom table
 
-USE Hartonomous;
-GO
-
-IF OBJECT_ID('dbo.sp_AtomizeCode', 'P') IS NOT NULL
-    DROP PROCEDURE dbo.sp_AtomizeCode;
-GO
-
 CREATE PROCEDURE dbo.sp_AtomizeCode
     @AtomId BIGINT,
     @TenantId INT = 0,
@@ -128,7 +121,4 @@ BEGIN
         THROW;
     END CATCH;
 END;
-GO
-
-PRINT 'Successfully created procedure dbo.sp_AtomizeCode.';
 GO

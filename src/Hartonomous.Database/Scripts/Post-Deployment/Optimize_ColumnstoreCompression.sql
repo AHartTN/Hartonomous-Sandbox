@@ -1,94 +1,33 @@
-USE [$(DatabaseName)]
-GO
+/*
+================================================================================
+Table Compression Optimization
+================================================================================
+Purpose: Applies ROW/PAGE compression to tables for storage optimization
 
-SET ANSI_NULLS ON;
-SET QUOTED_IDENTIFIER ON;
-GO
+Requirements:
+- Runs AFTER DACPAC deployment (tables must exist)
+- ROW compression: Better for insert-heavy OLTP workloads
+- PAGE compression: Better compression ratio for append-mostly tables
 
+Note:
+- Columnstore indexes are now in DACPAC model (Indexes/ folder)
+- This script only handles data compression via ALTER TABLE REBUILD
+================================================================================
+*/
+
+SET NOCOUNT ON;
 PRINT '=======================================================';
-PRINT 'COLUMNSTORE AND COMPRESSION DEPLOYMENT';
+PRINT 'TABLE COMPRESSION OPTIMIZATION';
 PRINT '=======================================================';
 PRINT '';
 
--- =============================================
--- PART 1: COLUMNSTORE FOR ANALYTICAL TABLES
--- =============================================
-
--- BillingUsageLedger: Append-only analytical queries
--- Use nonclustered columnstore for analytics while keeping rowstore for OLTP
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'NCCI_BillingUsageLedger_Analytics' AND object_id = OBJECT_ID('dbo.BillingUsageLedger'))
-BEGIN
-    CREATE NONCLUSTERED COLUMNSTORE INDEX NCCI_BillingUsageLedger_Analytics
-    ON dbo.BillingUsageLedger
-    (
-        TenantId,
-        PrincipalId,
-        Operation,
-        MessageType,
-        Handler,
-        Units,
-        BaseRate,
-        Multiplier,
-        TotalCost,
-        TimestampUtc
-    );
-
-    PRINT '✓ Created columnstore index on BillingUsageLedger for analytics';
-END
-ELSE
-    PRINT '○ Columnstore index already exists on BillingUsageLedger';
-GO
-
--- TensorAtomCoefficients: CRITICAL for SVD query performance
--- Analytical queries on tensor coefficients (SVD-as-GEOMETRY queries)
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'NCCI_TensorAtomCoefficients_SVD' AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients'))
-BEGIN
-    CREATE NONCLUSTERED COLUMNSTORE INDEX NCCI_TensorAtomCoefficients_SVD
-    ON dbo.TensorAtomCoefficients
-    (
-        ParentLayerId,
-        TensorAtomId,
-        Coefficient,
-        Rank
-    );
-
-    PRINT '✓ Created columnstore index on TensorAtomCoefficients for SVD queries (CRITICAL)';
-END
-ELSE
-    PRINT '○ Columnstore index already exists on TensorAtomCoefficients';
-GO
-
--- AutonomousImprovementHistory: Analytical queries on improvement patterns
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'NCCI_AutonomousImprovementHistory_Analytics' AND object_id = OBJECT_ID('dbo.AutonomousImprovementHistory'))
-BEGIN
-    CREATE NONCLUSTERED COLUMNSTORE INDEX NCCI_AutonomousImprovementHistory_Analytics
-    ON dbo.AutonomousImprovementHistory
-    (
-        ChangeType,
-        RiskLevel,
-        EstimatedImpact,
-        SuccessScore,
-        TestsPassed,
-        TestsFailed,
-        PerformanceDelta,
-        WasDeployed,
-        WasRolledBack,
-        StartedAt,
-        CompletedAt
-    );
-    
-    PRINT '✓ Created columnstore index on AutonomousImprovementHistory for pattern analysis';
-END
-ELSE
-    PRINT '○ Columnstore index already exists on AutonomousImprovementHistory';
-GO
-
--- =============================================
--- PART 2: ROW/PAGE COMPRESSION FOR OLTP TABLES
--- =============================================
-
 -- BillingUsageLedger: ROW compression (better for insert performance)
-IF NOT EXISTS (SELECT 1 FROM sys.partitions WHERE object_id = OBJECT_ID('dbo.BillingUsageLedger') AND data_compression > 0)
+IF NOT EXISTS (
+    SELECT 1 
+    FROM sys.partitions 
+    WHERE object_id = OBJECT_ID('dbo.BillingUsageLedger') 
+      AND data_compression > 0
+)
 BEGIN
     ALTER TABLE dbo.BillingUsageLedger REBUILD WITH (DATA_COMPRESSION = ROW);
     PRINT '✓ Applied ROW compression to BillingUsageLedger';
@@ -97,8 +36,24 @@ ELSE
     PRINT '○ BillingUsageLedger already compressed';
 GO
 
--- AutonomousImprovementHistory: PAGE compression (better compression ratio, slightly slower inserts acceptable)
-IF NOT EXISTS (SELECT 1 FROM sys.partitions WHERE object_id = OBJECT_ID('dbo.AutonomousImprovementHistory') AND data_compression = 2)
+-- AutonomousImprovementHistory: PAGE compression (better compression ratio)
+IF NOT EXISTS (
+    SELECT 1 
+    FROM sys.partitions 
+    WHERE object_id = OBJECT_ID('dbo.AutonomousImprovementHistory') 
+      AND data_compression = 2
+)
+BEGIN
+    ALTER TABLE dbo.AutonomousImprovementHistory REBUILD WITH (DATA_COMPRESSION = PAGE);
+    PRINT '✓ Applied PAGE compression to AutonomousImprovementHistory';
+END
+ELSE
+    PRINT '○ AutonomousImprovementHistory already compressed';
+GO
+
+PRINT '✓ Table compression optimization complete';
+PRINT '';
+
 BEGIN
     ALTER TABLE dbo.AutonomousImprovementHistory REBUILD WITH (DATA_COMPRESSION = PAGE);
     PRINT '✓ Applied PAGE compression to AutonomousImprovementHistory';

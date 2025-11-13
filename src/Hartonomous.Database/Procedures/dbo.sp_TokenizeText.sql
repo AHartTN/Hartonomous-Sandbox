@@ -1,6 +1,3 @@
-USE Hartonomous;
-GO
-
 CREATE PROCEDURE dbo.sp_TokenizeText
     @text NVARCHAR(MAX),
     @tokenIdsJson NVARCHAR(MAX) OUTPUT
@@ -49,7 +46,4 @@ BEGIN
         SET @tokenIdsJson = '[]';
     END
 END;
-GO
-
-PRINT 'Created procedure dbo.sp_TokenizeText using approved project logic.';
 GO

@@ -54,6 +54,3 @@ BEGIN
     ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
 END
 GO
-
-PRINT 'Created sp_CheckSimilarityAboveThreshold for semantic deduplication';
-GO

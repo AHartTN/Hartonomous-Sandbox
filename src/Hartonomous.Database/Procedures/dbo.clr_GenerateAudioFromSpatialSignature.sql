@@ -1,3 +1,0 @@
-CREATE FUNCTION dbo.clr_GenerateAudioFromSpatialSignature(@spatialSignature GEOMETRY)
-RETURNS VARBINARY(MAX)
-AS EXTERNAL NAME SqlClrFunctions.[SqlClrFunctions.AudioProcessing].GenerateAudioFromSpatialSignature;

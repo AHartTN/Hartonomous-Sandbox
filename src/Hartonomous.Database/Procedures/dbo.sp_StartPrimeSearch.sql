@@ -1,6 +1,3 @@
-USE Hartonomous;
-GO
-
 -- sp_StartPrimeSearch: Gödel Engine "Ignition Key"
 -- Creates a compute job in AutonomousComputeJobs table
 -- Sends initial message to AnalyzeQueue to trigger the OODA loop
@@ -55,7 +52,4 @@ BEGIN
     PRINT 'The autonomous OODA loop will now process this job in chunks.';
 
 END;
-GO
-
-PRINT 'Created procedure dbo.sp_StartPrimeSearch.';
 GO

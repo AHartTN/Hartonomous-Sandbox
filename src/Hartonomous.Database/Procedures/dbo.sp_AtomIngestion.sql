@@ -121,15 +121,20 @@ BEGIN
 
             -- First, project the incoming embedding to its 3D spatial key
             DECLARE @QuerySpatialKey GEOMETRY = dbo.fn_ProjectTo3D(@Embedding);
+            
+            -- Extract spatial coordinates for hybrid search
+            DECLARE @SpatialX FLOAT = @QuerySpatialKey.STX();
+            DECLARE @SpatialY FLOAT = @QuerySpatialKey.STY();
+            DECLARE @SpatialZ FLOAT = @QuerySpatialKey.STZ();
 
             -- Now, execute the hybrid search to get the top candidates efficiently
             INSERT INTO @CandidateDuplicates
             EXEC dbo.sp_HybridSearch
                 @query_vector = @Embedding,
                 @query_dimension = 1998, -- Assuming the standard dimension
-                @query_spatial_x = @QuerySpatialKey.STX,
-                @query_spatial_y = @QuerySpatialKey.STY,
-                @query_spatial_z = @QuerySpatialKey.STZ,
+                @query_spatial_x = @SpatialX,
+                @query_spatial_y = @SpatialY,
+                @query_spatial_z = @SpatialZ,
                 @spatial_candidates = 100, -- Widen the search for deduplication
                 @final_top_k = @MaxCandidates,
                 @embedding_type = @EmbeddingType,
@@ -302,7 +307,4 @@ BEGIN
         THROW;
     END CATCH
 END;
-GO
-
-PRINT 'Created intelligent sp_AtomIngestion procedure with autonomous deduplication';
 GO
