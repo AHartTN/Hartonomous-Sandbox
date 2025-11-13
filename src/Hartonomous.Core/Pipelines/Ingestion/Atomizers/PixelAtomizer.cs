@@ -54,12 +54,10 @@ public sealed class PixelAtomizer : IAtomizer<byte[]>
             {
                 if (cancellationToken.IsCancellationRequested)
                     yield break;
-
-                var row = image.GetPixelRowSpan(y);
                 
                 for (int x = 0; x < image.Width; x++)
                 {
-                    var pixel = row[x];
+                    var pixel = image[x, y];
                     
                     // 4-byte RGBA value
                     var rgbaBytes = new byte[] { pixel.R, pixel.G, pixel.B, pixel.A };
