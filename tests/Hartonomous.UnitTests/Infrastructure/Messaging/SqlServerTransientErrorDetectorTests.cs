@@ -9,7 +9,12 @@ using Microsoft.Data.SqlClient;
 
 namespace Hartonomous.UnitTests.Infrastructure.Messaging;
 
-public sealed class SqlServerTransientErrorDetectorTests
+using Xunit;
+using Xunit.Abstractions;
+
+namespace Hartonomous.UnitTests.Infrastructure.Messaging;
+
+public class SqlServerTransientErrorDetectorTests
 {
     private readonly SqlServerTransientErrorDetector _detector = new();
 
@@ -57,8 +62,6 @@ public sealed class SqlServerTransientErrorDetectorTests
     [DynamicDependency(DynamicallyAccessedMemberTypes.NonPublicConstructors, typeof(SqlError))]
     [DynamicDependency(DynamicallyAccessedMemberTypes.NonPublicMethods, typeof(SqlErrorCollection))]
     [DynamicDependency("CreateException", typeof(SqlException))]
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2067", Justification = "Unit test helper requires private reflection.")]
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2075", Justification = "Unit test helper requires private reflection.")]
     private static SqlException CreateSqlException(int number, byte errorClass = 0)
     {
         var error = CreateSqlError(number, errorClass);
@@ -78,7 +81,6 @@ public sealed class SqlServerTransientErrorDetectorTests
         return (SqlException)createException.Invoke(null, new object[] { collection, "11.0.0" })!;
     }
 
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2075", Justification = "Unit test helper requires private reflection.")]
     private static SqlError CreateSqlError(int number, byte errorClass)
     {
         var constructor = typeof(SqlError).GetConstructors(BindingFlags.NonPublic | BindingFlags.Instance)
@@ -111,7 +113,6 @@ public sealed class SqlServerTransientErrorDetectorTests
         });
     }
 
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2075", Justification = "Unit test helper requires private reflection.")]
     private static SqlErrorCollection CreateSqlErrorCollection(SqlError error)
     {
         var collection = (SqlErrorCollection)Activator.CreateInstance(

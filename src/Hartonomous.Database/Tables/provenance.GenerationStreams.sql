@@ -10,5 +10,6 @@ CREATE TABLE [provenance].[GenerationStreams] (
     [TenantId]           INT              NOT NULL DEFAULT 0,
     [CreatedUtc]         DATETIME2 (3)    NOT NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_GenerationStreams] PRIMARY KEY CLUSTERED ([StreamId] ASC),
+    CONSTRAINT [UQ_GenerationStreams_GenerationStreamId] UNIQUE NONCLUSTERED ([GenerationStreamId]),
     CONSTRAINT [FK_GenerationStreams_Models] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Models] ([ModelId])
 );

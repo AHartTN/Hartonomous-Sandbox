@@ -82,9 +82,9 @@ BEGIN
         FROM sys.indexes i
         INNER JOIN sys.tables t ON i.object_id = t.object_id
         LEFT JOIN sys.dm_db_index_usage_stats us
-            ON i.object_id = us.object_id AND i.index_id = us.index_id AND us.database_id = DB_ID()
+            ON us.object_id = i.object_id AND us.index_id = i.index_id AND us.database_id = DB_ID()
         LEFT JOIN sys.dm_db_partition_stats ps
-            ON i.object_id = ps.object_id AND i.index_id = ps.index_id
+            ON ps.object_id = i.object_id AND ps.index_id = i.index_id
         WHERE i.name IS NOT NULL
           AND i.is_hypothetical = 0
           AND i.is_disabled = 0
@@ -124,8 +124,8 @@ BEGIN
             s.user_seeks,
             s.user_scans
         FROM sys.dm_db_missing_index_details d
-        INNER JOIN sys.dm_db_missing_index_groups g ON d.index_handle = g.index_handle
-        INNER JOIN sys.dm_db_missing_index_group_stats s ON g.index_group_handle = s.group_handle
+        INNER JOIN sys.dm_db_missing_index_groups g ON g.index_handle = d.index_handle
+        INNER JOIN sys.dm_db_missing_index_group_stats s ON s.group_handle = g.index_group_handle
         WHERE d.database_id = DB_ID()
           AND s.avg_user_impact > 50
           AND (@TableName IS NULL OR OBJECT_NAME(d.object_id) = @TableName)

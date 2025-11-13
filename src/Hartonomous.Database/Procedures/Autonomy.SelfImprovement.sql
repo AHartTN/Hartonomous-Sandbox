@@ -454,12 +454,13 @@ OUTPUT FORMAT (JSON):
         -- Output: success probability score
         
         -- Use PREDICT to score change success
-        -- Load model binary from ml_models table
+        -- Load model binary from Models table
         DECLARE @Model VARBINARY(MAX) = (
-            SELECT native_model_object
-            FROM dbo.ml_models
-            WHERE model_name = 'change-success-predictor'
-                AND model_version = 'v1'
+            SELECT SerializedModel
+            FROM dbo.Models
+            WHERE ModelName = 'change-success-predictor'
+                AND ModelVersion = 'v1'
+                AND IsActive = 1
         );
         
         IF @Model IS NULL

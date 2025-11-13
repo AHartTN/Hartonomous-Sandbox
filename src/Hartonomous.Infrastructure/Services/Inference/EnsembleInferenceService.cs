@@ -34,10 +34,6 @@ public sealed class EnsembleInferenceService : IEnsembleInferenceService
     }
 
     /// <inheritdoc/>
-    [UnconditionalSuppressMessage("Trimming", "IL2026:Members annotated with 'RequiresUnreferencedCodeAttribute' require dynamic access",
-        Justification = "EnsembleAtomScore is a simple DTO with public properties, safe for JSON serialization")]
-    [UnconditionalSuppressMessage("AOT", "IL3050:Calling members annotated with 'RequiresDynamicCodeAttribute' may break functionality",
-        Justification = "EnsembleAtomScore is a simple DTO with public properties, safe for JSON serialization")]
     public async Task<EnsembleInferenceResult> EnsembleInferenceAsync(
         string inputData,
         IReadOnlyList<int> modelIds,

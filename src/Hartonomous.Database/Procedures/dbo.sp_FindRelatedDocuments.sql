@@ -67,13 +67,13 @@ BEGIN
         BEGIN
             MERGE @Results AS target
             USING (
-                SELECT DISTINCT edge.$to_id AS AtomId, 0.8 AS GraphScore
+                SELECT DISTINCT edge.ToAtomId AS AtomId, 0.8 AS GraphScore
                 FROM provenance.AtomGraphEdges edge
-                WHERE edge.$from_id = @AtomId
+                WHERE edge.FromAtomId = @AtomId
                 UNION
-                SELECT DISTINCT edge.$from_id AS AtomId, 0.8 AS GraphScore
+                SELECT DISTINCT edge.FromAtomId AS AtomId, 0.8 AS GraphScore
                 FROM provenance.AtomGraphEdges edge
-                WHERE edge.$to_id = @AtomId
+                WHERE edge.ToAtomId = @AtomId
             ) AS source
             ON target.RelatedAtomId = source.AtomId
             WHEN MATCHED THEN
@@ -110,4 +110,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO
+GO

@@ -53,8 +53,6 @@ public sealed class ServiceBrokerCommandBuilderTests
         yield return new object[] { (Action<MessageBrokerOptions>)(o => o.QueueName = ""), "Queue name" };
     }
 
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2026", Justification = "Unit test invoking internal helper.")]
-    [UnconditionalSuppressMessage("ReflectionAnalysis", "IL2067", Justification = "Unit test invoking internal helper.")]
     private static (string Send, string Receive) InvokeBuildCommands(MessageBrokerOptions options)
     {
         var builderType = Type.GetType(

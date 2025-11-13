@@ -18,7 +18,7 @@ BEGIN
         FROM STRING_SPLIT(@ParentAtomIds, ',');
         
         -- Create graph edges (parent → child)
-        INSERT INTO provenance.AtomGraphEdges ($from_id, $to_id, DependencyType, TenantId)
+        INSERT INTO provenance.AtomGraphEdges (FromAtomId, ToAtomId, DependencyType, TenantId)
         SELECT 
             pa.AtomId,
             @ChildAtomId,
@@ -29,8 +29,8 @@ BEGIN
             -- Avoid duplicate edges
             SELECT 1 
             FROM provenance.AtomGraphEdges edge
-            WHERE edge.$from_id = pa.AtomId 
-                  AND edge.$to_id = @ChildAtomId
+            WHERE edge.FromAtomId = pa.AtomId 
+                  AND edge.ToAtomId = @ChildAtomId
         );
         
         DECLARE @EdgesCreated INT = @@ROWCOUNT;

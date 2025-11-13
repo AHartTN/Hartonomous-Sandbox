@@ -32,9 +32,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
         _layerRepository = layerRepository ?? throw new ArgumentNullException(nameof(layerRepository));
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console app, not trimming")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console app, not AOT")]
-    public async Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
+    public async Task<Model> ReadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Reading Safetensors model from: {Path}", modelPath);
 

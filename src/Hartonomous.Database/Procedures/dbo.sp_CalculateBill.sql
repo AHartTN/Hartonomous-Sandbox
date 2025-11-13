@@ -25,7 +25,7 @@ BEGIN
             UsageType,
             SUM(Quantity) AS TotalQuantity,
             SUM(TotalCost) AS TotalCost
-        FROM billing.UsageLedger
+        FROM dbo.BillingUsageLedger
         WHERE TenantId = @TenantId
               AND RecordedUtc >= @BillingPeriodStart
               AND RecordedUtc < @BillingPeriodEnd
@@ -49,7 +49,7 @@ BEGIN
         
         IF @GenerateInvoice = 1
         BEGIN
-            INSERT INTO billing.Invoices (
+            INSERT INTO dbo.BillingInvoices (
                 TenantId,
                 InvoiceNumber,
                 BillingPeriodStart,

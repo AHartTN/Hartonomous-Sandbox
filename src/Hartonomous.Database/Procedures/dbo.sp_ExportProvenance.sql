@@ -21,10 +21,10 @@ BEGIN
                 UNION ALL
                 
                 SELECT 
-                    edge.$from_id AS AtomId,
+                    edge.FromAtomId AS AtomId,
                     l.Depth + 1 AS Depth
                 FROM Lineage l
-                INNER JOIN provenance.AtomGraphEdges edge ON l.AtomId = edge.$to_id
+                INNER JOIN provenance.AtomGraphEdges edge ON l.AtomId = edge.ToAtomId
                 WHERE l.Depth < 50
             )
             SELECT 
@@ -38,9 +38,9 @@ BEGIN
                         parent.AtomId,
                         parent.ContentHash,
                         parent.CreatedUtc
-                    FROM provenance.AtomGraphEdges edge
-                    INNER JOIN dbo.Atoms parent ON edge.$from_id = parent.AtomId
-                    WHERE edge.$to_id = a.AtomId
+                      FROM provenance.AtomGraphEdges edge
+                      INNER JOIN dbo.Atoms parent ON edge.FromAtomId = parent.AtomId
+                      WHERE edge.ToAtomId = a.AtomId
                     FOR JSON PATH
                 ) AS Parents
             FROM Lineage l
@@ -52,12 +52,12 @@ BEGIN
         BEGIN
             -- Export as GraphML XML (simplified)
             SELECT 
-                edge.$from_id AS SourceAtomId,
-                edge.$to_id AS TargetAtomId,
+                edge.FromAtomId AS SourceAtomId,
+                edge.ToAtomId AS TargetAtomId,
                 'DerivedFrom' AS EdgeType
             FROM provenance.AtomGraphEdges edge
-            INNER JOIN dbo.Atoms a1 ON edge.$from_id = a1.AtomId
-            INNER JOIN dbo.Atoms a2 ON edge.$to_id = a2.AtomId
+            INNER JOIN dbo.Atoms a1 ON edge.FromAtomId = a1.AtomId
+            INNER JOIN dbo.Atoms a2 ON edge.ToAtomId = a2.AtomId
             WHERE a1.TenantId = @TenantId
                   AND a2.TenantId = @TenantId
                   AND (a1.AtomId = @AtomId OR a2.AtomId = @AtomId)

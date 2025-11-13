@@ -31,9 +31,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
         _modelLoader = modelLoader ?? throw new ArgumentNullException(nameof(modelLoader));
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console ingestion tool - trimming not enabled")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console ingestion tool - native AOT not used")]
-    public Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
+    public async Task<Model> ReadAsync(string filePath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(modelPath);
         cancellationToken.ThrowIfCancellationRequested();

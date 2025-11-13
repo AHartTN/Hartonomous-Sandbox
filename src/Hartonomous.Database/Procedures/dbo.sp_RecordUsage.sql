@@ -14,7 +14,7 @@ BEGIN
         IF @CostPerUnit IS NULL
         BEGIN
             SELECT TOP 1 @CostPerUnit = UnitPrice
-            FROM billing.PricingTiers
+            FROM dbo.BillingPricingTiers
             WHERE UsageType = @UsageType 
                   AND UnitType = @UnitType
                   AND EffectiveFrom <= SYSUTCDATETIME()
@@ -28,7 +28,7 @@ BEGIN
         DECLARE @TotalCost DECIMAL(18, 8) = @Quantity * @CostPerUnit;
         
         -- Insert usage record
-        INSERT INTO billing.UsageLedger (
+        INSERT INTO dbo.BillingUsageLedger (
             TenantId,
             UsageType,
             Quantity,
@@ -54,7 +54,7 @@ BEGIN
         DECLARE @CurrentUsage BIGINT;
         
         SELECT @QuotaLimit = QuotaLimit
-        FROM billing.TenantQuotas
+        FROM dbo.BillingTenantQuotas
         WHERE TenantId = @TenantId 
               AND UsageType = @UsageType
               AND IsActive = 1;
@@ -62,7 +62,7 @@ BEGIN
         IF @QuotaLimit IS NOT NULL
         BEGIN
             SELECT @CurrentUsage = SUM(Quantity)
-            FROM billing.UsageLedger
+            FROM dbo.BillingUsageLedger
             WHERE TenantId = @TenantId
                   AND UsageType = @UsageType
                   AND RecordedUtc >= DATEADD(MONTH, -1, SYSUTCDATETIME());
@@ -70,7 +70,7 @@ BEGIN
             IF @CurrentUsage > @QuotaLimit
             BEGIN
                 -- Log quota violation
-                INSERT INTO billing.QuotaViolations (
+                INSERT INTO dbo.BillingQuotaViolations (
                     TenantId,
                     UsageType,
                     QuotaLimit,

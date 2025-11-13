@@ -18,11 +18,11 @@ BEGIN
             UNION ALL
             
             SELECT 
-                edge.$to_id AS AtomId,
+                edge.ToAtomId AS AtomId,
                 ia.Depth + 1 AS Depth,
                 'Downstream' AS ImpactType
             FROM ImpactedAtoms ia
-            INNER JOIN provenance.AtomGraphEdges edge ON ia.AtomId = edge.$from_id
+            INNER JOIN provenance.AtomGraphEdges edge ON ia.AtomId = edge.FromAtomId
             WHERE ia.Depth < 100 -- Prevent infinite recursion
         )
         SELECT 

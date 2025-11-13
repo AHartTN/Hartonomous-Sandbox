@@ -76,13 +76,21 @@ BEGIN
                 ELSE IF @EntityType = 'AtomProvenance'
                 BEGIN
                     -- Sync atom-to-atom provenance edges
-                    SELECT @CypherQuery = 
+                    DECLARE @RelationType NVARCHAR(128);
+                    DECLARE @ParentAtomId BIGINT;
+                    DECLARE @ChildAtomId BIGINT;
+                    DECLARE @EdgeCreatedUtc DATETIME2;
+                    
+                    SELECT @RelationType = edge.RelationType,
+                           @EdgeCreatedUtc = edge.CreatedAt
+                    FROM graph.AtomGraphEdges edge
+                    WHERE edge.AtomRelationId = @EntityId; -- Assuming EntityId maps to AtomRelationId
+                    
+                    SET @CypherQuery = 
                         'MATCH (parent:Atom {atomId: $parentAtomId}), ' +
                         '      (child:Atom {atomId: $childAtomId}) ' +
-                        'MERGE (parent)-[r:' + edge.DependencyType + ']->(child) ' +
-                        'SET r.createdUtc = $createdUtc'
-                    FROM provenance.AtomGraphEdges edge
-                    WHERE edge.AtomRelationId = @EntityId; -- Assuming EntityId maps to AtomRelationId
+                        'MERGE (parent)-[r:' + @RelationType + ']->(child) ' +
+                        'SET r.createdUtc = $createdUtc';
                     
                     SET @ResponseJson = '{"status": "simulated_success", "entityType": "' + @EntityType + '", "entityId": ' + CAST(@EntityId AS NVARCHAR(MAX)) + '}';
                 END

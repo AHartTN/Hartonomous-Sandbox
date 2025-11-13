@@ -28,7 +28,7 @@ BEGIN
                 SUM(TotalCost) AS TotalCost,
                 AVG(Quantity) AS AvgQuantity,
                 COUNT(*) AS RecordCount
-            FROM billing.UsageLedger
+            FROM dbo.BillingUsageLedger
             WHERE TenantId = @TenantId
                   AND RecordedUtc >= @StartDate
             GROUP BY UsageType
@@ -43,7 +43,7 @@ BEGIN
                 UsageType,
                 SUM(Quantity) AS DailyQuantity,
                 SUM(TotalCost) AS DailyCost
-            FROM billing.UsageLedger
+            FROM dbo.BillingUsageLedger
             WHERE TenantId = @TenantId
                   AND RecordedUtc >= @StartDate
             GROUP BY CAST(RecordedUtc AS DATE), UsageType
@@ -58,7 +58,7 @@ BEGIN
                     CAST(RecordedUtc AS DATE) AS UsageDate,
                     UsageType,
                     SUM(Quantity) AS DailyQuantity
-                FROM billing.UsageLedger
+                FROM dbo.BillingUsageLedger
                 WHERE TenantId = @TenantId
                       AND RecordedUtc >= DATEADD(DAY, -30, SYSUTCDATETIME())
                 GROUP BY CAST(RecordedUtc AS DATE), UsageType

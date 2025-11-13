@@ -8,6 +8,7 @@ CREATE TABLE [dbo].[Models]
     [ModelId]               INT              NOT NULL IDENTITY(1,1),
     [ModelName]             NVARCHAR(200)    NOT NULL,
     [ModelType]             NVARCHAR(100)    NOT NULL,
+    [ModelVersion]          NVARCHAR(50)     NULL,
     [Architecture]          NVARCHAR(100)    NULL,
     [Config]                NVARCHAR(MAX)    NULL, -- JSON column type applied via CHECK constraint
     [ParameterCount]        BIGINT           NULL,

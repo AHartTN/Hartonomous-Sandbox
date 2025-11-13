@@ -110,7 +110,7 @@ BEGIN
                 @dimension = @embeddingBaseDimension,
                 @usedSelfReferentialModel = 1
             FROM dbo.GenerationStreamSegments seg
-            INNER JOIN dbo.GenerationStreams gs ON seg.GenerationStreamId = gs.GenerationStreamId
+            INNER JOIN provenance.GenerationStreams gs ON seg.GenerationStreamId = gs.GenerationStreamId
             WHERE gs.ModelId = @modelId
                 AND seg.CreatedAt >= @startTime
                 AND seg.EmbeddingVector IS NOT NULL

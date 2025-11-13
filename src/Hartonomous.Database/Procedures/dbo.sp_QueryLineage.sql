@@ -23,11 +23,11 @@ BEGIN
                 UNION ALL
                 
                 SELECT 
-                    edge.$from_id AS AtomId,
+                    edge.FromAtomId AS AtomId,
                     ul.Depth + 1 AS Depth,
-                    CAST(edge.$from_id AS NVARCHAR(MAX)) + ' -> ' + ul.Path AS Path
+                    CAST(edge.FromAtomId AS NVARCHAR(MAX)) + ' -> ' + ul.Path AS Path
                 FROM UpstreamLineage ul
-                INNER JOIN provenance.AtomGraphEdges edge ON ul.AtomId = edge.$to_id
+                INNER JOIN provenance.AtomGraphEdges edge ON ul.AtomId = edge.ToAtomId
                 WHERE ul.Depth < @MaxDepth
             )
             SELECT 
@@ -55,11 +55,11 @@ BEGIN
                 UNION ALL
                 
                 SELECT 
-                    edge.$to_id AS AtomId,
+                    edge.ToAtomId AS AtomId,
                     dl.Depth + 1 AS Depth,
-                    dl.Path + ' -> ' + CAST(edge.$to_id AS NVARCHAR(MAX)) AS Path
+                    dl.Path + ' -> ' + CAST(edge.ToAtomId AS NVARCHAR(MAX)) AS Path
                 FROM DownstreamLineage dl
-                INNER JOIN provenance.AtomGraphEdges edge ON dl.AtomId = edge.$from_id
+                INNER JOIN provenance.AtomGraphEdges edge ON dl.AtomId = edge.FromAtomId
                 WHERE dl.Depth < @MaxDepth
             )
             SELECT 

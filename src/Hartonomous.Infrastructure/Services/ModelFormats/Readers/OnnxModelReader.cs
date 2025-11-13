@@ -31,8 +31,6 @@ public class OnnxModelReader : IModelFormatReader<OnnxMetadata>
         _modelLoader = modelLoader ?? throw new ArgumentNullException(nameof(modelLoader));
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console ingestion tool - trimming not enabled")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console ingestion tool - native AOT not used")]
     public async Task<Model> ReadAsync(string modelPath, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(modelPath);

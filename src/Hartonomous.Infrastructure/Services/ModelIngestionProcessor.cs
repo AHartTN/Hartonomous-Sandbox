@@ -114,8 +114,6 @@ public class ModelIngestionProcessor
         }
     }
 
-    [UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Console ingestion path - trimming not enabled for worker")]
-    [UnconditionalSuppressMessage("AOT", "IL3050", Justification = "Console ingestion path - native AOT not used")]
     private async Task<Atom> CreateLayerAtomAsync(Model model, ModelLayer layer, CancellationToken cancellationToken)
     {
         var metadataPayload = new

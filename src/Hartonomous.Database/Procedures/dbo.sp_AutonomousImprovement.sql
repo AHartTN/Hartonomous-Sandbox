@@ -42,9 +42,9 @@ BEGIN
             rs.count_executions,
             rs.avg_duration * rs.count_executions / 1000.0 AS total_duration_ms
         FROM sys.query_store_query q
-        INNER JOIN sys.query_store_query_text qt ON q.query_text_id = qt.query_text_id
-        INNER JOIN sys.query_store_plan p ON q.query_id = p.query_id
-        INNER JOIN sys.query_store_runtime_stats rs ON p.plan_id = rs.plan_id
+        INNER JOIN sys.query_store_query_text qt ON qt.query_text_id = q.query_text_id
+        INNER JOIN sys.query_store_plan p ON p.query_id = q.query_id
+        INNER JOIN sys.query_store_runtime_stats rs ON rs.plan_id = p.plan_id
         WHERE rs.last_execution_time >= DATEADD(hour, -24, SYSUTCDATETIME())
         ORDER BY rs.avg_duration * rs.count_executions DESC;
         
@@ -453,12 +453,13 @@ OUTPUT FORMAT (JSON):
         -- Output: success probability score
         
         -- Use PREDICT to score change success
-        -- Load model binary from ml_models table
+        -- Load model binary from Models table
         DECLARE @Model VARBINARY(MAX) = (
-            SELECT native_model_object
-            FROM dbo.ml_models
-            WHERE model_name = 'change-success-predictor'
-                AND model_version = 'v1'
+            SELECT SerializedModel
+            FROM dbo.Models
+            WHERE ModelName = 'change-success-predictor'
+                AND ModelVersion = 'v1'
+                AND IsActive = 1
         );
         
         IF @Model IS NULL
