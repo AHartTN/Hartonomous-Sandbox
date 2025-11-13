@@ -1,647 +1,938 @@
-# API Reference
+# Hartonomous REST API Reference
+
+**Version**: 1.0  
+**Base URL**: `/api` or `/api/v1`  
+**Authentication**: Bearer token (External ID / Azure Entra ID)  
+**Last Updated**: November 13, 2025
+
+---
 
 ## Overview
 
-`Hartonomous.Api` (ASP.NET Core 10) exposes the public REST surface for embeddings, search, graph exploration, analytics, and operations.
+The Hartonomous platform exposes **18 REST API controllers** providing comprehensive access to:
 
-- All routes live under `/api/...`
-- Local development host: `https://localhost:5001` (configurable via `appsettings.json` or environment variables)
-- Swagger UI available at `/swagger` when `ASPNETCORE_ENVIRONMENT=Development`
-- Health probes: `/health/startup`, `/health/ready`, `/health/live` (GET)
-- **Testing Status**: API controllers have **0% test coverage** (15 controllers, 0 tests). See [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) for testing roadmap.
+- **Semantic search** and vector embeddings
+- **Model inference** and multimodal generation
+- **Graph analytics** and Neo4j queries  
+- **Autonomous system control** (OODA loop)
+- **Billing and usage** tracking with quota enforcement
+- **Content ingestion** with deduplication
+- **Provenance tracking** for generation streams
+
+**Base URLs**:
+- Development: `https://localhost:5001`
+- Production: Configured via `appsettings.json` or environment variables
+
+**Swagger UI**: Available at `/swagger` when `ASPNETCORE_ENVIRONMENT=Development`
+
+**Health Checks**:
+- `/health/startup` - Startup probe
+- `/health/ready` - Readiness probe  
+- `/health/live` - Liveness probe
+
+---
 
 ## Authentication
 
-The API is secured with Azure Active Directory via `AddMicrosoftIdentityWebApi`:
+All endpoints require authentication unless otherwise specified.
 
-- Configure an Entra ID application with the Web API platform
-- Expose scope: `api://{ClientId}/access_as_user`
-- Provide `AzureAd:Instance`, `TenantId`, `ClientId`, `Audience` through configuration (environment variables or user-secrets)
-- Acquire tokens with MSAL or Azure CLI: `az account get-access-token --resource api://{ClientId}`
-- Send token as `Authorization: Bearer {access_token}`
-- For Swagger/OAuth flows, register `https://localhost:5001/signin-oidc` (or environment host) as the redirect URI
+**Authentication Method**: Azure Entra ID (formerly Azure Active Directory)
 
-## Response Envelope
-
-Controllers inheriting `ApiControllerBase` return `Hartonomous.Shared.Contracts.Responses.ApiResponse<T>`:
-
+**Configuration**:
 ```json
 {
-  "succeeded": true,
-  "data": {
-    "atomId": 1285,
-    "atomEmbeddingId": 9231,
-    "wasExisting": false
-  },
-  "errors": [],
-  "correlationId": "0HML8FVCPF9T2:00000002",
-  "metadata": {
-    "embeddingDimension": 1536
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "TenantId": "{your-tenant-id}",
+    "ClientId": "{your-client-id}",
+    "Audience": "api://{your-client-id}"
   }
 }
 ```
 
-Legacy `/api/v1/...` controllers use `Hartonomous.Api.Common.ApiResponse<T>`:
+**Acquiring Tokens**:
 
+```bash
+# Using Azure CLI
+az account get-access-token --resource api://{ClientId}
+
+# Token format
+Authorization: Bearer {access_token}
+```
+
+**Exposed Scope**: `api://{ClientId}/access_as_user`
+
+---
+
+## Table of Contents
+
+1. [Analytics API](#analytics-api)
+2. [Autonomy API (OODA Loop)](#autonomy-api)
+3. [Billing API](#billing-api)
+4. [Bulk Operations API](#bulk-operations-api)
+5. [Embeddings API](#embeddings-api)
+6. [Feedback API](#feedback-api)
+7. [Generation API](#generation-api)
+8. [Graph Analytics API](#graph-analytics-api)
+9. [Graph Query API](#graph-query-api)
+10. [Inference API](#inference-api)
+11. [Ingestion API](#ingestion-api)
+12. [Jobs API](#jobs-api)
+13. [Models API](#models-api)
+14. [Operations API](#operations-api)
+15. [Provenance API](#provenance-api)
+16. [Search API](#search-api)
+17. [SQL Graph API](#sql-graph-api)
+18. [Tokenizer API](#tokenizer-api)
+
+---
+
+## Analytics API
+
+**Controller**: `AnalyticsController`  
+**Base Path**: `/api/v1/Analytics`
+
+### Endpoints
+
+#### POST /api/v1/Analytics/usage
+Get usage analytics with time series data.
+
+**Request**: `UsageAnalyticsRequest`
 ```json
 {
-  "success": true,
-  "data": {
-    "totalRequests": 4200
+  "tenantId": "string",
+  "startDate": "2025-11-01T00:00:00Z",
+  "endDate": "2025-11-13T23:59:59Z",
+  "groupBy": "day|hour|month"
+}
+```
+
+**Response**: `UsageAnalyticsResponse`
+```json
+{
+  "totalOperations": 125000,
+  "totalCost": 1250.50,
+  "breakdown": [
+    { "date": "2025-11-01", "operations": 5000, "cost": 50.25 }
+  ]
+}
+```
+
+#### POST /api/v1/Analytics/models/performance
+Get model performance metrics.
+
+**Request**: `ModelPerformanceRequest`
+**Response**: `ModelPerformanceResponse` (includes latency, accuracy, throughput)
+
+#### GET /api/v1/Analytics/embeddings
+Embedding statistics by type (text, image, audio, video).
+
+**Response**: `EmbeddingStatsResponse`
+
+#### GET /api/v1/Analytics/storage
+Storage metrics and deduplication statistics.
+
+**Response**: `StorageMetricsResponse` (includes total storage, deduplicated savings)
+
+#### POST /api/v1/Analytics/top-atoms
+Ranking of most-used atoms.
+
+**Request**: `TopAtomsRequest` (limit, timeframe)  
+**Response**: `TopAtomsResponse` (list of atoms with usage counts)
+
+---
+
+## Autonomy API
+
+**Controller**: `AutonomyController`  
+**Base Path**: `/api/Autonomy`  
+**Authorization**: Requires **Admin** policy
+
+### Endpoints
+
+#### POST /api/Autonomy/ooda/analyze
+Trigger OODA (Observe-Orient-Decide-Act) analysis phase.
+
+**Request**: `OodaAnalyzeRequest`
+**Response**: `OodaAnalyzeResponse` (analysis results, hypotheses generated)
+
+#### GET /api/Autonomy/queues/status
+Get Service Broker queue statuses for OODA loop.
+
+**Response**: `QueueStatusResponse`
+```json
+{
+  "queues": [
+    { "name": "AnalyzeQueue", "messageCount": 15, "isActive": true },
+    { "name": "HypothesizeQueue", "messageCount": 3, "isActive": true },
+    { "name": "ActQueue", "messageCount": 0, "isActive": true },
+    { "name": "LearnQueue", "messageCount": 7, "isActive": true }
+  ]
+}
+```
+
+#### GET /api/Autonomy/cycles/history
+Get OODA cycle execution history.
+
+**Response**: `OodaCycleHistoryResponse` (list of cycles with timestamps, actions taken)
+
+#### POST /api/Autonomy/control/pause
+Pause autonomous operations.
+
+**Response**: `{ "status": "paused" }`
+
+#### POST /api/Autonomy/control/resume
+Resume autonomous operations.
+
+**Response**: `{ "status": "running" }`
+
+#### POST /api/Autonomy/control/reset
+Reset all OODA conversations and clear queues.
+
+**Response**: `{ "status": "reset" }`
+
+---
+
+## Billing API
+
+**Controller**: `BillingController`  
+**Base Path**: `/api/billing`  
+**Authorization**: Tenant-based access control
+
+### Endpoints
+
+#### POST /api/billing/usage/report
+Generate usage report for tenant.
+
+**Request**: `UsageReportRequest`
+```json
+{
+  "tenantId": "tenant-123",
+  "startDate": "2025-11-01T00:00:00Z",
+  "endDate": "2025-11-30T23:59:59Z",
+  "usageType": "embedding|inference|search|all"
+}
+```
+
+**Response**: `UsageReportResponse`
+```json
+{
+  "tenantId": "tenant-123",
+  "period": { "start": "2025-11-01", "end": "2025-11-30" },
+  "usage": [
+    { "type": "embedding", "count": 50000, "cost": 500.00 },
+    { "type": "inference", "count": 25000, "cost": 750.00 }
+  ],
+  "totalCost": 1250.00
+}
+```
+
+#### POST /api/billing/calculate
+Calculate bill with volume discounts applied.
+
+**Request**: `CalculateBillRequest`  
+**Response**: `BillCalculationResponse` (base cost, discounts, final amount)
+
+#### POST /api/billing/usage
+Record usage event (with pre-execution quota checking).
+
+**Request**: `RecordUsageRequest`
+```json
+{
+  "tenantId": "tenant-123",
+  "usageType": "inference",
+  "quantity": 1,
+  "metadata": { "modelId": "gpt-4", "tokens": 1500 }
+}
+```
+
+**Response**: `RecordUsageResponse`
+```json
+{
+  "recorded": true,
+  "remainingQuota": 9750,
+  "quotaExceeded": false
+}
+```
+
+**Note**: Returns `quotaExceeded: true` if tenant exceeds quota (operation rejected).
+
+#### GET /api/billing/quota
+Get quota information for tenant and usage type.
+
+**Query Parameters**: `tenantId`, `usageType`  
+**Response**: `QuotaInfoResponse`
+
+#### POST /api/billing/quota
+Set or update quota limits (Admin only).
+
+**Request**: `SetQuotaRequest`  
+**Response**: `SetQuotaResponse`
+
+---
+
+## Bulk Operations API
+
+**Controller**: `BulkController`  
+**Base Path**: `/api/v1/Bulk`
+
+### Endpoints
+
+#### POST /api/v1/Bulk/ingest
+Bulk ingest up to 10,000 items in a single request.
+
+**Request**: `BulkIngestRequest`
+```json
+{
+  "items": [
+    { "content": "text content", "type": "text", "metadata": {} },
+    { "content": "base64-encoded-data", "type": "image", "metadata": {} }
+  ],
+  "deduplicationStrategy": "content-hash|semantic-similarity"
+}
+```
+
+**Response**: `BulkIngestResponse`
+```json
+{
+  "jobId": "job-abc-123",
+  "totalItems": 10000,
+  "accepted": 9850,
+  "duplicates": 150,
+  "status": "processing"
+}
+```
+
+**Limits**: Maximum 10,000 items per request
+
+#### GET /api/v1/Bulk/jobs/{jobId}
+Get job status with progress tracking.
+
+**Response**: `JobStatusResponse`
+```json
+{
+  "jobId": "job-abc-123",
+  "status": "processing|completed|failed|cancelled",
+  "progress": {
+    "processed": 7500,
+    "total": 10000,
+    "percentComplete": 75
   },
-  "error": null,
-  "metadata": {
-    "totalCount": 12
+  "results": {
+    "atomsCreated": 7350,
+    "duplicatesSkipped": 150,
+    "errors": []
   }
 }
 ```
 
-Validation failures populate `errors`/`error` with `ErrorDetail` metadata. Rate-limit rejections respond with HTTP 429 using the same envelope.
+#### POST /api/v1/Bulk/cancel/{jobId}
+Cancel pending or processing job.
 
-## Rate Limiting
+**Response**: `CancelJobResponse`
 
-`app.MapControllers().RequireRateLimiting("api")` enforces rate limiting policies:
+#### POST /api/v1/Bulk/upload
+Upload multiple files (maximum 1GB total, 1000 files).
 
-**Standard Policies** (sliding window):
+**Content-Type**: `multipart/form-data`  
+**Response**: `BulkUploadResponse` (file IDs, ingestion job IDs)
 
-- `authenticated`: 100 requests/minute
-- `anonymous`: 10 requests/minute
-- `premium`: 1000 requests/minute
+#### GET /api/v1/Bulk/jobs
+List jobs with pagination and filtering.
 
-**Specialized Policies**:
+**Query Parameters**: `page`, `pageSize`, `status`, `tenantId`  
+**Response**: `JobListResponse`
 
-- `inference`: concurrency limit 10 + token bucket (20 token capacity, replenishes 5/min). Used by generation endpoints via `[EnableRateLimiting("inference")]`
-- `embedding`: 50 requests/minute
-- `graph`: 30 requests/minute
-- `global`: 200 requests/minute per remote IP
+---
 
-**Tenant-Tier-Aware**:
+## Embeddings API
 
-- `tenant-api`, `tenant-inference`: Resolved through `TenantRateLimitPolicy` and applied where annotated
+**Controller**: `EmbeddingsController`  
+**Base Path**: `/api/embeddings`
 
-## Endpoint Catalogue
+### Endpoints
 
-| Area | Base Route | Controller | Notes |
-|------|------------|------------|-------|
-| Embeddings | `/api/embeddings` | `EmbeddingsController` | Text and media embeddings with automatic atom ingestion |
-| Search | `/api/search` | `SearchController` | Hybrid, cross-modal, spatial, and temporal search strategies |
-| Generation | `/api/generation` | `GenerationController` | Multimodal generation backed by SQL stored procedures |
-| Inference Jobs | `/api/inference` | `InferenceController` | Async job submission for text generation and ensembles |
-| Bulk Ingestion | `/api/v1/bulk` | `BulkController` | Job-based ingestion pipeline helpers |
-| Analytics | `/api/v1/analytics` | `AnalyticsController` | Usage, model, embedding, and storage analytics |
-| Graph | `/api/v1/graph` | `GraphQueryController`, `GraphAnalyticsController`, `SqlGraphController` | Neo4j + SQL graph utilities |
-| Provenance | `/api/v1/provenance` | `ProvenanceController` | Inference lineage and generation streams |
-| Autonomy | `/api/autonomy` | `AutonomyController` | OODA loop orchestration and Service Broker controls |
-| Models | `/api/models` | `ModelsController` | Model registry CRUD, stats, and distillation |
-| Billing | `/api/billing` | `BillingController` | Usage capture, quota management, billing projections |
-| Feedback | `/api/v1/feedback` | `FeedbackController` | Feedback submission and fine-tune triggers |
-| Operations | `/api/v1/operations` | `OperationsController` | Health, diagnostics, cache/index management |
-| Ingestion | `/api/v1/ingestion` | `IngestionController` | Single-item ingestion helper |
-| Jobs | `/api/jobs` | `JobsController` | Background job status and scheduling |
+#### POST /api/embeddings/text
+Generate embedding from text.
 
-## Embeddings (`/api/embeddings`)
-
-### POST /api/embeddings/text
-
-**Request**: `EmbeddingRequest`
-
+**Request**: `TextEmbeddingRequest`
 ```json
 {
-  "text": "Sample query text",
-  "modelId": 7,
-  "embeddingType": "semantic"
+  "text": "The quick brown fox jumps over the lazy dog",
+  "model": "text-embedding-ada-002|custom-model-id"
 }
 ```
 
 **Response**: `EmbeddingResponse`
-
 ```json
 {
-  "succeeded": true,
-  "data": {
-    "atomId": 1285,
-    "atomEmbeddingId": 9231,
-    "wasExisting": false,
-    "duplicateReason": null,
-    "semanticSimilarity": null
-  },
-  "errors": [],
-  "metadata": {
-    "embeddingDimension": 1536,
-    "modelId": 7
+  "atomId": "atom-123",
+  "embeddingId": "embed-456",
+  "vector": [0.123, -0.456, 0.789, ...],
+  "dimensions": 1536,
+  "isDuplicate": false,
+  "duplicateOf": null,
+  "deduplicationMetadata": {
+    "contentHash": "sha256:abc123...",
+    "similarityScore": 1.0
   }
 }
 ```
 
-### POST /api/embeddings/image
+#### POST /api/embeddings/image
+Generate embedding from image.
 
-**Request**: `multipart/form-data`
+**Content-Type**: `multipart/form-data`  
+**Form Data**: `file` (image file), `model` (optional)  
+**Response**: `EmbeddingResponse`
 
-- `file`: Image file (≤64 MB)
-- `sourceType`: (optional) Source identifier
-- `metadata`: (optional) JSON metadata
-- `modelId`: (optional) Model ID
+**Supported Formats**: JPEG, PNG, GIF, WebP
 
-**Response**: `MediaEmbeddingResponse` with `atomId`, `atomEmbeddingId`, deduplication info
+#### POST /api/embeddings/audio
+Generate embedding from audio.
 
-### POST /api/embeddings/audio
+**Content-Type**: `multipart/form-data`  
+**Form Data**: `file` (audio file), `model` (optional)  
+**Response**: `EmbeddingResponse`
 
-**Request**: `multipart/form-data` (same as image)
+**Supported Formats**: MP3, WAV, OGG, FLAC
 
-**Response**: `MediaEmbeddingResponse`
+#### POST /api/embeddings/video-frame
+Generate embedding from video frame.
 
-### POST /api/embeddings/video-frame
+**Content-Type**: `multipart/form-data`  
+**Form Data**: `file` (video file), `frameNumber` (which frame to extract), `model` (optional)  
+**Response**: `EmbeddingResponse`
 
-**Request**: `multipart/form-data` (same as image)
+**Supported Formats**: MP4, AVI, MOV, WebM
 
-**Response**: `MediaEmbeddingResponse`
+---
 
-Content is deduplicated via SHA-256 hashes. Requests are wrapped in `MediaEmbeddingRequest` internally.
+## Feedback API
 
-## Search (`/api/search`)
+**Controller**: `FeedbackController`  
+**Base Path**: `/api/v1/Feedback`
 
-### POST /api/search
+### Endpoints
 
-**Request**: `SearchRequest`
+#### POST /api/v1/Feedback/submit
+Submit feedback for inference result.
 
+**Request**: `SubmitFeedbackRequest`
 ```json
 {
-  "queryText": "machine learning embeddings",
-  "queryEmbedding": null,
-  "queryVector": null,
-  "topK": 10,
-  "topicFilter": null,
-  "minSentiment": null,
-  "maxAge": null
+  "inferenceId": "infer-123",
+  "rating": 5,
+  "comment": "Excellent result",
+  "metadata": { "helpful": true }
 }
 ```
 
-**Response**: `SearchResponse`
+**Response**: `FeedbackResponse`
 
-```json
-{
-  "succeeded": true,
-  "data": {
-    "results": [
-      {
-        "atomId": 512,
-        "atomEmbeddingId": 1048576,
-        "canonicalText": "Nearest neighbour result",
-        "modality": "text",
-        "similarityScore": 0.937,
-        "spatialDistance": null,
-        "contentHash": null
-      }
-    ],
-    "totalResults": 10,
-    "queryDuration": 47.3
-  },
-  "errors": [],
-  "metadata": {
-    "strategy": "hybrid",
-    "requestedTopK": 10,
-    "candidateCount": 200
-  }
-}
-```
+#### POST /api/v1/Feedback/importance
+Update atom importance scores.
 
-### POST /api/search/cross-modal
+**Request**: `UpdateImportanceRequest`  
+**Response**: `ImportanceUpdateResponse`
 
-**Request**: `CrossModalSearchRequest`
+#### POST /api/v1/Feedback/fine-tune/trigger
+Trigger model fine-tuning job based on feedback.
 
-- Optional `text`
-- Target modality list
-- Generates embeddings on-demand when vector not provided
+**Request**: `TriggerFineTuneRequest`  
+**Response**: `FineTuneJobResponse`
 
-**Response**: `CrossModalSearchResponse` with multi-modality results
+#### GET /api/v1/Feedback/summary
+Get feedback summary with trends.
 
-### POST /api/search/spatial
+**Query Parameters**: `startDate`, `endDate`, `modelId`  
+**Response**: `FeedbackSummaryResponse`
 
-**Request**: `SpatialSearchRequest`
+---
 
-```json
-{
-  "latitude": 47.6062,
-  "longitude": -122.3321,
-  "radiusKm": 10.0,
-  "modality": "image",
-  "modelId": null,
-  "topK": 20
-}
-```
+## Generation API
 
-**Response**: Geography-aware search results with spatial distance
+**Controller**: `GenerationController`  
+**Base Path**: `/api/generation` (exact path varies)  
+**Authorization**: Required, rate-limited
 
-### POST /api/search/temporal
+### Endpoints
 
-**Request**: `TemporalSearchRequest`
-
-- Time-boxed semantic search
-- Optional `startDate`, `endDate` filters
-
-**Response**: `TemporalSearchResponse` with timestamp metadata
-
-## Generation (`/api/generation`)
-
-All routes require authorization and use `inference` rate-limit policy.
-
-### POST /api/generation/text
+#### POST /api/generation/text
+Generate text from prompt.
 
 **Request**: `GenerateTextRequest`
-
 ```json
 {
-  "prompt": "Write a haiku about databases",
-  "modelId": 3,
-  "maxTokens": 100,
-  "temperature": 0.7
+  "prompt": "Write a story about a robot",
+  "model": "gpt-4|custom-model-id",
+  "maxTokens": 1000,
+  "temperature": 0.7,
+  "stream": false
 }
 ```
 
 **Response**: `GenerationResponse`
+```json
+{
+  "generationId": "gen-123",
+  "text": "Once upon a time...",
+  "tokensUsed": 150,
+  "model": "gpt-4",
+  "finishReason": "stop|length|content_filter"
+}
+```
+
+**Additional Modalities**: Image, audio, and video generation endpoints (implementation varies)
+
+---
+
+## Graph Analytics API
+
+**Controller**: `GraphAnalyticsController`  
+**Base Path**: `/api/graph/analytics` (exact path varies)
+
+### Endpoints
+
+#### GET /api/graph/analytics/stats
+Get graph statistics (Neo4j).
+
+**Response**: `GraphStatsResponse`
+```json
+{
+  "totalNodes": 1500000,
+  "totalRelationships": 3200000,
+  "density": 0.00142,
+  "connectedComponents": 3,
+  "modalityBreakdown": {
+    "text": 800000,
+    "image": 450000,
+    "audio": 150000,
+    "video": 100000
+  },
+  "relationshipTypes": {
+    "SIMILAR_TO": 1200000,
+    "DERIVED_FROM": 800000,
+    "REFERENCES": 1200000
+  },
+  "componentAnalysis": [
+    { "componentId": 1, "nodeCount": 1498000 },
+    { "componentId": 2, "nodeCount": 1500 },
+    { "componentId": 3, "nodeCount": 500 }
+  ]
+}
+```
+
+**Additional Analytics**: More endpoints for centrality, clustering, path analysis
+
+---
+
+## Graph Query API
+
+**Controller**: `GraphQueryController`  
+**Base Path**: `/api/graph` (exact path varies)
+
+### Endpoints
+
+#### POST /api/graph/query
+Execute Cypher query against Neo4j.
+
+**Request**: `CypherQueryRequest`
+```json
+{
+  "query": "MATCH (n:Atom) WHERE n.type = $type RETURN n LIMIT 10",
+  "parameters": { "type": "text" }
+}
+```
+
+**Response**: `CypherQueryResponse`
+```json
+{
+  "results": [
+    { "n": { "atomId": "atom-123", "type": "text", ... } }
+  ],
+  "executionTime": 125
+}
+```
+
+**Additional Endpoints**: Relationship traversal, concept exploration, path finding
+
+---
+
+## Inference API
+
+**Controller**: `InferenceController`  
+**Base Path**: `/api/inference`
+
+### Endpoints
+
+#### POST /api/inference/run
+Run synchronous inference.
+
+**Request**: `InferenceRequest`
+```json
+{
+  "modelId": "model-123",
+  "input": { "text": "What is AI?" },
+  "parameters": { "temperature": 0.7, "maxTokens": 500 }
+}
+```
 
-- Executes `dbo.sp_GenerateText` stored procedure
-- Returns generated text and atom linkage
+**Response**: `InferenceResponse`
+```json
+{
+  "inferenceId": "infer-456",
+  "output": { "text": "AI stands for..." },
+  "latency": 125,
+  "tokensUsed": 75,
+  "model": "model-123"
+}
+```
 
-### POST /api/generation/image
+#### POST /api/inference/async/text
+Submit asynchronous text generation job.
 
-**Request**: `GenerateImageRequest`
+**Request**: `AsyncTextGenerationRequest`  
+**Response**: `AsyncJobResponse` (includes `jobId` for status polling)
 
-**Response**: Metadata (dimensions, format) and stored `AtomId`
+---
 
-### POST /api/generation/audio
+## Ingestion API
 
-**Request**: `GenerateAudioRequest`
+**Controller**: `IngestionController`  
+**Base Path**: `/api/ingestion` (exact path varies)
 
-**Response**: Reference metadata for generated audio
+### Endpoints
 
-### POST /api/generation/video
+#### POST /api/ingestion/ingest
+Ingest content with atom creation.
 
-**Request**: `GenerateVideoRequest`
+**Request**: `IngestRequest`
+```json
+{
+  "content": "Sample content",
+  "type": "text|image|audio|video",
+  "metadata": { "source": "api", "author": "user-123" },
+  "deduplicationStrategy": "content-hash|semantic-similarity|none"
+}
+```
 
-**Response**: Short clip reference metadata
+**Response**: `IngestResponse`
+```json
+{
+  "atomId": "atom-789",
+  "isDuplicate": false,
+  "duplicateOf": null,
+  "deduplicationMetadata": {
+    "contentHash": "sha256:def456...",
+    "similarityScore": 1.0,
+    "matchedAtoms": []
+  },
+  "embeddingId": "embed-012",
+  "created": true
+}
+```
 
-## Inference Jobs (`/api/inference`)
+---
 
-### POST /api/inference/generate/text
+## Jobs API
 
-**Request**: Async text generation job
+**Controller**: `JobsController`  
+**Base Path**: `/api/Jobs`  
+**Authorization**: Requires **Admin** policy
 
-**Response**: `202 Accepted`, `JobSubmittedResponse`
+### Endpoints
 
-Queues asynchronous job via `InferenceJobService`.
+#### GET /api/Jobs/{jobId}
+Get specific job by ID.
 
-### POST /api/inference/ensemble
+**Response**: `JobDetailsResponse` (includes full job details, logs, timeline)
 
-**Request**: Ensemble inference request (multiple models)
+#### GET /api/Jobs/status/{status}
+Get jobs by status with pagination.
 
-**Response**: `202 Accepted`, `JobSubmittedResponse`
+**Path Parameter**: `status` (pending|processing|completed|failed|cancelled)  
+**Query Parameters**: `page`, `pageSize`  
+**Response**: `JobListResponse`
 
-## Bulk Ingestion (`/api/v1/bulk`)
+#### POST /api/Jobs/cleanup
+Enqueue cleanup job for old data.
 
-Responses use `ApiResponse<T>` from `Hartonomous.Api.Common`.
+**Request**: `CleanupJobRequest`  
+**Response**: `CleanupJobResponse`
 
-### POST /ingest
+---
 
-**Request**: `BulkIngestRequest`
+## Models API
 
-**Response**: Job creation confirmation
+**Controller**: `ModelsController`  
+**Base Path**: `/api/models`
 
-Creates job, persists records, optionally queues Service Broker processing.
+### Endpoints
 
-### GET /status/{jobId}
+#### GET /api/models
+Get models with pagination.
 
-**Response**: `BulkJobStatusResponse` with progress counts
+**Query Parameters**: `page`, `pageSize`, `type`, `status`  
+**Response**: `ModelListResponse`
 
-### POST /cancel
+**Additional Endpoints**: Model management, registration, versioning (implementation varies)
 
-**Request**: Job ID
+---
 
-**Response**: Cancellation confirmation
+## Operations API
 
-### POST /upload
+**Controller**: `OperationsController`  
+**Base Path**: `/api/v1/Operations`
 
-**Request**: CSV payload
+### Endpoints
 
-**Response**: Ingestion job ID
+#### GET /api/v1/Operations/health
+Comprehensive health check.
 
-### GET /jobs
+**Response**: `HealthCheckResponse`
+```json
+{
+  "status": "healthy|degraded|unhealthy",
+  "checks": {
+    "database": "healthy",
+    "tables": "healthy",
+    "filestream": "healthy",
+    "neo4j": "healthy",
+    "serviceBroker": "healthy"
+  },
+  "timestamp": "2025-11-13T15:30:00Z"
+}
+```
 
-**Response**: List of jobs with paging metadata
+#### POST /api/v1/Operations/indexes/maintenance
+Trigger index maintenance and optimization.
 
-## Analytics (`/api/v1/analytics`)
+**Request**: `IndexMaintenanceRequest`  
+**Response**: `IndexMaintenanceResponse` (indexes rebuilt, fragmentation stats)
 
-### POST /usage
+---
 
-**Request**: `UsageAnalyticsRequest`
+## Provenance API
 
-**Response**: `UsageAnalyticsResponse` with time-series datapoints and summary
+**Controller**: `ProvenanceController`  
+**Base Path**: `/api/provenance` (exact path varies)
 
-### POST /models/performance
+### Endpoints
 
-**Response**: `ModelPerformanceResponse` (per-model metrics)
+#### GET /api/provenance/stream/{streamId}
+Get generation stream details.
 
-### POST /embeddings/stats
+**Response**: `GenerationStreamResponse` (includes segments, sources, transformations)
 
-**Response**: Embedding type statistics
+#### GET /api/provenance/inference/{inferenceId}
+Get inference provenance details.
 
-### GET /storage
+**Response**: `InferenceProvenanceResponse` (includes input atoms, model used, output atoms, lineage)
 
-**Response**: `StorageMetricsResponse` with size/deduplication breakdowns
+---
 
-### POST /top-atoms
+## Search API
 
-**Response**: Ranked list of frequently referenced atoms
+**Controller**: `SearchController`  
+**Base Path**: `/api/search`
 
-## Graph (`/api/v1/graph`)
+### Endpoints
 
-### Neo4j Query Endpoints
+#### POST /api/search
+Semantic/hybrid search with optional filters.
 
-#### POST /query
+**Request**: `SearchRequest`
+```json
+{
+  "query": "machine learning fundamentals",
+  "type": "semantic|hybrid|vector",
+  "filters": {
+    "modality": ["text", "image"],
+    "dateRange": { "start": "2025-01-01", "end": "2025-11-13" }
+  },
+  "limit": 10,
+  "offset": 0
+}
+```
+
+**Response**: `SearchResponse`
+```json
+{
+  "results": [
+    {
+      "atomId": "atom-123",
+      "score": 0.95,
+      "content": "Machine learning is...",
+      "metadata": { "type": "text", "created": "2025-11-01" },
+      "embedding": { "id": "embed-456", "similarity": 0.95 }
+    }
+  ],
+  "total": 150,
+  "took": 45
+}
+```
 
-**Request**: `GraphQueryRequest` (arbitrary Cypher)
+**Search Types**:
+- `semantic` - Vector similarity search
+- `hybrid` - Vector + keyword + spatial
+- `vector` - Pure vector search
 
-**Response**: Query results
+---
 
-#### POST /related
+## SQL Graph API
 
-**Request**: Atom ID
+**Controller**: `SqlGraphController`  
+**Base Path**: `/api/graph/sql` (exact path varies)
 
-**Response**: Related atoms by traversing relationships
+### Endpoints
 
-#### POST /traverse
+#### POST /api/graph/sql/node
+Create SQL Server graph node.
 
-**Request**: Guided traversal between nodes (depth/relationship filters)
+**Request**: `CreateGraphNodeRequest`  
+**Response**: `GraphNodeResponse`
+
+---
+
+## Tokenizer API
 
-**Response**: Traversal path
+**Controller**: `TokenizerController`  
+**Base Path**: `/api/tokenizer` (exact path varies)
 
-#### POST /explore
+### Endpoints
 
-**Request**: Exploration parameters
+#### POST /api/tokenizer/tokenize
+Tokenize text.
 
-**Response**: Annotated exploration paths
+**Request**: `TokenizeRequest`
+```json
+{
+  "text": "The quick brown fox",
+  "model": "gpt-4|custom-tokenizer"
+}
+```
 
-### Graph Analytics (`GraphAnalyticsController`)
-
-#### GET /stats
-
-**Response**: Global node/edge counts, density, component metrics
-
-#### POST /relationship-analysis
-
-**Request**: Optional modality filter
-
-**Response**: Relationship type summaries
-
-#### POST /centrality
-
-**Response**: Centrality metrics through GDS procedures
-
-#### POST /create-relationship
-
-**Request**: Relationship creation parameters
-
-**Response**: Confirmation
-
-### SQL Graph Bridge (`SqlGraphController`)
-
-- `POST /sql/nodes`: Query SQL Server graph nodes
-- `POST /sql/edges`: Query SQL Server graph edges
-- `POST /sql/traverse`: Traverse SQL graph
-- `POST /sql/shortest-path`: Shortest path query
-
-All reuse common response envelope.
-
-## Provenance (`/api/v1/provenance`)
-
-### GET /streams/{streamId}
-
-**Response**: `GenerationStreamDetail` (scope, model, created time, persisted stream blob)
-
-### GET /inference/{inferenceId}
-
-**Response**: `InferenceDetail` (inference metadata)
-
-### GET /inference/{inferenceId}/steps
-
-**Response**: List of `InferenceStepDetail` records (step order, duration, metadata)
-
-## Autonomy (`/api/autonomy`)
-
-Requires `Admin` policy.
-
-### POST /ooda/analyze
-
-**Response**: Executes `sp_Analyze` stored procedure, surfaces parsed observations
-
-### GET /queues/status
-
-**Response**: Service Broker queue depth and conversation counts
-
-### GET /cycles/history
-
-**Response**: OODA cycle history
-
-### POST /control/pause
-
-**Response**: Pause Service Broker queues
-
-### POST /control/resume
-
-**Response**: Resume Service Broker queues
-
-### POST /control/reset
-
-**Response**: Cleanup conversations and reset queues
-
-## Models (`/api/models`)
-
-### GET /
-
-**Response**: List of registered models (optional filtering)
-
-### GET /{modelId:int}
-
-**Response**: Detailed model metadata
-
-### GET /stats
-
-**Response**: Aggregated usage metrics
-
-### POST /
-
-**Request**: Model definition
-
-**Response**: Create or update confirmation
-
-### POST /{modelId:int}/distill
-
-**Response**: Distillation job submission confirmation
-
-### GET /{modelId:int}/layers
-
-**Response**: Layer metrics from SQL (`ModelLayers`)
-
-## Billing (`/api/billing`)
-
-### POST /usage/report
-
-**Request**: Bulk usage ingestion
-
-**Response**: Confirmation
-
-### POST /calculate
-
-**Response**: Billing projections
-
-### POST /usage/record
-
-**Request**: Single usage event
-
-**Response**: Confirmation
-
-### GET /quota
-
-**Response**: Tenant quota status
-
-### POST /quota
-
-**Request**: Quota threshold updates
-
-**Response**: Confirmation
-
-## Feedback (`/api/v1/feedback`)
-
-### POST /submit
-
-**Request**: Feedback entries tied to atoms/inferences
-
-**Response**: Confirmation
-
-### POST /importance/update
-
-**Request**: Importance score adjustments
-
-**Response**: Confirmation
-
-### POST /fine-tune/trigger
-
-**Response**: Fine-tuning job submission confirmation
-
-### POST /summary
-
-**Response**: Aggregated feedback summaries
-
-## Operations (`/api/v1/operations`)
-
-### GET /health
-
-**Response**: Database and Service Broker health checks
-
-### POST /indexes/maintenance
-
-**Response**: Index maintenance job submission
-
-### POST /cache/manage
-
-**Request**: Warm/flush cache parameters
-
-**Response**: Cache management job confirmation
-
-### POST /diagnostics
-
-**Response**: Diagnostic stored procedure results
-
-### GET /querystore/stats
-
-**Response**: SQL Query Store summaries
-
-### POST /autonomous/trigger
-
-**Response**: Autonomous background workflow trigger confirmation
-
-### GET /metrics
-
-**Response**: Aggregated operational metrics (all tenants)
-
-### GET /metrics/{tenantId}
-
-**Response**: Tenant-specific operational metrics
-
-## Ingestion (`/api/v1/ingestion`)
-
-### POST /content
-
-**Request**: `IngestionRequest` (single payload)
-
-**Response**: Atom ingestion confirmation with deduplication support
-
-## Jobs (`/api/jobs`)
-
-### GET /{jobId:long}
-
-**Response**: `JobStatusResponse`
-
-### GET /
-
-**Response**: List of jobs with filters/paging
-
-### POST /cleanup
-
-**Response**: Cleanup job submission
-
-### POST /index-maintenance
-
-**Response**: Index maintenance job submission
-
-### POST /analytics
-
-**Response**: Analytics job submission
-
-### POST /{jobId:long}/cancel
-
-**Response**: Job cancellation confirmation
-
-### GET /stats
-
-**Response**: Job-level aggregation
-
-### POST /schedule/cleanup
-
-**Response**: Schedule recurring cleanup job
-
-### POST /schedule/analytics
-
-**Response**: Schedule recurring analytics job
-
-## Configuration
-
-**Connection Strings**:
-
-- `HartonomousDb`, `DefaultConnection`: SQL Server database
-- `Neo4j:Uri`, `Neo4j:Username`, `Neo4j:Password`: Neo4j connectivity
-- `AzureStorage:ConnectionString`: Azure Storage clients
-
-**Azure AD**:
-
-- `AzureAd:Instance`, `TenantId`, `ClientId`, `Audience`
-
-**Health Endpoints** (`AllowAnonymous`):
-
-- `/health/startup`
-- `/health/ready`
-- `/health/live`
-
-**Metrics**:
-
-- `/metrics` (enabled when OpenTelemetry exporters are configured)
-
-## References
-
-- [README.md](README.md) - Getting started guide
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture
-- [DEPLOYMENT_ARCHITECTURE_PLAN.md](DEPLOYMENT_ARCHITECTURE_PLAN.md) - Deployment strategy
-- [TESTING_AUDIT_AND_COVERAGE_PLAN.md](TESTING_AUDIT_AND_COVERAGE_PLAN.md) - API testing roadmap (0% current coverage)
-- `src/Hartonomous.Api/Program.cs` - API configuration
-- `src/Hartonomous.Api/Controllers/` - Controller implementations
-- `src/Hartonomous.Shared.Contracts/` - Request/response DTOs
+**Response**: `TokenizeResponse`
+```json
+{
+  "tokens": [464, 4062, 14198, 39935],
+  "count": 4,
+  "text": ["The", " quick", " brown", " fox"]
+}
+```
+
+---
+
+## Error Handling
+
+All endpoints follow standard HTTP status codes:
+
+- `200 OK` - Success
+- `201 Created` - Resource created
+- `400 Bad Request` - Invalid request
+- `401 Unauthorized` - Authentication required
+- `403 Forbidden` - Insufficient permissions
+- `404 Not Found` - Resource not found
+- `429 Too Many Requests` - Rate limit exceeded
+- `500 Internal Server Error` - Server error
+- `503 Service Unavailable` - Service temporarily unavailable
+
+**Error Response Format**:
+```json
+{
+  "error": {
+    "code": "QUOTA_EXCEEDED",
+    "message": "Tenant quota exceeded for inference operations",
+    "details": {
+      "tenantId": "tenant-123",
+      "usageType": "inference",
+      "currentUsage": 10000,
+      "quota": 10000
+    }
+  }
+}
+```
+
+---
+
+## Rate Limiting
+
+Rate limits are enforced per tenant:
+
+- **Default**: 1000 requests/minute
+- **Burst**: 100 requests/second
+- **Quota**: Enforced pre-execution (billing system)
+
+**Rate Limit Headers**:
+```
+X-RateLimit-Limit: 1000
+X-RateLimit-Remaining: 750
+X-RateLimit-Reset: 1699891200
+```
+
+---
+
+## Pagination
+
+List endpoints support pagination:
+
+**Query Parameters**:
+- `page` - Page number (1-based)
+- `pageSize` - Items per page (default: 20, max: 100)
+
+**Response Format**:
+```json
+{
+  "data": [...],
+  "pagination": {
+    "page": 1,
+    "pageSize": 20,
+    "total": 1500,
+    "totalPages": 75
+  }
+}
+```
+
+---
+
+## Testing Status
+
+**Current Test Coverage**: 
+- API Controllers: **Minimal coverage** (some unit tests exist)
+- Integration Tests: **25 failing** (infrastructure dependencies)
+- See [Testing Guide](../development/testing-guide.md) for details
+
+---
+
+## Source Code
+
+Controller implementations: `src/Hartonomous.Api/Controllers/`
+
+- AnalyticsController.cs
+- AutonomyController.cs
+- BillingController.cs
+- BulkController.cs
+- EmbeddingsController.cs
+- FeedbackController.cs
+- GenerationController.cs
+- GraphAnalyticsController.cs
+- GraphQueryController.cs
+- InferenceController.cs
+- IngestionController.cs
+- JobsController.cs
+- ModelsController.cs
+- OperationsController.cs
+- ProvenanceController.cs
+- SearchController.cs
+- SqlGraphController.cs
+- TokenizerController.cs
+
+---
+
+## Additional Resources
+
+- [Architecture Overview](../ARCHITECTURE.md)
+- [Deployment Guide](../deployment/deployment-guide.md)
+- [Testing Guide](../development/testing-guide.md)
+- [Security Documentation](../security/)
