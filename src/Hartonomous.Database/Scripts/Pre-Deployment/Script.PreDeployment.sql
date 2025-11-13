@@ -5,6 +5,9 @@ Pre-Deployment Script - Environment-Specific Setup
 Executed BEFORE deployment plan (but plan calculated before script runs)
 
 Requirements:
+- CLR Assembly Registration: MUST be first (functions reference assembly)
+  Assembly: SqlClrFunctions.dll with UNSAFE permissions
+
 - FILESTREAM filegroup: Required for binary payload storage
   Tables: TensorAtomPayloads, LayerTensorSegments, AtomPayloadStore
   
@@ -12,6 +15,7 @@ Requirements:
   Tables: BillingUsageLedger_InMemory
 
 SQLCMD Variables:
+- $(SqlClrDllPath): Full path to SqlClrFunctions.dll (e.g., D:\...\SqlClr\bin\Release\SqlClrFunctions.dll)
 - $(DefaultDataPath): Physical directory for database files (environment-specific)
 - $(DatabaseName): Target database name
 ================================================================================
@@ -19,6 +23,9 @@ SQLCMD Variables:
 
 PRINT 'Starting pre-deployment setup...';
 GO
+
+-- **FIRST**: Register CLR assembly (functions defined in DACPAC reference this)
+:r .\Register_CLR_Assemblies.sql
 
 -- FILESTREAM filegroup (required for VARBINARY(MAX) FILESTREAM columns)
 :r .\Setup_FILESTREAM_Filegroup.sql

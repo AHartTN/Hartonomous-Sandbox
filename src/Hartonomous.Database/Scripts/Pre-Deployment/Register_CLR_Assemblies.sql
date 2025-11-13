@@ -1,12 +1,16 @@
 /*
 ================================================================================
-CLR Assembly Registration - SqlClrFunctions
+CLR Assembly Registration - SqlClrFunctions (PRE-DEPLOYMENT)
 ================================================================================
-Purpose: Registers the SqlClrFunctions.dll assembly with UNSAFE permissions
+Purpose: Registers the SqlClrFunctions.dll assembly BEFORE DACPAC deployment
          to enable CLR functions, aggregates, and procedures.
 
+WHY PRE-DEPLOYMENT:
+- DACPAC functions reference [SqlClrFunctions] assembly in their definitions
+- Assembly MUST exist BEFORE functions are created
+- CREATE ASSEMBLY must happen first, CREATE FUNCTION second (MS Docs pattern)
+
 Requirements:
-- Runs AFTER DACPAC deployment (functions/procedures must exist)
 - SQL Server CLR integration enabled: sp_configure 'clr enabled', 1
 - Database trustworthy OR assembly signed with asymmetric key
 - UNSAFE permission required for:
@@ -16,7 +20,8 @@ Requirements:
   - Statistical computations (Z-score, churn prediction)
 
 SQLCMD Variables:
-- $(DacpacBinPath): Path to compiled assemblies (e.g., bin\Debug\)
+- $(SqlClrDllPath): Full path to SqlClrFunctions.dll
+  Example: D:\Repositories\Hartonomous\src\SqlClr\bin\Release\SqlClrFunctions.dll
 
 Security Note:
 - UNSAFE assemblies require sysadmin permissions or certificate/asymmetric key signing
@@ -64,26 +69,12 @@ GO
 -- Register the assembly with UNSAFE permissions
 PRINT '  Registering SqlClrFunctions.dll with UNSAFE permissions...';
 
--- Note: $(DacpacBinPath) should point to the directory containing SqlClrFunctions.dll
--- Example: /var:DacpacBinPath="D:\Hartonomous\bin\Debug\"
+-- SQLCMD variable should point to FULL path: D:\...\SqlClr\bin\Release\SqlClrFunctions.dll
 CREATE ASSEMBLY [SqlClrFunctions]
-FROM '$(DacpacBinPath)SqlClrFunctions.dll'
+FROM '$(SqlClrDllPath)'
 WITH PERMISSION_SET = UNSAFE;
 
 PRINT '✓ SqlClrFunctions assembly registered successfully';
+PRINT '  Assembly will be available to all CLR functions defined in DACPAC';
 PRINT '';
-
--- Display registered CLR functions/aggregates
-PRINT 'Registered CLR Functions:';
-SELECT 
-    SCHEMA_NAME(o.schema_id) + '.' + o.name AS FunctionName,
-    o.type_desc AS ObjectType
-FROM sys.objects o
-INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
-INNER JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-WHERE a.name = 'SqlClrFunctions'
-ORDER BY o.type_desc, o.name;
-
-PRINT '';
-PRINT '✓ CLR assembly registration complete';
-PRINT '';
+GO

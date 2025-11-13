@@ -5,25 +5,20 @@ Post-Deployment Script - Configuration & Runtime Setup
 Executed AFTER DACPAC deployment completes
 
 Order of Execution:
-1. CLR Assembly Registration - Must run before CLR functions can execute
-2. Database Configuration - QueryStore, AutomaticTuning, CDC
-3. Schema Modifications - Graph indexes, temporal tables, columnstore
-4. Data Seeding - Initial data, agent tools, Service Broker activation
-5. Table Compression - ROW/PAGE compression optimization
+1. Database Configuration - QueryStore, AutomaticTuning, CDC
+2. Schema Modifications - Graph indexes, temporal tables, columnstore
+3. Data Seeding - Initial data, agent tools, Service Broker activation
+4. Table Compression - ROW/PAGE compression optimization
 
 SQLCMD Variables:
-- $(DacpacBinPath): Path to compiled assemblies for CLR registration
 - $(DatabaseName): Target database name
+
+NOTE: CLR Assembly Registration moved to PRE-DEPLOYMENT (must happen before functions are created)
 ================================================================================
 */
 
 PRINT 'Starting post-deployment script execution...';
 GO
-
--- CRITICAL: CLR assembly registration MUST run first
--- All CLR functions/aggregates depend on this assembly being registered
--- Requires UNSAFE permissions for file I/O, audio processing, vector operations
-:r .\Register_CLR_Assemblies.sql
 
 -- Database-level configuration (can only run after database exists)
 :r ..\Pre-Deployment\Enable_QueryStore.sql
