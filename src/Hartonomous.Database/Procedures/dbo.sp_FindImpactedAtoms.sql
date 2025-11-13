@@ -13,14 +13,14 @@ BEGIN
             SELECT 
                 @AtomId AS AtomId,
                 0 AS Depth,
-                'Source' AS ImpactType
+                CAST('Source' AS NVARCHAR(20)) AS ImpactType
             
             UNION ALL
             
             SELECT 
                 edge.ToAtomId AS AtomId,
                 ia.Depth + 1 AS Depth,
-                'Downstream' AS ImpactType
+                CAST('Downstream' AS NVARCHAR(20)) AS ImpactType
             FROM ImpactedAtoms ia
             INNER JOIN provenance.AtomGraphEdges edge ON ia.AtomId = edge.FromAtomId
             WHERE ia.Depth < 100 -- Prevent infinite recursion

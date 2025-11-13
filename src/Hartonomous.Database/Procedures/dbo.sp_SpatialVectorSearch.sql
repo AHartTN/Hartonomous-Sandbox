@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_SpatialVectorSearch
-    @QueryVector VARBINARY(MAX),
+    @QueryVector VECTOR(1998),
     @SpatialCenter GEOMETRY = NULL,
     @RadiusMeters FLOAT = NULL,
     @TopK INT = 10,
@@ -16,7 +16,7 @@ BEGIN
         DECLARE @Candidates TABLE (
             AtomEmbeddingId BIGINT PRIMARY KEY,
             AtomId BIGINT,
-            EmbeddingVector VARBINARY(MAX),
+            EmbeddingVector VECTOR(1998),
             SpatialDistance FLOAT
         );
         

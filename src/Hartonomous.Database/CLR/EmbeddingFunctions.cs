@@ -80,9 +80,9 @@ namespace Hartonomous.SqlClr
                 // Step 3: Generate embedding based on model type
                 byte[] embedding = null;
                 
-                if (modelType == "OpenAI" && !string.IsNullOrEmpty(apiEndpoint))
+                if (modelType == "Transformer" && !string.IsNullOrEmpty(apiEndpoint))
                 {
-                    embedding = CallOpenAIEmbedding(content, apiEndpoint);
+                    embedding = CallLocalTransformerEmbedding(content, apiEndpoint);
                 }
                 else if (modelType == "Local")
                 {
@@ -207,10 +207,12 @@ namespace Hartonomous.SqlClr
         /// Loads transformer model weights from SQL Server GEOMETRY/FILESTREAM,
         /// runs forward pass with proper attention/MLP layers, returns embedding vector.
         /// </summary>
-        private static byte[] CallOpenAIEmbedding(string content, string apiEndpoint)
+        private static byte[] CallLocalTransformerEmbedding(string content, string modelIdentifier)
         {
-            // Query model configuration from Models table
-            string modelIdentifier = apiEndpoint ?? "default-embedding-model";
+            // Use provided model identifier or default
+            if (string.IsNullOrEmpty(modelIdentifier))
+                modelIdentifier = "default-embedding-model";
+                
             int embeddingDimension = 1536; // Will be read from model metadata
             
             using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
@@ -224,8 +226,8 @@ namespace Hartonomous.SqlClr
                     SELECT ta.TensorName, ta.WeightsRaw
                     FROM dbo.TensorAtoms ta
                     INNER JOIN dbo.Models m ON ta.ModelId = m.ModelId
-                    WHERE m.ModelType = 'OpenAI' 
-                      AND m.JSON_VALUE(Config, '$.apiEndpoint') = @ModelIdentifier
+                    WHERE m.ModelType = 'Transformer' 
+                      AND m.JSON_VALUE(Config, '$.modelIdentifier') = @ModelIdentifier
                     ORDER BY ta.LayerIndex, ta.TensorName";
                 
                 using (var cmd = new System.Data.SqlClient.SqlCommand(tensorQuery, conn))
@@ -312,8 +314,8 @@ namespace Hartonomous.SqlClr
                     }
                 }
                 
-                // Fall back to CallOpenAIEmbedding but with Local model identifier
-                return CallOpenAIEmbedding(content, localEndpoint ?? "local-embedding-model");
+                // Use ingested transformer model weights
+                return CallLocalTransformerEmbedding(content, localEndpoint ?? "local-embedding-model");
             }
         }
         

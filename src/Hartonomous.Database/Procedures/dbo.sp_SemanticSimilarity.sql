@@ -10,30 +10,33 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        -- Verify full-text and semantic search is enabled
-        IF NOT EXISTS (
-            SELECT 1 
-            FROM sys.fulltext_indexes fti
-            INNER JOIN sys.objects o ON fti.object_id = o.object_id
-            WHERE o.name = 'Atoms'
-        )
+        DECLARE @SourceEmbedding VECTOR(1998);
+        
+        -- Get source embedding
+        SELECT @SourceEmbedding = EmbeddingVector
+        FROM dbo.AtomEmbeddings
+        WHERE AtomId = @SourceAtomId AND TenantId = @TenantId;
+        
+        IF @SourceEmbedding IS NULL
         BEGIN
-            RAISERROR('Full-text index not found on Atoms table', 16, 1);
+            RAISERROR('Source atom has no embedding vector', 16, 1);
             RETURN -1;
         END
         
-        -- Find similar documents
+        -- Find similar atoms using vector cosine similarity
         SELECT TOP (@TopK)
-            sst.matched_document_key AS SimilarAtomId,
-            sst.score AS SimilarityScore,
+            ae.AtomId AS SimilarAtomId,
+            (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @SourceEmbedding)) * 100.0 AS SimilarityScore,
             a.ContentHash,
             a.ContentType,
             a.CreatedUtc
-        FROM SEMANTICSIMILARITYTABLE(dbo.Atoms, Content, @SourceAtomId) sst
-        INNER JOIN dbo.Atoms a ON sst.matched_document_key = a.AtomId
-        WHERE a.TenantId = @TenantId
+        FROM dbo.AtomEmbeddings ae
+        INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId AND ae.TenantId = a.TenantId
+        WHERE ae.TenantId = @TenantId
+              AND ae.AtomId != @SourceAtomId
+              AND ae.EmbeddingVector IS NOT NULL
               AND a.IsDeleted = 0
-        ORDER BY sst.score DESC;
+        ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @SourceEmbedding) ASC;
         
         RETURN 0;
     END TRY

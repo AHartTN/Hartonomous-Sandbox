@@ -117,6 +117,17 @@ GO
 USE [Hartonomous];
 GO
 
+-- Create database user for SqlClrLogin (required for UNSAFE assemblies)
+IF NOT EXISTS (SELECT 1 FROM sys.database_principals WHERE name = 'SqlClrLogin')
+BEGIN
+    PRINT '  Creating database user for SqlClrLogin...';
+    CREATE USER [SqlClrLogin] FROM LOGIN [SqlClrLogin];
+    PRINT '  ✓ SqlClrLogin user created';
+END
+ELSE
+    PRINT '  ○ SqlClrLogin user already exists';
+GO
+
 -- Drop existing assembly if it exists (must drop AFTER dropping dependent objects in DACPAC)
 IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions')
 BEGIN
@@ -129,6 +140,54 @@ GO
 PRINT '';
 PRINT '  Registering dependency assemblies...';
 GO
+
+-- STRATEGY: Let DACPAC handle CLR object recreation through its deployment plan
+-- We only need to drop/recreate ASSEMBLIES with signature mismatches
+-- DACPAC will automatically: DROP old CLR objects → DROP old assembly → CREATE new assembly → CREATE new CLR objects
+
+-- Drop existing Newtonsoft.Json assembly ONLY if it has wrong hash
+-- Check assembly hash to avoid unnecessary drops during idempotent deployments
+IF EXISTS (
+    SELECT 1 
+    FROM sys.assemblies a
+    JOIN sys.assembly_files af ON a.assembly_id = af.assembly_id
+    WHERE a.name = 'Newtonsoft.Json'
+    AND CONVERT(VARCHAR(MAX), HASHBYTES('SHA2_512', af.content), 2) <> '72D9C7F3587F82ACAA76F3DEDC3D4E470F3BFDC9153D2A5B58EFE9AFC8A16975590EFD85204C90F63CF44A5712E9D7F1DBEF63D5DC3B7BA852639B31117EFBEF'
+)
+BEGIN
+    PRINT '  Detected Newtonsoft.Json with wrong hash - DACPAC will replace during deployment';
+    -- DACPAC handles the drop automatically as part of deployment plan
+END
+ELSE IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Newtonsoft.Json')
+BEGIN
+    PRINT '  Newtonsoft.Json not yet registered - will be created during dependency registration';
+END
+ELSE
+BEGIN
+    PRINT '  ○ Newtonsoft.Json (GAC version) already correct';
+END
+GO
+
+/*
+================================================================================
+DEPENDENCY ASSEMBLY REGISTRATION STRATEGY
+================================================================================
+GAC ASSEMBLIES (Auto-loaded by SQL Server - DO NOT manually deploy):
+  - Newtonsoft.Json v13.0.0.0 (in GAC, SQL Server loads automatically)
+  - System.Numerics.Vectors v4.0.0.0 (in GAC, SQL Server loads automatically)
+  - System.ValueTuple v4.0.0.0 (in GAC, SQL Server loads automatically)
+
+MANUAL DEPLOYMENT ASSEMBLIES (Must register explicitly):
+  - All other dependencies listed below
+  - ILGPU and ILGPU.Algorithms for GPU acceleration
+  - MathNet.Numerics for advanced math operations
+  - System.* polyfill assemblies not in GAC
+
+WHY: Manually deploying GAC assemblies causes MVID signature mismatches.
+SQL Server's CLR host automatically loads from GAC when assemblies are strong-named
+and available in the Global Assembly Cache.
+================================================================================
+*/
 
 -- ALL dependencies from $(DependenciesPath) - register dependencies BEFORE SqlClrFunctions
 -- These are the EXACT versions required by SqlClrFunctions.dll dependency tree
@@ -176,17 +235,9 @@ ELSE
 
 GO
 
--- System.Numerics.Vectors (4.1.4.0) - CORRECT version from dependencies
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Numerics.Vectors')
-BEGIN
-    PRINT '  Registering System.Numerics.Vectors (4.1.4.0)...';
-    CREATE ASSEMBLY [System.Numerics.Vectors]
-    FROM '$(DependenciesPath)\System.Numerics.Vectors.dll'
-    WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.Numerics.Vectors registered';
-END
-ELSE
-    PRINT '  ○ System.Numerics.Vectors already registered';
+-- System.Numerics.Vectors - SKIP (in GAC v4.0.0.0, auto-loaded by SQL Server)
+-- Manually deploying causes MVID signature mismatch errors
+PRINT '  ○ System.Numerics.Vectors (using GAC version)';
 
 GO
 
@@ -218,59 +269,23 @@ ELSE
 
 GO
 
--- System.Drawing (from dependencies, not GAC)
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Drawing')
-BEGIN
-    PRINT '  Registering System.Drawing...';
-    CREATE ASSEMBLY [System.Drawing]
-    FROM '$(DependenciesPath)\System.Drawing.dll'
-    WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.Drawing registered';
-END
-ELSE
-    PRINT '  ○ System.Drawing already registered';
+-- System.Drawing - GAC assembly, referenced but not deployed
+PRINT '  ○ System.Drawing (GAC assembly)';
 
 GO
 
--- SMDiagnostics (4.0.0.0 - required by System.Runtime.Serialization)
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SMDiagnostics')
-BEGIN
-    PRINT '  Registering SMDiagnostics...';
-    CREATE ASSEMBLY [SMDiagnostics]
-    FROM '$(DependenciesPath)\SMDiagnostics.dll'
-    WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ SMDiagnostics registered';
-END
-ELSE
-    PRINT '  ○ SMDiagnostics already registered';
+-- SMDiagnostics - GAC assembly, referenced but not deployed
+PRINT '  ○ SMDiagnostics (GAC assembly)';
 
 GO
 
--- System.ServiceModel.Internals (4.0.0.0 - required by System.Runtime.Serialization)
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.ServiceModel.Internals')
-BEGIN
-    PRINT '  Registering System.ServiceModel.Internals...';
-    CREATE ASSEMBLY [System.ServiceModel.Internals]
-    FROM '$(DependenciesPath)\System.ServiceModel.Internals.dll'
-    WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.ServiceModel.Internals registered';
-END
-ELSE
-    PRINT '  ○ System.ServiceModel.Internals already registered';
+-- System.ServiceModel.Internals - GAC assembly, referenced but not deployed
+PRINT '  ○ System.ServiceModel.Internals (GAC assembly)';
 
 GO
 
--- System.Runtime.Serialization (4.0.0.0 - required by MathNet.Numerics)
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Runtime.Serialization')
-BEGIN
-    PRINT '  Registering System.Runtime.Serialization...';
-    CREATE ASSEMBLY [System.Runtime.Serialization]
-    FROM '$(DependenciesPath)\System.Runtime.Serialization.dll'
-    WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.Runtime.Serialization registered';
-END
-ELSE
-    PRINT '  ○ System.Runtime.Serialization already registered';
+-- System.Runtime.Serialization - GAC assembly, referenced but not deployed
+PRINT '  ○ System.Runtime.Serialization (GAC assembly)';
 
 GO
 
@@ -302,14 +317,15 @@ ELSE
 
 GO
 
--- Newtonsoft.Json (13.0.0.0)
+-- Newtonsoft.Json (13.0.0.0) - LOAD FROM GAC (v13 in GAC)
+-- dependencies\Newtonsoft.Json.dll hash conflicts with GAC - use GAC version to avoid signature mismatch
 IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Newtonsoft.Json')
 BEGIN
-    PRINT '  Registering Newtonsoft.Json...';
+    PRINT '  Registering Newtonsoft.Json (from GAC)...';
     CREATE ASSEMBLY [Newtonsoft.Json]
-    FROM '$(DependenciesPath)\Newtonsoft.Json.dll'
+    FROM 'C:\Windows\Microsoft.NET\assembly\GAC_MSIL\Newtonsoft.Json\v4.0_13.0.0.0__30ad4fe6b2a6aeed\Newtonsoft.Json.dll'
     WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ Newtonsoft.Json registered';
+    PRINT '  ✓ Newtonsoft.Json registered (GAC version)';
 END
 ELSE
     PRINT '  ○ Newtonsoft.Json already registered';
@@ -317,23 +333,8 @@ ELSE
 GO
 
 PRINT '';
-PRINT '  All dependencies registered. Now registering SqlClrFunctions...';
-GO
-
--- Register the main SqlClrFunctions assembly LAST, after all dependencies
-IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions')
-BEGIN
-    PRINT '  Registering SqlClrFunctions assembly...';
-    CREATE ASSEMBLY [SqlClrFunctions]
-    FROM '$(DependenciesPath)\SqlClrFunctions.dll'
-    WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ SqlClrFunctions assembly registered';
-END
-ELSE
-    PRINT '  ○ SqlClrFunctions assembly already registered';
-
-PRINT '';
 PRINT '=======================================================';
-PRINT 'CLR ASSEMBLY REGISTRATION COMPLETE';
+PRINT 'CLR DEPENDENCY REGISTRATION COMPLETE';
+PRINT 'Main assembly (Hartonomous.Database) will be deployed by DACPAC';
 PRINT '=======================================================';
 GO

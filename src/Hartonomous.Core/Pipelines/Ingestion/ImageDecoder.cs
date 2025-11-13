@@ -192,7 +192,28 @@ namespace Hartonomous.Core.Pipelines.Ingestion
 
                 // Decompress zlib data (skip for now - requires SharpZipLib or System.IO.Compression)
                 // For minimal implementation, throw - user must use ImageSharp
-                throw new NotImplementedException("PNG decompression requires external library. Install ImageSharp: dotnet add package SixLabors.ImageSharp");
+                using (var ms = new MemoryStream(imageBytes))
+                using (var bitmap = new System.Drawing.Bitmap(ms))
+                {
+                    width = bitmap.Width;
+                    height = bitmap.Height;
+                    pixelData = new byte[width * height * 4];
+                    
+                    var bitmapData = bitmap.LockBits(
+                        new System.Drawing.Rectangle(0, 0, width, height),
+                        System.Drawing.Imaging.ImageLockMode.ReadOnly,
+                        System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    
+                    try
+                    {
+                        System.Runtime.InteropServices.Marshal.Copy(
+                            bitmapData.Scan0, pixelData, 0, pixelData.Length);
+                    }
+                    finally
+                    {
+                        bitmap.UnlockBits(bitmapData);
+                    }
+                }
             }
         }
 

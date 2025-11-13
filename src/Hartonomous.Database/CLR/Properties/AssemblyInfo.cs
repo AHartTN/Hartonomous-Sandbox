@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Security.Permissions;
 
 // General Information about an assembly is controlled through the following
 // set of attributes. Change these attribute values to modify the information
@@ -30,3 +31,10 @@ using System.Runtime.InteropServices;
 //
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
+
+// SQL Server CLR Permission Set - MUST match CREATE ASSEMBLY ... WITH PERMISSION_SET
+// CRITICAL: This attribute is REQUIRED when using CLR strict security (SQL 2017+)
+// Without this, DACPAC deployment fails with:
+// "CREATE ASSEMBLY failed because assembly was compiled with /UNSAFE option,
+//  but the assembly was not registered with the required PERMISSION_SET = UNSAFE option."
+[assembly: PermissionSet(SecurityAction.RequestMinimum, Unrestricted = true)]

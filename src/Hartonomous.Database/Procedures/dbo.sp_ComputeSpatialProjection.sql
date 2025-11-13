@@ -28,7 +28,7 @@ BEGIN
     -- X component (dimension 0 or weighted sum)
     IF @vectorLength >= 1
     BEGIN
-        SET @floatVal = CAST(SUBSTRING(@input_vector, 1, 4) AS FLOAT);
+        SET @floatVal = dbo.ConvertVarbinary4ToReal(SUBSTRING(@input_vector, 1, 4));
         SET @output_x = @floatVal;
     END
     ELSE
@@ -37,7 +37,7 @@ BEGIN
     -- Y component (dimension 1 or weighted sum)
     IF @vectorLength >= 2
     BEGIN
-        SET @floatVal = CAST(SUBSTRING(@input_vector, 5, 4) AS FLOAT);
+        SET @floatVal = dbo.ConvertVarbinary4ToReal(SUBSTRING(@input_vector, 5, 4));
         SET @output_y = @floatVal;
     END
     ELSE
@@ -46,7 +46,7 @@ BEGIN
     -- Z component (dimension 2 or weighted sum)
     IF @vectorLength >= 3
     BEGIN
-        SET @floatVal = CAST(SUBSTRING(@input_vector, 9, 4) AS FLOAT);
+        SET @floatVal = dbo.ConvertVarbinary4ToReal(SUBSTRING(@input_vector, 9, 4));
         SET @output_z = @floatVal;
     END
     ELSE

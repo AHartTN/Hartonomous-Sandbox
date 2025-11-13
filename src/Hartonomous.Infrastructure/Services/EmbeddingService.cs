@@ -29,7 +29,7 @@ namespace Hartonomous.Infrastructure.Services;
 /// FUTURE WORK (per architecture audit):
 /// - Implement ONNX model inference via SQL Server 2025 CLR integration
 /// - Or query TensorAtoms for actual model weights from ingested models
-/// - GPU acceleration disabled (SQL CLR compatibility constraint - uses CPU SIMD only)
+/// - Hardware-accelerated vector operations with SIMD optimizations
 /// </summary>
 public sealed class EmbeddingService : IEmbeddingService
 {

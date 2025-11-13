@@ -1,3 +1,11 @@
+-- =============================================
+-- DEPRECATED: This file is no longer used
+-- Native procedures are now created in post-deployment:
+-- Scripts/Post-Deployment/Create_NativelyCompiled_Procedures.sql
+-- =============================================
+-- PLACEHOLDER: This procedure will be created by post-deployment script
+-- DO NOT MODIFY THIS FILE
+/*
 CREATE PROCEDURE dbo.sp_InsertBillingUsageRecord_Native
     @TenantId NVARCHAR(128),
     @PrincipalId NVARCHAR(256),
@@ -45,3 +53,4 @@ BEGIN ATOMIC WITH
         SYSUTCDATETIME()
     );
 END
+*/

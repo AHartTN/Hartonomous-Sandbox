@@ -53,8 +53,8 @@ BEGIN
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
         'text_generation',
-        TRY_CAST(@requestPayload AS JSON),
-        TRY_CAST(@modelsJson AS JSON),
+        CONVERT(NVARCHAR(MAX), @requestPayload),
+        CONVERT(NVARCHAR(MAX), @modelsJson),
         'weighted_vector_consensus',
         JSON_OBJECT('status': 'running')
     );

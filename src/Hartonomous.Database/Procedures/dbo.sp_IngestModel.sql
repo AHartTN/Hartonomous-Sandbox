@@ -64,17 +64,12 @@ BEGIN
         END
         ELSE IF @FileStreamPath IS NOT NULL
         BEGIN
-            -- Large model: Store in FILESTREAM
-            DECLARE @FileStreamToken VARBINARY(MAX);
-            
-            -- Get FILESTREAM path for model
-            SELECT @FileStreamToken = SerializedModel.PathName()
-            FROM dbo.Models
-            WHERE ModelId = @ModelId;
-            
-            -- Note: Actual file copy would be done via Win32 API in CLR function
-            -- For now, just log the path
-            PRINT 'Model will be stored at FILESTREAM path: ' + @FileStreamPath;
+            -- Large model path storage
+            -- NOTE: SerializedModel column is VARBINARY(MAX), not FILESTREAM
+            -- File-based storage would require CLR Win32 API integration
+            -- For now, just log the intended path
+            PRINT 'Model file path provided: ' + @FileStreamPath;
+            PRINT 'NOTE: File-based model storage not yet implemented. Use @ModelBytes parameter instead.';
         END
         
         -- Set as current version if requested

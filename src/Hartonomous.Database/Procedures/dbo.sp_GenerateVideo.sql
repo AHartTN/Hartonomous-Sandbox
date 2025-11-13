@@ -45,8 +45,8 @@ BEGIN
     INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
         'video_generation',
-        TRY_CAST(@requestJson AS JSON),
-        TRY_CAST(@modelsJson AS JSON),
+        CONVERT(NVARCHAR(MAX), @requestJson),
+        CONVERT(NVARCHAR(MAX), @modelsJson),
         'temporal_recombination',
         JSON_OBJECT('status': 'running')
     );

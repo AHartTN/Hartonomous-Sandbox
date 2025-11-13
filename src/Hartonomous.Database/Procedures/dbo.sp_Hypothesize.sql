@@ -272,9 +272,11 @@ BEGIN
             FOR JSON PATH
         );
         
+        DECLARE @HypothesisCount INT = (SELECT COUNT(*) FROM @HypothesisList);
+        
         DECLARE @HypothesisPayload NVARCHAR(MAX) = JSON_OBJECT(
             'analysisId': @AnalysisId,
-            'hypothesesGenerated': (SELECT COUNT(*) FROM @HypothesisList),
+            'hypothesesGenerated': @HypothesisCount,
             'hypotheses': JSON_QUERY(@Hypotheses),
             'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
         );
@@ -296,7 +298,7 @@ BEGIN
         -- 6. END ORIGINAL CONVERSATION
         END CONVERSATION @ConversationHandle;
         
-        PRINT 'sp_Hypothesize completed: ' + CAST((SELECT COUNT(*) FROM @HypothesisList) AS VARCHAR(10)) + ' hypotheses generated';
+        PRINT 'sp_Hypothesize completed: ' + CAST(@HypothesisCount AS VARCHAR(10)) + ' hypotheses generated';
         PRINT 'Hypotheses: ' + @Hypotheses;
         
         RETURN 0;

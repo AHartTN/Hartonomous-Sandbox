@@ -37,7 +37,8 @@ BEGIN
         -- Process each atom
         DECLARE @CurrentAtomId BIGINT;
         DECLARE @CurrentContent NVARCHAR(MAX);
-        DECLARE @NewEmbedding VARBINARY(MAX);
+        DECLARE @NewEmbeddingBytes VARBINARY(MAX);
+        DECLARE @NewEmbedding VECTOR(1998);
         
         DECLARE atom_cursor CURSOR LOCAL FAST_FORWARD FOR
         SELECT AtomId, Content FROM @AtomsToProcess;
@@ -47,8 +48,12 @@ BEGIN
         
         WHILE @@FETCH_STATUS = 0
         BEGIN
-            -- Compute new embedding
-            SET @NewEmbedding = dbo.fn_ComputeEmbedding(@CurrentAtomId, @ModelId, @TenantId);
+            -- Compute new embedding (returns VARBINARY(MAX), convert to VECTOR)
+            SET @NewEmbeddingBytes = dbo.fn_ComputeEmbedding(@CurrentAtomId, @ModelId, @TenantId);
+            
+            IF @NewEmbeddingBytes IS NOT NULL
+                SET @NewEmbedding = CAST(CONVERT(NVARCHAR(MAX), @NewEmbeddingBytes) AS VECTOR(1998));
+            
             
             IF @NewEmbedding IS NOT NULL
             BEGIN

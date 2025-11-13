@@ -49,13 +49,15 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    -- Create inference request
+    INSERT INTO InferenceRequests (TenantId, UserId, RequestType, Parameters, AdditionalModels, CreatedAt)
     VALUES (
-        'audio_generation',
-        TRY_CAST(@requestJson AS JSON),
-        TRY_CAST(@modelsJson AS JSON),
-        'vector_similarity',
-        JSON_OBJECT('status': 'running')
+        @TenantId,
+        @UserId,
+        'Audio',
+        CONVERT(NVARCHAR(MAX), @requestJson),
+        CONVERT(NVARCHAR(MAX), @modelsJson),
+        SYSUTCDATETIME()
     );
     SET @inferenceId = SCOPE_IDENTITY();
 
@@ -220,7 +222,7 @@ BEGIN
 
         UPDATE dbo.InferenceRequests
         SET TotalDurationMs = @durationMs,
-            OutputData = TRY_CAST(@outputJson AS JSON),
+            OutputData = CONVERT(NVARCHAR(MAX), @outputJson),
             OutputMetadata = JSON_OBJECT(
                 'status': 'completed',
                 'segment_count': 0,

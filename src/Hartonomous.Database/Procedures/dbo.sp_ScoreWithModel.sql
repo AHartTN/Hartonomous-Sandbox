@@ -36,7 +36,7 @@ BEGIN
         -- Prepare input features
         DECLARE @InputFeatures TABLE (
             AtomId BIGINT,
-            EmbeddingVector VARBINARY(MAX)
+            EmbeddingVector VECTOR(1998)
         );
         
         INSERT INTO @InputFeatures
@@ -66,4 +66,4 @@ BEGIN
         RETURN -1;
     END CATCH
 END;
-GO
+GO

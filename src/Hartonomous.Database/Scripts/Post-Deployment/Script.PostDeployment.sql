@@ -27,6 +27,10 @@ GO
 -- CDC requires tables to exist first
 :r ..\Pre-Deployment\Enable_CDC.sql
 
+-- In-Memory OLTP (Hekaton) Setup - MUST run before natively-compiled procedures
+:r .\Setup_InMemory_Tables.sql
+:r .\Create_NativelyCompiled_Procedures.sql
+
 -- Post-deployment schema modifications
 :r .\graph.AtomGraphEdges_Add_PseudoColumn_Indexes.sql
 :r .\Temporal_Tables_Add_Retention_and_Columnstore.sql

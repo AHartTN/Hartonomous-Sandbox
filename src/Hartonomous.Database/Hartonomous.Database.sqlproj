@@ -89,6 +89,8 @@
     <IgnoreColumnOrder>True</IgnoreColumnOrder>
     <!-- Override SSDT's default /target:database for C# compiler -->
     <SqlClrBuildTarget>library</SqlClrBuildTarget>
+    <!-- CRITICAL: Force PERMISSION_SET = UNSAFE in generated CREATE ASSEMBLY DDL -->
+    <PermissionSet>UNSAFE</PermissionSet>
   </PropertyGroup>
   <!-- SQL Build Items (explicit includes for classic SSDT) -->
   <ItemGroup>
@@ -164,16 +166,13 @@
   </ItemGroup>
   <!-- NuGet package references for CLR dependencies -->
   <ItemGroup>
+    <!-- Core Math & SIMD (SIGNED for CLR strict security) -->
     <PackageReference Include="MathNet.Numerics.Signed" Version="5.0.0" />
     <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+
+    <!-- System dependencies for .NET Framework 4.8.1 -->
     <PackageReference Include="System.Buffers" Version="4.5.1" />
-    <PackageReference Include="System.Collections.Immutable" Version="1.7.1" />
-    <PackageReference Include="System.Memory" Version="4.5.4" />
-    <PackageReference Include="System.Numerics.Vectors" Version="4.5.0" />
-    <PackageReference Include="System.Reflection.Metadata" Version="1.8.1" />
-    <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.3" />
-    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
   <!-- SQLCMD Variables for CLR deployment paths -->
   <ItemGroup>

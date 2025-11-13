@@ -11,6 +11,17 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
+        -- CONTAINSTABLE doesn't accept NVARCHAR(MAX) parameters
+        -- Must use dynamic SQL with temp table for results
+        CREATE TABLE #FTSResults (AtomId BIGINT, RANK INT);
+        
+        DECLARE @SQL NVARCHAR(MAX) = N'
+            INSERT INTO #FTSResults (AtomId, RANK)
+            SELECT [KEY], RANK
+            FROM CONTAINSTABLE(dbo.Atoms, Content, @KeywordsParam)';
+        
+        EXEC sp_executesql @SQL, N'@KeywordsParam NVARCHAR(MAX)', @KeywordsParam = @Keywords;
+        
         SELECT TOP (@TopK)
             a.AtomId,
             a.ContentHash,
@@ -18,16 +29,19 @@ BEGIN
             a.CreatedUtc,
             fts.RANK AS RelevanceScore,
             CAST(a.Content AS NVARCHAR(MAX)) AS ContentPreview
-        FROM CONTAINSTABLE(dbo.Atoms, Content, @Keywords) fts
-        INNER JOIN dbo.Atoms a ON fts.[KEY] = a.AtomId
+        FROM #FTSResults fts
+        INNER JOIN dbo.Atoms a ON fts.AtomId = a.AtomId
         WHERE a.TenantId = @TenantId
               AND a.IsDeleted = 0
               AND (@ContentTypeFilter IS NULL OR a.ContentType = @ContentTypeFilter)
         ORDER BY fts.RANK DESC;
         
+        DROP TABLE #FTSResults;
         RETURN 0;
     END TRY
     BEGIN CATCH
+        IF OBJECT_ID('tempdb..#FTSResults') IS NOT NULL
+            DROP TABLE #FTSResults;
         DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
         RAISERROR(@ErrorMessage, 16, 1);
         RETURN -1;

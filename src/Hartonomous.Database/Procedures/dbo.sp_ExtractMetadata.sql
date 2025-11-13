@@ -9,7 +9,7 @@ BEGIN
         DECLARE @PayloadLocator NVARCHAR(1024);
         DECLARE @Modality NVARCHAR(64);
         DECLARE @CanonicalText NVARCHAR(MAX);
-        DECLARE @ExtractedMetadata JSON;
+        DECLARE @ExtractedMetadata NVARCHAR(MAX);
         
         -- Load atom metadata
         SELECT 
@@ -32,7 +32,7 @@ BEGIN
             DECLARE @WordCount INT = LEN(@CanonicalText) - LEN(REPLACE(@CanonicalText, ' ', '')) + 1;
             DECLARE @CharCount INT = LEN(@CanonicalText);
             
-            SET @ExtractedMetadata = CAST((
+            SET @ExtractedMetadata = (
                 SELECT 
                     @WordCount AS wordCount,
                     @CharCount AS charCount,
@@ -40,19 +40,19 @@ BEGIN
                     @PayloadLocator AS payloadLocator,
                     FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-            ) AS JSON);
+            );
         END
         ELSE
         BEGIN
             -- For other modalities or external payloads, store basic metadata
-            SET @ExtractedMetadata = CAST((
+            SET @ExtractedMetadata = (
                 SELECT 
                     @Modality AS modality,
                     @PayloadLocator AS payloadLocator,
                     'External payload - metadata extraction requires payload loading' AS note,
                     FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
-            ) AS JSON);
+            );
         END
         
         -- Update atom metadata

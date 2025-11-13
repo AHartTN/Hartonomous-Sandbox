@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_TemporalVectorSearch
-    @QueryVector VARBINARY(MAX),
+    @QueryVector VECTOR(1998),
     @AsOfDate DATETIME2,
     @TopK INT = 10,
     @TenantId INT = NULL -- Optional tenant filtering
@@ -8,17 +8,20 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        -- Query historical embeddings using FOR SYSTEM_TIME AS OF
+        -- Query embeddings filtered by last computation time
+        -- NOTE: AtomEmbeddings and Atoms are NOT system-versioned tables
+        -- Use LastComputedUtc filter instead for point-in-time queries
         SELECT TOP (@TopK)
             ae.AtomId,
             1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS Similarity,
             ae.LastComputedUtc,
             a.ContentHash,
             a.ContentType
-        FROM dbo.AtomEmbeddings FOR SYSTEM_TIME AS OF @AsOfDate ae
-        INNER JOIN dbo.Atoms FOR SYSTEM_TIME AS OF @AsOfDate a ON ae.AtomId = a.AtomId
+        FROM dbo.AtomEmbeddings ae
+        INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
         LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
         WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
+            AND ae.LastComputedUtc <= @AsOfDate  -- Filter by computation timestamp
         ORDER BY Similarity DESC;
         
         RETURN 0;

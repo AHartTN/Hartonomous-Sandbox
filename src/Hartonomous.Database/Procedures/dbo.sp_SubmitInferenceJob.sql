@@ -78,7 +78,9 @@ BEGIN
 
     -- PARADIGM-COMPLIANT REFACTOR: Send message to Service Broker queue instead of polling
     -- This replaces the C# InferenceJobWorker polling service
-    BEGIN DIALOG CONVERSATION @correlationId
+    DECLARE @DialogHandle UNIQUEIDENTIFIER;
+    
+    BEGIN DIALOG CONVERSATION @DialogHandle
         FROM SERVICE [InferenceService]
         TO SERVICE 'InferenceService'
         ON CONTRACT [InferenceJobContract]
@@ -97,7 +99,7 @@ BEGIN
     );
     
     -- Send message to queue (activates sp_ExecuteInference_Activated)
-    SEND ON CONVERSATION @correlationId
+    SEND ON CONVERSATION @DialogHandle
         MESSAGE TYPE [InferenceJobRequest]
         (@MessageXml);
     

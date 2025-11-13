@@ -1,7 +1,7 @@
 CREATE PROCEDURE dbo.sp_MultiModelEnsemble
-    @QueryVector1 VARBINARY(MAX), -- Model 1 embedding
-    @QueryVector2 VARBINARY(MAX), -- Model 2 embedding
-    @QueryVector3 VARBINARY(MAX), -- Model 3 embedding
+    @QueryVector1 VECTOR(1998), -- Model 1 embedding
+    @QueryVector2 VECTOR(1998), -- Model 2 embedding
+    @QueryVector3 VECTOR(1998), -- Model 3 embedding
     @Model1Id INT,
     @Model2Id INT,
     @Model3Id INT,

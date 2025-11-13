@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_FusionSearch
-    @QueryVector VARBINARY(MAX),
+    @QueryVector VECTOR(1998),
     @Keywords NVARCHAR(MAX) = NULL,
     @SpatialRegion GEOGRAPHY = NULL,
     @TopK INT = 10,
@@ -39,12 +39,25 @@ BEGIN
         WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId);
         
         -- Add keyword scores (if keywords provided)
-        IF @Keywords IS NOT NULL
+        -- CONTAINSTABLE requires dynamic SQL for NVARCHAR(MAX) parameters
+        IF @Keywords IS NOT NULL AND LEN(@Keywords) > 0
         BEGIN
+            -- Create temp table for CONTAINSTABLE results since table variables can't be used in dynamic SQL
+            CREATE TABLE #FTSResults (AtomId BIGINT, FTSRank INT);
+            
+            DECLARE @SQL NVARCHAR(MAX) = N'
+                INSERT INTO #FTSResults (AtomId, FTSRank)
+                SELECT [KEY], RANK 
+                FROM CONTAINSTABLE(dbo.Atoms, Content, @SearchTerm)';
+            
+            EXEC sp_executesql @SQL, N'@SearchTerm NVARCHAR(4000)', @Keywords;
+            
             UPDATE r
-            SET KeywordScore = ISNULL(fts.RANK / 1000.0, 0.0) -- Normalize to 0-1
+            SET KeywordScore = ISNULL(fts.FTSRank / 1000.0, 0.0)
             FROM @Results r
-            INNER JOIN CONTAINSTABLE(dbo.Atoms, Content, @Keywords) fts ON r.AtomId = fts.[KEY];
+            INNER JOIN #FTSResults fts ON r.AtomId = fts.AtomId;
+            
+            DROP TABLE #FTSResults;
         END
         
         -- Add spatial scores (if region provided)
@@ -52,7 +65,7 @@ BEGIN
         BEGIN
             UPDATE r
             SET SpatialScore = CASE 
-                WHEN a.SpatialLocation IS NOT NULL AND a.SpatialLocation.STWithin(@SpatialRegion) = 1 
+                WHEN a.SpatialGeography IS NOT NULL AND a.SpatialGeography.STWithin(@SpatialRegion) = 1 
                 THEN 1.0
                 ELSE 0.0
             END

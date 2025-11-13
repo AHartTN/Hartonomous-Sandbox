@@ -141,7 +141,14 @@ BEGIN
             IF @ModelId IS NOT NULL
             BEGIN
                 DECLARE @Embedding VECTOR(1998);
-                SET @Embedding = dbo.fn_ComputeEmbedding(@AtomId, @ModelId, @TenantId);
+                DECLARE @EmbeddingBytes VARBINARY(MAX);
+                SET @EmbeddingBytes = dbo.fn_ComputeEmbedding(@AtomId, @ModelId, @TenantId);
+                
+                IF @EmbeddingBytes IS NOT NULL
+                BEGIN
+                    -- Convert VARBINARY(MAX) -> NVARCHAR(MAX) -> VECTOR(1998)
+                    SET @Embedding = CAST(CONVERT(NVARCHAR(MAX), @EmbeddingBytes) AS VECTOR(1998));
+                END
                 
                 IF @Embedding IS NOT NULL
                 BEGIN

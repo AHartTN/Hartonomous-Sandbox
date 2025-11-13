@@ -105,8 +105,9 @@ BEGIN
 
             -- Extract the embedding from the generation stream
             -- The attention mechanism stores embeddings in GenerationStreamSegments
+            DECLARE @embeddingBytes VARBINARY(MAX);
             SELECT TOP(1)
-                @embedding = seg.EmbeddingVector,
+                @embeddingBytes = seg.EmbeddingVector,
                 @dimension = @embeddingBaseDimension,
                 @usedSelfReferentialModel = 1
             FROM dbo.GenerationStreamSegments seg
@@ -115,6 +116,10 @@ BEGIN
                 AND seg.CreatedAt >= @startTime
                 AND seg.EmbeddingVector IS NOT NULL
             ORDER BY seg.CreatedAt DESC;
+            
+            -- Convert VARBINARY(MAX) → VECTOR(1998)
+            IF @embeddingBytes IS NOT NULL
+                SET @embedding = CAST(CONVERT(NVARCHAR(MAX), @embeddingBytes) AS VECTOR(1998));
 
             -- If we successfully got an embedding, we're done!
             IF @embedding IS NOT NULL
@@ -304,11 +309,11 @@ BEGIN
     )
     VALUES (
         'text_to_embedding',
-        TRY_CAST(@inputData AS JSON),
-        TRY_CAST(@modelsUsed AS JSON),
+        CONVERT(NVARCHAR(MAX), @inputData),
+        CONVERT(NVARCHAR(MAX), @modelsUsed),
         'tfidf_vocabulary_projection',
-        TRY_CAST(@outputData AS JSON),
-        TRY_CAST(@outputMetadata AS JSON),
+        CONVERT(NVARCHAR(MAX), @outputData),
+        CONVERT(NVARCHAR(MAX), @outputMetadata),
         @durationMs
     );
 END;

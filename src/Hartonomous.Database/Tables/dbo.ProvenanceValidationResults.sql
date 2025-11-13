@@ -10,5 +10,6 @@ CREATE TABLE dbo.ProvenanceValidationResults (
     INDEX IX_ProvenanceValidationResults_Status (OverallStatus),
     INDEX IX_ProvenanceValidationResults_ValidatedAt (ValidatedAt DESC),
 
-    FOREIGN KEY (OperationId) REFERENCES dbo.OperationProvenance(OperationId)
+    CONSTRAINT FK_ProvenanceValidationResults_OperationProvenance FOREIGN KEY (OperationId) 
+        REFERENCES dbo.OperationProvenance(OperationId)
 );

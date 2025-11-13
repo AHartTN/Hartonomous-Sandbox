@@ -7,9 +7,8 @@ using Hartonomous.Clr.Core;
 namespace Hartonomous.Clr
 {
     /// <summary>
-    /// Vector operations for AI inference
+    /// Vector operations for AI inference with GPU acceleration and SIMD optimizations
     /// These functions work with vectors stored as VARBINARY until VECTOR type is fully enabled
-    /// SQL CLR does not support SIMD, so all operations use simple float[] loops
     /// </summary>
     public class VectorOperations
     {

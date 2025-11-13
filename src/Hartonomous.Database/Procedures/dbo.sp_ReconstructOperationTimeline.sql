@@ -17,7 +17,8 @@ BEGIN
 
     IF @ProvenanceStream IS NULL OR @ProvenanceStream.IsNull = 1
     BEGIN
-        RAISERROR('No provenance stream found for operation %s', 16, 1, @OperationId);
+        DECLARE @OperationIdStr NVARCHAR(36) = CAST(@OperationId AS NVARCHAR(36));
+        RAISERROR('No provenance stream found for operation %s', 16, 1, @OperationIdStr);
         RETURN;
     END
 
