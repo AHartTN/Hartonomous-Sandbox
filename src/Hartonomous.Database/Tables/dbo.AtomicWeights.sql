@@ -26,7 +26,7 @@ CREATE SPATIAL INDEX [SIDX_AtomicWeights_Value]
 ON [dbo].[AtomicWeights] ([ValuePoint])
 USING GEOMETRY_GRID
 WITH (
-    BOUNDING_BOX = (-10, 0, 10, 100),  -- Weight values typically in [-10, 10], quantile [0, 100]
+    BOUNDING_BOX = (-10, -10, 10, 100),  -- Weight values in [-10, 10] for X, quantile [0, 100] for Y
     GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = HIGH, LEVEL_4 = HIGH),
     CELLS_PER_OBJECT = 16
 );

@@ -177,6 +177,10 @@
   </ItemGroup>
   <!-- SQLCMD Variables for CLR deployment paths -->
   <ItemGroup>
+    <SqlCmdVariable Include="DependenciesPath">
+      <DefaultValue>D:\Repositories\Hartonomous\dependencies</DefaultValue>
+      <Value>$(SqlCmdVar__DependenciesPath)</Value>
+    </SqlCmdVariable>
     <SqlCmdVariable Include="SqlClrKeyPath">
       <DefaultValue>D:\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\CLR\SqlClrKey.snk</DefaultValue>
       <Value>$(SqlCmdVar__1)</Value>

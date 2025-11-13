@@ -23,7 +23,7 @@ CREATE SPATIAL INDEX [SIDX_AtomicAudioSamples_Amplitude]
 ON [dbo].[AtomicAudioSamples] ([AmplitudePoint])
 USING GEOMETRY_GRID
 WITH (
-    BOUNDING_BOX = (-32768, 0, 32767, 0),  -- int16 range
+    BOUNDING_BOX = (-32768, -32768, 32767, 32767),  -- int16 range for both X and Y
     GRIDS = (LEVEL_1 = MEDIUM, LEVEL_2 = MEDIUM, LEVEL_3 = MEDIUM, LEVEL_4 = MEDIUM),
     CELLS_PER_OBJECT = 8
 );

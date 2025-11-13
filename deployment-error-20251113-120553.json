@@ -1,0 +1,81 @@
+{
+  "Log": [
+    {
+      "Message": "=== PHASE 0: Environment Initialization ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "Connected to SQL Server  ()",
+      "Level": "Success",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "Edition: ",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "FILESTREAM enabled (level: )",
+      "Level": "Success",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "=== PHASE 1: Database Prerequisites ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "Database 'Hartonomous' already exists",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "FILESTREAM filegroup configured",
+      "Level": "Success",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "All schemas created/verified",
+      "Level": "Success",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "=== PHASE 2: EF Core Migrations ===",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "Using dotnet ef: Entity Framework Core .NET Command-line Tools 10.0.0-rc.2.25502.107",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "Applying EF Core migrations to database...",
+      "Level": "Info",
+      "Timestamp": "2025-11-13 12:05:52"
+    },
+    {
+      "Message": "EF migration output: Using project 'D:\\Repositories\\Hartonomous\\src\\Hartonomous.Data\\Hartonomous.Data.csproj'. Using startup project 'D:\\Repositories\\Hartonomous\\src\\Hartonomous.Data\\Hartonomous.Data.csproj'. dotnet msbuild /getProperty:ProjectName /getProperty:AssemblyName /getProperty:DesignAssembly /getProperty:Language /getProperty:OutputPath /getProperty:PlatformTarget /getProperty:ProjectAssetsFile /getProperty:ProjectDir /getProperty:RootNamespace /getProperty:RuntimeFrameworkVersion /getProperty:TargetFileName /getProperty:TargetFrameworkMoniker /getProperty:Nullable /getProperty:TargetFramework /getProperty:TargetPlatformIdentifier /getProperty:Platform /t:ResolvePackageAssets /getItem:RuntimeCopyLocalItems D:\\Repositories\\Hartonomous\\src\\Hartonomous.Data\\Hartonomous.Data.csproj C:\\Program Files\\dotnet\\sdk\\10.0.100\\Sdks\\Microsoft.NET.Sdk\\targets\\Microsoft.PackageDependencyResolution.targets(266,5): error NETSDK1004: Assets file 'D:\\Repositories\\Hartonomous\\src\\Hartonomous.Data\\obj\\project.assets.json' not found. Run a NuGet package restore to generate this file. [D:\\Repositories\\Hartonomous\\src\\Hartonomous.Data\\Hartonomous.Data.csproj] Microsoft.EntityFrameworkCore.Tools.CommandException: Unable to retrieve project metadata. Ensure it's an SDK-style project.    at Microsoft.EntityFrameworkCore.Tools.Project.FromFile(String file, String framework, String configuration, String runtime)    at Microsoft.EntityFrameworkCore.Tools.RootCommand.Execute(String[] _)    at Microsoft.EntityFrameworkCore.Tools.Commands.CommandBase.<>c__DisplayClass0_0.<Configure>b__0(String[] args)    at Microsoft.DotNet.Cli.CommandLine.CommandLineApplication.Execute(String[] args)    at Microsoft.EntityFrameworkCore.Tools.Program.Main(String[] args) Unable to retrieve project metadata. Ensure it's an SDK-style project.",
+      "Level": "Error",
+      "Timestamp": "2025-11-13 12:05:53"
+    },
+    {
+      "Message": "EF Core migration error: EF Core migration failed with exit code 1",
+      "Level": "Error",
+      "Timestamp": "2025-11-13 12:05:53"
+    },
+    {
+      "Message": "ERROR: EF Core migration failed with exit code 1",
+      "Level": "Error",
+      "Timestamp": "2025-11-13 12:05:53"
+    },
+    {
+      "Message": "Stack trace: at Deploy-EFCoreMigrations, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 441\r\nat <ScriptBlock>, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 760\r\nat <ScriptBlock>, <No file>: line 1",
+      "Level": "Error",
+      "Timestamp": "2025-11-13 12:05:53"
+    }
+  ],
+  "Error": "EF Core migration failed with exit code 1",
+  "StackTrace": "at Deploy-EFCoreMigrations, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 441\r\nat <ScriptBlock>, D:\\Repositories\\Hartonomous\\scripts\\deploy-database-unified.ps1: line 760\r\nat <ScriptBlock>, <No file>: line 1"
+}

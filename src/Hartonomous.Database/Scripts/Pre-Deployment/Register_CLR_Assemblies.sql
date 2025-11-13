@@ -117,7 +117,7 @@ GO
 USE [Hartonomous];
 GO
 
--- Drop existing assembly if it exists
+-- Drop existing assembly if it exists (must drop AFTER dropping dependent objects in DACPAC)
 IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions')
 BEGIN
     PRINT '  Dropping existing SqlClrFunctions assembly...';
@@ -126,13 +126,11 @@ BEGIN
 END
 GO
 
--- Register the assembly with UNSAFE permissions
-PRINT '  SqlClrFunctions assembly will be deployed from DACPAC';
-PRINT '  Assembly is signed with SqlClrKey.snk and will use SqlClrLogin';
 PRINT '';
+PRINT '  Registering dependency assemblies...';
 GO
 
--- ALL dependencies from $(DependenciesPath) - NEVER use GAC versions
+-- ALL dependencies from $(DependenciesPath) - register dependencies BEFORE SqlClrFunctions
 -- These are the EXACT versions required by SqlClrFunctions.dll dependency tree
 -- Must run Scripts\Trust-GAC-Assemblies.sql FIRST to trust these assemblies
 
@@ -234,6 +232,48 @@ ELSE
 
 GO
 
+-- SMDiagnostics (4.0.0.0 - required by System.Runtime.Serialization)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SMDiagnostics')
+BEGIN
+    PRINT '  Registering SMDiagnostics...';
+    CREATE ASSEMBLY [SMDiagnostics]
+    FROM '$(DependenciesPath)\SMDiagnostics.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ SMDiagnostics registered';
+END
+ELSE
+    PRINT '  ○ SMDiagnostics already registered';
+
+GO
+
+-- System.ServiceModel.Internals (4.0.0.0 - required by System.Runtime.Serialization)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.ServiceModel.Internals')
+BEGIN
+    PRINT '  Registering System.ServiceModel.Internals...';
+    CREATE ASSEMBLY [System.ServiceModel.Internals]
+    FROM '$(DependenciesPath)\System.ServiceModel.Internals.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.ServiceModel.Internals registered';
+END
+ELSE
+    PRINT '  ○ System.ServiceModel.Internals already registered';
+
+GO
+
+-- System.Runtime.Serialization (4.0.0.0 - required by MathNet.Numerics)
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Runtime.Serialization')
+BEGIN
+    PRINT '  Registering System.Runtime.Serialization...';
+    CREATE ASSEMBLY [System.Runtime.Serialization]
+    FROM '$(DependenciesPath)\System.Runtime.Serialization.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Runtime.Serialization registered';
+END
+ELSE
+    PRINT '  ○ System.Runtime.Serialization already registered';
+
+GO
+
 -- MathNet.Numerics (5.0.0.0)
 IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'MathNet.Numerics')
 BEGIN
@@ -274,5 +314,26 @@ END
 ELSE
     PRINT '  ○ Newtonsoft.Json already registered';
 
+GO
+
 PRINT '';
+PRINT '  All dependencies registered. Now registering SqlClrFunctions...';
+GO
+
+-- Register the main SqlClrFunctions assembly LAST, after all dependencies
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'SqlClrFunctions')
+BEGIN
+    PRINT '  Registering SqlClrFunctions assembly...';
+    CREATE ASSEMBLY [SqlClrFunctions]
+    FROM '$(DependenciesPath)\SqlClrFunctions.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ SqlClrFunctions assembly registered';
+END
+ELSE
+    PRINT '  ○ SqlClrFunctions assembly already registered';
+
+PRINT '';
+PRINT '=======================================================';
+PRINT 'CLR ASSEMBLY REGISTRATION COMPLETE';
+PRINT '=======================================================';
 GO
