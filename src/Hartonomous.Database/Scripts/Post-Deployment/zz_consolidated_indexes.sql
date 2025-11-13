@@ -227,8 +227,9 @@ GO
 -- GO
 CREATE INDEX IX_AtomGraphEdges_Type ON graph.AtomGraphEdges (RelationType);
 GO
-CREATE INDEX IX_AtomGraphEdges_FromTo ON graph.AtomGraphEdges (, );
-GO
+-- Graph edge indexes on $from_id and $to_id are created automatically
+-- CREATE INDEX IX_AtomGraphEdges_FromTo ON graph.AtomGraphEdges (, );
+-- GO
 -- CREATE JSON INDEX JX_AtomGraphNodes_Semantics ON graph.AtomGraphNodes (Semantics);
 -- GO
 -- CREATE SPATIAL INDEX SIX_AtomGraphEdges_SpatialExpression ON graph.AtomGraphEdges (SpatialExpression) USING GEOMETRY_AUTO_GRID WITH (BOUNDING_BOX = (-1000000, -1000000, 1000000, 1000000), CELLS_PER_OBJECT = 16);

@@ -69,12 +69,13 @@ GO
 -- Register the assembly with UNSAFE permissions
 PRINT '  Registering SqlClrFunctions.dll with UNSAFE permissions...';
 
--- SQLCMD variable should point to FULL path: D:\...\SqlClr\bin\Release\SqlClrFunctions.dll
-CREATE ASSEMBLY [SqlClrFunctions]
-FROM '$(SqlClrDllPath)'
-WITH PERMISSION_SET = UNSAFE;
+-- SQLCMD variable should point to FULL path: D\:...\SqlClr\bin\Release\SqlClrFunctions.dll
+-- Assembly is embedded in DACPAC automatically during build, no need to register manually
+-- CREATE ASSEMBLY [SqlClrFunctions]
+-- FROM '$(SqlClrDllPath)'
+-- WITH PERMISSION_SET = UNSAFE;
 
-PRINT '✓ SqlClrFunctions assembly registered successfully';
+PRINT '✓ SqlClrFunctions assembly will be deployed from DACPAC';
 PRINT '  Assembly will be available to all CLR functions defined in DACPAC';
 PRINT '';
 GO

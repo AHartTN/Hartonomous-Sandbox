@@ -9,6 +9,7 @@ CREATE TABLE dbo.AttentionGenerationLog (
     TopP FLOAT NOT NULL,
     AttentionHeads INT NOT NULL,
     GenerationStreamId BIGINT NOT NULL,
+    GeneratedAtomIds NVARCHAR(MAX) NULL,
     DurationMs INT NOT NULL,
     TenantId INT NOT NULL DEFAULT 0,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),

@@ -7,6 +7,6 @@ CREATE TABLE dbo.TensorAtomPayloads (
     CreatedAt DATETIME2(7) NOT NULL DEFAULT SYSUTCDATETIME(),
     CONSTRAINT PK_TensorAtomPayloads PRIMARY KEY CLUSTERED (PayloadId),
     CONSTRAINT UQ_TensorAtomPayloads_RowGuid UNIQUE (RowGuid),
-    CONSTRAINT FK_TensorAtomPayloads_TensorAtom FOREIGN KEY (TensorAtomId) REFERENCES dbo.TensorAtom(TensorAtomId) ON DELETE CASCADE,
+    CONSTRAINT FK_TensorAtomPayloads_TensorAtoms FOREIGN KEY (TensorAtomId) REFERENCES dbo.TensorAtoms(TensorAtomId) ON DELETE CASCADE,
     INDEX IX_TensorAtomPayloads_TensorAtomId UNIQUE (TensorAtomId)
-) FILESTREAM_ON HartonomousFileStream;
+) ON [PRIMARY];

@@ -16,7 +16,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Compute dot product of two vectors.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorDotProduct", IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorDotProduct(SqlBytes vector1, SqlBytes vector2)
         {
             if (vector1.IsNull || vector2.IsNull)
@@ -32,7 +32,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Compute cosine similarity between two vectors.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorCosineSimilarity", IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorCosineSimilarity(SqlBytes vector1, SqlBytes vector2)
         {
             if (vector1.IsNull || vector2.IsNull)
@@ -51,7 +51,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Compute Euclidean distance between two vectors.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorEuclideanDistance", IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorEuclideanDistance(SqlBytes vector1, SqlBytes vector2)
         {
             if (vector1.IsNull || vector2.IsNull)
@@ -70,7 +70,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Add two vectors element-wise.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorAdd", IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorAdd(SqlBytes vector1, SqlBytes vector2)
         {
             if (vector1.IsNull || vector2.IsNull)
@@ -94,7 +94,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Subtract two vectors element-wise.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorSubtract", IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorSubtract(SqlBytes vector1, SqlBytes vector2)
         {
             if (vector1.IsNull || vector2.IsNull)
@@ -118,7 +118,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Multiply vector by scalar.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorScale", IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorScale(SqlBytes vector, SqlDouble scalar)
         {
             if (vector.IsNull || scalar.IsNull)
@@ -139,7 +139,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Compute L2 norm (magnitude) of vector.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorNorm", IsDeterministic = true, IsPrecise = false)]
         public static SqlDouble VectorNorm(SqlBytes vector)
         {
             if (vector.IsNull)
@@ -154,7 +154,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Normalize vector to unit length.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorNormalize", IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorNormalize(SqlBytes vector)
         {
             if (vector.IsNull)
@@ -183,7 +183,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Linear interpolation between two vectors.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorLerp", IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorLerp(SqlBytes vector1, SqlBytes vector2, SqlDouble t)
         {
             if (vector1.IsNull || vector2.IsNull || t.IsNull)
@@ -211,7 +211,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Apply numerically stable softmax to an input vector and return the probability vector.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = false)]
+        [SqlFunction(Name = "clr_VectorSoftmax", IsDeterministic = true, IsPrecise = false)]
         public static SqlBytes VectorSoftmax(SqlBytes vector)
         {
             if (vector.IsNull)
@@ -256,7 +256,7 @@ namespace SqlClrFunctions
         /// <summary>
         /// Return the index of the largest value in the vector (0-based). Returns NULL when the vector is empty.
         /// </summary>
-        [SqlFunction(IsDeterministic = true, IsPrecise = true)]
+        [SqlFunction(Name = "clr_VectorArgMax", IsDeterministic = true, IsPrecise = true)]
         public static SqlInt32 VectorArgMax(SqlBytes vector)
         {
             if (vector.IsNull)

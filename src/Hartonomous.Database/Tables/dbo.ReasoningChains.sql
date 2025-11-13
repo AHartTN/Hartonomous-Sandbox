@@ -3,6 +3,7 @@ CREATE TABLE dbo.ReasoningChains (
     ProblemId UNIQUEIDENTIFIER NOT NULL,
     ReasoningType NVARCHAR(50) NOT NULL DEFAULT 'chain_of_thought',
     ChainData NVARCHAR(MAX), -- JSON array of reasoning steps
+    CoherenceMetrics NVARCHAR(MAX) NULL, -- JSON metrics
     TotalSteps INT NOT NULL,
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),

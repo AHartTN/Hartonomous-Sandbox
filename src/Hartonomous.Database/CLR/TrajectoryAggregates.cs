@@ -92,7 +92,7 @@ namespace SqlClrFunctions
                 {
                     X = point.STX.Value,
                     Y = point.STY.Value,
-                    Z = point.STZ.Value,
+                    Z = point.Z.IsNull ? 0.0 : point.Z.Value,
                     Timestamp = timestamp.Value
                 });
             }

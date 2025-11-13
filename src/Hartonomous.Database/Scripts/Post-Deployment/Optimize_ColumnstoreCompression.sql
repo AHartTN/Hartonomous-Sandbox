@@ -53,13 +53,6 @@ GO
 
 PRINT '✓ Table compression optimization complete';
 PRINT '';
-
-BEGIN
-    ALTER TABLE dbo.AutonomousImprovementHistory REBUILD WITH (DATA_COMPRESSION = PAGE);
-    PRINT '✓ Applied PAGE compression to AutonomousImprovementHistory';
-END
-ELSE
-    PRINT '○ AutonomousImprovementHistory already compressed';
 GO
 
 -- =============================================

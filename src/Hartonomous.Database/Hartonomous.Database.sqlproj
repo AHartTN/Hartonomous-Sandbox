@@ -1,59 +1,107 @@
 <?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build">
-  <Sdk Name="Microsoft.Build.Sql" Version="2.0.0" />
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- CRITICAL: Framework properties MUST come BEFORE imports for NuGet to detect correct version -->
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
+    <TargetDatabaseSet>True</TargetDatabaseSet>
+    <ProjectGuid>{4F7C8B3A-1234-5678-9ABC-DEF012345678}</ProjectGuid>
+  </PropertyGroup>
+  <Import Condition="'$(SQLDBExtensionsRefPath)' != ''" Project="$(SQLDBExtensionsRefPath)\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <Import Condition="'$(SQLDBExtensionsRefPath)' == ''" Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <ItemGroup>
+    <Folder Include="Properties" />
+    <Folder Include="Tables" />
+    <Folder Include="Views" />
+    <Folder Include="Functions" />
+    <Folder Include="Procedures" />
+    <Folder Include="Aggregates" />
+    <Folder Include="Types" />
+    <Folder Include="Schemas" />
+    <Folder Include="Scripts" />
+    <Folder Include="Scripts\Pre-Deployment" />
+    <Folder Include="Scripts\Post-Deployment" />
+    <Folder Include="CLR" />
+  </ItemGroup>
   <PropertyGroup>
     <Name>Hartonomous.Database</Name>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectVersion>4.1</ProjectVersion>
     <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
-    <ModelCollation>1033, CI</ModelCollation>
-    <TargetFramework>net481</TargetFramework>
-    <SqlServerVersion>Sql170</SqlServerVersion>
-    <OutputPath>bin\$(Configuration)\</OutputPath>
-    <BuildScriptsPath>$(MSBuildProjectDirectory)\Properties\</BuildScriptsPath>
+    <RootPath>
+    </RootPath>
+    <RootNamespace>SqlClrFunctions</RootNamespace>
+    <AssemblyName>SqlClrFunctions</AssemblyName>
+    <ModelCollation>1033,CI</ModelCollation>
+    <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
+    <DeployToDatabase>True</DeployToDatabase>
+    <TargetLanguage>CS</TargetLanguage>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <SqlServerVerification>False</SqlServerVerification>
+    <IncludeCompositeObjects>True</IncludeCompositeObjects>
     <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
-    <EnableDefaultSqlItems>true</EnableDefaultSqlItems>
-    <ProjectGuid>{00000000-0000-0000-0000-000000000000}</ProjectGuid>
+    <DefaultFilegroup>PRIMARY</DefaultFilegroup>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineDebug>false</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">11.0</VisualStudioVersion>
+    <SSDTExists Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets')">True</SSDTExists>
+    <VisualStudioVersion Condition="'$(SSDTExists)' == ''">11.0</VisualStudioVersion>
   </PropertyGroup>
   <!-- CLR Integration Configuration -->
   <PropertyGroup>
     <EnableSqlClrDeployment>True</EnableSqlClrDeployment>
     <GenerateSqlClrDdl>True</GenerateSqlClrDdl>
-    <SqlPermissionLevel>UNSAFE</SqlPermissionLevel>
+    <SqlPermissionLevel>Unsafe</SqlPermissionLevel>
     <SqlClrAnyCpu>True</SqlClrAnyCpu>
     <SqlCLRVerifyCodeSecurity>False</SqlCLRVerifyCodeSecurity>
-    <EnableClrSigning>True</EnableClrSigning>
     <SignAssembly>true</SignAssembly>
     <AssemblyOriginatorKeyFile>CLR\SqlClrKey.snk</AssemblyOriginatorKeyFile>
-    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
-    <RunSqlCodeAnalysis>False</RunSqlCodeAnalysis>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
     <Deterministic>true</Deterministic>
-    <!-- CLR Assembly Output Configuration -->
-    <SqlClrAssemblyName>SqlClrFunctions</SqlClrAssemblyName>
-    <RootNamespace>SqlClrFunctions</RootNamespace>
-    <!-- 
-         DACPAC build validation bypass - allows artifact generation despite schema validation errors.
-         
-         Why this is necessary:
-         1. CLR assembly (SqlClrFunctions.dll) is registered in pre-deployment script, not in DACPAC model
-         2. 590 CLR functions reference this assembly - all fail build-time validation
-         3. Schema evolution creates column/table reference mismatches (e.g., TensorAtom vs TensorAtoms)
-         4. SQL71501 error code covers BOTH assembly refs (expected) and schema issues (fixable)
-         
-         Risk: DACPAC will deploy but may fail at runtime if schema inconsistencies aren't resolved.
-         
-         Strategy: Generate DACPAC now, fix critical schema issues incrementally during deployment testing.
-    -->
-    <SuppressTSqlWarnings>71501;71005</SuppressTSqlWarnings>
     <DacVersion>1.0.0</DacVersion>
-    <!-- Force artifact generation even with validation errors -->
-    <SqlTargetName>Hartonomous.Database</SqlTargetName>
     <IgnoreTableOptions>False</IgnoreTableOptions>
     <IgnoreColumnOrder>True</IgnoreColumnOrder>
+    <!-- Override SSDT's default /target:database for C# compiler -->
+    <SqlClrBuildTarget>library</SqlClrBuildTarget>
   </PropertyGroup>
-  
-  <!-- Exclude problematic migration/scripting files that need post-deployment handling -->
+  <!-- SQL Build Items (explicit includes for classic SSDT) -->
   <ItemGroup>
+    <Build Include="Tables\*.sql" />
+    <Build Include="Views\*.sql" />
+    <Build Include="Functions\*.sql" />
+    <Build Include="Procedures\*.sql" />
+    <Build Include="Aggregates\*.sql" />
+    <Build Include="Types\*.sql" />
+    <Build Include="Schemas\*.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Exclude problematic migration/scripting files that need post-deployment handling -->
     <Build Remove="Tables\*Temporal*.sql" />
     <Build Remove="Tables\*_Migrate_*.sql" />
     <Build Remove="Tables\*_InMemory.sql" />
@@ -68,6 +116,11 @@
     <Build Remove="Procedures\*SelfImprovement*.sql" />
     <Build Remove="Procedures\*InsertUsageRecord_Native*.sql" />
     <Build Remove="Procedures\*MigratePayload*.sql" />
+    
+    <!-- Exclude ingestion/extraction logic - belongs in Infrastructure/EF Core, not CLR -->
+    <Build Remove="Procedures\dbo.sp_AtomizeModel.sql" />
+    <Build Remove="Procedures\dbo.sp_AtomizeCode.sql" />
+    <Build Remove="Procedures\dbo.sp_AtomIngestion.sql" />
     
     <!-- Exclude Pre-Deployment runtime scripts - referenced via :r in Script.PreDeployment.sql -->
     <Build Remove="Scripts\Pre-Deployment\Enable_*.sql" />
@@ -95,11 +148,27 @@
   <!-- CLR C# Source Files - integrated directly into database project (no separate project needed) -->
   <ItemGroup>
     <Compile Include="CLR\**\*.cs" />
+    <!-- Exclude files with incompatible dependencies for SQL CLR -->
+    <Compile Remove="CLR\ModelParsing.cs" />
+    <Compile Remove="CLR\CodeAnalysis.cs" />
   </ItemGroup>
-  
+  <!-- Framework References for CLR -->
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Transactions" />
+    <Reference Include="Microsoft.SqlServer.Types, Version=16.0.0.0, Culture=neutral, PublicKeyToken=89845dcd8080cc91, processorArchitecture=MSIL">
+      <HintPath>..\..\dependencies\Microsoft.SqlServer.Types.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+  </ItemGroup>
   <!-- NuGet package references for CLR dependencies -->
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="System.Buffers" Version="4.5.1" />
     <PackageReference Include="System.Collections.Immutable" Version="1.7.1" />
@@ -109,11 +178,9 @@
     <PackageReference Include="System.Runtime.CompilerServices.Unsafe" Version="4.5.3" />
     <PackageReference Include="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
-
   <!-- Deployment scripts -->
   <ItemGroup>
     <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
     <PostDeploy Include="Scripts\Post-Deployment\Script.PostDeployment.sql" />
   </ItemGroup>
-
 </Project>

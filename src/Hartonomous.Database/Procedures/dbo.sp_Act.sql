@@ -240,8 +240,8 @@ BEGIN
                     SELECT @PreloadedCount = COUNT(*)
                     FROM (SELECT TOP 1000 CacheId 
                           FROM dbo.InferenceCache WITH (NOLOCK)
-                          WHERE LastAccessUtc >= DATEADD(DAY, -7, SYSUTCDATETIME())
-                          ORDER BY LastAccessUtc DESC) AS FrequentCache;
+                          WHERE LastAccessedUtc >= DATEADD(DAY, -7, SYSUTCDATETIME())
+                          ORDER BY LastAccessedUtc DESC) AS FrequentCache;
                     
                     SET @ExecutedActionsList = (SELECT @PreloadedCount AS preloadedEmbeddings FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'Executed';

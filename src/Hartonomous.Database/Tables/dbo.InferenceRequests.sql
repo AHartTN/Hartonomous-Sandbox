@@ -1,6 +1,7 @@
 CREATE TABLE [dbo].[InferenceRequests] (
     [InferenceId]             BIGINT         NOT NULL IDENTITY,
     [RequestTimestamp]        DATETIME2 (7)  NOT NULL DEFAULT (SYSUTCDATETIME()),
+    [CompletionTimestamp]     DATETIME2 (7)  NULL,
     [TaskType]                NVARCHAR (50)  NULL,
     [InputData]               NVARCHAR(MAX)  NULL,
     [InputHash]               BINARY (32)    NULL,
