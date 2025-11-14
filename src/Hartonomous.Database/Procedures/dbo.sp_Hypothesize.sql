@@ -56,8 +56,8 @@ BEGIN
             DECLARE @JobType NVARCHAR(100);
             
             SELECT 
-                @JobParams = JobParameters,
-                @CurrentState = CurrentState,
+                @JobParams = CAST(JobParameters AS NVARCHAR(MAX)),
+                @CurrentState = CAST(CurrentState AS NVARCHAR(MAX)),
                 @JobType = JobType
             FROM dbo.AutonomousComputeJobs
             WHERE JobId = @ComputeJobId AND Status = 'Running';
