@@ -258,7 +258,26 @@ BEGIN
             END
         
         
-        -- 4. COMPILE HYPOTHESES
+        -- 4. PERSIST HYPOTHESES AS PENDING ACTIONS
+        -- This enables the Act phase to execute them in priority order
+        INSERT INTO dbo.PendingActions (ActionType, Parameters, Priority)
+        SELECT 
+            HypothesisType,
+            JSON_OBJECT(
+                'description': Description,
+                'expectedImpact': JSON_QUERY(ExpectedImpact),
+                'requiredActions': JSON_QUERY(RequiredActions)
+            ),
+            Priority
+        FROM @HypothesisList
+        WHERE NOT EXISTS (
+            -- Avoid duplicate actions
+            SELECT 1 FROM dbo.PendingActions pa
+            WHERE pa.ActionType = [@HypothesisList].HypothesisType
+              AND pa.Status = 'Pending'
+        );
+        
+        -- 5. COMPILE HYPOTHESES FOR MESSAGING
         SELECT @Hypotheses = (
             SELECT 
                 HypothesisId,
@@ -281,7 +300,7 @@ BEGIN
             'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
         );
         
-        -- 5. SEND TO ACT QUEUE
+        -- 6. SEND TO ACT QUEUE
         DECLARE @ActConversationHandle UNIQUEIDENTIFIER;
         DECLARE @ActMessageBody XML = CAST(@HypothesisPayload AS XML);
         
@@ -295,7 +314,7 @@ BEGIN
             MESSAGE TYPE [//Hartonomous/AutonomousLoop/ActMessage]
             (@ActMessageBody);
         
-        -- 6. END ORIGINAL CONVERSATION
+        -- 7. END ORIGINAL CONVERSATION
         END CONVERSATION @ConversationHandle;
         
         PRINT 'sp_Hypothesize completed: ' + CAST(@HypothesisCount AS VARCHAR(10)) + ' hypotheses generated';

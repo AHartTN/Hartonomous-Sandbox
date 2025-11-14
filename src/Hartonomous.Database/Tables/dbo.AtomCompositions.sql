@@ -1,46 +1,36 @@
 -- =============================================
--- AtomCompositions: Maps source content to atomic components
--- Used for reconstruction and spatial queries
+-- AtomCompositions: Structural Representation for Non-Tensor Data
+-- Maps parent atoms to component atoms with spatial XYZM indexing
 -- =============================================
-CREATE TABLE [dbo].[AtomCompositions] (
-    [CompositionId]     BIGINT        NOT NULL IDENTITY,
-    [SourceAtomId]      BIGINT        NOT NULL,  -- Parent atom (image, document, model, etc.)
-    [ComponentAtomId]   BIGINT        NOT NULL,  -- Atomic component (pixel, char, weight, etc.)
-    [ComponentType]     NVARCHAR(64)  NOT NULL,  -- 'pixel', 'audio-sample', 'text-token', 'weight'
-    
-    -- Spatial position in source (exploits GEOMETRY for multi-dimensional indexing)
-    [PositionKey]       GEOMETRY      NOT NULL,
-    
-    -- Additional positional metadata
-    [SequenceIndex]     BIGINT        NULL,      -- Linear ordering if needed
-    [DimensionX]        INT           NULL,      -- Explicit coordinates for clarity
-    [DimensionY]        INT           NULL,
-    [DimensionZ]        INT           NULL,
-    [DimensionM]        INT           NULL,
-    
-    -- Metadata
-    [Metadata]          JSON NULL,      -- JSON for component-specific data
-    [CreatedAt]         DATETIME2(7)  NOT NULL DEFAULT (SYSUTCDATETIME()),
-    
-    CONSTRAINT [PK_AtomCompositions] PRIMARY KEY CLUSTERED ([CompositionId] ASC),
-    CONSTRAINT [FK_AtomCompositions_Source] FOREIGN KEY ([SourceAtomId]) 
-        REFERENCES [dbo].[Atoms] ([AtomId]) ON DELETE CASCADE,
-    CONSTRAINT [FK_AtomCompositions_Component] FOREIGN KEY ([ComponentAtomId]) 
-        REFERENCES [dbo].[Atoms] ([AtomId]),
-    
-    INDEX [IX_AtomCompositions_Source] NONCLUSTERED ([SourceAtomId]),
-    INDEX [IX_AtomCompositions_Component] NONCLUSTERED ([ComponentAtomId]),
-    INDEX [IX_AtomCompositions_Type] NONCLUSTERED ([ComponentType], [SourceAtomId])
-);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AtomCompositions' AND schema_id = SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[AtomCompositions] (
+        [CompositionId]     BIGINT        IDENTITY (1, 1) NOT NULL,
+        [ParentAtomId]      BIGINT        NOT NULL,     -- FK to dbo.Atoms (file, document, large number)
+        [ComponentAtomId]   BIGINT        NOT NULL,     -- FK to dbo.Atoms (chunk, token, sample)
+        [SequenceIndex]     BIGINT        NOT NULL,     -- Order of this component
+        
+        -- XYZM spatial key enables unified structural queries
+        -- X = Position/Index, Y = Value/AtomId, Z = Layer/Depth, M = Measure/Value
+        [SpatialKey]        GEOMETRY      NULL,
+        
+        CONSTRAINT [PK_AtomCompositions] PRIMARY KEY CLUSTERED ([CompositionId] ASC),
+        CONSTRAINT [FK_AtomCompositions_Parent] FOREIGN KEY ([ParentAtomId]) 
+            REFERENCES [dbo].[Atoms] ([AtomId]) ON DELETE CASCADE,
+        CONSTRAINT [FK_AtomCompositions_Component] FOREIGN KEY ([ComponentAtomId]) 
+            REFERENCES [dbo].[Atoms] ([AtomId])
+    );
+END
 GO
 
--- Spatial index for multi-dimensional position queries
-CREATE SPATIAL INDEX [SIDX_AtomCompositions_Position] 
-ON [dbo].[AtomCompositions] ([PositionKey])
-USING GEOMETRY_GRID
-WITH (
-    BOUNDING_BOX = (0, 0, 65535, 65535),  -- Large enough for most coordinates
-    GRIDS = (LEVEL_1 = MEDIUM, LEVEL_2 = MEDIUM, LEVEL_3 = MEDIUM, LEVEL_4 = MEDIUM),
-    CELLS_PER_OBJECT = 16
-);
+-- Optimized indexes
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AtomCompositions_Parent' AND object_id = OBJECT_ID('dbo.AtomCompositions'))
+    CREATE NONCLUSTERED INDEX [IX_AtomCompositions_Parent] 
+    ON [dbo].[AtomCompositions]([ParentAtomId]) 
+    INCLUDE ([ComponentAtomId], [SequenceIndex]);
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_AtomCompositions_SpatialKey' AND object_id = OBJECT_ID('dbo.AtomCompositions'))
+    CREATE SPATIAL INDEX [SIX_AtomCompositions_SpatialKey] 
+    ON [dbo].[AtomCompositions]([SpatialKey]);
 GO

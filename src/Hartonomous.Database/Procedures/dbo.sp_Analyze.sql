@@ -238,7 +238,44 @@ BEGIN
             FOR JSON PATH
         );
         
-        -- 4. COMPILE OBSERVATIONS
+        -- 5. SPATIO-TEMPORAL ANALYTICS: Detect "Untapped Knowledge" regions
+        -- High Pressure (many embeddings) + Low Velocity (rarely used) = Untapped potential
+        DECLARE @UntappedKnowledge NVARCHAR(MAX);
+        
+        SELECT @UntappedKnowledge = (
+            SELECT TOP 20
+                RankedRegions.HilbertValue,
+                RankedRegions.Pressure,
+                RankedRegions.Velocity,
+                RankedRegions.PressureRank,
+                RankedRegions.VelocityRank
+            FROM (
+                SELECT 
+                    ae.[HilbertValue],
+                    COUNT_BIG(ae.AtomId) AS Pressure,
+                    ISNULL((
+                        SELECT COUNT_BIG(1) 
+                        FROM [dbo].[InferenceTracking] it 
+                        WHERE it.AtomId = ae.AtomId
+                    ), 0) AS Velocity,
+                    PERCENT_RANK() OVER (ORDER BY COUNT_BIG(ae.AtomId) DESC) AS PressureRank,
+                    PERCENT_RANK() OVER (ORDER BY ISNULL((
+                        SELECT COUNT_BIG(1) 
+                        FROM [dbo].[InferenceTracking] it 
+                        WHERE it.AtomId = ae.AtomId
+                    ), 0) ASC) AS VelocityRank
+                FROM [dbo].[AtomEmbeddings] ae
+                WHERE ae.[HilbertValue] IS NOT NULL 
+                  AND ae.[HilbertValue] <> 0
+                GROUP BY ae.[HilbertValue], ae.AtomId
+            ) AS RankedRegions
+            WHERE RankedRegions.PressureRank < 0.1  -- Top 10% most dense
+              AND RankedRegions.VelocityRank < 0.1  -- Bottom 10% least used
+            ORDER BY (RankedRegions.PressureRank + RankedRegions.VelocityRank) ASC
+            FOR JSON PATH
+        );
+        
+        -- 6. COMPILE OBSERVATIONS
         SET @Observations = JSON_OBJECT(
             'analysisId': @AnalysisId,
             'scope': @AnalysisScope,
@@ -249,10 +286,11 @@ BEGIN
             'anomalies': JSON_QUERY(@Anomalies),
             'queryStoreRecommendations': JSON_QUERY(@QueryStoreRecommendations),
             'patterns': JSON_QUERY(@Patterns),
+            'untappedKnowledge': JSON_QUERY(@UntappedKnowledge),
             'timestamp': FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ')
         );
         
-        -- 5. SEND TO HYPOTHESIZE QUEUE
+        -- 7. SEND TO HYPOTHESIZE QUEUE
         DECLARE @AnalyzeConversationHandle UNIQUEIDENTIFIER;
         DECLARE @AnalyzeMessageBody XML = CAST(@Observations AS XML);
         
@@ -268,7 +306,7 @@ BEGIN
         
         -- Don't end conversation - keep it open for reply
         
-        -- 6. LOG ANALYSIS COMPLETION
+        -- 8. LOG ANALYSIS COMPLETION
         PRINT 'sp_Analyze completed: ' + CAST(DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME()) AS VARCHAR(10)) + 'ms';
         PRINT 'Observations: ' + @Observations;
         
