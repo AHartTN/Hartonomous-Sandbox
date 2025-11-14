@@ -466,7 +466,7 @@ EXEC dbo.sp_SemanticSearch
 ```
 
 **What It Does**:
-1. Generates embedding for query text (Azure OpenAI)
+1. Generates embedding for query text (native transformer implementation in CLR)
 2. Uses spatial index for approximate KNN
 3. Computes cosine similarity via clr_CosineSimilarity
 4. Returns top-k results with scores

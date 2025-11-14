@@ -379,7 +379,7 @@ WHERE event_data.value('(event/@name)[1]', 'varchar(50)') = 'clr_execution';
 - SQL Server CLR verifier rejects unverifiable code
 - Risk of SQL Server crashes > performance gain
 
-**Alternative**: Offload GPU workloads to external inference service (Hartonomous.Api).
+**Alternative**: Offload GPU-accelerated inference to separate process or service that can use native libraries, with results passed back to SQL Server.
 
 ### No Native Libraries
 

@@ -17,8 +17,9 @@ Welcome to Hartonomous! This guide will help you get the platform running in you
 
 ### Optional
 - **Neo4j 5.x** (Community or Enterprise) - for provenance graph
-- **Azure OpenAI** account - for embedding generation
 - **Docker Desktop** - for containerized Neo4j
+
+**Note**: Embedding generation should use native CLR transformer implementation. External services may be used temporarily during development but should be replaced with enterprise-grade native implementation.
 
 ### System Requirements
 - **RAM**: 16GB minimum, 32GB+ recommended
@@ -135,7 +136,7 @@ SELECT * FROM dbo.Atoms WHERE AtomId = @AtomId;
 
 ## Next Steps
 
-### Configure Neo4j (Optional)
+### Configure Neo4j (Optional - Provenance Graph)
 
 ```powershell
 # Run Neo4j in Docker
@@ -149,7 +150,18 @@ docker run -d `
 cat neo4j\schemas\CoreSchema.cypher | docker exec -i neo4j cypher-shell -u neo4j -p password
 ```
 
-### Configure Azure OpenAI (Optional)
+### Configure Embedding Generation
+
+**Enterprise Approach** (Recommended):
+Implement native transformer-based embedding generation in CLR:
+- Load pre-trained model weights (BERT, RoBERTa, etc.) from ingested atoms
+- Implement tokenization (WordPiece/BPE) via CLR functions
+- Forward pass through transformer encoder using MathNet.Numerics
+- Layer normalization and pooling in SQL CLR
+- Store embeddings as VECTOR(1998) directly
+
+**Development Temporary Workaround** (Azure OpenAI):
+For rapid prototyping only - should be replaced:
 
 1. Create Azure OpenAI resource
 2. Deploy `text-embedding-3-large` model

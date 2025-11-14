@@ -27,35 +27,43 @@ case ImageFormat.JPEG:
     throw new NotImplementedException("JPEG decoding requires external library");
 ```
 
-**Solution**: Integrate SixLabors.ImageSharp for production-grade image decoding
-- Supports JPEG, PNG, GIF, BMP, WebP, TGA
-- Full ICC color profile support
-- EXIF metadata extraction
-- Memory-efficient streaming
+**Solution**: Implement native JPEG/PNG decoder in CLR
+- Parse JPEG DCT coefficients directly (ISO/IEC 10918-1)
+- Implement IDCT transform for reconstruction
+- PNG: zlib DEFLATE decompression + filtering
+- EXIF metadata extraction from APP1 markers
+- Memory-efficient streaming via chunked processing
 
 **Impact**: Cannot ingest JPEG images (most common format), perceptual hashing fails
 
 ---
 
-### 2. Audio Transcription - Whisper Integration
+### 2. Audio Transcription - Enterprise Speech-to-Text Engine
+
 **File**: `src/Hartonomous.Core/Pipelines/Ingestion/AdvancedAudioAtomizer.cs:354`
 
-**Issue**: Azure OpenAI Whisper API integration commented out, returns stub transcription
+**Issue**: Speech-to-text transcription not implemented, returns placeholder
 
 **Current Code**:
+
 ```csharp
 // Placeholder: Yield whole audio with dummy transcription
 yield return await Task.FromResult(new AtomCandidate
 {
-    CanonicalText = "[Transcription not yet implemented - integrate Whisper API]",
+    CanonicalText = "[Transcription not yet implemented]",
     Metadata = { ["implementationStatus"] = "stub" }
 });
 ```
 
-**Solution Options**:
-1. **Azure OpenAI Whisper** (cloud, pay-per-use)
-2. **Whisper.NET** (local, free, requires ONNX runtime)
-3. **OpenAI Whisper API** (cloud alternative)
+**Solution**: Implement enterprise-grade speech recognition engine
+
+- Hidden Markov Model (HMM) acoustic modeling with Gaussian Mixture Models (GMM)
+- Deep Neural Network (DNN) acoustic features with attention mechanism
+- Language model integration using n-gram statistics from ingested text atoms
+- Beam search decoder with configurable beam width
+- Speaker diarization via spectral clustering on MFCC features
+- Timestamp alignment using Dynamic Time Warping (DTW)
+- CLR implementation for SQL Server integration
 
 **Impact**: Audio files cannot be transcribed, speech-to-text atomization blocked
 
@@ -215,7 +223,7 @@ const int numFilters = 40;
 - Parse model metadata for tool/function calling support
 - Check for function schemas in model vocabulary
 
-**Impact**: Cannot detect models with native function calling (GPT-4, Claude, Gemini)
+**Impact**: Cannot detect models with native function calling capabilities
 
 ---
 
@@ -344,7 +352,7 @@ PerformanceDelta = (decimal)(performanceMetrics.AverageResponseTimeMs / 100.0), 
 4. **Exception Handling Audit** - Add logging to all empty catch blocks
 
 ### Week 3: Audio/Video Pipeline (🟡 HIGH)
-5. **Whisper Integration** - Audio transcription atomization (Azure or local)
+5. **Speech Recognition Engine** - HMM/DNN-based transcription with speaker diarization
 6. **MFCC Implementation** - Full Mel-frequency cepstral coefficients
 7. **Video Generation** - Frame-by-frame pipeline with temporal consistency
 
@@ -379,7 +387,7 @@ Each implementation must meet:
 ## Notes
 
 - **ILGPU References**: Explicitly excluded per user request (commented code is intentional)
-- **Third-Party Models**: No hardcoded OpenAI/Anthropic model names (architectural fix)
+- **Model Agnostic**: No hardcoded external API model names (architectural principle)
 - **Idempotency**: All database operations must be idempotent for real-world hardening
 - **Ollama Integration**: Available at `D:\Models` for local model testing/seeding
 

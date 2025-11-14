@@ -43,11 +43,13 @@
 - **FILESTREAM**: Large binary storage for model weights
 
 ### Key Dependencies
-- **Azure OpenAI**: Embedding generation (text-embedding-3-large)
 - **Neo4j.Driver**: 5.28.3 (Cypher execution)
 - **MathNet.Numerics**: 5.0.0 (CLR numerical operations)
 - **System.Numerics.Vectors**: CPU SIMD (AVX2/SSE4)
 - **OpenTelemetry**: 1.13.1 (observability)
+- **SixLabors.ImageSharp**: 3.1.6 (image format decoding)
+
+**Note**: Embedding generation should be implemented using transformer architectures and tokenization within CLR. Current implementation may use external services temporarily but should be replaced with native SQL Server implementation.
 
 ---
 
