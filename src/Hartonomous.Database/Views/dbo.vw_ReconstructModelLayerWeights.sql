@@ -2,7 +2,7 @@
 -- vw_ReconstructModelLayerWeights: OLAP-Queryable Weight Reconstruction
 -- Provides materialized view of all model weights for analytics
 -- =============================================
-CREATE OR ALTER VIEW [dbo].[vw_ReconstructModelLayerWeights] AS
+CREATE VIEW [dbo].[vw_ReconstructModelLayerWeights] AS
 SELECT 
     tac.[ModelId],
     m.[ModelName],

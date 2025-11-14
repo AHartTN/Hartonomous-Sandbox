@@ -13,6 +13,12 @@ CREATE TABLE [dbo].[TensorAtomCoefficients] (
     -- Computed spatial key for XYZM queries: X=Pos, Y=Pos, Z=Pos, M=Layer
     [SpatialKey]      AS (GEOMETRY::Point([PositionX], [PositionY], 0)) PERSISTED,
     
+    -- DEPRECATED COLUMNS (for backward compatibility during migration)
+    [TensorAtomCoefficientId] BIGINT  NULL,  -- DEPRECATED: No identity column in v5
+    [ParentLayerId]           BIGINT  NULL,  -- DEPRECATED: Use ModelId + LayerIdx
+    [TensorRole]              NVARCHAR(128) NULL,  -- DEPRECATED: Use positional indexing
+    [Coefficient]             REAL    NULL,  -- DEPRECATED: The coefficient IS the atom (TensorAtomId)
+    
     -- Temporal columns
     [ValidFrom]       DATETIME2(7)   GENERATED ALWAYS AS ROW START NOT NULL,
     [ValidTo]         DATETIME2(7)   GENERATED ALWAYS AS ROW END NOT NULL,
@@ -27,14 +33,13 @@ CREATE TABLE [dbo].[TensorAtomCoefficients] (
 WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[TensorAtomCoefficients_History]));
 GO
 
--- Clustered columnstore for OLAP
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'CCI_TensorAtomCoefficients' AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients'))
-    CREATE CLUSTERED COLUMNSTORE INDEX [CCI_TensorAtomCoefficients] 
-    ON [dbo].[TensorAtomCoefficients];
+-- Clustered columnstore for OLAP (cannot be on temporal table directly)
+-- Note: Apply to history table or use non-clustered columnstore
+CREATE NONCLUSTERED COLUMNSTORE INDEX [NCCI_TensorAtomCoefficients] 
+ON [dbo].[TensorAtomCoefficients]([TensorAtomId], [ModelId], [LayerIdx], [PositionX], [PositionY], [PositionZ]);
 GO
 
 -- Spatial index for geometric queries
-IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_TensorAtomCoefficients_SpatialKey' AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients'))
-    CREATE SPATIAL INDEX [SIX_TensorAtomCoefficients_SpatialKey] 
-    ON [dbo].[TensorAtomCoefficients]([SpatialKey]);
+CREATE SPATIAL INDEX [SIX_TensorAtomCoefficients_SpatialKey] 
+ON [dbo].[TensorAtomCoefficients]([SpatialKey]);
 GO

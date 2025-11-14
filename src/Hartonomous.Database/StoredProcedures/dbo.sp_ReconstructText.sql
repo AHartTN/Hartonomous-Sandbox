@@ -2,7 +2,7 @@
 -- sp_ReconstructText: Reconstruct text from atomic characters/tokens
 -- Uses spatial query to get characters in order
 -- =============================================
-CREATE OR ALTER PROCEDURE [dbo].[sp_ReconstructText]
+CREATE PROCEDURE [dbo].[sp_ReconstructText]
     @textAtomId BIGINT,
     @startPosition INT = 0,
     @length INT = NULL  -- NULL = entire document

@@ -4,7 +4,7 @@
 -- Implements chunked, resumable image atomization with XYZM structural storage
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_AtomizeImage_Governed]
+CREATE PROCEDURE [dbo].[sp_AtomizeImage_Governed]
     @IngestionJobId BIGINT,
     @ImageData VARBINARY(MAX),
     @ImageWidth INT,

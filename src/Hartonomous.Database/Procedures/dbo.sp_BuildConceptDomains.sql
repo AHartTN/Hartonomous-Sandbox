@@ -5,7 +5,7 @@
 -- Simplified version - production would use full 3D Voronoi (MIConvexHull CLR)
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_BuildConceptDomains]
+CREATE PROCEDURE [dbo].[sp_BuildConceptDomains]
     @TenantId INT = 0
 AS
 BEGIN
@@ -90,8 +90,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_Concepts_ConceptDomain')
     BEGIN
         CREATE SPATIAL INDEX [SIX_Concepts_ConceptDomain] 
-        ON [provenance].[Concepts]([ConceptDomain])
-        WHERE [ConceptDomain] IS NOT NULL;
+        ON [provenance].[Concepts]([ConceptDomain]);
     END
 
     DROP TABLE #ConceptCentroids;

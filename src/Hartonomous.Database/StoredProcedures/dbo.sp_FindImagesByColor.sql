@@ -2,7 +2,7 @@
 -- sp_FindImagesByColor: Find all images containing specific RGB color range
 -- Uses spatial index on RGB color space
 -- =============================================
-CREATE OR ALTER PROCEDURE [dbo].[sp_FindImagesByColor]
+CREATE PROCEDURE [dbo].[sp_FindImagesByColor]
     @minR TINYINT,
     @maxR TINYINT,
     @minG TINYINT,

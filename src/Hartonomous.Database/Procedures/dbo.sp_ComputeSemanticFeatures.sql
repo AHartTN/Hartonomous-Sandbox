@@ -6,7 +6,7 @@ BEGIN
 
     DECLARE @text NVARCHAR(MAX);
     SELECT
-                @CanonicalText = CONVERT(NVARCHAR(256), a.AtomicValue) -- Derived from AtomicValue
+        @text = CONVERT(NVARCHAR(256), a.AtomicValue) -- Derived from AtomicValue
     FROM dbo.AtomEmbeddings AS ae
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
     WHERE ae.AtomEmbeddingId = @atom_embedding_id;

@@ -4,7 +4,7 @@
 -- Wraps CLR Hilbert curve functions for use in SQL
 
 -- Compute Hilbert value for a GEOMETRY point
-CREATE OR ALTER FUNCTION [dbo].[fn_ComputeHilbertValue] (
+CREATE FUNCTION [dbo].[fn_ComputeHilbertValue] (
     @spatialKey GEOMETRY
 )
 RETURNS BIGINT
@@ -16,7 +16,7 @@ END
 GO
 
 -- Inverse Hilbert: convert 1D value back to 3D point
-CREATE OR ALTER FUNCTION [dbo].[fn_InverseHilbert] (
+CREATE FUNCTION [dbo].[fn_InverseHilbert] (
     @hilbertValue BIGINT
 )
 RETURNS GEOMETRY
@@ -27,7 +27,7 @@ END
 GO
 
 -- Get Hilbert range start for a bounding box (useful for range queries)
-CREATE OR ALTER FUNCTION [dbo].[fn_HilbertRangeStart] (
+CREATE FUNCTION [dbo].[fn_HilbertRangeStart] (
     @boundingBox GEOMETRY
 )
 RETURNS BIGINT

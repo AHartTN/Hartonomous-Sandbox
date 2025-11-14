@@ -2,7 +2,7 @@
 -- sp_ReconstructModelWeights: Reconstruct model layer weights from atomic float32 values
 -- Returns weight matrix in row-major order for specific layer
 -- =============================================
-CREATE OR ALTER PROCEDURE [dbo].[sp_ReconstructModelWeights]
+CREATE PROCEDURE [dbo].[sp_ReconstructModelWeights]
     @layerAtomId BIGINT,
     @includeMetadata BIT = 0
 AS

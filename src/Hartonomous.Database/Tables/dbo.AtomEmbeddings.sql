@@ -13,6 +13,11 @@ CREATE TABLE [dbo].[AtomEmbeddings] (
     -- Hilbert curve value for 1D indexing (populated by Phase 3.1)
     [HilbertValue]      BIGINT         NULL,
     
+    -- DEPRECATED COLUMNS (for backward compatibility during migration)
+    [EmbeddingVector]   VARBINARY(MAX) NULL,  -- DEPRECATED: Use SpatialKey GEOMETRY
+    [Dimension]         INT            NULL,  -- DEPRECATED: Use SpatialKey.STDimension()
+    [TenantId]          INT            NULL,  -- DEPRECATED: Use tenant filtering via TenantAtoms
+    
     [CreatedAt]         DATETIME2(7)   DEFAULT (SYSUTCDATETIME()) NOT NULL,
     
     CONSTRAINT [PK_AtomEmbeddings] PRIMARY KEY CLUSTERED ([AtomEmbeddingId] ASC),

@@ -4,7 +4,7 @@
 -- Implements chunked, resumable text atomization with XYZM structural storage
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_AtomizeText_Governed]
+CREATE PROCEDURE [dbo].[sp_AtomizeText_Governed]
     @IngestionJobId BIGINT,
     @TextData NVARCHAR(MAX)
 AS

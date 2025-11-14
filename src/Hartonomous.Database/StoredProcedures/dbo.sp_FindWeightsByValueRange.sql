@@ -2,7 +2,7 @@
 -- sp_FindWeightsByValueRange: Find model layers with weights in specific range
 -- Uses spatial index on weight values
 -- =============================================
-CREATE OR ALTER PROCEDURE [dbo].[sp_FindWeightsByValueRange]
+CREATE PROCEDURE [dbo].[sp_FindWeightsByValueRange]
     @minValue REAL,
     @maxValue REAL,
     @minOccurrences INT = 1,

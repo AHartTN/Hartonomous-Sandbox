@@ -28,14 +28,10 @@ CREATE TABLE [provenance].[Concepts] (
 GO
 
 -- Spatial index for concept domains
-IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_Concepts_ConceptDomain' AND object_id = OBJECT_ID('provenance.Concepts'))
-    CREATE SPATIAL INDEX [SIX_Concepts_ConceptDomain] 
-    ON [provenance].[Concepts]([ConceptDomain])
-    WHERE [ConceptDomain] IS NOT NULL;
+CREATE SPATIAL INDEX [SIX_Concepts_ConceptDomain] 
+ON [provenance].[Concepts]([ConceptDomain]);
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_Concepts_CentroidSpatialKey' AND object_id = OBJECT_ID('provenance.Concepts'))
-    CREATE SPATIAL INDEX [SIX_Concepts_CentroidSpatialKey] 
-    ON [provenance].[Concepts]([CentroidSpatialKey])
-    WHERE [CentroidSpatialKey] IS NOT NULL;
+CREATE SPATIAL INDEX [SIX_Concepts_CentroidSpatialKey] 
+ON [provenance].[Concepts]([CentroidSpatialKey]);
 GO

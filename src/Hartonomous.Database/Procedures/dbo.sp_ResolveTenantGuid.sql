@@ -5,7 +5,7 @@
 -- Replaces: Unsafe GetHashCode() approach
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_ResolveTenantGuid]
+CREATE PROCEDURE [dbo].[sp_ResolveTenantGuid]
     @TenantGuid UNIQUEIDENTIFIER,
     @TenantName NVARCHAR(200) = NULL,
     @AutoRegister BIT = 1,

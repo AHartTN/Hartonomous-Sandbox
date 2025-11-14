@@ -5,7 +5,7 @@
 -- from start atom to target concept region
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_GenerateOptimalPath]
+CREATE PROCEDURE [dbo].[sp_GenerateOptimalPath]
     @StartAtomId BIGINT,
     @TargetConceptId INT,
     @MaxSteps INT = 50,

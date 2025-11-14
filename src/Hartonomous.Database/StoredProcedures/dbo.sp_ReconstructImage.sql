@@ -2,7 +2,7 @@
 -- sp_ReconstructImage: Reconstruct image from atomic pixels
 -- Uses spatial query to get pixels and rebuild image data
 -- =============================================
-CREATE OR ALTER PROCEDURE [dbo].[sp_ReconstructImage]
+CREATE PROCEDURE [dbo].[sp_ReconstructImage]
     @imageAtomId BIGINT,
     @includeMetadata BIT = 0
 AS

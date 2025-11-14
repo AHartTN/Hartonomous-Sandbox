@@ -5,7 +5,7 @@
 -- Uses IngestionJobs table to track progress and enforce governance
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_AtomizeModel_Governed]
+CREATE PROCEDURE [dbo].[sp_AtomizeModel_Governed]
     @IngestionJobId BIGINT,
     @ModelData VARBINARY(MAX),
     @ModelFormat VARCHAR(50)
