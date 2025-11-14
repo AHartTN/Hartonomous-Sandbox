@@ -19,6 +19,8 @@
     <Folder Include="Aggregates" />
     <Folder Include="Types" />
     <Folder Include="Schemas" />
+    <Folder Include="Security" />
+    <Folder Include="Migrations" />
     <Folder Include="Scripts" />
     <Folder Include="Scripts\Pre-Deployment" />
     <Folder Include="Scripts\Post-Deployment" />
@@ -99,6 +101,7 @@
   </PropertyGroup>
   <!-- SQL Build Items (explicit includes for classic SSDT) -->
   <ItemGroup>
+    <Build Include="Security\*.sql" />
     <Build Include="Tables\*.sql" />
     <Build Include="Views\*.sql" />
     <Build Include="Functions\*.sql" />
@@ -110,6 +113,7 @@
     <Build Include="ServiceBroker\MessageTypes\*.sql" />
     <Build Include="ServiceBroker\Queues\*.sql" />
     <Build Include="ServiceBroker\Services\*.sql" />
+    <None Include="Migrations\*.sql" />
   </ItemGroup>
   <ItemGroup>
     <!-- Exclude problematic migration/scripting files that need post-deployment handling -->

@@ -27,28 +27,4 @@ CREATE TABLE [ref].[Status]
     
     PERIOD FOR SYSTEM_TIME ([ValidFrom], [ValidTo])
 ) WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [ref].[Status_History]));
-GO
 
--- Covering index for active status lookups
-CREATE NONCLUSTERED INDEX [IX_Status_Active_Code]
-    ON [ref].[Status]([IsActive], [Code])
-    INCLUDE ([StatusId], [Name])
-    WHERE [IsActive] = 1;
-GO
-
--- Insert reference data
-SET IDENTITY_INSERT [ref].[Status] ON;
-INSERT INTO [ref].[Status] (StatusId, Code, Name, Description, SortOrder)
-VALUES
-    (1, 'PENDING', 'Pending', 'Waiting to start', 1),
-    (2, 'RUNNING', 'Running', 'Currently executing', 2),
-    (3, 'COMPLETED', 'Completed', 'Successfully finished', 3),
-    (4, 'FAILED', 'Failed', 'Execution failed', 4),
-    (5, 'CANCELLED', 'Cancelled', 'User cancelled', 5),
-    (6, 'EXECUTED', 'Executed', 'Command executed', 6),
-    (7, 'HIGH_SUCCESS', 'High Success', 'High confidence success', 7),
-    (8, 'SUCCESS', 'Success', 'Operation successful', 8),
-    (9, 'REGRESSED', 'Regressed', 'Performance regression detected', 9),
-    (10, 'WARN', 'Warning', 'Completed with warnings', 10);
-SET IDENTITY_INSERT [ref].[Status] OFF;
-GO

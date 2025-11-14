@@ -45,19 +45,23 @@ CREATE TABLE [dbo].[AtomsHistory]
     
     -- Temporal columns (required for SYSTEM_VERSIONING)
     [ValidFrom] DATETIME2(7) NOT NULL,
-    [ValidTo] DATETIME2(7) NOT NULL
+    [ValidTo] DATETIME2(7) NOT NULL,
+    
+    -- Clustered index for temporal queries (required for history table)
+    INDEX [IX_AtomsHistory_Period] CLUSTERED ([ValidFrom], [ValidTo])
 );
 GO
 
--- Clustered columnstore index for 10x compression and fast analytics
-CREATE CLUSTERED COLUMNSTORE INDEX [CCI_AtomsHistory] 
-    ON [dbo].[AtomsHistory];
-GO
-
--- Nonclustered rowstore index for efficient temporal lookups
-CREATE NONCLUSTERED INDEX [IX_AtomsHistory_Temporal]
-    ON [dbo].[AtomsHistory]([ValidFrom], [ValidTo], [AtomId])
-    INCLUDE ([ContentHash], [Modality], [TenantId]);
+-- Nonclustered columnstore index for compression and analytics (excludes spatial types)
+CREATE NONCLUSTERED COLUMNSTORE INDEX [NCCI_AtomsHistory] 
+    ON [dbo].[AtomsHistory]
+    (
+        [AtomId], [ContentHash], [Modality], [Subtype], [SourceUri], [SourceType],
+        [AtomicValue], [CanonicalText], [ContentType],
+        [CreatedAt], [CreatedUtc], [UpdatedAt],
+        [IsActive], [IsDeleted], [TenantId], [ReferenceCount],
+        [ValidFrom], [ValidTo]
+    );
 GO
 
 -- Index for point-in-time queries by ContentHash
@@ -68,15 +72,15 @@ GO
 -- Extended properties for documentation
 EXEC sys.sp_addextendedproperty 
     @name = N'MS_Description', 
-    @value = N'Temporal history table for Atoms. Stores all historical versions with clustered columnstore for 10x compression and fast analytics.', 
+    @value = N'Temporal history table for Atoms. Stores all historical versions with nonclustered columnstore for compression and fast analytics. Spatial columns excluded from columnstore due to type restrictions.', 
     @level0type = N'SCHEMA', @level0name = N'dbo',
     @level1type = N'TABLE', @level1name = N'AtomsHistory';
 GO
 
 EXEC sys.sp_addextendedproperty 
     @name = N'MS_Description', 
-    @value = N'Clustered columnstore provides 10x compression for historical data and enables fast aggregation queries across temporal versions.', 
+    @value = N'Nonclustered columnstore provides compression for historical data and enables fast aggregation queries. Excludes SpatialKey and SpatialGeography columns due to type restrictions.', 
     @level0type = N'SCHEMA', @level0name = N'dbo',
     @level1type = N'TABLE', @level1name = N'AtomsHistory',
-    @level2type = N'INDEX', @level2name = N'CCI_AtomsHistory';
+    @level2type = N'INDEX', @level2name = N'NCCI_AtomsHistory';
 GO

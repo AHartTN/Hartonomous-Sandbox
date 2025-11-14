@@ -38,6 +38,8 @@ GO
 -- ==================================================================
 PRINT 'Migrating LOB data from Atoms to AtomsLOB...';
 
+SET QUOTED_IDENTIFIER ON;
+
 INSERT INTO dbo.AtomsLOB (AtomId, Content, ComponentStream, Metadata, PayloadLocator, CreatedAt)
 SELECT 
     AtomId,
@@ -63,23 +65,38 @@ PRINT 'Adding temporal columns to Atoms...';
 
 IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'ValidFrom')
 BEGIN
+    -- Add ValidFrom column
     ALTER TABLE dbo.Atoms
-        ADD [ValidFrom] DATETIME2(7) GENERATED ALWAYS AS ROW START NOT NULL 
+        ADD [ValidFrom] DATETIME2(7) NOT NULL 
             CONSTRAINT [DF_Atoms_ValidFrom] DEFAULT SYSUTCDATETIME();
     
+    PRINT 'Added ValidFrom column.';
+END;
+
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'ValidTo')
+BEGIN
+    -- Add ValidTo column
     ALTER TABLE dbo.Atoms
-        ADD [ValidTo] DATETIME2(7) GENERATED ALWAYS AS ROW END NOT NULL 
+        ADD [ValidTo] DATETIME2(7) NOT NULL 
             CONSTRAINT [DF_Atoms_ValidTo] DEFAULT '9999-12-31 23:59:59.9999999';
     
+    PRINT 'Added ValidTo column.';
+END;
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.periods 
+    WHERE object_id = OBJECT_ID('dbo.Atoms') 
+      AND name = 'SYSTEM_TIME'
+)
+BEGIN
+    -- Add PERIOD FOR SYSTEM_TIME
     ALTER TABLE dbo.Atoms
         ADD PERIOD FOR SYSTEM_TIME ([ValidFrom], [ValidTo]);
     
-    PRINT 'Temporal columns added to Atoms.';
-END
-ELSE
-BEGIN
-    PRINT 'Temporal columns already exist on Atoms.';
-END
+    PRINT 'Added PERIOD FOR SYSTEM_TIME.';
+END;
+
+PRINT 'Temporal columns configured on Atoms.';
 GO
 
 -- ==================================================================
