@@ -132,6 +132,40 @@ SELECT * FROM dbo.Atoms WHERE AtomId = @AtomId;
 
 **Success!** You've deployed Hartonomous and ingested your first atom.
 
+### Step 7: Test Core Functionality
+
+**Direct SQL Execution** (Primary Method):
+
+```sql
+-- Semantic search (in-process vector operations)
+EXEC sp_SemanticSearch 
+    @QueryText = 'greeting message',
+    @TopK = 5;
+
+-- Trigger OODA loop analysis
+EXEC sp_Analyze @LookbackHours = 1;
+
+-- Check autonomous improvement history
+SELECT TOP 10 * 
+FROM dbo.AutonomousImprovementHistory 
+ORDER BY CompletedAt DESC;
+```
+
+**Optional: API Layer** (For External Tooling):
+
+```powershell
+# Start management API (optional)
+cd src\Hartonomous.Api
+dotnet run
+
+# Test via REST (calls stored procedures)
+curl -X POST http://localhost:5000/api/search/semantic `
+  -H "Content-Type: application/json" `
+  -d '{"query": "greeting message", "topK": 5}'
+```
+
+**Note**: All AI operations execute in SQL Server regardless of entry point. The API is a convenience wrapper.
+
 ---
 
 ## Next Steps

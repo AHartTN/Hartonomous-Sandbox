@@ -58,6 +58,31 @@ FROM dbo.AnalyzeQueue qi WITH (NOLOCK);
 - Bypasses analysis if message contains Gödel engine compute job
 - Auto-invoked by Service Broker on timer
 
+**Direct SQL Usage**:
+```sql
+-- Manually trigger OODA loop analysis
+EXEC sp_Analyze @LookbackHours = 48;
+
+-- Check Service Broker queue
+SELECT * FROM dbo.AnalyzeQueue;
+```
+
+**API Integration** (Optional):
+```csharp
+// Management API can trigger manual analysis
+POST /api/autonomy/analyze
+{
+  "lookbackHours": 48,
+  "scope": "full"
+}
+
+// AutonomyController → sp_Analyze → Service Broker → OODA loop
+//                      └─ Autonomous improvement happens here (in SQL Server)
+```
+
+**Autonomous Execution**:
+Service Broker automatically triggers `sp_Analyze` every 15 minutes via conversation timer - no external services required.
+
 ---
 
 ### sp_Hypothesize
@@ -194,6 +219,20 @@ EXEC dbo.sp_IngestAtom_Atomic
 - Automatic LOB separation for large content (>8KB)
 - ReferenceCount tracking
 - Tenant isolation
+
+**API Integration** (Optional):
+```csharp
+// Management API calls this procedure via repository
+POST /api/ingestion/ingest
+{
+  "modality": "image",
+  "subtype": "jpeg",
+  "sourceUri": "file:///images/photo.jpg"
+}
+
+// API Controller → Repository → sp_IngestAtom_Atomic
+//                                └─ AI happens here (in SQL Server)
+```
 
 ---
 
@@ -472,6 +511,29 @@ EXEC dbo.sp_SemanticSearch
 4. Returns top-k results with scores
 
 **Performance**: <50ms for 1M embeddings
+
+**Direct SQL Usage**:
+```sql
+-- Execute directly from any SQL client
+EXEC sp_SemanticSearch 
+    @QueryText = 'financial reports Q3 2024',
+    @TopK = 20,
+    @MinSimilarity = 0.75;
+```
+
+**API Integration** (Optional):
+```csharp
+// Management API exposes this as REST endpoint
+POST /api/search/semantic
+{
+  "query": "financial reports Q3 2024",
+  "topK": 20,
+  "minSimilarity": 0.75
+}
+
+// SearchController → ISearchRepository → sp_SemanticSearch
+//                                         └─ Vector search happens here (in SQL Server)
+```
 
 ---
 

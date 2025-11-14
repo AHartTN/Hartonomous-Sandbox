@@ -216,12 +216,29 @@ sqlcmd -i Migration_AtomEmbeddings_MemoryOptimization.sql
 ## Enterprise Features
 
 ### 1. Batch Operations
+
+**Direct SQL Execution**:
 ```sql
 EXEC sp_InsertAtomicVector 
     @VectorJson = '[0.123, -0.456, ...]',
     @SpatialX = 0.5,
     @SpatialY = -0.2,
     @SpatialZ = 0.8;
+```
+
+**API Integration** (Optional):
+```csharp
+// Management API exposes batch embedding insertion
+POST /api/embeddings/batch
+{
+  "vectors": [
+    {"embedding": [0.123, -0.456, ...], "metadata": {...}},
+    {"embedding": [0.789, 0.234, ...], "metadata": {...}}
+  ]
+}
+
+// EmbeddingsController → sp_InsertAtomicVector (in loop)
+//                        └─ Atomic decomposition happens in SQL Server
 ```
 
 ### 2. Orphan Cleanup
@@ -232,12 +249,35 @@ EXEC sp_DeleteAtomicVectors
 ```
 
 ### 3. Deduplication Analytics
+
+**Direct SQL Execution**:
 ```sql
 EXEC sp_GetAtomicDeduplicationStats;
 -- Returns:
 --   DeduplicationPct: 87.3%
 --   UniqueAtoms: 48,234
 --   AvgReuse: 414.2 references per atom
+```
+
+**CLI Integration**:
+```powershell
+# Hartonomous CLI can query deduplication metrics
+dotnet run --project src/Hartonomous.Cli -- stats dedup
+
+# Output:
+# Atomic Deduplication Statistics
+# ================================
+# Unique atoms: 48,234
+# Total references: 19,982,468
+# Deduplication: 87.3%
+# Storage saved: 2.4 TB
+```
+
+**Monitoring Integration**:
+```csharp
+// Admin dashboard queries this for telemetry
+GET /api/analytics/deduplication
+// Returns JSON with deduplication metrics
 ```
 
 ### 4. Point-in-Time Recovery

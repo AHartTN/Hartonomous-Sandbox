@@ -113,6 +113,27 @@
 - `sp_SemanticSearch`: Vector similarity search with spatial indexing
 - `sp_ChainOfThoughtReasoning`: Multi-step reasoning chains
 - `sp_SelfConsistencyReasoning`: Self-consistency verification
+
+**Usage Examples**:
+
+```sql
+-- Direct execution (primary method)
+EXEC sp_SemanticSearch @QueryText = 'data privacy regulations', @TopK = 10;
+
+-- Autonomous OODA loop trigger
+EXEC sp_Analyze @LookbackHours = 24;
+
+-- Model weight ingestion
+EXEC sp_IngestModel @ModelPath = 'C:\models\llama-4-70b.gguf';
+```
+
+**API Integration** (optional management layer):
+
+```csharp
+// REST endpoint calls procedure
+POST /api/search/semantic → SearchController → ISearchRepository → sp_SemanticSearch
+                                                                    └─ Executes in SQL Server
+```
 - `sp_TransformerStyleInference`: Transformer-based inference
 
 **Provenance**:

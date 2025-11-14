@@ -128,30 +128,60 @@ docker run -d `
 
 Open Neo4j Browser at <http://localhost:7474> and execute `neo4j/schemas/CoreSchema.cypher` to initialize the provenance schema.
 
-### 5. Run Services
+### 5. Test Core Functionality
 
-**API Server** (port 5000 by default):
+**Direct SQL Execution** (Primary Method - No Services Required):
+
+```sql
+-- Connect to database via any SQL client
+USE Hartonomous;
+
+-- Ingest first atom
+DECLARE @AtomId BIGINT;
+EXEC sp_IngestAtom_Atomic
+    @Modality = 'text',
+    @Content = 'Hello Hartonomous!',
+    @ParentAtomId = @AtomId OUTPUT;
+
+-- Perform semantic search
+EXEC sp_SemanticSearch 
+    @QueryText = 'greeting',
+    @TopK = 10;
+
+-- Trigger OODA loop
+EXEC sp_Analyze @LookbackHours = 1;
+
+-- Check autonomous improvements
+SELECT * FROM dbo.AutonomousImprovementHistory;
+```
+
+**All AI operations complete in-process** - no external services running.
+
+### 6. Optional: Start Management Services
+
+**API Server** (for external tooling integration):
 
 ```powershell
 cd src/Hartonomous.Api
 dotnet run
+# Calls stored procedures via REST endpoints
 ```
 
-**Background Workers**:
+**Compliance Workers** (for regulatory requirements):
 
 ```powershell
-# CES consumer (CDC ingestion)
-cd src/Hartonomous.Workers.CesConsumer
+# Neo4j sync worker (Service Broker → Neo4j provenance mirror)
+cd src/Hartonomous.Workers.Neo4jSync
 dotnet run
 
-# Neo4j sync worker (Service Broker → Neo4j)
-cd src/Hartonomous.Workers.Neo4jSync
+# CDC consumer (Change Data Capture audit trail)
+cd src/Hartonomous.Workers.CesConsumer
 dotnet run
 ```
 
 Update connection strings in `appsettings.json` for each service.
 
-### 6. Run Tests
+### 7. Run Tests
 
 ```powershell
 # Run all tests

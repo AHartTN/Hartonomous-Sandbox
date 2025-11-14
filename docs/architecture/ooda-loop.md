@@ -249,19 +249,22 @@ LearnService
 
 ---
 
-## Monitoring
+## Monitoring & Manual Control
 
-**Check Queue Depths:**
+**Direct SQL Execution** (Primary Method):
+
 ```sql
+-- Manually trigger OODA loop analysis
+EXEC sp_Analyze @LookbackHours = 48;
+
+-- Check queue depths
 SELECT name, 
        CAST(q.messages AS INT) AS messages,
        CAST(q.active_conversations AS INT) AS active_conversations
 FROM sys.service_queues q
 WHERE name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue');
-```
 
-**Check Recent Improvements:**
-```sql
+-- Check recent improvements
 SELECT TOP 10 
     CompletedAt,
     HypothesisType,
@@ -271,6 +274,33 @@ SELECT TOP 10
 FROM AutonomousImprovementHistory
 ORDER BY CompletedAt DESC;
 ```
+
+**API Integration** (Optional Management Layer):
+
+```csharp
+// Trigger manual analysis via REST
+POST /api/autonomy/analyze
+{
+  "lookbackHours": 48,
+  "scope": "full"
+}
+
+// Query OODA loop history
+GET /api/autonomy/improvements?top=20
+
+// AutonomyController → sp_Analyze / Query AutonomousImprovementHistory
+//                      └─ Autonomous operations execute in SQL Server
+```
+
+**Admin Dashboard Integration**:
+```csharp
+// Blazor admin portal displays real-time metrics
+GET /api/analytics/ooda-health
+// Returns: queue depths, improvement success rate, avg cycle time
+```
+
+**Autonomous Execution** (No Manual Trigger Required):
+Service Broker automatically triggers `sp_Analyze` every 15 minutes via conversation timer - the database self-improves without external services.
 
 **Check Active Conversations:**
 ```sql
