@@ -110,10 +110,10 @@ public class InferenceMetadataService : IInferenceMetadataService
             // Query model from database
             var model = await _modelRepository.GetByNameAsync(modelName, cancellationToken);
 
-            if (model?.Metadata?.PerformanceMetrics != null)
+            if (model?.ModelMetadatum?.PerformanceMetrics != null)
             {
                 // Parse PerformanceMetrics JSON: { "avgLatencyMs": 150, "tokensPerSecond": 50 }
-                var metrics = JsonSerializer.Deserialize<PerformanceMetrics>(model.Metadata.PerformanceMetrics);
+                var metrics = JsonSerializer.Deserialize<PerformanceMetrics>(model.ModelMetadatum.PerformanceMetrics);
 
                 if (metrics?.AvgLatencyMs > 0)
                 {

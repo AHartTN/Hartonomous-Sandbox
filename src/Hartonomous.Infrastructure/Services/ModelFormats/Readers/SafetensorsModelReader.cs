@@ -6,6 +6,7 @@ using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Entities;
 using Hartonomous.Infrastructure.Services.ModelFormats;
 using Microsoft.Extensions.Logging;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ModelFormats.Readers;
 

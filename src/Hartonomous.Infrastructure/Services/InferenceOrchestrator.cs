@@ -17,6 +17,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
 

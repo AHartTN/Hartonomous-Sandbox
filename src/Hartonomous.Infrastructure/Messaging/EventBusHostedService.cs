@@ -3,6 +3,7 @@ using Hartonomous.Infrastructure.Messaging.Handlers;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Messaging;
 

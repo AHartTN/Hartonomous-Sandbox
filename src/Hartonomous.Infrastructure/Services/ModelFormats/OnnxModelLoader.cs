@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using Microsoft.Extensions.Logging;
 using Microsoft.ML.OnnxRuntime;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ModelFormats;
 

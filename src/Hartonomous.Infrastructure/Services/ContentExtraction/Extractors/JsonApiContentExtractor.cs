@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 

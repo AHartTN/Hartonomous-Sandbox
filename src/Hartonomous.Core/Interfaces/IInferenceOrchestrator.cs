@@ -1,3 +1,5 @@
+using Hartonomous.Data.Entities;
+
 namespace Hartonomous.Core.Interfaces;
 
 /// <summary>
@@ -49,7 +51,7 @@ public interface IInferenceOrchestrator
     /// <param name="maxResults">Maximum number of results to return.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>List of matching atoms ranked by similarity.</returns>
-    Task<List<Entities.Atom>> SemanticSearchAsync(
+    Task<List<Atom>> SemanticSearchAsync(
         float[] embedding,
         int maxResults = 100,
         CancellationToken cancellationToken = default);

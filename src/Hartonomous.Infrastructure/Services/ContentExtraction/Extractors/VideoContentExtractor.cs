@@ -9,6 +9,7 @@ using FFMpegCore.Enums;
 using FFMpegCore.Pipes;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Services.ContentExtraction;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 

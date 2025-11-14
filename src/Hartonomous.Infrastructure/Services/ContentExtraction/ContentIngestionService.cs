@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
 using Microsoft.Extensions.Logging;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction;
 

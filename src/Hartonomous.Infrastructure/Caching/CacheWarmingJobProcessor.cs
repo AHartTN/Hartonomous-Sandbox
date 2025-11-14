@@ -3,6 +3,7 @@ using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Caching;
 

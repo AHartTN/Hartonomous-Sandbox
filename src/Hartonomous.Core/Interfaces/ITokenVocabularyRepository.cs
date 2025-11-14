@@ -1,4 +1,4 @@
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;

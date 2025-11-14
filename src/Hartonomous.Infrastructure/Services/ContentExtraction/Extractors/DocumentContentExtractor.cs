@@ -11,6 +11,7 @@ using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Services.ContentExtraction;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 

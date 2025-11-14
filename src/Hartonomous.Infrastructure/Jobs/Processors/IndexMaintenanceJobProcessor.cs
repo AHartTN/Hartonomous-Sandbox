@@ -2,6 +2,7 @@ using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Jobs.Processors;
 

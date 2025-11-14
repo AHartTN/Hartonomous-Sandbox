@@ -2,7 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
 using Microsoft.Extensions.Logging;
@@ -404,7 +404,7 @@ public sealed class PersistAtomStep : PipelineStepBase<SemanticDuplicateCheckRes
             context.TraceActivity?.SetTag("atom.duplicate_type", "exact");
 
             // Load embedding for existing atom
-            var embedding = input.ExistingAtom.Embeddings?.FirstOrDefault();
+            var embedding = input.ExistingAtom.AtomEmbeddings?.FirstOrDefault();
 
             return new AtomIngestionPipelineResult
             {
@@ -425,7 +425,7 @@ public sealed class PersistAtomStep : PipelineStepBase<SemanticDuplicateCheckRes
             context.TraceActivity?.SetTag("atom.duplicate_type", "semantic");
 
             // Load embedding for similar atom
-            var embedding = input.SimilarAtom.Embeddings?.FirstOrDefault();
+            var embedding = input.SimilarAtom.AtomEmbeddings?.FirstOrDefault();
 
             return new AtomIngestionPipelineResult
             {
@@ -472,11 +472,10 @@ public sealed class PersistAtomStep : PipelineStepBase<SemanticDuplicateCheckRes
                 Dimension = input.EmbeddingVector.Length,
                 ModelId = input.Request.ModelId,
                 SpatialGeometry = spatialPoint,
-                EmbeddingVector = sqlVector,
-                UsesMaxDimensionPadding = usedPadding
+                EmbeddingVector = sqlVector
             };
 
-            atom.Embeddings.Add(newEmbedding);
+            atom.AtomEmbeddings.Add(newEmbedding);
         }
 
         // Persist to database

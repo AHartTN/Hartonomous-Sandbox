@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Hartonomous.Infrastructure.Services.ModelFormats;
 using NetTopologySuite.Geometries;
 using System.Text.Json;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ModelFormats;
 

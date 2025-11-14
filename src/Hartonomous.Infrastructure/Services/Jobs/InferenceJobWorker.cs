@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.Jobs;
 

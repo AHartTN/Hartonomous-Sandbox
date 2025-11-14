@@ -9,6 +9,7 @@ using AngleSharp.Dom;
 using AngleSharp.Html.Dom;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Services.ContentExtraction;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 

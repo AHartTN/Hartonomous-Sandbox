@@ -3,6 +3,7 @@ using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
 

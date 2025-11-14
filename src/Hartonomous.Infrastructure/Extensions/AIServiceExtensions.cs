@@ -11,6 +11,7 @@ using Hartonomous.Infrastructure.Services.Generation;
 using Hartonomous.Infrastructure.Services.Inference;
 using Hartonomous.Infrastructure.Services.Jobs;
 using Microsoft.Extensions.DependencyInjection;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Extensions;
 

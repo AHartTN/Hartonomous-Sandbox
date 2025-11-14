@@ -2,6 +2,7 @@ using Hartonomous.Core.Entities;
 using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Microsoft.Extensions.Logging;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
 

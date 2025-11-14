@@ -1,4 +1,4 @@
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Models;
 using Hartonomous.Core.ValueObjects;
 

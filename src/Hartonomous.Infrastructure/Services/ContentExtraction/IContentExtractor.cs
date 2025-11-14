@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction;
 

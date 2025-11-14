@@ -7,6 +7,7 @@ using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Repositories;
 

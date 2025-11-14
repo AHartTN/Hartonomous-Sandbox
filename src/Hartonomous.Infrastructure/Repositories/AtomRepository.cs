@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Repositories;
 

@@ -2,12 +2,12 @@ using System;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
-using Hartonomous.Data.Repositories;
 using Hartonomous.Infrastructure.Repositories;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Extensions;
 
@@ -87,11 +87,14 @@ public static class PersistenceServiceExtensions
         services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<ICdcRepository, CdcRepository>();
-        services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();
-        services.AddScoped<IAutonomousActionRepository, AutonomousActionRepository>();
-        services.AddScoped<IAutonomousLearningRepository, AutonomousLearningRepository>();
-        services.AddScoped<IConceptDiscoveryRepository, ConceptDiscoveryRepository>();
-        services.AddScoped<Hartonomous.Data.Repositories.IVectorSearchRepository, VectorSearchRepository>();
+        
+        // TODO: Implement OODA Loop repositories
+        // services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();
+        // services.AddScoped<IAutonomousActionRepository, AutonomousActionRepository>();
+        // services.AddScoped<IAutonomousLearningRepository, AutonomousLearningRepository>();
+        // services.AddScoped<IConceptDiscoveryRepository, ConceptDiscoveryRepository>();
+        // services.AddScoped<IVectorSearchRepository, VectorSearchRepository>();
+        
         services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
 
         // Atomic component repositories (deduplicated storage)

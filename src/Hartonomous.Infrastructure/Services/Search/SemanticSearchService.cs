@@ -6,6 +6,7 @@ using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.Search;
 

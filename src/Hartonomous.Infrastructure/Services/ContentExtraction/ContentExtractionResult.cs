@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction;
 

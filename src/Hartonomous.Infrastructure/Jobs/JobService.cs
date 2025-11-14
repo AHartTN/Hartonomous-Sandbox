@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Hartonomous.Data;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Jobs;
 

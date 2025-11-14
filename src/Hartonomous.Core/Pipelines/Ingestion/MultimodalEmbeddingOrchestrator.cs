@@ -285,6 +285,9 @@ namespace Hartonomous.Core.Pipelines.Ingestion
         public float[] Embedding { get; set; } = Array.Empty<float>();
         public string ModelName { get; set; } = string.Empty;
         public bool IsCached { get; set; }
+        public bool Success { get; set; }
+        public bool RequiresDatabaseComputation { get; set; }
+        public string? ErrorMessage { get; set; }
     }
 
     /// <summary>

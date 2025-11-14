@@ -12,6 +12,7 @@ using Hartonomous.Infrastructure.Services;
 using Hartonomous.Infrastructure.Services.Jobs;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Extensions;
 

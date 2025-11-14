@@ -2,6 +2,7 @@ using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Text;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ModelFormats.Readers;
 

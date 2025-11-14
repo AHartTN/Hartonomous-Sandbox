@@ -434,3 +434,31 @@ Write-Host "══════════════════════�
 Write-Host "  DEPLOYMENT COMPLETE" -ForegroundColor Green
 Write-Host "  Database: $Database on $Server" -ForegroundColor White
 Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+
+# ============================================================================
+# PHASE 5: ENTITY GENERATION (DATABASE-FIRST SYNC)
+# ============================================================================
+Write-Host ""
+Write-Host "[5/5] Generating EF Core entities from deployed schema..." -ForegroundColor Yellow
+
+$entityScriptPath = Join-Path $PSScriptRoot "generate-entities.ps1"
+
+if (Test-Path $entityScriptPath) {
+    try {
+        & $entityScriptPath -Server $Server -Database $Database -Force
+        
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "✓ Entity generation completed" -ForegroundColor Green
+        } else {
+            Write-Warning "Entity generation completed with warnings (exit code: $LASTEXITCODE)"
+        }
+    }
+    catch {
+        Write-Warning "Entity generation failed: $_"
+        Write-Host "  You can manually regenerate entities by running:" -ForegroundColor Yellow
+        Write-Host "    .\scripts\generate-entities.ps1" -ForegroundColor Yellow
+    }
+} else {
+    Write-Host "  Entity generation script not found: $entityScriptPath" -ForegroundColor Yellow
+    Write-Host "  Skipping entity generation" -ForegroundColor Yellow
+}

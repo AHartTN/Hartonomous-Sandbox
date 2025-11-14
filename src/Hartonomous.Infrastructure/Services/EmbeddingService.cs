@@ -12,6 +12,7 @@ using SixLabors.ImageSharp.Processing;
 using MathNet.Numerics;
 using MathNet.Numerics.IntegralTransforms;
 using System.Data;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
 

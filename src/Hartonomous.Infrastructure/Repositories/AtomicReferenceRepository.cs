@@ -3,10 +3,11 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Hartonomous.Core.Entities;
+using Hartonomous.Shared.Contracts.Entities;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Repositories;
 

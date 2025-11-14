@@ -4,8 +4,8 @@ using System.Data.SqlTypes;
 using System.Text.Json;
 using System.Text;
 using Hartonomous.Core.Configuration;
-using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data.Entities;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -124,6 +124,7 @@ END;
 
 MERGE graph.AtomGraphEdges AS target
 USING (
+using Hartonomous.Data.Entities;
     SELECT
         @AtomRelationId AS AtomRelationId,
         @FromNodeId AS FromNodeId,

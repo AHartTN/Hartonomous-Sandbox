@@ -1,4 +1,5 @@
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
 

@@ -5,6 +5,7 @@ using Hartonomous.Infrastructure.Lifecycle;
 using Hartonomous.Infrastructure.RateLimiting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Extensions;
 

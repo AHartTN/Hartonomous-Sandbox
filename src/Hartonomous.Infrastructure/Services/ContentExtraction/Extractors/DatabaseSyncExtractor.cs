@@ -12,6 +12,7 @@ using Hartonomous.Infrastructure.Services.ContentExtraction;
 using Microsoft.Data.SqlClient;
 using MySqlConnector;
 using Npgsql;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 

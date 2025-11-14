@@ -1,4 +1,4 @@
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Core.Shared;

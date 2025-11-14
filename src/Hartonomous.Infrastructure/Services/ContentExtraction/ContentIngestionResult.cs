@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction;
 

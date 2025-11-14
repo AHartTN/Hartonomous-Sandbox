@@ -4,7 +4,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -285,7 +285,7 @@ public sealed class PersistInferenceResultStep : PipelineStepBase<
         var stepNumber = 1;
         foreach (var contribution in input.Contributions)
         {
-            inferenceRequest.Steps.Add(new InferenceStep
+            inferenceRequest.InferenceSteps.Add(new InferenceStep
             {
                 StepNumber = stepNumber++,
                 ModelId = contribution.ModelId,
@@ -302,12 +302,12 @@ public sealed class PersistInferenceResultStep : PipelineStepBase<
             .ConfigureAwait(false);
 
         context.TraceActivity?.SetTag("inference.request_id", saved.InferenceId);
-        context.TraceActivity?.SetTag("inference.step_count", saved.Steps.Count);
+        context.TraceActivity?.SetTag("inference.step_count", saved.InferenceSteps.Count);
 
         _logger.LogInformation(
             "Persisted inference request {InferenceId} with {StepCount} steps. Confidence: {Confidence:F4}, CorrelationId: {CorrelationId}",
             saved.InferenceId,
-            saved.Steps.Count,
+            saved.InferenceSteps.Count,
             input.Confidence,
             context.CorrelationId);
 

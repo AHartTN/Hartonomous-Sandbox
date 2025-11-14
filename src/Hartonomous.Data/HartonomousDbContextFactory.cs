@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Data
 {

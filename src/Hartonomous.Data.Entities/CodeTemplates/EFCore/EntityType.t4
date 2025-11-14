@@ -1,0 +1,416 @@
+<#@ template hostSpecific="true" #>
+<#@ assembly name="Microsoft.EntityFrameworkCore" #>
+<#@ assembly name="Microsoft.EntityFrameworkCore.Design" #>
+<#@ assembly name="Microsoft.EntityFrameworkCore.Relational" #>
+<#@ assembly name="Microsoft.Extensions.DependencyInjection.Abstractions" #>
+<#@ parameter name="EntityType" type="Microsoft.EntityFrameworkCore.Metadata.IEntityType" #>
+<#@ parameter name="Options" type="Microsoft.EntityFrameworkCore.Scaffolding.ModelCodeGenerationOptions" #>
+<#@ parameter name="NamespaceHint" type="System.String" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="System.ComponentModel.DataAnnotations" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="Microsoft.EntityFrameworkCore" #>
+<#@ import namespace="Microsoft.EntityFrameworkCore.Design" #>
+<#@ import namespace="Microsoft.Extensions.DependencyInjection" #>
+<#
+    if (EntityType.IsSimpleManyToManyJoinEntityType())
+    {
+        // Don't scaffold these
+        return "";
+    }
+
+    var services = (IServiceProvider)Host;
+    var annotationCodeGenerator = services.GetRequiredService<IAnnotationCodeGenerator>();
+    var code = services.GetRequiredService<ICSharpHelper>();
+
+    var usings = new List<string>
+    {
+        "System",
+        "System.Collections.Generic"
+    };
+
+    if (Options.UseDataAnnotations)
+    {
+        usings.Add("System.ComponentModel.DataAnnotations");
+        usings.Add("System.ComponentModel.DataAnnotations.Schema");
+        usings.Add("Microsoft.EntityFrameworkCore");
+    }
+
+    var entityName = EntityType.Name;
+    var interfaceName = "I" + entityName;
+    
+    // Collect all necessary usings for properties including navigation properties
+    var interfaceUsings = new List<string>(usings);
+    foreach (var property in EntityType.GetProperties())
+    {
+        interfaceUsings.AddRange(code.GetRequiredUsings(property.ClrType));
+    }
+    
+    // Generate interface file
+    var interfaceContent = new StringBuilder();
+    foreach (var ns in interfaceUsings.Distinct().OrderBy(x => x, new NamespaceComparer()))
+    {
+        interfaceContent.AppendLine($"using {ns};");
+    }
+    interfaceContent.AppendLine();
+    interfaceContent.AppendLine($"namespace {NamespaceHint};");
+    interfaceContent.AppendLine();
+    if (!string.IsNullOrEmpty(EntityType.GetComment()))
+    {
+        interfaceContent.AppendLine("/// <summary>");
+        interfaceContent.AppendLine($"/// {code.XmlComment(EntityType.GetComment())}");
+        interfaceContent.AppendLine("/// </summary>");
+    }
+    interfaceContent.AppendLine($"public interface {interfaceName}");
+    interfaceContent.AppendLine("{");
+    
+    // Scalar properties
+    foreach (var property in EntityType.GetProperties().OrderBy(p => p.GetColumnOrder() ?? -1))
+    {
+        var needsNullable = Options.UseNullableReferenceTypes && property.IsNullable && !property.ClrType.IsValueType;
+        interfaceContent.AppendLine($"    {code.Reference(property.ClrType)}{(needsNullable ? "?" : "")} {property.Name} {{ get; set; }}");
+    }
+    
+    // Navigation properties
+    foreach (var navigation in EntityType.GetNavigations())
+    {
+        var targetType = navigation.TargetEntityType.Name;
+        if (navigation.IsCollection)
+        {
+            interfaceContent.AppendLine($"    ICollection<{targetType}> {navigation.Name} {{ get; set; }}");
+        }
+        else
+        {
+            var needsNullable = Options.UseNullableReferenceTypes && !(navigation.ForeignKey.IsRequired && navigation.IsOnDependent);
+            interfaceContent.AppendLine($"    {targetType}{(needsNullable ? "?" : "")} {navigation.Name} {{ get; set; }}");
+        }
+    }
+    
+    // Skip navigations (many-to-many)
+    foreach (var skipNavigation in EntityType.GetSkipNavigations())
+    {
+        interfaceContent.AppendLine($"    ICollection<{skipNavigation.TargetEntityType.Name}> {skipNavigation.Name} {{ get; set; }}");
+    }
+    
+    interfaceContent.AppendLine("}");
+    
+    // Write interface file
+    var projectDir = Path.GetDirectoryName(Host.TemplateFile);
+    while (projectDir != null && !File.Exists(Path.Combine(projectDir, "*.csproj")))
+    {
+        var csprojFiles = Directory.GetFiles(projectDir, "*.csproj");
+        if (csprojFiles.Length > 0)
+        {
+            break;
+        }
+        projectDir = Directory.GetParent(projectDir)?.FullName;
+    }
+    
+    if (projectDir == null)
+    {
+        throw new InvalidOperationException("Could not find project directory");
+    }
+    
+    var interfaceDir = Path.Combine(projectDir, "Interfaces");
+    Directory.CreateDirectory(interfaceDir);
+    File.WriteAllText(Path.Combine(interfaceDir, $"{interfaceName}.cs"), interfaceContent.ToString());
+
+    if (!string.IsNullOrEmpty(NamespaceHint))
+    {
+#>
+namespace <#= NamespaceHint #>;
+
+<#
+    }
+
+    if (!string.IsNullOrEmpty(EntityType.GetComment()))
+    {
+#>
+/// <summary>
+/// <#= code.XmlComment(EntityType.GetComment()) #>
+/// </summary>
+<#
+    }
+
+    if (Options.UseDataAnnotations)
+    {
+        foreach (var dataAnnotation in EntityType.GetDataAnnotations(annotationCodeGenerator))
+        {
+#>
+<#= code.Fragment(dataAnnotation) #>
+<#
+        }
+    }
+#>
+<#
+#>
+public partial class <#= EntityType.Name #> : I<#= EntityType.Name #>
+{
+<#
+    var firstProperty = true;
+    foreach (var property in EntityType.GetProperties().OrderBy(p => p.GetColumnOrder() ?? -1))
+    {
+        if (!firstProperty)
+        {
+            WriteLine("");
+        }
+
+        if (!string.IsNullOrEmpty(property.GetComment()))
+        {
+#>
+    /// <summary>
+    /// <#= code.XmlComment(property.GetComment(), indent: 1) #>
+    /// </summary>
+<#
+        }
+
+        if (Options.UseDataAnnotations)
+        {
+            var dataAnnotations = property.GetDataAnnotations(annotationCodeGenerator)
+                .Where(a => !(a.Type == typeof(RequiredAttribute) && Options.UseNullableReferenceTypes && !property.ClrType.IsValueType));
+            foreach (var dataAnnotation in dataAnnotations)
+            {
+#>
+    <#= code.Fragment(dataAnnotation) #>
+<#
+            }
+        }
+
+        usings.AddRange(code.GetRequiredUsings(property.ClrType));
+
+        var needsNullable = Options.UseNullableReferenceTypes && property.IsNullable && !property.ClrType.IsValueType;
+        var needsInitializer = Options.UseNullableReferenceTypes && !property.IsNullable && !property.ClrType.IsValueType;
+#>
+    public <#= code.Reference(property.ClrType) #><#= needsNullable ? "?" : "" #> <#= property.Name #> { get; set; }<#= needsInitializer ? " = null!;" : "" #>
+<#
+        firstProperty = false;
+    }
+
+    foreach (var navigation in EntityType.GetNavigations())
+    {
+        WriteLine("");
+
+        if (Options.UseDataAnnotations)
+        {
+            foreach (var dataAnnotation in navigation.GetDataAnnotations(annotationCodeGenerator))
+            {
+#>
+    <#= code.Fragment(dataAnnotation) #>
+<#
+            }
+        }
+
+        var targetType = navigation.TargetEntityType.Name;
+        if (navigation.IsCollection)
+        {
+#>
+    public virtual ICollection<<#= targetType #>> <#= navigation.Name #> { get; set; } = new List<<#= targetType #>>();
+<#
+        }
+        else
+        {
+            var needsNullable = Options.UseNullableReferenceTypes && !(navigation.ForeignKey.IsRequired && navigation.IsOnDependent);
+            var needsInitializer = Options.UseNullableReferenceTypes && navigation.ForeignKey.IsRequired && navigation.IsOnDependent;
+#>
+    public virtual <#= targetType #><#= needsNullable ? "?" : "" #> <#= navigation.Name #> { get; set; }<#= needsInitializer ? " = null!;" : "" #>
+<#
+        }
+    }
+
+    foreach (var skipNavigation in EntityType.GetSkipNavigations())
+    {
+        WriteLine("");
+
+        if (Options.UseDataAnnotations)
+        {
+            foreach (var dataAnnotation in skipNavigation.GetDataAnnotations(annotationCodeGenerator))
+            {
+#>
+    <#= code.Fragment(dataAnnotation) #>
+<#
+            }
+        }
+#>
+    public virtual ICollection<<#= skipNavigation.TargetEntityType.Name #>> <#= skipNavigation.Name #> { get; set; } = new List<<#= skipNavigation.TargetEntityType.Name #>>();
+<#
+    }
+#>
+}
+<#
+    // Generate entity configuration file
+    var configContent = new StringBuilder();
+    configContent.AppendLine("using Microsoft.EntityFrameworkCore;");
+    configContent.AppendLine("using Microsoft.EntityFrameworkCore.Metadata.Builders;");
+    configContent.AppendLine();
+    configContent.AppendLine($"namespace {NamespaceHint}.Configurations;");
+    configContent.AppendLine();
+    configContent.AppendLine($"public class {entityName}Configuration : IEntityTypeConfiguration<{entityName}>");
+    configContent.AppendLine("{");
+    configContent.AppendLine($"    public void Configure(EntityTypeBuilder<{entityName}> builder)");
+    configContent.AppendLine("    {");
+    
+    // Table name
+    var tableName = EntityType.GetTableName();
+    var schema = EntityType.GetSchema();
+    if (!string.IsNullOrEmpty(schema))
+    {
+        configContent.AppendLine($"        builder.ToTable(\"{tableName}\", \"{schema}\");");
+    }
+    else
+    {
+        configContent.AppendLine($"        builder.ToTable(\"{tableName}\");");
+    }
+    
+    // Primary key
+    var primaryKey = EntityType.FindPrimaryKey();
+    if (primaryKey != null && primaryKey.Properties.Count > 0)
+    {
+        var keyProps = string.Join(", ", primaryKey.Properties.Select(p => $"e.{p.Name}"));
+        configContent.AppendLine($"        builder.HasKey(e => new {{ {keyProps} }});");
+    }
+    
+    // Properties
+    foreach (var property in EntityType.GetProperties())
+    {
+        var columnName = property.GetColumnName();
+        var columnType = property.GetColumnType();
+        var maxLength = property.GetMaxLength();
+        var precision = property.GetPrecision();
+        var scale = property.GetScale();
+        var isRequired = !property.IsNullable;
+        
+        configContent.AppendLine();
+        configContent.AppendLine($"        builder.Property(e => e.{property.Name})");
+        
+        if (!string.IsNullOrEmpty(columnName) && columnName != property.Name)
+        {
+            configContent.AppendLine($"            .HasColumnName(\"{columnName}\")");
+        }
+        
+        if (!string.IsNullOrEmpty(columnType))
+        {
+            configContent.AppendLine($"            .HasColumnType(\"{columnType}\")");
+        }
+        
+        if (maxLength.HasValue)
+        {
+            configContent.AppendLine($"            .HasMaxLength({maxLength.Value})");
+        }
+        
+        if (precision.HasValue && scale.HasValue)
+        {
+            configContent.AppendLine($"            .HasPrecision({precision.Value}, {scale.Value})");
+        }
+        
+        if (isRequired && !property.ClrType.IsValueType)
+        {
+            configContent.AppendLine("            .IsRequired()");
+        }
+        
+        var valueGenerated = property.ValueGenerated;
+        if (valueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAdd)
+        {
+            configContent.AppendLine("            .ValueGeneratedOnAdd()");
+        }
+        else if (valueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnUpdate)
+        {
+            configContent.AppendLine("            .ValueGeneratedOnUpdate()");
+        }
+        else if (valueGenerated == Microsoft.EntityFrameworkCore.Metadata.ValueGenerated.OnAddOrUpdate)
+        {
+            configContent.AppendLine("            .ValueGeneratedOnAddOrUpdate()");
+        }
+        
+        configContent.AppendLine("            ;");
+    }
+    
+    // Relationships
+    foreach (var navigation in EntityType.GetNavigations())
+    {
+        if (navigation.IsOnDependent)
+        {
+            var foreignKey = navigation.ForeignKey;
+            var principalNav = foreignKey.PrincipalToDependent;
+            var dependentNav = foreignKey.DependentToPrincipal;
+            
+            configContent.AppendLine();
+            configContent.AppendLine($"        builder.HasOne(d => d.{dependentNav?.Name})");
+            
+            if (principalNav != null)
+            {
+                // Check if principal navigation is a collection (one-to-many) or reference (one-to-one)
+                if (principalNav.IsCollection)
+                {
+                    configContent.AppendLine($"            .WithMany(p => p.{principalNav.Name})");
+                    var fkProps = string.Join(", ", foreignKey.Properties.Select(p => $"d.{p.Name}"));
+                    configContent.AppendLine($"            .HasForeignKey(d => new {{ {fkProps} }})");
+                }
+                else
+                {
+                    configContent.AppendLine($"            .WithOne(p => p.{principalNav.Name})");
+                    var fkProps = string.Join(", ", foreignKey.Properties.Select(p => $"e.{p.Name}"));
+                    configContent.AppendLine($"            .HasForeignKey<{entityName}>(e => new {{ {fkProps} }})");
+                }
+            }
+            else
+            {
+                configContent.AppendLine("            .WithMany()");
+                var fkProps = string.Join(", ", foreignKey.Properties.Select(p => $"d.{p.Name}"));
+                configContent.AppendLine($"            .HasForeignKey(d => new {{ {fkProps} }})");
+            }
+            
+            if (!foreignKey.IsRequired)
+            {
+                configContent.AppendLine("            .OnDelete(DeleteBehavior.ClientSetNull)");
+            }
+            
+            configContent.AppendLine("            ;");
+        }
+    }
+    
+    // Indexes
+    foreach (var index in EntityType.GetIndexes())
+    {
+        var indexProps = string.Join(", ", index.Properties.Select(p => $"e.{p.Name}"));
+        configContent.AppendLine();
+        configContent.AppendLine($"        builder.HasIndex(e => new {{ {indexProps} }})");
+        
+        var indexName = index.GetDatabaseName();
+        if (!string.IsNullOrEmpty(indexName))
+        {
+            configContent.AppendLine($"            .HasDatabaseName(\"{indexName}\")");
+        }
+        
+        if (index.IsUnique)
+        {
+            configContent.AppendLine("            .IsUnique()");
+        }
+        
+        configContent.AppendLine("            ;");
+    }
+    
+    configContent.AppendLine("    }");
+    configContent.AppendLine("}");
+    
+    // Write configuration file
+    var configDir = Path.Combine(projectDir, "Configurations");
+    Directory.CreateDirectory(configDir);
+    File.WriteAllText(Path.Combine(configDir, $"{entityName}Configuration.cs"), configContent.ToString());
+#>
+<#
+    var previousOutput = GenerationEnvironment;
+    GenerationEnvironment = new StringBuilder();
+
+    foreach (var ns in usings.Distinct().OrderBy(x => x, new NamespaceComparer()))
+    {
+#>
+using <#= ns #>;
+<#
+    }
+
+    WriteLine("");
+
+    GenerationEnvironment.Append(previousOutput);
+#>

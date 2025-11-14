@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Models;
 
 namespace Hartonomous.Core.Interfaces;

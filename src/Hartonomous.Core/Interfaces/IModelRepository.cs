@@ -1,4 +1,4 @@
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Enums;
 using Microsoft.Data.SqlTypes;
 

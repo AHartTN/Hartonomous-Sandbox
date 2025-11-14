@@ -1,6 +1,7 @@
 using Hartonomous.Core.Interfaces;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
 

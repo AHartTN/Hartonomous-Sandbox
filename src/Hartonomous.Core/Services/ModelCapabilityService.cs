@@ -44,24 +44,24 @@ public class ModelCapabilityService : IModelCapabilityService
             // Query model from database (includes Metadata navigation property)
             var model = await _modelRepository.GetByNameAsync(modelName, cancellationToken);
 
-            if (model?.Metadata == null)
+            if (model?.ModelMetadatum == null)
             {
                 _logger.LogWarning("Model '{ModelName}' not found or has no metadata. Returning default capabilities.", modelName);
                 return DefaultCapabilities;
             }
 
             // Parse JSON metadata into type-safe enums
-            var supportedTasks = EnumExtensions.ParseTaskTypes(model.Metadata.SupportedTasks);
-            var supportedModalities = EnumExtensions.ParseModalities(model.Metadata.SupportedModalities);
+            var supportedTasks = EnumExtensions.ParseTaskTypes(model.ModelMetadatum.SupportedTasks);
+            var supportedModalities = EnumExtensions.ParseModalities(model.ModelMetadatum.SupportedModalities);
 
             // Build capabilities from database metadata
             return new ModelCapabilities
             {
                 SupportedTasks = supportedTasks,
                 SupportedModalities = supportedModalities,
-                MaxTokens = model.Metadata.MaxOutputLength ?? 2048,
-                MaxContextWindow = model.Metadata.MaxInputLength ?? 4096,
-                EmbeddingDimension = model.Metadata.EmbeddingDimension
+                MaxTokens = model.ModelMetadatum.MaxOutputLength ?? 2048,
+                MaxContextWindow = model.ModelMetadatum.MaxInputLength ?? 4096,
+                EmbeddingDimension = model.ModelMetadatum.EmbeddingDimension
             };
         }
         catch (Exception ex)

@@ -1,4 +1,4 @@
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Core.Pipelines.Inference;
 

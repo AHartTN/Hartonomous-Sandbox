@@ -16,6 +16,7 @@ using Microsoft.Data.SqlTypes;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NetTopologySuite.Geometries;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Repositories;
 

@@ -1,5 +1,5 @@
 using System.Linq;
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Microsoft.Data.SqlTypes;
 
 namespace Hartonomous.Core.Utilities;

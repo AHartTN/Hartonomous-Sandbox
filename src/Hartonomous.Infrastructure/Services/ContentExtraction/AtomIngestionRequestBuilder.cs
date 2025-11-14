@@ -4,6 +4,7 @@ using System.Linq;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
 using Hartonomous.Core.Utilities;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction;
 

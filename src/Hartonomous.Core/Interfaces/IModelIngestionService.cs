@@ -1,5 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Core.Interfaces;
 
@@ -40,6 +41,6 @@ public class ModelIngestionResult
 {
     public bool Success { get; set; }
     public int ModelId { get; set; }
-    public Entities.Model? Model { get; set; }
+    public Model? Model { get; set; }
     public string? ErrorMessage { get; set; }
 }

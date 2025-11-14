@@ -4,7 +4,7 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
@@ -38,7 +38,7 @@ public static class CompiledQueries
         EF.CompileAsyncQuery((HartonomousDbContext ctx, long atomId, CancellationToken ct) =>
             ctx.Atoms
                 .AsNoTracking()
-                .Include(a => a.Embeddings) // Split query recommended for collections
+                .Include(a => a.AtomEmbeddings) // Split query recommended for collections
                 .AsSplitQuery() // Prevents cartesian explosion
                 .FirstOrDefault(a => a.AtomId == atomId));
 
@@ -105,7 +105,7 @@ public static class CompiledQueries
         EF.CompileAsyncQuery((HartonomousDbContext ctx, long inferenceId, CancellationToken ct) =>
             ctx.InferenceRequests
                 .AsNoTracking()
-                .Include(i => i.Steps)
+                .Include(i => i.InferenceSteps)
                     .ThenInclude(s => s.Model) // Nested Include
                 .AsSplitQuery() // Critical: Prevents cartesian explosion on nested collections
                 .FirstOrDefault(i => i.InferenceId == inferenceId));

@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Utilities;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services.ContentExtraction.Extractors;
 

@@ -1,4 +1,4 @@
-using Hartonomous.Core.Entities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Models;
 using Microsoft.Data.SqlTypes;
 using NetTopologySuite.Geometries;

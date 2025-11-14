@@ -1,6 +1,7 @@
 using Hartonomous.Infrastructure.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure;
 
