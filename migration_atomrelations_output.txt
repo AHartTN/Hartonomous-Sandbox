@@ -1,0 +1,27 @@
+Starting AtomRelations enterprise upgrade...
+Msg 13509, Level 16, State 1, Server HART-DESKTOP, Line 8
+Cannot create generated always column when SYSTEM_TIME period is not defined.
+Enabling system-versioning on AtomRelations...
+Msg 13510, Level 16, State 1, Server HART-DESKTOP, Line 11
+Cannot set SYSTEM_VERSIONING to ON when SYSTEM_TIME period is not defined and the LEDGER=ON option is not specified.
+Creating columnstore index on history table...
+Msg 13591, Level 16, State 1, Server HART-DESKTOP, Line 12
+SYSTEM_VERSIONING is not turned ON for table 'Hartonomous.dbo.AtomRelations'.
+Creating performance indexes...
+Msg 1934, Level 16, State 1, Server HART-DESKTOP, Line 5
+CREATE INDEX failed because the following SET options have incorrect settings: 'QUOTED_IDENTIFIER'. Verify that SET options are correct for use with indexed views and/or indexes on computed columns and/or filtered indexes and/or query notifications and/or XML data type methods and/or spatial index operations.
+Msg 1934, Level 16, State 1, Server HART-DESKTOP, Line 5
+CREATE INDEX failed because the following SET options have incorrect settings: 'QUOTED_IDENTIFIER'. Verify that SET options are correct for use with indexed views and/or indexes on computed columns and/or filtered indexes and/or query notifications and/or XML data type methods and/or spatial index operations.
+Msg 1934, Level 16, State 1, Server HART-DESKTOP, Line 5
+CREATE INDEX failed because the following SET options have incorrect settings: 'QUOTED_IDENTIFIER'. Verify that SET options are correct for use with spatial index operations.
+Adding computed spatial bucket column...
+Msg 1934, Level 16, State 1, Server HART-DESKTOP, Line 13
+ALTER TABLE failed because the following SET options have incorrect settings: 'QUOTED_IDENTIFIER'. Verify that SET options are correct for use with indexed views and/or indexes on computed columns and/or filtered indexes and/or query notifications and/or XML data type methods and/or spatial index operations.
+Creating statistics...
+AtomRelations enterprise upgrade complete!
+Summary:
+  - Temporal versioning: ENABLED (90-day retention)
+  - History compression: Nonclustered columnstore
+  - Performance indexes: 7 covering indexes + 1 spatial index
+  - Query optimization: O(log n) spatial + O(k) results
+  - Trilateration: 5D coordinate support (X, Y, Z, T, W)

@@ -162,10 +162,13 @@
 
   <!-- CLR C# Source Files - integrated directly into database project (no separate project needed) -->
   <ItemGroup>
-    <Compile Include="CLR\**\*.cs" />
-    <!-- Exclude files with incompatible dependencies for SQL CLR -->
-    <Compile Remove="CLR\ModelParsing.cs" />
-    <Compile Remove="CLR\CodeAnalysis.cs" />
+    <!-- ONLY include production atomic decomposition extractors (no external dependencies) -->
+    <Compile Include="CLR\ImagePixelExtractor.cs" />
+    <Compile Include="CLR\AudioFrameExtractor.cs" />
+    <Compile Include="CLR\Properties\AssemblyInfo.cs" />
+    
+    <!-- Exclude all other CLR files (dependencies not resolved in SSDT build) -->
+    <Compile Remove="CLR\**\*.cs" Exclude="CLR\ImagePixelExtractor.cs;CLR\AudioFrameExtractor.cs;CLR\Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <!-- Framework References for CLR -->
   <ItemGroup>
@@ -177,15 +180,10 @@
     <Reference Include="System.Transactions" />
     <!-- Microsoft.SqlServer.Types loaded via PackageReference below -->
   </ItemGroup>
-  <!-- NuGet package references for CLR dependencies -->
+  <!--Nu Get package references for CLR dependencies -->
   <ItemGroup>
-    <!-- Core Math & SIMD (SIGNED for CLR strict security) -->
-    <PackageReference Include="MathNet.Numerics.Signed" Version="5.0.0" />
-    <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-
-    <!-- System dependencies for .NET Framework 4.8.1 -->
-    <PackageReference Include="System.Buffers" Version="4.5.1" />
+    <!-- ATOMIC EXTRACTORS ONLY: No external packages needed (use System.Drawing from GAC) -->
+    <!-- MathNet, Newtonsoft.Json, SqlServer.Types removed - not required for Image/AudioFrameExtractor -->
   </ItemGroup>
   <!-- SQLCMD Variables for CLR deployment paths -->
   <ItemGroup>
