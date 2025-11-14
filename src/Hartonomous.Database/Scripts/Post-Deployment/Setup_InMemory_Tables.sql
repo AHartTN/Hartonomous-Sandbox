@@ -178,9 +178,9 @@ BEGIN
     CREATE TABLE [dbo].[SessionPaths_InMemory]
     (
         [SessionPathId]     BIGINT           IDENTITY (1, 1) NOT NULL,
-        [SessionId]         UNIQUEIDENTIFIER COLLATE Latin1_General_100_BIN2 NOT NULL,
+        [SessionId]         UNIQUEIDENTIFIER NOT NULL,  -- Removed COLLATE (invalid for UNIQUEIDENTIFIER)
         [PathNumber]        INT              NOT NULL,
-        [HypothesisId]      UNIQUEIDENTIFIER COLLATE Latin1_General_100_BIN2 NULL,
+        [HypothesisId]      UNIQUEIDENTIFIER NULL,  -- Removed COLLATE (invalid for UNIQUEIDENTIFIER)
         [ResponseText]      NVARCHAR (MAX)   COLLATE Latin1_General_100_BIN2 NULL,
         [ResponseVector]    VARBINARY (MAX)  NULL, -- Will migrate to VECTOR(1998) when hot
         [Score]             FLOAT            NULL,

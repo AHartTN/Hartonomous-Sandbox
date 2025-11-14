@@ -11,7 +11,7 @@ CREATE TABLE [dbo].[ImagePatches] (
     [PatchHeight]   INT            NOT NULL,
     [PatchRegion]   GEOMETRY       NOT NULL,
     [PatchGeometry] GEOMETRY       NULL,
-    [PatchEmbedding]VARBINARY(MAX) NULL,
+    [PatchEmbedding]VECTOR(1998)   NULL,
     [DominantColor] GEOMETRY       NULL,
     [MeanIntensity] REAL           NULL,
     [MeanR]         FLOAT          NULL,

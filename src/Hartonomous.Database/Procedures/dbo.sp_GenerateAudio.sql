@@ -49,15 +49,14 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    -- Create inference request
-    INSERT INTO InferenceRequests (TenantId, UserId, RequestType, Parameters, AdditionalModels, CreatedAt)
+        -- Create inference request
+    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
-        @TenantId,
-        @UserId,
-        'Audio',
+        'audio_generation',
         CONVERT(NVARCHAR(MAX), @requestJson),
         CONVERT(NVARCHAR(MAX), @modelsJson),
-        SYSUTCDATETIME()
+        'vector_similarity',
+        JSON_OBJECT('status': 'running')
     );
     SET @inferenceId = SCOPE_IDENTITY();
 

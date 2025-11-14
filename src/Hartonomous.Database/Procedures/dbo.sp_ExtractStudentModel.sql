@@ -25,13 +25,13 @@ BEGIN
 
         DECLARE @ParentModelType NVARCHAR(100);
         DECLARE @parent_architecture NVARCHAR(100);
-        DECLARE @parent_config JSON;
+        DECLARE @parent_config NVARCHAR(MAX);  -- Changed from JSON to avoid conversion errors
         DECLARE @parent_parameter_count BIGINT;
 
         SELECT
             @ParentModelType = ModelType,
             @parent_architecture = Architecture,
-            @parent_config = Config,
+            @parent_config = CAST(Config AS NVARCHAR(MAX)),  -- Explicit cast from JSON
             @parent_parameter_count = ParameterCount
         FROM dbo.Models
         WHERE ModelId = @ParentModelId;
@@ -132,7 +132,7 @@ BEGIN
             QuantizationType NVARCHAR(20) NULL,
             QuantizationScale FLOAT NULL,
             QuantizationZeroPoint FLOAT NULL,
-            Parameters JSON NULL,
+            Parameters NVARCHAR(MAX) NULL,  -- Changed from JSON to avoid conversion errors
             ParameterCount BIGINT NULL,
             CacheHitRate FLOAT NULL,
             AvgComputeTimeMs FLOAT NULL
@@ -150,7 +150,7 @@ BEGIN
                         ml.QuantizationType,
                         ml.QuantizationScale,
                         ml.QuantizationZeroPoint,
-                        ml.Parameters,
+                        CAST(ml.Parameters AS NVARCHAR(MAX)),  -- Explicit cast from JSON
                         ml.ParameterCount,
                         ml.CacheHitRate,
                         ml.AvgComputeTimeMs
@@ -216,7 +216,7 @@ BEGIN
             AtomType NVARCHAR(128) NOT NULL,
             SpatialSignature GEOMETRY NULL,
             GeometryFootprint GEOMETRY NULL,
-            Metadata JSON NULL,
+            Metadata NVARCHAR(MAX) NULL,  -- Changed from JSON to avoid conversion errors
             ImportanceScore REAL NULL
         );
 
@@ -228,7 +228,7 @@ BEGIN
             ta.AtomType,
             ta.SpatialSignature,
             ta.GeometryFootprint,
-            ta.Metadata,
+            CAST(ta.Metadata AS NVARCHAR(MAX)),  -- Explicit cast from JSON
             ta.ImportanceScore
         FROM dbo.TensorAtoms AS ta
         WHERE ta.ModelId = @ParentModelId

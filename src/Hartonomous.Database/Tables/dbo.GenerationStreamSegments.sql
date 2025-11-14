@@ -8,7 +8,7 @@ CREATE TABLE [dbo].[GenerationStreamSegments] (
     [ContentType]        NVARCHAR (128)  NULL,
     [Metadata]           NVARCHAR (MAX)  NULL,
     [PayloadData]        VARBINARY (MAX) NULL,
-    [EmbeddingVector]    VARBINARY (MAX) NULL, -- Extracted embedding from segment
+    [EmbeddingVector]    VECTOR(1998)    NULL, -- Extracted embedding from segment
     [CreatedAt]          DATETIME2 (7)   NOT NULL DEFAULT (SYSUTCDATETIME()),
     [TenantId]           INT             NOT NULL DEFAULT (0),
     CONSTRAINT [PK_GenerationStreamSegments] PRIMARY KEY CLUSTERED ([SegmentId] ASC),

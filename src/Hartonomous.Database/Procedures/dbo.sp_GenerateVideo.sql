@@ -105,7 +105,7 @@ BEGIN
         PixelCloud GEOMETRY,
         ObjectRegions GEOMETRY,
         MotionVectors GEOMETRY,
-        FrameEmbedding VECTOR(768)
+        FrameEmbedding VECTOR(1998)  -- Changed from 768 to match VideoFrames.FrameEmbedding
     );
 
     IF EXISTS (SELECT 1 FROM @videoCandidates)

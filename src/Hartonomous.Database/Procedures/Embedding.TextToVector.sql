@@ -105,10 +105,9 @@ BEGIN
 
             -- Extract the embedding from the generation stream
             -- The attention mechanism stores embeddings in GenerationStreamSegments
-            DECLARE @embeddingBytes VARBINARY(MAX);
             SELECT TOP(1)
-                @embeddingBytes = seg.EmbeddingVector,
-                @dimension = @embeddingBaseDimension,
+                @embedding = seg.EmbeddingVector,  -- Changed from @embeddingBytes, now VECTOR(1998)
+                @dimension = @sqlVectorDimension,  -- Now returning full 1998 dimensions
                 @usedSelfReferentialModel = 1
             FROM dbo.GenerationStreamSegments seg
             INNER JOIN provenance.GenerationStreams gs ON seg.GenerationStreamId = gs.GenerationStreamId
@@ -116,10 +115,6 @@ BEGIN
                 AND seg.CreatedAt >= @startTime
                 AND seg.EmbeddingVector IS NOT NULL
             ORDER BY seg.CreatedAt DESC;
-            
-            -- Convert VARBINARY(MAX) → VECTOR(1998)
-            IF @embeddingBytes IS NOT NULL
-                SET @embedding = CAST(CONVERT(NVARCHAR(MAX), @embeddingBytes) AS VECTOR(1998));
 
             -- If we successfully got an embedding, we're done!
             IF @embedding IS NOT NULL

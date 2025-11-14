@@ -1,21 +1,22 @@
 -- =============================================
--- Add Graph Pseudo-Column Indexes for AtomGraphEdges
--- MS Docs Best Practice: Index $node_id, $from_id, $to_id for 10-100x MATCH speedup
+-- Add Graph Pseudo-Column Indexes for AtomGraphEdges (EDGE TABLE)
+-- MS Docs Best Practice: Index $from_id, $to_id for 10-100x MATCH speedup
 -- Reference: https://learn.microsoft.com/en-us/sql/relational-databases/graphs/sql-graph-architecture
+-- NOTE: Edge tables have $edge_id, $from_id, $to_id (NOT $node_id - that's for node tables only)
 -- =============================================
 
--- Index 1: $node_id pseudo-column (unique identifier for each edge)
--- Used by: MATCH clauses that reference edge identity
+-- Index 1: $edge_id pseudo-column (unique identifier for each edge)
+-- Used by: MATCH clauses that reference specific edges
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_AtomGraphEdges_NodeId' 
+    WHERE name = 'IX_AtomGraphEdges_EdgeId' 
     AND object_id = OBJECT_ID('graph.AtomGraphEdges')
 )
 BEGIN
-    CREATE NONCLUSTERED INDEX IX_AtomGraphEdges_NodeId
-    ON graph.AtomGraphEdges ($node_id);
+    CREATE NONCLUSTERED INDEX IX_AtomGraphEdges_EdgeId
+    ON graph.AtomGraphEdges ($edge_id);  -- Changed from $node_id to $edge_id
     
-    PRINT 'Created index IX_AtomGraphEdges_NodeId on $node_id pseudo-column';
+    PRINT 'Created index IX_AtomGraphEdges_EdgeId on $edge_id pseudo-column';
 END
 GO
 
@@ -30,7 +31,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE NONCLUSTERED INDEX IX_AtomGraphEdges_FromId
     ON graph.AtomGraphEdges ($from_id)
-    INCLUDE (EdgeType, Weight, Metadata);
+    INCLUDE (RelationType, Weight, Metadata);  -- Changed EdgeType to RelationType
     
     PRINT 'Created index IX_AtomGraphEdges_FromId on $from_id pseudo-column';
 END
@@ -47,7 +48,7 @@ IF NOT EXISTS (
 BEGIN
     CREATE NONCLUSTERED INDEX IX_AtomGraphEdges_ToId
     ON graph.AtomGraphEdges ($to_id)
-    INCLUDE (EdgeType, Weight, Metadata);
+    INCLUDE (RelationType, Weight, Metadata);  -- Changed EdgeType to RelationType
     
     PRINT 'Created index IX_AtomGraphEdges_ToId on $to_id pseudo-column';
 END
@@ -55,18 +56,18 @@ GO
 
 -- Index 4: Composite index for filtered graph traversal
 -- Used by: MATCH (a)-[e:DerivedFrom]->(b) WHERE e.Weight > 0.8
--- Covers: EdgeType filtering + Weight filtering + pseudo-column joins
+-- Covers: RelationType filtering + Weight filtering + pseudo-column joins
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_AtomGraphEdges_EdgeType_Weight_FromId' 
+    WHERE name = 'IX_AtomGraphEdges_RelationType_Weight_FromId' 
     AND object_id = OBJECT_ID('graph.AtomGraphEdges')
 )
 BEGIN
-    CREATE NONCLUSTERED INDEX IX_AtomGraphEdges_EdgeType_Weight_FromId
-    ON graph.AtomGraphEdges (EdgeType, Weight, $from_id)
+    CREATE NONCLUSTERED INDEX IX_AtomGraphEdges_RelationType_Weight_FromId
+    ON graph.AtomGraphEdges (RelationType, Weight, $from_id)
     INCLUDE ($to_id, Metadata);
     
-    PRINT 'Created composite index IX_AtomGraphEdges_EdgeType_Weight_FromId for filtered traversal';
+    PRINT 'Created composite index IX_AtomGraphEdges_RelationType_Weight_FromId for filtered traversal';
 END
 GO
 
@@ -84,7 +85,7 @@ DECLARE @sourceNodeId NVARCHAR(1000) = (
 SELECT 
     downstream.$node_id,
     downstream.AtomId,
-    e.EdgeType,
+    e.RelationType,  -- Changed EdgeType to RelationType
     e.Weight,
     e.Metadata
 FROM graph.AtomGraphNodes AS upstream,
@@ -92,7 +93,7 @@ FROM graph.AtomGraphNodes AS upstream,
      graph.AtomGraphNodes AS downstream
 WHERE MATCH(upstream-(e)->downstream)
   AND upstream.$node_id = @sourceNodeId
-  AND e.EdgeType = 'DerivedFrom'
+  AND e.RelationType = 'DerivedFrom'  -- Changed EdgeType to RelationType
 ORDER BY e.Weight DESC;
 
 -- Check execution plan: Should use IX_AtomGraphEdges_FromId (seek)

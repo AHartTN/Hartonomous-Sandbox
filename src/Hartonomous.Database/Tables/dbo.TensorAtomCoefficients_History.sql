@@ -6,5 +6,5 @@ CREATE TABLE [dbo].[TensorAtomCoefficients_History] (
     [Coefficient]             REAL           NOT NULL,
     [ValidFrom]               DATETIME2(7)   NOT NULL,
     [ValidTo]                 DATETIME2(7)   NOT NULL,
-    INDEX IX_TensorAtomCoefficients_History_Period NONCLUSTERED ([ValidTo] ASC, [ValidFrom] ASC)
+    INDEX CCI_TensorAtomCoefficients_History CLUSTERED COLUMNSTORE
 );

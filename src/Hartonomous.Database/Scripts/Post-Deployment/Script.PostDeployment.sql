@@ -24,8 +24,8 @@ GO
 :r ..\Pre-Deployment\Enable_QueryStore.sql
 :r ..\Pre-Deployment\Enable_AutomaticTuning.sql
 
--- CDC requires tables to exist first
-:r ..\Pre-Deployment\Enable_CDC.sql
+-- CDC moved to PRE-DEPLOYMENT ONLY (handled via deploy-dacpac.ps1 in separate transaction)
+-- Reason: CDC schema doesn't exist until first enable, causes column reference errors in post-deployment
 
 -- In-Memory OLTP (Hekaton) Setup - MUST run before natively-compiled procedures
 :r .\Setup_InMemory_Tables.sql
@@ -34,7 +34,6 @@ GO
 -- Post-deployment schema modifications
 :r .\graph.AtomGraphEdges_Add_PseudoColumn_Indexes.sql
 :r .\Temporal_Tables_Add_Retention_and_Columnstore.sql
-:r .\TensorAtomCoefficients_Temporal.sql
 :r .\zz_consolidated_indexes.sql
 
 -- Table compression optimization (ROW/PAGE compression)

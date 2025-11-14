@@ -44,14 +44,13 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    INSERT INTO InferenceRequests (TenantId, UserId, RequestType, Parameters, AdditionalModels, CreatedAt)
+    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
-        @TenantId,
-        @UserId,
-        'Image',
+        'image_generation',
         CONVERT(NVARCHAR(MAX), @requestInfo),
         CONVERT(NVARCHAR(MAX), @modelsJson),
-        SYSUTCDATETIME()
+        'spatial_diffusion',
+        JSON_OBJECT('status': 'running')
     );
     SET @inferenceId = SCOPE_IDENTITY();
 

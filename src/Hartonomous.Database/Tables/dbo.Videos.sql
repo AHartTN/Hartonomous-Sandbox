@@ -7,8 +7,7 @@ CREATE TABLE [dbo].[Videos] (
     [ResolutionHeight]   INT            NOT NULL,
     [NumFrames]          BIGINT         NOT NULL,
     [Format]             NVARCHAR (20)  NULL,
-    [GlobalEmbedding]    VARBINARY(MAX) NULL,
-    [GlobalEmbeddingDim] INT            NULL,
+    [GlobalEmbedding]    VECTOR(1998)   NULL,
     [Metadata]           NVARCHAR(MAX)  NULL,
     [IngestionDate]      DATETIME2 (7)  NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_Videos] PRIMARY KEY CLUSTERED ([VideoId] ASC)

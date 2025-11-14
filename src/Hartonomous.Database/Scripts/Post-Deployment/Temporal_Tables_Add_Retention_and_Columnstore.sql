@@ -26,19 +26,7 @@ BEGIN
 END;
 GO
 
--- Step 2: Re-enable with 90-day retention
-PRINT '  Enabling system versioning with 90-day retention...';
-ALTER TABLE dbo.TensorAtomCoefficients
-SET (
-    SYSTEM_VERSIONING = ON (
-        HISTORY_TABLE = dbo.TensorAtomCoefficients_History,
-        HISTORY_RETENTION_PERIOD = 90 DAYS
-    )
-);
-PRINT '  ✓ 90-day retention enabled for TensorAtomCoefficients';
-GO
-
--- Step 3: Convert history table to clustered columnstore
+-- Step 2: Convert history table to clustered columnstore (REQUIRED before enabling retention)
 PRINT '  Converting TensorAtomCoefficients_History to clustered columnstore...';
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
@@ -68,6 +56,18 @@ BEGIN
 END;
 GO
 
+-- Step 3: Re-enable with 90-day retention (clustered index now exists)
+PRINT '  Enabling system versioning with 90-day retention...';
+ALTER TABLE dbo.TensorAtomCoefficients
+SET (
+    SYSTEM_VERSIONING = ON (
+        HISTORY_TABLE = dbo.TensorAtomCoefficients_History,
+        HISTORY_RETENTION_PERIOD = 90 DAYS
+    )
+);
+PRINT '  ✓ 90-day retention enabled for TensorAtomCoefficients';
+GO
+
 -- =============================================
 -- PART 2: Weights - Add 90-day retention
 -- =============================================
@@ -88,26 +88,30 @@ BEGIN
 END;
 GO
 
--- Step 2: Re-enable with 90-day retention
-PRINT '  Enabling system versioning with 90-day retention...';
-ALTER TABLE dbo.Weights
-SET (
-    SYSTEM_VERSIONING = ON (
-        HISTORY_TABLE = dbo.Weights_History,
-        HISTORY_RETENTION_PERIOD = 90 DAYS
-    )
-);
-PRINT '  ✓ 90-day retention enabled for Weights';
-GO
-
--- Step 3: Convert history table to clustered columnstore
+-- Step 2: Convert history table to clustered columnstore (REQUIRED before enabling retention)
 PRINT '  Converting Weights_History to clustered columnstore...';
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'CCI_Weights_History' 
     AND object_id = OBJECT_ID('dbo.Weights_History')
+    AND type_desc = 'CLUSTERED COLUMNSTORE'
 )
 BEGIN
+    -- Drop any existing clustered index first
+    DECLARE @existingIndex NVARCHAR(128);
+    SELECT @existingIndex = i.name
+    FROM sys.indexes i
+    WHERE i.object_id = OBJECT_ID('dbo.Weights_History')
+      AND i.type_desc IN ('CLUSTERED', 'CLUSTERED COLUMNSTORE')
+      AND i.name <> 'CCI_Weights_History';
+
+    IF @existingIndex IS NOT NULL
+    BEGIN
+        DECLARE @dropSql NVARCHAR(MAX) = N'DROP INDEX ' + QUOTENAME(@existingIndex) + N' ON dbo.Weights_History;';
+        EXEC sp_executesql @dropSql;
+        PRINT '  Dropped existing clustered index: ' + @existingIndex;
+    END;
+
     -- Create clustered columnstore index (optimal for large historical data)
     CREATE CLUSTERED COLUMNSTORE INDEX CCI_Weights_History
     ON dbo.Weights_History;
@@ -118,6 +122,18 @@ ELSE
 BEGIN
     PRINT '  ✓ Clustered columnstore already exists on Weights_History';
 END;
+GO
+
+-- Step 3: Re-enable with 90-day retention (clustered index now exists)
+PRINT '  Enabling system versioning with 90-day retention...';
+ALTER TABLE dbo.Weights
+SET (
+    SYSTEM_VERSIONING = ON (
+        HISTORY_TABLE = dbo.Weights_History,
+        HISTORY_RETENTION_PERIOD = 90 DAYS
+    )
+);
+PRINT '  ✓ 90-day retention enabled for Weights';
 GO
 
 -- =============================================

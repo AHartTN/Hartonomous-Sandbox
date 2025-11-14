@@ -14,14 +14,25 @@ END
 GO
 
 -- Enable CDC on Atoms table (track all inserts/updates/deletes)
-IF NOT EXISTS (SELECT 1 FROM cdc.change_tables WHERE source_schema = N'dbo' AND source_name = N'Atoms')
+IF NOT EXISTS (
+    SELECT 1 FROM sys.schemas WHERE name = 'cdc'
+) OR NOT EXISTS (
+    SELECT 1 FROM cdc.change_tables WHERE source_schema = N'dbo' AND source_name = N'Atoms'
+)
 BEGIN
-    EXEC sys.sp_cdc_enable_table
-        @source_schema = N'dbo',
-        @source_name = N'Atoms',
-        @role_name = NULL, -- No role-based security
-        @supports_net_changes = 1; -- Enable net changes queries
-    PRINT 'CDC enabled for table dbo.Atoms.';
+    IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cdc')
+    BEGIN
+        EXEC sys.sp_cdc_enable_table
+            @source_schema = N'dbo',
+            @source_name = N'Atoms',
+            @role_name = NULL, -- No role-based security
+            @supports_net_changes = 1; -- Enable net changes queries
+        PRINT 'CDC enabled for table dbo.Atoms.';
+    END
+    ELSE
+    BEGIN
+        PRINT 'CDC schema not yet available for table dbo.Atoms (will enable in separate transaction).';
+    END
 END
 ELSE
 BEGIN
@@ -30,14 +41,25 @@ END
 GO
 
 -- Enable CDC on Models table
-IF NOT EXISTS (SELECT 1 FROM cdc.change_tables WHERE source_schema = N'dbo' AND source_name = N'Models')
+IF NOT EXISTS (
+    SELECT 1 FROM sys.schemas WHERE name = 'cdc'
+) OR NOT EXISTS (
+    SELECT 1 FROM cdc.change_tables WHERE source_schema = N'dbo' AND source_name = N'Models'
+)
 BEGIN
-    EXEC sys.sp_cdc_enable_table
-        @source_schema = N'dbo',
-        @source_name = N'Models',
-        @role_name = NULL,
-        @supports_net_changes = 1;
-    PRINT 'CDC enabled for table dbo.Models.';
+    IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cdc')
+    BEGIN
+        EXEC sys.sp_cdc_enable_table
+            @source_schema = N'dbo',
+            @source_name = N'Models',
+            @role_name = NULL,
+            @supports_net_changes = 1;
+        PRINT 'CDC enabled for table dbo.Models.';
+    END
+    ELSE
+    BEGIN
+        PRINT 'CDC schema not yet available for table dbo.Models (will enable in separate transaction).';
+    END
 END
 ELSE
 BEGIN
@@ -46,14 +68,25 @@ END
 GO
 
 -- Enable CDC on InferenceRequests table
-IF NOT EXISTS (SELECT 1 FROM cdc.change_tables WHERE source_schema = N'dbo' AND source_name = N'InferenceRequests')
+IF NOT EXISTS (
+    SELECT 1 FROM sys.schemas WHERE name = 'cdc'
+) OR NOT EXISTS (
+    SELECT 1 FROM cdc.change_tables WHERE source_schema = N'dbo' AND source_name = N'InferenceRequests'
+)
 BEGIN
-    EXEC sys.sp_cdc_enable_table
-        @source_schema = N'dbo',
-        @source_name = N'InferenceRequests',
-        @role_name = NULL,
-        @supports_net_changes = 1;
-    PRINT 'CDC enabled for table dbo.InferenceRequests.';
+    IF EXISTS (SELECT 1 FROM sys.schemas WHERE name = 'cdc')
+    BEGIN
+        EXEC sys.sp_cdc_enable_table
+            @source_schema = N'dbo',
+            @source_name = N'InferenceRequests',
+            @role_name = NULL,
+            @supports_net_changes = 1;
+        PRINT 'CDC enabled for table dbo.InferenceRequests.';
+    END
+    ELSE
+    BEGIN
+        PRINT 'CDC schema not yet available for table dbo.InferenceRequests (will enable in separate transaction).';
+    END
 END
 ELSE
 BEGIN

@@ -3,7 +3,7 @@ CREATE TABLE [dbo].[AtomicTextTokens] (
     [TokenHash]        BINARY (32)    NOT NULL,
     [TokenText]        NVARCHAR (200) NOT NULL,
     [TokenLength]      INT            NOT NULL,
-    [TokenEmbedding]   VARBINARY(MAX)   NULL,
+    [TokenEmbedding]   VECTOR(1998)   NULL,
     [EmbeddingModel]   NVARCHAR (100) NULL,
     [VocabId]          INT            NULL,
     [ReferenceCount]   BIGINT         NOT NULL DEFAULT CAST(0 AS BIGINT),

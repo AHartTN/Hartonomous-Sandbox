@@ -89,7 +89,7 @@ BEGIN ATOMIC WITH (TRANSACTION ISOLATION LEVEL = SNAPSHOT, LANGUAGE = N'us_engli
         @OutputData = OutputData,
         @ComputeTimeMs = ComputeTimeMs,
         @Found = 1
-    FROM dbo.InferenceCache_InMemory WITH (SNAPSHOT)
+    FROM dbo.InferenceCache_InMemory  -- Removed WITH (SNAPSHOT) hint (not supported in natively-compiled)
     WHERE CacheKey = @CacheKey;
     
     -- Update access tracking (optimistic concurrency, no locks)
@@ -188,7 +188,7 @@ BEGIN ATOMIC WITH (TRANSACTION ISOLATION LEVEL = SNAPSHOT, LANGUAGE = N'us_engli
         @ActivationOutput = ActivationOutput,
         @OutputShape = OutputShape,
         @Found = 1
-    FROM dbo.CachedActivations_InMemory WITH (SNAPSHOT)
+    FROM dbo.CachedActivations_InMemory  -- Removed WITH (SNAPSHOT) hint (not supported in natively-compiled)
     WHERE LayerId = @LayerId AND InputHash = @InputHash;
     
     IF @Found = 1

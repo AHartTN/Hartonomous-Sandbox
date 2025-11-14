@@ -9,8 +9,7 @@ CREATE TABLE [dbo].[AudioData] (
     [MelSpectrogram]     GEOMETRY       NULL,
     [WaveformLeft]       GEOMETRY       NULL,
     [WaveformRight]      GEOMETRY       NULL,
-    [GlobalEmbedding]    VARBINARY(MAX) NULL,
-    [GlobalEmbeddingDim] INT            NULL,
+    [GlobalEmbedding]    VECTOR(1998)   NULL,
     [Metadata]           NVARCHAR(MAX)  NULL,
     [IngestionDate]      DATETIME2 (7)  NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_AudioData] PRIMARY KEY CLUSTERED ([AudioId] ASC)

@@ -9,17 +9,17 @@ CREATE INDEX [IX_AtomEmbeddings_ModelId] ON [dbo].[AtomEmbeddings] ([ModelId]);
 GO
 CREATE INDEX [IX_AtomEmbeddings_SpatialBucket] ON [dbo].[AtomEmbeddings] ([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ]);
 GO
-CREATE INDEX [IX_AtomGraphEdges_CreatedUtc] ON [graph].[AtomGraphEdges] ([CreatedUtc]);
+CREATE INDEX [IX_AtomGraphEdges_CreatedAt] ON [graph].[AtomGraphEdges] ([CreatedAt]);  -- Changed CreatedUtc to CreatedAt
 GO
-CREATE INDEX [IX_AtomGraphEdges_EdgeType] ON [graph].[AtomGraphEdges] ([EdgeType]);
+CREATE INDEX [IX_AtomGraphEdges_RelationType] ON [graph].[AtomGraphEdges] ([RelationType]);  -- Changed EdgeType to RelationType
 GO
 CREATE INDEX [IX_AtomGraphEdges_Weight] ON [graph].[AtomGraphEdges] ([Weight]);
 GO
 CREATE INDEX [IX_AtomGraphNodes_AtomId] ON [graph].[AtomGraphNodes] ([AtomId]);
 GO
-CREATE INDEX [IX_AtomGraphNodes_CreatedUtc] ON [graph].[AtomGraphNodes] ([CreatedUtc]);
+CREATE INDEX [IX_AtomGraphNodes_CreatedAt] ON [graph].[AtomGraphNodes] ([CreatedAt]);  -- Changed CreatedUtc to CreatedAt
 GO
-CREATE INDEX [IX_AtomGraphNodes_NodeType] ON [graph].[AtomGraphNodes] ([NodeType]);
+CREATE INDEX [IX_AtomGraphNodes_Modality_Subtype] ON [graph].[AtomGraphNodes] ([Modality], [Subtype]);  -- Changed NodeType to Modality+Subtype
 GO
 CREATE INDEX [IX_AtomicAudioSamples_AmplitudeNormalized] ON [dbo].[AtomicAudioSamples] ([AmplitudeNormalized]);
 GO
@@ -522,18 +522,18 @@ END;
 GO
 
 -- ==========================================
--- CodeAtom.Embedding (AST structural search)
+-- CodeAtoms.Embedding (AST structural search)
 -- ==========================================
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_CodeAtom_Embedding'
-    AND object_id = OBJECT_ID('dbo.CodeAtom')
+    WHERE name = 'IX_CodeAtoms_Embedding'
+    AND object_id = OBJECT_ID('dbo.CodeAtoms')
 )
 BEGIN
-    PRINT 'Creating IX_CodeAtom_Embedding on CodeAtom.Embedding...';
+    PRINT 'Creating IX_CodeAtoms_Embedding on CodeAtoms.Embedding...';
 
-    CREATE SPATIAL INDEX IX_CodeAtom_Embedding
-    ON dbo.CodeAtom (Embedding)
+    CREATE SPATIAL INDEX IX_CodeAtoms_Embedding
+    ON dbo.CodeAtoms (Embedding)
     WITH (
         BOUNDING_BOX = (-1000, -1000, 1000, 1000),
         GRIDS = (
@@ -547,11 +547,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    PRINT '  ✓ IX_CodeAtom_Embedding created';
+    PRINT '  ✓ IX_CodeAtoms_Embedding created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_CodeAtom_Embedding already exists';
+    PRINT '  ✓ IX_CodeAtoms_Embedding already exists';
 END;
 GO
 
@@ -590,18 +590,18 @@ END;
 GO
 
 -- ==========================================
--- VideoFrame.MotionVectors (Video motion analysis)
+-- VideoFrames.MotionVectors (Video motion analysis)
 -- ==========================================
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_VideoFrame_MotionVectors'
-    AND object_id = OBJECT_ID('dbo.VideoFrame')
+    WHERE name = 'IX_VideoFrames_MotionVectors'
+    AND object_id = OBJECT_ID('dbo.VideoFrames')
 )
 BEGIN
-    PRINT 'Creating IX_VideoFrame_MotionVectors on VideoFrame.MotionVectors...';
+    PRINT 'Creating IX_VideoFrames_MotionVectors on VideoFrames.MotionVectors...';
 
-    CREATE SPATIAL INDEX IX_VideoFrame_MotionVectors
-    ON dbo.VideoFrame (MotionVectors)
+    CREATE SPATIAL INDEX IX_VideoFrames_MotionVectors
+    ON dbo.VideoFrames (MotionVectors)
     WITH (
         BOUNDING_BOX = (-1000, -1000, 1000, 1000),
         GRIDS = (
@@ -615,27 +615,27 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    PRINT '  ✓ IX_VideoFrame_MotionVectors created';
+    PRINT '  ✓ IX_VideoFrames_MotionVectors created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_VideoFrame_MotionVectors already exists';
+    PRINT '  ✓ IX_VideoFrames_MotionVectors already exists';
 END;
 GO
 
 -- ==========================================
--- Image.ContentRegions (Image region search)
+-- Images.ObjectRegions (Image region search)
 -- ==========================================
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes
-    WHERE name = 'IX_Image_ContentRegions'
-    AND object_id = OBJECT_ID('dbo.Image')
+    WHERE name = 'IX_Images_ObjectRegions'
+    AND object_id = OBJECT_ID('dbo.Images')
 )
 BEGIN
-    PRINT 'Creating IX_Image_ContentRegions on Image.ContentRegions...';
+    PRINT 'Creating IX_Images_ObjectRegions on Images.ObjectRegions...';
 
-    CREATE SPATIAL INDEX IX_Image_ContentRegions
-    ON dbo.Image (ContentRegions)
+    CREATE SPATIAL INDEX IX_Images_ObjectRegions
+    ON dbo.Images (ObjectRegions)
     WITH (
         BOUNDING_BOX = (-1000, -1000, 1000, 1000),
         GRIDS = (
@@ -649,11 +649,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
 
-    PRINT '  ✓ IX_Image_ContentRegions created';
+    PRINT '  ✓ IX_Images_ObjectRegions created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_Image_ContentRegions already exists';
+    PRINT '  ✓ IX_Images_ObjectRegions already exists';
 END;
 GO
 
@@ -676,7 +676,7 @@ SELECT
     st.cells_per_object
 FROM sys.indexes i
 INNER JOIN sys.spatial_index_tessellations st ON i.object_id = st.object_id AND i.index_id = st.index_id
-WHERE OBJECT_NAME(i.object_id) IN ('AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo', 'CodeAtom', 'AudioData', 'VideoFrame', 'Image')
+WHERE OBJECT_NAME(i.object_id) IN ('AtomEmbeddings', 'TensorAtoms', 'Atoms', 'TokenEmbeddingsGeo', 'CodeAtoms', 'AudioData', 'VideoFrames', 'Images')
 ORDER BY OBJECT_NAME(i.object_id), i.name;
 GO
 

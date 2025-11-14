@@ -16,7 +16,7 @@ CREATE TABLE [dbo].[AudioFrames] (
     [ZeroCrossingRate]  REAL           NULL,
     [RmsEnergy]         REAL           NULL,
     [Mfcc]              VARBINARY(MAX) NULL,
-    [FrameEmbedding]    VARBINARY(MAX) NULL,
+    [FrameEmbedding]    VECTOR(1998)   NULL,
     [TenantId]          INT            NOT NULL DEFAULT (0),
     CONSTRAINT [PK_AudioFrames] PRIMARY KEY CLUSTERED ([AudioId] ASC, [FrameNumber] ASC),
     CONSTRAINT [FK_AudioFrames_AudioData_AudioId] FOREIGN KEY ([AudioId]) REFERENCES [dbo].[AudioData] ([AudioId]) ON DELETE CASCADE,
