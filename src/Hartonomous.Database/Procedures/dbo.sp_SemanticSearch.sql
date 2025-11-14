@@ -37,9 +37,9 @@ BEGIN
         END;
     END;
 
-    DECLARE @input_data JSON = CASE
+    DECLARE @input_data NVARCHAR(MAX) = CASE
         WHEN @query_text IS NULL THEN NULL
-        ELSE CAST(JSON_OBJECT('queryText': @query_text) AS JSON)
+        ELSE CAST(JSON_OBJECT('queryText': @query_text) AS NVARCHAR(MAX))
     END;
 
     DECLARE @input_hash BINARY(32) = CASE
@@ -48,7 +48,7 @@ BEGIN
     END;
 
     DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
-    DECLARE @models_used_json JSON = JSON_OBJECT('searchMethod': @search_method);
+    DECLARE @models_used_json NVARCHAR(MAX) = CAST(JSON_OBJECT('searchMethod': @search_method) AS NVARCHAR(MAX));
 
     INSERT INTO dbo.InferenceRequests (
         TaskType,
@@ -59,9 +59,9 @@ BEGIN
     )
     VALUES (
         'semantic_search',
-        CAST(@input_data AS NVARCHAR(MAX)),
+        @input_data,
         @input_hash,
-        CAST(@models_used_json AS NVARCHAR(MAX)),
+        @models_used_json,
         'spatial_filter_vector_rerank'
     );
 
@@ -201,16 +201,16 @@ BEGIN
     DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
     SET @ResultCount = (SELECT COUNT(*) FROM @Results);
 
-    DECLARE @OutputMetadata JSON = JSON_OBJECT(
+    DECLARE @OutputMetadata NVARCHAR(MAX) = CAST(JSON_OBJECT(
         'duration_ms': @DurationMs,
         'result_count': @ResultCount,
         'search_method': @search_method
-    );
+    ) AS NVARCHAR(MAX));
 
     UPDATE dbo.InferenceRequests
     SET
         TotalDurationMs = @DurationMs,
-        OutputMetadata = CAST(@OutputMetadata AS NVARCHAR(MAX)),
+        OutputMetadata = @OutputMetadata,
         CacheHit = 0
     WHERE InferenceId = @InferenceId;
 
