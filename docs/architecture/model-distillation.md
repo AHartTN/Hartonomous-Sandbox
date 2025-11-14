@@ -372,6 +372,48 @@ EXEC sp_ExtractStudentModelBySpatialRegion
 
 ---
 
+## API Integration (Optional Management Layer)
+
+**Endpoint**: `POST /api/models/distill` (NOT YET IMPLEMENTED)
+
+The optional management API can expose model distillation for external tooling. **The API calls stored procedures - it does NOT execute AI operations itself.**
+
+**Expected Request:**
+
+```json
+{
+  "parentModelId": 5,
+  "extractionStrategy": "importance",
+  "targetSizeRatio": 0.30,
+  "autoFineTune": true,
+  "targetTask": "code_generation"
+}
+```
+
+**Expected Response:**
+
+```json
+{
+  "studentModelId": 42,
+  "studentModelName": "Llama-4-70B_Student_30%",
+  "layerCount": 24,
+  "compressionRatio": 3.33,
+  "extractionTimeMs": 1250,
+  "fineTuningJobId": "abc-123-def" 
+}
+```
+
+**Implementation Flow:**
+
+```text
+API Controller → sp_ExtractStudentModel → CLR functions → Model weights extracted
+                 └─ ALL AI HAPPENS HERE (in SQL Server)
+```
+
+The API is a thin management wrapper - actual model extraction happens in-process via CLR assemblies.
+
+---
+
 ## Performance Benchmarks
 
 | Parent Model | Layers | Student Ratio | Student Layers | Extraction Time | Compression |
@@ -429,8 +471,9 @@ ORDER BY CompletedAt DESC;
 1. **Add Activation Tracking**: Record layer activations during inference to calculate true importance
 2. **Implement Quantization**: Add int8/int4 dtype conversion during extraction (CLR functions)
 3. **Automatic Fine-Tuning**: Trigger training job after extraction via Service Broker
-4. **Multi-Parent Merge**: Combine layers from multiple models (in-process CLR)
-5. **Pruning**: Parameter-level weight pruning within layers (CLR SIMD operations)
-6. **LoRA Extraction**: Extract Low-Rank Adaptation deltas from fine-tuned models
+4. **API Endpoint**: Expose `/api/models/distill` for manual extraction (calls stored procedures)
+5. **Multi-Parent Merge**: Combine layers from multiple models (in-process CLR)
+6. **Pruning**: Parameter-level weight pruning within layers (CLR SIMD operations)
+7. **LoRA Extraction**: Extract Low-Rank Adaptation deltas from fine-tuned models
 
 **All enhancements will be in-process CLR implementations** - no external services.
