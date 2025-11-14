@@ -31,13 +31,13 @@ BEGIN
                 a.AtomId,
                 a.ContentHash,
                 a.ContentType,
-                a.CreatedUtc,
+                a.CreatedAt,
                 l.Depth AS LineageDepth,
                 (
                     SELECT 
                         parent.AtomId,
                         parent.ContentHash,
-                        parent.CreatedUtc
+                        parent.CreatedAt
                       FROM provenance.AtomGraphEdges edge
                       INNER JOIN dbo.Atoms parent ON edge.FromAtomId = parent.AtomId
                       WHERE edge.ToAtomId = a.AtomId

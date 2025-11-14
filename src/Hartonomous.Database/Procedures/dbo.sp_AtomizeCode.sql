@@ -78,7 +78,7 @@ BEGIN
                 Embedding = @EmbeddingGeometry,
                 AstVector = @AstVectorJson,
                 Language = @Language,
-                UpdatedAt = GETUTCDATE()
+                CreatedAt = SYSUTCDATETIME()
             WHERE AtomId = @AtomId;
 
             IF @Debug = 1
@@ -93,15 +93,15 @@ BEGIN
                 AstVector,
                 Language,
                 CreatedAt,
-                UpdatedAt
+                CreatedAt
             )
             VALUES (
                 @AtomId,
                 @EmbeddingGeometry,
                 @AstVectorJson,
                 @Language,
-                GETUTCDATE(),
-                GETUTCDATE()
+                SYSUTCDATETIME(),
+                SYSUTCDATETIME()
             );
 
             IF @Debug = 1

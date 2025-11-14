@@ -38,19 +38,19 @@ BEGIN
         SELECT 
             aa.AtomId,
             ISNULL(
-                (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae1.EmbeddingVector, @QueryVector1)
+                (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae1.SpatialKey, @QueryVector1)
                  FROM dbo.AtomEmbeddings ae1
                  WHERE ae1.AtomId = aa.AtomId AND ae1.ModelId = @Model1Id),
                 0.0
             ) AS Model1Score,
             ISNULL(
-                (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae2.EmbeddingVector, @QueryVector2)
+                (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae2.SpatialKey, @QueryVector2)
                  FROM dbo.AtomEmbeddings ae2
                  WHERE ae2.AtomId = aa.AtomId AND ae2.ModelId = @Model2Id),
                 0.0
             ) AS Model2Score,
             ISNULL(
-                (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae3.EmbeddingVector, @QueryVector3)
+                (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae3.SpatialKey, @QueryVector3)
                  FROM dbo.AtomEmbeddings ae3
                  WHERE ae3.AtomId = aa.AtomId AND ae3.ModelId = @Model3Id),
                 0.0

@@ -186,13 +186,13 @@ BEGIN
             a.CanonicalText,
             ae.EmbeddingType,
             ae.ModelId,
-            VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS distance,
-            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS similarity,
+            VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) AS distance,
+            1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) AS similarity,
             NULL,
             'VECTOR_ONLY'
         FROM dbo.AtomEmbeddings AS ae
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-        WHERE ae.EmbeddingVector IS NOT NULL
+        WHERE ae.SpatialKey IS NOT NULL
           AND ae.Dimension = @query_dimension
           AND (@category IS NULL OR a.SourceType = @category OR a.Subtype = @category)
         ORDER BY distance ASC;

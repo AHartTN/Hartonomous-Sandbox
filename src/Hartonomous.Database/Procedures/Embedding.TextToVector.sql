@@ -106,14 +106,14 @@ BEGIN
             -- Extract the embedding from the generation stream
             -- The attention mechanism stores embeddings in GenerationStreamSegments
             SELECT TOP(1)
-                @embedding = seg.EmbeddingVector,  -- Changed from @embeddingBytes, now VECTOR(1998)
+                @embedding = seg.SpatialKey,  -- Changed from @embeddingBytes, now VECTOR(1998)
                 @dimension = @sqlVectorDimension,  -- Now returning full 1998 dimensions
                 @usedSelfReferentialModel = 1
             FROM dbo.GenerationStreamSegments seg
             INNER JOIN provenance.GenerationStreams gs ON seg.GenerationStreamId = gs.GenerationStreamId
             WHERE gs.ModelId = @modelId
                 AND seg.CreatedAt >= @startTime
-                AND seg.EmbeddingVector IS NOT NULL
+                AND seg.SpatialKey IS NOT NULL
             ORDER BY seg.CreatedAt DESC;
 
             -- If we successfully got an embedding, we're done!

@@ -36,7 +36,7 @@ BEGIN
                 ul.Path,
                 a.ContentHash,
                 a.ContentType,
-                a.CreatedUtc
+                a.CreatedAt
             FROM UpstreamLineage ul
             INNER JOIN dbo.Atoms a ON ul.AtomId = a.AtomId
             WHERE a.TenantId = @TenantId
@@ -68,7 +68,7 @@ BEGIN
                 dl.Path,
                 a.ContentHash,
                 a.ContentType,
-                a.CreatedUtc
+                a.CreatedAt
             FROM DownstreamLineage dl
             INNER JOIN dbo.Atoms a ON dl.AtomId = a.AtomId
             WHERE a.TenantId = @TenantId

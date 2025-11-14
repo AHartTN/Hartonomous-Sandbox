@@ -136,7 +136,7 @@ BEGIN
                         ) AS combined
                     )
                 END,
-                UpdatedAt = SYSUTCDATETIME()
+                CreatedAt = SYSUTCDATETIME()
             WHERE JobId = @PrimeResultJobId;
             
             -- Send message back to Analyze to continue the loop

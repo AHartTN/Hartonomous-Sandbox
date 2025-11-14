@@ -23,7 +23,7 @@ BEGIN
         a.SourceType,
         a.SourceUri,
         a.CanonicalText,
-        VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) AS vector_distance,
+        VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_vector) AS vector_distance,
         sf.TopicTechnical,
         sf.TopicBusiness,
         sf.TopicScientific,
@@ -33,7 +33,7 @@ BEGIN
     FROM dbo.AtomEmbeddings AS ae
     INNER JOIN dbo.SemanticFeatures AS sf ON sf.AtomEmbeddingId = ae.AtomEmbeddingId
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-    WHERE ae.EmbeddingVector IS NOT NULL
+    WHERE ae.SpatialKey IS NOT NULL
         AND (@topic_filter IS NULL OR
             (@topic_filter = 'technical' AND sf.TopicTechnical >= @min_topic_score) OR
             (@topic_filter = 'business' AND sf.TopicBusiness >= @min_topic_score) OR
@@ -42,7 +42,7 @@ BEGIN
         AND (@min_sentiment IS NULL OR sf.SentimentScore >= @min_sentiment)
         AND (@max_sentiment IS NULL OR sf.SentimentScore <= @max_sentiment)
         AND sf.TemporalRelevance >= @min_temporal_relevance
-    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
+    ORDER BY VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_vector);
 
     PRINT '  ✓ Semantic-filtered search complete';
 END

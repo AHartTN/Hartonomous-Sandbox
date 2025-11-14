@@ -31,7 +31,7 @@ BEGIN
             ia.ImpactType,
             a.ContentHash,
             a.ContentType,
-            a.CreatedUtc,
+            a.CreatedAt,
             COUNT(*) OVER () AS TotalImpacted
         FROM ImpactedAtoms ia
         INNER JOIN dbo.Atoms a ON ia.AtomId = a.AtomId

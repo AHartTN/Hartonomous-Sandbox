@@ -82,7 +82,7 @@ BEGIN
                     UPDATE dbo.AutonomousComputeJobs
                     SET Status = 'Completed',
                         CompletedAt = SYSUTCDATETIME(),
-                        UpdatedAt = SYSUTCDATETIME()
+                        CreatedAt = SYSUTCDATETIME()
                     WHERE JobId = @ComputeJobId;
                     
                     PRINT 'sp_Hypothesize: Job completed.';

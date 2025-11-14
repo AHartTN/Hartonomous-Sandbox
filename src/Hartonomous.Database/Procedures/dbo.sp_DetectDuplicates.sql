@@ -18,7 +18,7 @@ BEGIN
         SELECT TOP (@BatchSize)
             ae1.AtomId AS PrimaryAtomId,
             ae2.AtomId AS DuplicateAtomId,
-            1.0 - VECTOR_DISTANCE('cosine', ae1.EmbeddingVector, ae2.EmbeddingVector) AS Similarity
+            1.0 - VECTOR_DISTANCE('cosine', ae1.SpatialKey, ae2.SpatialKey) AS Similarity
         FROM dbo.AtomEmbeddings ae1
         INNER JOIN dbo.AtomEmbeddings ae2 
             ON ae1.ModelId = ae2.ModelId 
@@ -27,7 +27,7 @@ BEGIN
         INNER JOIN dbo.Atoms a2 ON ae2.AtomId = a2.AtomId
         WHERE a1.TenantId = @TenantId
               AND a2.TenantId = @TenantId
-              AND (1.0 - VECTOR_DISTANCE('cosine', ae1.EmbeddingVector, ae2.EmbeddingVector)) >= @SimilarityThreshold
+              AND (1.0 - VECTOR_DISTANCE('cosine', ae1.SpatialKey, ae2.SpatialKey)) >= @SimilarityThreshold
         ORDER BY Similarity DESC;
         
         -- Return duplicate groups

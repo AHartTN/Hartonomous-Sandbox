@@ -31,7 +31,7 @@ BEGIN
         INSERT INTO @Results (AtomId, VectorScore, KeywordScore, SpatialScore)
         SELECT 
             ae.AtomId,
-            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS VectorScore,
+            1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @QueryVector) AS VectorScore,
             0.0 AS KeywordScore,
             0.0 AS SpatialScore
         FROM dbo.AtomEmbeddings ae
@@ -89,7 +89,7 @@ BEGIN
             r.CombinedScore,
             a.ContentHash,
             a.ContentType,
-            a.CreatedUtc
+            a.CreatedAt
         FROM @Results r
         INNER JOIN dbo.Atoms a ON r.AtomId = a.AtomId
         -- No need for second TenantAtoms filter - already filtered in vector score computation

@@ -176,7 +176,7 @@ BEGIN
 
     -- Note: Stream column removed from GenerationStreams to allow CLR type redeploy
     -- Provenance still tracked in AtomicStream variable above, could be persisted elsewhere if needed
-    -- INSERT INTO provenance.GenerationStreams (StreamId, Scope, Model, CreatedUtc)
+    -- INSERT INTO provenance.GenerationStreams (StreamId, Scope, Model, CreatedAt)
     -- VALUES (@streamId, @streamScope, @primaryModel, @streamCreated);
 
     SELECT

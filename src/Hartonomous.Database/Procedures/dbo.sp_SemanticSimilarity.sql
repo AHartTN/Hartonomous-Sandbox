@@ -13,7 +13,7 @@ BEGIN
         DECLARE @SourceEmbedding VECTOR(1998);
         
         -- Get source embedding
-        SELECT @SourceEmbedding = EmbeddingVector
+        SELECT @SourceEmbedding = SpatialKey
         FROM dbo.AtomEmbeddings
         WHERE AtomId = @SourceAtomId AND TenantId = @TenantId;
         
@@ -26,17 +26,17 @@ BEGIN
         -- Find similar atoms using vector cosine similarity
         SELECT TOP (@TopK)
             ae.AtomId AS SimilarAtomId,
-            (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @SourceEmbedding)) * 100.0 AS SimilarityScore,
+            (1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @SourceEmbedding)) * 100.0 AS SimilarityScore,
             a.ContentHash,
             a.ContentType,
-            a.CreatedUtc
+            a.CreatedAt
         FROM dbo.AtomEmbeddings ae
         INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId AND ae.TenantId = a.TenantId
         WHERE ae.TenantId = @TenantId
               AND ae.AtomId != @SourceAtomId
-              AND ae.EmbeddingVector IS NOT NULL
+              AND ae.SpatialKey IS NOT NULL
               
-        ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @SourceEmbedding) ASC;
+        ORDER BY VECTOR_DISTANCE('cosine', ae.SpatialKey, @SourceEmbedding) ASC;
         
         RETURN 0;
     END TRY

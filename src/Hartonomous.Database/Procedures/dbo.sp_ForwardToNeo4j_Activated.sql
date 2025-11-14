@@ -47,7 +47,7 @@ BEGIN
                         'MERGE (a:Atom {atomId: $atomId}) ' +
                         'SET a.contentType = $contentType, ' +
                         '    a.contentHash = $contentHash, ' +
-                        '    a.createdUtc = $createdUtc, ' +
+                        '    a.CreatedAt = $CreatedAt, ' +
                         '    a.metadata = $metadata'
                     FROM dbo.Atoms
                     WHERE AtomId = @EntityId;
@@ -63,7 +63,7 @@ BEGIN
                     SELECT @CypherQuery = 
                         'MERGE (gs:GenerationStream {generationStreamId: $streamId}) ' +
                         'SET gs.modelId = $modelId, ' +
-                        '    gs.createdUtc = $createdUtc ' +
+                        '    gs.CreatedAt = $CreatedAt ' +
                         'WITH gs ' +
                         'UNWIND $generatedAtomIds AS atomId ' +
                         'MATCH (a:Atom {atomId: atomId}) ' +
@@ -90,7 +90,7 @@ BEGIN
                         'MATCH (parent:Atom {atomId: $parentAtomId}), ' +
                         '      (child:Atom {atomId: $childAtomId}) ' +
                         'MERGE (parent)-[r:' + @RelationType + ']->(child) ' +
-                        'SET r.createdUtc = $createdUtc';
+                        'SET r.CreatedAt = $CreatedAt';
                     
                     SET @ResponseJson = '{"status": "simulated_success", "entityType": "' + @EntityType + '", "entityId": ' + CAST(@EntityId AS NVARCHAR(MAX)) + '}';
                 END

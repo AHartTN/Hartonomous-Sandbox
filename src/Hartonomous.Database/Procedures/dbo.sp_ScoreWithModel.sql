@@ -36,13 +36,13 @@ BEGIN
         -- Prepare input features
         DECLARE @InputFeatures TABLE (
             AtomId BIGINT,
-            EmbeddingVector VECTOR(1998)
+            SpatialKey VECTOR(1998)
         );
         
         INSERT INTO @InputFeatures
         SELECT 
             ae.AtomId,
-            ae.EmbeddingVector
+            ae.SpatialKey
         FROM dbo.AtomEmbeddings ae
         INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId
         WHERE ae.TenantId = @TenantId;
