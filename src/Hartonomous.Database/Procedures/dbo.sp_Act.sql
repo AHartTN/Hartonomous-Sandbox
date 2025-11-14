@@ -253,10 +253,11 @@ BEGIN
                     -- Trigger concept discovery (placeholder - actual CLR function to be implemented)
                     DECLARE @DiscoveredConcepts INT = 0;
                     
-                    -- For now, just detect clusters via spatial buckets
-                    SELECT @DiscoveredConcepts = COUNT(DISTINCT SpatialBucket)
+                    -- For now, just detect clusters via Hilbert curve buckets (21-bit precision = 2M buckets)
+                    SELECT @DiscoveredConcepts = COUNT(DISTINCT (HilbertValue / 1024))  -- Group into ~2K clusters
                     FROM dbo.AtomEmbeddings
-                    WHERE CreatedAt >= DATEADD(DAY, -7, SYSUTCDATETIME());
+                    WHERE CreatedAt >= DATEADD(DAY, -7, SYSUTCDATETIME())
+                      AND HilbertValue IS NOT NULL;
                     
                     SET @ExecutedActionsList = (SELECT @DiscoveredConcepts AS discoveredClusters FOR JSON PATH, WITHOUT_ARRAY_WRAPPER);
                     SET @ActionStatus = 'Executed';

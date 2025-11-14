@@ -12,9 +12,9 @@ RETURN
     SELECT TOP (@top_k)
         ae.AtomEmbeddingId,
         ae.AtomId,
-        ae.SpatialGeometry.STDistance(@query_point) AS SpatialDistance
+        ae.SpatialKey.STDistance(@query_point) AS SpatialDistance
     FROM dbo.AtomEmbeddings ae
-    WHERE ae.SpatialGeometry IS NOT NULL
-      AND ae.SpatialGeometry.STDistance(@query_point) IS NOT NULL
-    ORDER BY ae.SpatialGeometry.STDistance(@query_point) ASC
+    WHERE ae.SpatialKey IS NOT NULL
+      AND ae.SpatialKey.STDistance(@query_point) IS NOT NULL
+    ORDER BY ae.SpatialKey.STDistance(@query_point) ASC
 );
