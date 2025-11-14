@@ -32,7 +32,7 @@ BEGIN
             END AS IsCorrupted
         FROM dbo.Atoms a
         WHERE a.TenantId = @TenantId
-              AND a.IsDeleted = 0
+              
               AND (@AtomId IS NULL OR a.AtomId = @AtomId);
         
         SET @CorruptedCount = (SELECT COUNT(*) FROM @IntegrityResults WHERE IsCorrupted = 1);

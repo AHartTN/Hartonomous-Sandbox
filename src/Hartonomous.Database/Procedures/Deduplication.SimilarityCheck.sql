@@ -1,56 +1,42 @@
-CREATE PROCEDURE dbo.sp_CheckSimilarityAboveThreshold
-    @query_vector VECTOR(1998),
-    @threshold FLOAT,
-    @embedding_type NVARCHAR(128) = NULL,
+CREATE PROCEDURE [Deduplication].[SimilarityCheck]
+    @QuerySpatialKey GEOMETRY,
+    @Threshold FLOAT,
     @ModelId INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    IF @query_vector IS NULL
+    IF @QuerySpatialKey IS NULL
     BEGIN
-        THROW 50030, 'Query vector cannot be NULL.', 1;
+        THROW 50030, 'Query spatial key cannot be NULL.', 1;
     END
 
-    IF @threshold IS NULL OR @threshold < -1.0 OR @threshold > 1.0
+    IF @Threshold IS NULL OR @Threshold < 0.0 OR @Threshold > 1.0
     BEGIN
-        THROW 50031, 'Threshold must be between -1.0 and 1.0.', 1;
+        THROW 50031, 'Threshold must be between 0.0 and 1.0 (Euclidean distance normalized).', 1;
     END
 
-    DECLARE @max_distance FLOAT = 2.0 * (1.0 - @threshold);
-
-    IF @max_distance <= 0
-    BEGIN
-        THROW 50032, 'Threshold is too high for cosine similarity search.', 1;
-    END
-
+    -- Query spatial embeddings using GEOMETRY distance
     SELECT TOP (1)
         ae.AtomEmbeddingId,
         ae.AtomId,
         a.ContentHash,
         a.Modality,
         a.Subtype,
-        a.SourceType,
-        a.SourceUri,
-        a.CanonicalText,
-        ae.EmbeddingType,
         ae.ModelId,
-        ae.Dimension,
-        VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) AS CosineDistance,
-        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) AS SimilarityScore,
-        ae.EmbeddingVector,
-        ae.SpatialGeometry,
-        ae.SpatialCoarse,
-        ae.Metadata,
+        ae.SpatialKey.STDistance(@QuerySpatialKey) AS EuclideanDistance,
+        1.0 / (1.0 + ae.SpatialKey.STDistance(@QuerySpatialKey)) AS SimilarityScore,
+        ae.SpatialKey,
+        ae.HilbertValue,
         a.ReferenceCount,
         a.CreatedAt,
-        a.UpdatedAt
-    FROM dbo.AtomEmbeddings AS ae
+        a.ModifiedAt
+    FROM dbo.AtomEmbeddings AS ae WITH (INDEX(SIX_AtomEmbeddings_SpatialKey))
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-    WHERE ae.EmbeddingVector IS NOT NULL
-      AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) < @max_distance
-      AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
+    WHERE ae.SpatialKey IS NOT NULL
+      AND ae.SpatialKey.STDistance(@QuerySpatialKey) <= @Threshold
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
-    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
-END
+    ORDER BY ae.SpatialKey.STDistance(@QuerySpatialKey) ASC;
+END;
 GO
+

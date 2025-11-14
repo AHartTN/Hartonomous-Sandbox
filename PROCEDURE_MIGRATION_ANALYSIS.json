@@ -1,0 +1,790 @@
+{
+  "Statistics": {
+    "NeedsFix": 0,
+    "Clean": 48,
+    "WarningsOnly": 15,
+    "CriticalErrors": 50,
+    "Total": 113
+  },
+  "Categorized": {
+    "Clean": [
+      "Billing.InsertUsageRecord_Native.sql",
+      "dbo.sp_Act.sql",
+      "dbo.sp_Analyze.sql",
+      "dbo.sp_AtomizeCode.sql",
+      "dbo.sp_AtomizeImage_Governed.sql",
+      "dbo.sp_AtomizeModel_Governed.sql",
+      "dbo.sp_AtomizeText_Governed.sql",
+      "dbo.sp_AttentionInference.sql",
+      "dbo.sp_AuditProvenanceChain.sql",
+      "dbo.sp_BuildConceptDomains.sql",
+      "dbo.sp_CalculateBill.sql",
+      "dbo.sp_ChainOfThoughtReasoning.sql",
+      "dbo.sp_ComputeSpatialProjection.sql",
+      "dbo.sp_Converse.sql",
+      "dbo.sp_DeleteAtomicVectors.sql",
+      "dbo.sp_EnqueueNeo4jSync.sql",
+      "dbo.sp_ExecuteInference_Activated.sql",
+      "dbo.sp_ExtractKeyPhrases.sql",
+      "dbo.sp_FuseMultiModalStreams.sql",
+      "dbo.sp_GenerateEventsFromStream.sql",
+      "dbo.sp_GenerateOptimalPath.sql",
+      "dbo.sp_GenerateText.sql",
+      "dbo.sp_GenerateUsageReport.sql",
+      "dbo.sp_GenerateWithAttention.sql",
+      "dbo.sp_GetInferenceJobStatus.sql",
+      "dbo.sp_InferenceHistory.sql",
+      "dbo.sp_IngestModel.sql",
+      "dbo.sp_InsertBillingUsageRecord_Native.sql",
+      "dbo.sp_Learn.sql",
+      "dbo.sp_LinkProvenance.sql",
+      "dbo.sp_ListWeightSnapshots.sql",
+      "dbo.sp_MultiPathReasoning.sql",
+      "dbo.sp_OrchestrateSensorStream.sql",
+      "dbo.sp_ReconstructOperationTimeline.sql",
+      "dbo.sp_ReconstructVector.sql",
+      "dbo.sp_RecordUsage.sql",
+      "dbo.sp_ResolveTenantGuid.sql",
+      "dbo.sp_RestoreWeightSnapshot.sql",
+      "dbo.sp_SelfConsistencyReasoning.sql",
+      "dbo.sp_StartPrimeSearch.sql",
+      "dbo.sp_SubmitInferenceJob.sql",
+      "dbo.sp_TokenizeText.sql",
+      "dbo.sp_TransformerStyleInference.sql",
+      "dbo.sp_UpdateAtomEmbeddingSpatialMetadata.sql",
+      "dbo.sp_UpdateInferenceJobStatus.sql",
+      "dbo.sp_ValidateOperationProvenance.sql",
+      "Deduplication.SimilarityCheck.sql",
+      "Feedback.ModelWeightUpdates.sql"
+    ],
+    "NeedsFix": [],
+    "WarningsOnly": [
+      {
+        "Name": "dbo.sp_ApproxSpatialSearch.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomicSpatialSearch.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ComputeAllSemanticFeatures.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ComputeSemanticFeatures.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_CrossModalQuery.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_EnsembleInference.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ExtractMetadata.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "PayloadLocator (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ForwardToNeo4j_Activated.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "Atoms.ContentType (removed)",
+            "Atoms.Metadata (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_GenerateTextSpatial.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_GetAtomicDeduplicationStats.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_InsertAtomicVector.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_MigratePayloadLocatorToFileStream.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "PayloadLocator (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_MultiResolutionSearch.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_SpatialAttention.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_SpatialNextToken.sql",
+        "Issues": {
+          "Errors": [],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      }
+    ],
+    "CriticalErrors": [
+      {
+        "Name": "Admin.WeightRollback.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "TensorAtomCoefficientId (removed)"
+          ],
+          "Warnings": [
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "Autonomy.SelfImprovement.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomIngestion.sql",
+        "Issues": {
+          "Errors": [
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)",
+            "PayloadLocator (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeAudio_Atomic.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomsLOB",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeAudio.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomsLOB",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeImage_Atomic.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomsLOB",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeImage.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomsLOB",
+            "References deleted table: AtomPayloadStore",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeModel_Atomic.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "References deleted table: AtomsLOB",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "Atoms.Metadata (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeModel.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": [
+            "ParentLayerId (removed)",
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AtomizeText_Atomic.sql",
+        "Issues": {
+          "Errors": [
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_AutonomousImprovement.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_CognitiveActivation.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_CompareModelKnowledge.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": [
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_CompareWeightsAtTimes.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "TensorAtomCoefficientId (removed)"
+          ],
+          "Warnings": [
+            "TensorRole (removed)",
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_CreateWeightSnapshot.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_DetectDuplicates.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_DiscoverAndBindConcepts.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_DynamicStudentExtraction.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_ExactVectorSearch.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)",
+            "Dimension (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ExportProvenance.sql",
+        "Issues": {
+          "Errors": [
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ExtractStudentModel.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": [
+            "Atoms.Metadata (removed)",
+            "ParentLayerId (removed)",
+            "TensorRole (removed)",
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_FindImpactedAtoms.sql",
+        "Issues": {
+          "Errors": [
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_FindRelatedDocuments.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_FusionSearch.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_GenerateAudio.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_GenerateImage.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_GenerateVideo.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_GetRecentWeightChanges.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "TensorAtomCoefficientId (removed)"
+          ],
+          "Warnings": [
+            "TensorRole (removed)",
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_GetWeightEvolution.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "TensorAtomCoefficientId (removed)"
+          ],
+          "Warnings": [
+            "ParentLayerId (removed)",
+            "TensorRole (removed)",
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_HybridSearch.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": [
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_Hypothesize.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": [
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_IngestAtom_Atomic.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomsLOB"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "Dimension (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_IngestAtom.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": [
+            "PayloadLocator (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_KeywordSearch.sql",
+        "Issues": {
+          "Errors": [
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ManageHartonomousIndexes.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_MultiModelEnsemble.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_OptimizeEmbeddings.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomsLOB",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_QueryLineage.sql",
+        "Issues": {
+          "Errors": [
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_QueryModelWeights.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms"
+          ],
+          "Warnings": [
+            "SourceType (use Modality)",
+            "Atoms.Metadata (removed)",
+            "ParentLayerId (removed)",
+            "TensorRole (removed)",
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_RetrieveAtomPayload.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomPayloadStore"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_RollbackWeightsToTimestamp.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "TensorAtomCoefficientId (removed)"
+          ],
+          "Warnings": [
+            "Coefficient (now atom itself)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_ScoreWithModel.sql",
+        "Issues": {
+          "Errors": [
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_SemanticFilteredSearch.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_SemanticSearch.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": [
+            "CanonicalText (removed)",
+            "SourceType (use Modality)",
+            "SourceUri (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_SemanticSimilarity.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_SpatialVectorSearch.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_StoreAtomPayload.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: AtomPayloadStore"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "dbo.sp_TemporalVectorSearch.sql",
+        "Issues": {
+          "Errors": [
+            "VECTOR_DISTANCE (needs GEOMETRY.STDistance)",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)",
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": [
+            "Atoms.ContentType (removed)"
+          ]
+        }
+      },
+      {
+        "Name": "dbo.sp_VerifyIntegrity.sql",
+        "Issues": {
+          "Errors": [
+            "a.TenantId (needs TenantAtoms JOIN)"
+          ],
+          "Warnings": []
+        }
+      },
+      {
+        "Name": "Embedding.TextToVector.sql",
+        "Issues": {
+          "Errors": [
+            "References deleted table: TensorAtoms",
+            "EmbeddingVector (needs SpatialKey GEOMETRY)"
+          ],
+          "Warnings": []
+        }
+      }
+    ]
+  },
+  "Generated": "2025-11-14 14:03:42"
+}

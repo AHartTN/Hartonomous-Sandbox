@@ -5,12 +5,18 @@ IF OBJECT_ID('dbo.sp_MigratePayloadLocatorToFileStream', 'P') IS NOT NULL
     DROP PROCEDURE dbo.sp_MigratePayloadLocatorToFileStream;
 GO
 
+-- DEPRECATED: PayloadLocator removed in Core v5 (atomic decomposition)
+-- No migration needed - use atomic values only
 CREATE PROCEDURE dbo.sp_MigratePayloadLocatorToFileStream
     @BatchSize INT = 100,
     @Debug BIT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
+    
+    -- DEPRECATED: No blob storage in Core v5
+    RAISERROR('This procedure is deprecated. PayloadLocator removed in Core v5.', 16, 1);
+    RETURN -1;
     
     DECLARE @MigratedCount INT = 0;
     DECLARE @ErrorCount INT = 0;

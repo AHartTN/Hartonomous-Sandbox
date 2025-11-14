@@ -35,7 +35,7 @@ BEGIN
         WHERE ae.TenantId = @TenantId
               AND ae.AtomId != @SourceAtomId
               AND ae.EmbeddingVector IS NOT NULL
-              AND a.IsDeleted = 0
+              
         ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @SourceEmbedding) ASC;
         
         RETURN 0;

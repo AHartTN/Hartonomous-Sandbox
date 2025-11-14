@@ -34,7 +34,7 @@ BEGIN
         ) AS Distance
     FROM dbo.AtomRelations ar WITH (INDEX(IX_AtomRelations_SpatialBucket))
     WHERE 
-        ar.SpatialBucket = @TargetBucket
+        ar.HilbertValue = @TargetBucket
         AND ar.RelationType = @RelationType
         AND ar.CoordX BETWEEN @QueryX - @Radius AND @QueryX + @Radius
         AND ar.CoordY BETWEEN @QueryY - @Radius AND @QueryY + @Radius
@@ -52,7 +52,7 @@ BEGIN
         a.ContentHash,
         a.Modality,
         a.Subtype,
-        a.CanonicalText,
+        CONVERT(NVARCHAR(256), a.AtomicValue) AS CanonicalText, -- Derived from AtomicValue
         a.ReferenceCount,
         c.Distance,
         a.CreatedAt

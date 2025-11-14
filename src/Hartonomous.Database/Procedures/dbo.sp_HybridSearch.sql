@@ -27,13 +27,13 @@ BEGIN
     INSERT INTO @candidates (AtomEmbeddingId, SpatialDistance)
     SELECT TOP (@spatial_candidates)
         ae.AtomEmbeddingId,
-        ae.SpatialGeometry.STDistance(@query_point) AS spatial_distance
+        ae.SpatialKey.STDistance(@query_point) AS spatial_distance
     FROM dbo.AtomEmbeddings AS ae
-    WHERE ae.SpatialGeometry IS NOT NULL
+    WHERE ae.SpatialKey IS NOT NULL
       AND ae.Dimension = @query_dimension
       AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
-    ORDER BY ae.SpatialGeometry.STDistance(@query_point);
+    ORDER BY ae.SpatialKey.STDistance(@query_point);
 
     SELECT TOP (@final_top_k)
         ae.AtomEmbeddingId,

@@ -35,7 +35,7 @@ BEGIN
     INSERT INTO @candidates (AtomId, AtomText, SpatialDistance, Logit, ProbabilityScore)
     SELECT TOP (@resolved_top_k)
         ae.AtomId,
-    CAST(a.CanonicalText AS NVARCHAR(100)) AS AtomText,
+                CONVERT(NVARCHAR(256), a.AtomicValue) AS token, -- Derived from AtomicValue
         nn.SpatialDistance,
         -1.0 * nn.SpatialDistance AS Logit,
         0.0

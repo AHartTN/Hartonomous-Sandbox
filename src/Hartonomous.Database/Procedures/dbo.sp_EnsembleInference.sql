@@ -61,9 +61,9 @@ BEGIN
         AtomId BIGINT,
         Modality NVARCHAR(128),
         Subtype NVARCHAR(128),
-        SourceType NVARCHAR(128),
-        SourceUri NVARCHAR(2048),
-        CanonicalText NVARCHAR(MAX),
+        SourceType NVARCHAR(128), -- Now Modality
+        SourceUri NVARCHAR(2048), -- Removed (NULL)
+        CanonicalText NVARCHAR(MAX), -- Derived from AtomicValue
         ModelCount INT,
         AvgDistance FLOAT,
         EnsembleScore FLOAT
@@ -79,9 +79,9 @@ BEGIN
         AtomId,
         MAX(Modality) AS Modality,
         MAX(Subtype) AS Subtype,
-        MAX(SourceType) AS SourceType,
-        MAX(SourceUri) AS SourceUri,
-        MAX(CanonicalText) AS CanonicalText,
+        MAX(SourceType) AS SourceType, -- Modality
+        MAX(SourceUri) AS SourceUri, -- NULL
+        MAX(CanonicalText) AS CanonicalText, -- Derived
         COUNT(DISTINCT ModelId) AS ModelCount,
         AVG(Distance) AS AvgDistance,
         SUM(WeightedScore) AS EnsembleScore

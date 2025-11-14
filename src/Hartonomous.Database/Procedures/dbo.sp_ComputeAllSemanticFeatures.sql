@@ -12,8 +12,7 @@ BEGIN
         SELECT ae.AtomEmbeddingId
         FROM dbo.AtomEmbeddings AS ae
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-        WHERE a.CanonicalText IS NOT NULL
-          AND LEN(LTRIM(RTRIM(a.CanonicalText))) > 0;
+        WHERE a.Modality = 'text' AND a.AtomicValue IS NOT NULL; -- Changed: CanonicalText → Modality filter
 
     OPEN cursor_embeddings;
     FETCH NEXT FROM cursor_embeddings INTO @atom_embedding_id;

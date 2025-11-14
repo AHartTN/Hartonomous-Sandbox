@@ -10,18 +10,18 @@ BEGIN
     BEGIN TRY
         -- Query embeddings filtered by last computation time
         -- NOTE: AtomEmbeddings and Atoms are NOT system-versioned tables
-        -- Use LastComputedUtc filter instead for point-in-time queries
+        -- Use CreatedAt filter instead for point-in-time queries
         SELECT TOP (@TopK)
             ae.AtomId,
             1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS Similarity,
-            ae.LastComputedUtc,
+            ae.CreatedAt,
             a.ContentHash,
             a.ContentType
         FROM dbo.AtomEmbeddings ae
         INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
         LEFT JOIN dbo.TenantAtoms ta ON a.AtomId = ta.AtomId
         WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
-            AND ae.LastComputedUtc <= @AsOfDate  -- Filter by computation timestamp
+            AND ae.CreatedAt <= @AsOfDate  -- Filter by computation timestamp
         ORDER BY Similarity DESC;
         
         RETURN 0;

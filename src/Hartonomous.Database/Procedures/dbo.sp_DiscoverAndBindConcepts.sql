@@ -27,7 +27,7 @@ BEGIN
             Centroid VARBINARY(MAX),
             AtomCount INT,
             Coherence FLOAT,
-            SpatialBucket INT
+            HilbertValue INT
         );
         
         INSERT INTO @DiscoveredConcepts
@@ -48,7 +48,7 @@ BEGIN
                 Centroid VARBINARY(MAX),
                 AtomCount INT,
                 Coherence FLOAT,
-                SpatialBucket INT
+                HilbertValue INT
             );
 
             -- Persist discovered concepts and capture generated IDs
@@ -62,7 +62,7 @@ BEGIN
                 AtomCount,
                 CoherenceScore,
                 Coherence,
-                SpatialBucket,
+                HilbertValue,
                 DiscoveryMethod,
                 ModelId,
                 TenantId
@@ -72,7 +72,7 @@ BEGIN
                 INSERTED.Centroid,
                 INSERTED.AtomCount,
                 INSERTED.Coherence,
-                INSERTED.SpatialBucket
+                INSERTED.HilbertValue
             INTO @InsertedConcepts
             SELECT 
                 'Cluster_' + CAST(ROW_NUMBER() OVER (ORDER BY Coherence DESC) AS NVARCHAR(50)),
@@ -84,7 +84,7 @@ BEGIN
                 AtomCount,
                 Coherence,
                 Coherence,
-                SpatialBucket,
+                HilbertValue,
                 'DBSCAN_Spatial',
                 1, -- Default ModelId - adjust as needed
                 @TenantId

@@ -54,7 +54,7 @@ BEGIN
         FROM dbo.Atoms a
         INNER JOIN @AffectedAtoms aa ON aa.AtomId = a.AtomId
         WHERE a.ReferenceCount <= 0
-          AND a.IsDeleted = 0;
+          ;
         
         SET @DeletedAtoms = @@ROWCOUNT;
     END

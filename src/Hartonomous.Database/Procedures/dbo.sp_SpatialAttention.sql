@@ -6,10 +6,10 @@ BEGIN
     SET NOCOUNT ON;
 
     DECLARE @query_spatial GEOMETRY;
-    SELECT @query_spatial = SpatialGeometry
+    SELECT @query_spatial = SpatialKey
     FROM dbo.AtomEmbeddings
     WHERE AtomId = @QueryAtomId
-      AND SpatialGeometry IS NOT NULL;
+      AND SpatialKey IS NOT NULL;
 
     IF @query_spatial IS NULL
     BEGIN
@@ -33,7 +33,7 @@ BEGIN
     )
     SELECT TOP (@ContextSize)
         ae.AtomId AS TokenId,
-    CAST(a.CanonicalText AS NVARCHAR(100)) AS TokenText,
+    CONVERT(NVARCHAR(256), a.AtomicValue) AS CanonicalText, -- Derived
         fn.SpatialDistance,
         1.0 / (1.0 + fn.SpatialDistance) AS AttentionWeight,
         CASE

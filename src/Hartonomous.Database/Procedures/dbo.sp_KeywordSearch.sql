@@ -32,7 +32,7 @@ BEGIN
         FROM #FTSResults fts
         INNER JOIN dbo.Atoms a ON fts.AtomId = a.AtomId
         WHERE a.TenantId = @TenantId
-              AND a.IsDeleted = 0
+              
               AND (@ContentTypeFilter IS NULL OR a.ContentType = @ContentTypeFilter)
         ORDER BY fts.RANK DESC;
         

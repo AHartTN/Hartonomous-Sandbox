@@ -32,8 +32,8 @@ BEGIN
     SELECT TOP (@fine_candidates) ae.AtomEmbeddingId
     FROM dbo.AtomEmbeddings AS ae
     INNER JOIN @coarse_results AS cr ON cr.AtomEmbeddingId = ae.AtomEmbeddingId
-    WHERE ae.SpatialGeometry IS NOT NULL
-    ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
+    WHERE ae.SpatialKey IS NOT NULL
+    ORDER BY ae.SpatialKey.STDistance(@query_pt);
 
     DECLARE @fine_count INT = @@ROWCOUNT;
     PRINT '  Stage 2: ' + CAST(@fine_count AS NVARCHAR(10)) + ' fine candidates';
@@ -48,7 +48,7 @@ BEGIN
         a.CanonicalText,
         ae.EmbeddingType,
         ae.ModelId,
-        ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance,
+        ae.SpatialKey.STDistance(@query_pt) AS SpatialDistance,
         ae.SpatialCoarse.STDistance(@query_pt) AS CoarseDistance
     FROM dbo.AtomEmbeddings AS ae
     INNER JOIN @fine_results AS fr ON fr.AtomEmbeddingId = ae.AtomEmbeddingId

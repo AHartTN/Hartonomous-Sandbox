@@ -219,15 +219,15 @@ BEGIN
         IF @Embedding IS NOT NULL
         BEGIN
             -- Compute spatial projections for fast approximate search
-            DECLARE @SpatialGeometry GEOMETRY;
+            DECLARE @SpatialKey GEOMETRY;
             DECLARE @SpatialCoarse GEOGRAPHY;
             DECLARE @Dimension INT = 1998; -- SQL Server 2025 VECTOR dimension
 
             -- Project the high-dimensional vector to a 3D point using the landmark-based CLR function.
-            SET @SpatialGeometry = dbo.fn_ProjectTo3D(@Embedding);
+            SET @SpatialKey = dbo.fn_ProjectTo3D(@Embedding);
 
             -- For coarse spatial bucketing (optional)
-            SET @SpatialCoarse = GEOGRAPHY::Point(@SpatialGeometry.STX * 111319.444, @SpatialGeometry.STY * 111319.444, 4326); -- Convert to meters
+            SET @SpatialCoarse = GEOGRAPHY::Point(@SpatialKey.STX * 111319.444, @SpatialKey.STY * 111319.444, 4326); -- Convert to meters
 
             -- Store embedding with spatial projections
             INSERT INTO dbo.AtomEmbeddings (
@@ -236,7 +236,7 @@ BEGIN
                 EmbeddingType,
                 ModelId,
                 Dimension,
-                SpatialGeometry,
+                SpatialKey,
                 SpatialCoarse,
                 SpatialBucketX,
                 SpatialBucketY,
@@ -251,11 +251,11 @@ BEGIN
                 @EmbeddingType,
                 @ModelId,
                 @Dimension,
-                @SpatialGeometry,
+                @SpatialKey,
                 @SpatialCoarse,
-                CAST(@SpatialGeometry.STX * 1000 AS INT), -- Bucket coordinates from the new geometry
-                CAST(@SpatialGeometry.STY * 1000 AS INT),
-                CAST(@SpatialGeometry.STZ * 1000 AS INT),
+                CAST(@SpatialKey.STX * 1000 AS INT), -- Bucket coordinates from the new geometry
+                CAST(@SpatialKey.STY * 1000 AS INT),
+                CAST(@SpatialKey.STZ * 1000 AS INT),
                 @Metadata,
                 @TenantId,
                 SYSUTCDATETIME()

@@ -59,10 +59,10 @@ BEGIN
     SET @AtomCount = @@ROWCOUNT;
     
     -- Compute spatial bucket if coordinates provided
-    DECLARE @SpatialBucket BIGINT = NULL;
+    DECLARE @HilbertValue BIGINT = NULL;
     IF @SpatialX IS NOT NULL AND @SpatialY IS NOT NULL AND @SpatialZ IS NOT NULL
     BEGIN
-        SET @SpatialBucket = dbo.fn_ComputeSpatialBucket(@SpatialX, @SpatialY, @SpatialZ);
+        SET @HilbertValue = dbo.fn_ComputeSpatialBucket(@SpatialX, @SpatialY, @SpatialZ);
     END
     
     -- Create atomic relations
@@ -74,7 +74,7 @@ BEGIN
         Weight,
         Importance,
         Confidence,
-        SpatialBucket,
+        HilbertValue,
         CoordX,
         CoordY,
         CoordZ,
@@ -88,7 +88,7 @@ BEGIN
         1.0,
         ABS(c.ComponentValue),
         1.0,
-        @SpatialBucket,
+        @HilbertValue,
         @SpatialX,
         @SpatialY,
         @SpatialZ,

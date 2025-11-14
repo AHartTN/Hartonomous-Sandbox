@@ -29,13 +29,13 @@ BEGIN
             a.CanonicalText,
             ae.EmbeddingType,
             ae.ModelId,
-            ae.SpatialGeometry.STDistance(@query_pt) AS SpatialDistance
+            ae.SpatialKey.STDistance(@query_pt) AS SpatialDistance
         FROM dbo.AtomEmbeddings AS ae
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-        WHERE ae.SpatialGeometry IS NOT NULL
-          AND (@modality_filter IS NULL OR a.SourceType = @modality_filter OR a.Modality = @modality_filter)
-          AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
-        ORDER BY ae.SpatialGeometry.STDistance(@query_pt);
+        WHERE ae.SpatialKey IS NOT NULL
+          AND (@modality_filter IS NULL OR a.Modality = @modality_filter)
+          AND (@text_query IS NULL OR CONVERT(NVARCHAR(256), a.AtomicValue) LIKE '%' + @text_query + '%') -- Changed: CanonicalText → AtomicValue
+        ORDER BY ae.SpatialKey.STDistance(@query_pt);
     END
     ELSE
     BEGIN
@@ -44,15 +44,15 @@ BEGIN
             ae.AtomId,
             a.Modality,
             a.Subtype,
-            a.SourceType,
-            a.SourceUri,
-            a.CanonicalText,
-            ae.EmbeddingType,
+            a.Modality AS SourceType, -- Replaced
+            NULL AS SourceUri, -- Removed
+            CONVERT(NVARCHAR(256), a.AtomicValue) AS CanonicalText, -- Derived
+            ae.AtomEmbeddingId,
             ae.ModelId
-        FROM dbo.AtomEmbeddings AS ae
-        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-        WHERE (@modality_filter IS NULL OR a.SourceType = @modality_filter OR a.Modality = @modality_filter)
-          AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
+        FROM dbo.Atoms a
+        LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId
+        WHERE (@modality_filter IS NULL OR a.Modality = @modality_filter)
+          AND (@text_query IS NULL OR CONVERT(NVARCHAR(256), a.AtomicValue) LIKE '%' + @text_query + '%') -- Changed
         ORDER BY NEWID();
     END;
 

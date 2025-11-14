@@ -28,10 +28,10 @@ BEGIN
         LEFT JOIN dbo.AtomsLOB lob ON a.AtomId = lob.AtomId
         LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId AND ae.ModelId = @ModelId
         WHERE a.TenantId = @TenantId
-              AND a.IsDeleted = 0
+              
               AND (
                   ae.AtomEmbeddingId IS NULL -- Missing embedding
-                  OR ae.LastComputedUtc < DATEADD(HOUR, -@MaxAgeHours, SYSUTCDATETIME()) -- Outdated
+                  OR ae.CreatedAt < DATEADD(HOUR, -@MaxAgeHours, SYSUTCDATETIME()) -- Outdated
               )
         ORDER BY a.AtomId;
         
@@ -65,7 +65,7 @@ BEGIN
                 WHEN MATCHED THEN
                     UPDATE SET 
                         EmbeddingVector = @NewEmbedding,
-                        LastComputedUtc = SYSUTCDATETIME(),
+                        CreatedAt = SYSUTCDATETIME(),
                         LastAccessedUtc = SYSUTCDATETIME()
                 WHEN NOT MATCHED THEN
                     INSERT (AtomId, ModelId, EmbeddingVector, TenantId)
