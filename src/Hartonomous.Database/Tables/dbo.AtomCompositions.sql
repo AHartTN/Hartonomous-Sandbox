@@ -20,14 +20,6 @@ CREATE TABLE [dbo].[AtomCompositions] (
 );
 GO
 
--- Optimized indexes
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AtomCompositions_Parent' AND object_id = OBJECT_ID('dbo.AtomCompositions'))
-    CREATE NONCLUSTERED INDEX [IX_AtomCompositions_Parent] 
-    ON [dbo].[AtomCompositions]([ParentAtomId]) 
-    INCLUDE ([ComponentAtomId], [SequenceIndex]);
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_AtomCompositions_SpatialKey' AND object_id = OBJECT_ID('dbo.AtomCompositions'))
-    CREATE SPATIAL INDEX [SIX_AtomCompositions_SpatialKey] 
-    ON [dbo].[AtomCompositions]([SpatialKey]);
-GO
+-- Indexes created as separate index definition files in /Indexes folder
+-- IX_AtomCompositions_Parent
+-- SIX_AtomCompositions_SpatialKey (spatial index)

@@ -12,12 +12,7 @@ CREATE TABLE [dbo].[AtomEmbeddings] (
     
     -- Hilbert curve value for 1D indexing (populated by Phase 3.1)
     [HilbertValue]      BIGINT         NULL,
-    
-    -- DEPRECATED COLUMNS (for backward compatibility during migration)
-    [EmbeddingVector]   VARBINARY(MAX) NULL,  -- DEPRECATED: Use SpatialKey GEOMETRY
-    [Dimension]         INT            NULL,  -- DEPRECATED: Use SpatialKey.STDimension()
-    [TenantId]          INT            NULL,  -- DEPRECATED: Use tenant filtering via TenantAtoms
-    
+
     [CreatedAt]         DATETIME2(7)   DEFAULT (SYSUTCDATETIME()) NOT NULL,
     
     CONSTRAINT [PK_AtomEmbeddings] PRIMARY KEY CLUSTERED ([AtomEmbeddingId] ASC),
@@ -28,16 +23,6 @@ CREATE TABLE [dbo].[AtomEmbeddings] (
 );
 GO
 
--- Spatial index for semantic similarity search
-IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_AtomEmbeddings_SpatialKey' AND object_id = OBJECT_ID('dbo.AtomEmbeddings'))
-    CREATE SPATIAL INDEX [SIX_AtomEmbeddings_SpatialKey] 
-    ON [dbo].[AtomEmbeddings]([SpatialKey]);
-GO
-
--- Hilbert index (will be populated in Phase 3.1)
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_AtomEmbeddings_Hilbert' AND object_id = OBJECT_ID('dbo.AtomEmbeddings'))
-    CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_Hilbert] 
-    ON [dbo].[AtomEmbeddings]([HilbertValue] ASC) 
-    INCLUDE ([AtomId], [ModelId]) 
-    WHERE [HilbertValue] IS NOT NULL;
-GO
+-- Indexes created as separate index definition files in /Indexes folder
+-- SIX_AtomEmbeddings_SpatialKey (spatial index)
+-- IX_AtomEmbeddings_Hilbert

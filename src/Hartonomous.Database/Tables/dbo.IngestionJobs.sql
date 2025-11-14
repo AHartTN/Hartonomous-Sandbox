@@ -31,8 +31,5 @@ CREATE TABLE [dbo].[IngestionJobs] (
 );
 GO
 
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = 'IX_IngestionJobs_Status' AND object_id = OBJECT_ID('dbo.IngestionJobs'))
-    CREATE NONCLUSTERED INDEX [IX_IngestionJobs_Status] 
-    ON [dbo].[IngestionJobs]([JobStatus]) 
-    INCLUDE ([IngestionJobId], [ParentAtomId]);
-GO
+-- Indexes created as separate index definition files in /Indexes folder
+-- IX_IngestionJobs_Status
