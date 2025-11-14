@@ -2,6 +2,7 @@ using Hartonomous.Core.Entities;
 using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Services;
+using Hartonomous.Data.Entities;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 
@@ -30,7 +31,7 @@ public sealed class ModelCapabilityServiceTests
             ModelId = 1,
             ModelName = modelName,
             ModelType = "transformer",
-            Metadata = new ModelMetadata
+            ModelMetadatum = new ModelMetadatum
             {
                 SupportedTasks = "[\"text_generation\", \"text_embedding\"]",
                 SupportedModalities = "[\"text\"]",
@@ -93,7 +94,7 @@ public sealed class ModelCapabilityServiceTests
             ModelId = 1,
             ModelName = "test-model",
             ModelType = "diffusion",
-            Metadata = new ModelMetadata
+            ModelMetadatum = new ModelMetadatum
             {
                 SupportedTasks = "[\"image_generation\"]",
                 SupportedModalities = "[\"image\"]"
@@ -119,7 +120,7 @@ public sealed class ModelCapabilityServiceTests
             ModelId = 1,
             ModelName = "test-model",
             ModelType = "transformer",
-            Metadata = new ModelMetadata
+            ModelMetadatum = new ModelMetadatum
             {
                 SupportedTasks = "[\"text_generation\"]",
                 SupportedModalities = "[\"text\"]"
@@ -145,7 +146,7 @@ public sealed class ModelCapabilityServiceTests
             ModelId = 1,
             ModelName = "vision-model",
             ModelType = "cnn",
-            Metadata = new ModelMetadata
+            ModelMetadatum = new ModelMetadatum
             {
                 SupportedTasks = "[\"object-detection\"]",
                 SupportedModalities = "[\"image\"]"  // Single modality to avoid priority logic
@@ -163,4 +164,5 @@ public sealed class ModelCapabilityServiceTests
         Assert.Contains("image", result.ToLowerInvariant());
     }
 }
+
 

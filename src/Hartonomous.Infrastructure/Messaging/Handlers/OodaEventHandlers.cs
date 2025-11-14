@@ -2,6 +2,7 @@ using Hartonomous.Infrastructure.Messaging.Events;
 using Hartonomous.Infrastructure.Repositories;
 using Hartonomous.Infrastructure.Observability;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Core.Utilities;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data.Entities;
 using Microsoft.EntityFrameworkCore;
@@ -51,9 +52,8 @@ public class ObservationEventHandler
                 if (embedding?.EmbeddingVector != null && embedding.SpatialProjection3D != null)
                 {
                     // Use hybrid search to find similar embeddings
-                    var vectorArray = new float[embedding.EmbeddingVector.Value.Length];
-                    for (int i = 0; i < vectorArray.Length; i++)
-                        vectorArray[i] = embedding.EmbeddingVector.Value[i];
+                    var vectorSpan = embedding.EmbeddingVector.AsReadOnlySpan();
+                    var vectorArray = vectorSpan.ToArray();
                     var similarEmbeddings = await _embeddingRepository.HybridSearchAsync(
                         vectorArray,
                         (Point)embedding.SpatialProjection3D,
@@ -66,10 +66,10 @@ public class ObservationEventHandler
                         // Publish orientation event for pattern analysis
                         var orientationEvent = new OrientationEvent
                         {
-                            AtomIds = similarEmbeddings.Select(s => s.AtomId).Prepend(@event.AtomId).ToList(),
+                            AtomIds = similarEmbeddings.Select(s => s.Embedding.AtomId).Prepend(@event.AtomId).ToList(),
                             OrientationType = "clustering",
                             Similarities = similarEmbeddings.ToDictionary(
-                                s => s.AtomId.ToString(),
+                                s => s.Embedding.AtomId.ToString(),
                                 s => (float)s.CosineDistance),
                             TenantId = @event.TenantId,
                             UserId = @event.UserId,
@@ -259,16 +259,13 @@ public class ActionEventHandler
 {
     private readonly ILogger<ActionEventHandler> _logger;
     private readonly CustomMetrics _metrics;
-    private readonly Jobs.IJobService _jobService;
 
     public ActionEventHandler(
         ILogger<ActionEventHandler> logger,
-        CustomMetrics metrics,
-        Jobs.IJobService jobService)
+        CustomMetrics metrics)
     {
         _logger = logger;
         _metrics = metrics;
-        _jobService = jobService;
     }
 
     public async Task HandleAsync(ActionEvent @event, CancellationToken cancellationToken)
@@ -285,26 +282,17 @@ public class ActionEventHandler
             {
                 case "cache_warming":
                     _logger.LogInformation("Executing cache warming action");
-                    // Enqueue cache warming job - CacheWarmingJobProcessor handles actual execution
-                    // Job system polls BackgroundJobs table and executes via CacheWarmingJobProcessor
-                    await EnqueueCacheWarmingJobAsync(@event, cancellationToken);
+                    // TODO: Trigger cache warming job
                     break;
 
                 case "inference_optimization":
                     _logger.LogInformation("Executing inference optimization");
-                    // Inference optimization handled by sp_Act in SQL Server Service Broker
-                    // No C# action needed - sp_Act updates statistics, forces plans, optimizes indexes
-                    _logger.LogInformation("Inference optimization delegated to sp_Act (SQL Server Service Broker)");
+                    // TODO: Trigger inference path optimization
                     break;
 
                 case "anomaly_alert":
                     _logger.LogWarning("Anomaly detected - alerting administrators");
-                    // Log as structured event for monitoring systems (Application Insights, Seq, etc.)
-                    // Production: Integrate with alerting service (SendGrid, Twilio, Teams webhook)
-                    _logger.LogCritical(
-                        "OODA Anomaly Alert: {Description} - Priority: {Priority}",
-                        @event.Description ?? "Unknown anomaly",
-                        @event.Priority);
+                    // TODO: Send alert notification
                     break;
 
                 default:
@@ -323,28 +311,5 @@ public class ActionEventHandler
         }
 
         await Task.CompletedTask;
-    }
-
-    private async Task EnqueueCacheWarmingJobAsync(ActionEvent @event, CancellationToken cancellationToken)
-    {
-        var payload = new Caching.CacheWarmingPayload
-        {
-            TenantId = @event.TenantId,
-            CacheTypes = new List<string> { "Models", "Embeddings", "FrequentOperations" },
-            MaxItemsPerType = 100
-        };
-
-        var jobId = await _jobService.EnqueueAsync(
-            "CacheWarming",
-            payload,
-            new Jobs.JobEnqueueOptions
-            {
-                Priority = @event.Priority ?? 5,
-                MaxRetries = 2,
-                CorrelationId = @event.CorrelationId
-            });
-
-        _logger.LogInformation("Enqueued cache warming job: JobId={JobId}, TenantId={TenantId}",
-            jobId, @event.TenantId);
     }
 }

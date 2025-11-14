@@ -3,6 +3,7 @@ using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
 using Hartonomous.Core.Services;
+using Hartonomous.Data.Entities;
 using Microsoft.Extensions.Logging;
 using NSubstitute;
 using Xunit;
@@ -136,7 +137,7 @@ public sealed class InferenceMetadataServiceTests
         {
             ModelName = "gpt-4",
             ModelType = "transformer",
-            Metadata = new ModelMetadata
+            ModelMetadatum = new ModelMetadatum
             {
                 PerformanceMetrics = "{\"AvgLatencyMs\": 200, \"TokensPerSecond\": 50}"
             }
@@ -160,7 +161,7 @@ public sealed class InferenceMetadataServiceTests
         {
             ModelName = "test-model",
             ModelType = "transformer",
-            Metadata = new ModelMetadata()
+            ModelMetadatum = new ModelMetadatum()
         };
 
         _mockRepository.GetByNameAsync("test-model", Arg.Any<CancellationToken>()).Returns(model);
@@ -195,3 +196,4 @@ public sealed class InferenceMetadataServiceTests
         Assert.Equal(30, result); // complexity * 5 = 6 * 5 = 30
     }
 }
+

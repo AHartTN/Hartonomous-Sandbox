@@ -1,6 +1,7 @@
 using System.Linq;
 using Hartonomous.Core.Entities;
-using Hartonomous.Data.Configurations;
+using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Configurations;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using Microsoft.EntityFrameworkCore.Metadata.Conventions;

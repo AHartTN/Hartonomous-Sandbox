@@ -1,3 +1,3 @@
-CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_BucketXYZ]
-    ON [dbo].[AtomEmbeddings]([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ])
+CREATE NONCLUSTERED INDEX [IX_AtomEmbeddingSpatialMetadata_BucketXYZ]
+    ON [dbo].[AtomEmbeddingSpatialMetadata]([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ])
     WHERE [SpatialBucketX] IS NOT NULL;

@@ -65,7 +65,7 @@ public class AtomRepository : EfRepository<Atom, long>, IAtomRepository
 
         if (_graphOptions.CurrentValue.EnableSqlGraphWrites)
         {
-            await _graphWriter.UpsertAtomNodeAsync(atom, atom.Embeddings.FirstOrDefault(), cancellationToken).ConfigureAwait(false);
+            await _graphWriter.UpsertAtomNodeAsync(atom, atom.AtomEmbeddings.FirstOrDefault(), cancellationToken).ConfigureAwait(false);
         }
 
         return atom;

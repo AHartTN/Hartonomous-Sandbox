@@ -1,5 +1,6 @@
 using Hartonomous.Api;
 using Hartonomous.Data;
+using Hartonomous.Data.Entities;
 using Hartonomous.Infrastructure.Data;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

@@ -91,7 +91,7 @@ public sealed class EnsembleInferenceService : IEnsembleInferenceService
 
         // Step 2: Query InferenceRequests table to get metadata and steps
         var inferenceRequest = await _context.InferenceRequests
-            .Include(i => i.Steps)
+            .Include(i => i.InferenceSteps)
                 .ThenInclude(s => s.Model)
             .FirstOrDefaultAsync(i => i.InferenceId == inferenceId, cancellationToken);
 

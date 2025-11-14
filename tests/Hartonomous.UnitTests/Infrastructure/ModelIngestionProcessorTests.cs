@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Enums;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Testing.Common;
@@ -160,7 +161,7 @@ public sealed class ModelIngestionProcessorTests
         {
             ModelName = name,
             ModelType = "LLM",
-            Layers = new List<ModelLayer>
+            ModelLayers = new List<ModelLayer>
             {
                 new()
                 {
@@ -328,3 +329,4 @@ public sealed class ModelIngestionProcessorTests
             => Task.FromResult(ValidateResult);
     }
 }
+

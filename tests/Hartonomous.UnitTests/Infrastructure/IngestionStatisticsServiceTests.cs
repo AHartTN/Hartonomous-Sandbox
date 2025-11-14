@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
+using Hartonomous.Data.Entities;
 using Hartonomous.Infrastructure.Services;
 using Xunit;
 
@@ -24,7 +25,7 @@ public sealed class IngestionStatisticsServiceTests
                 ModelType = "LLM",
                 Architecture = "Transformer",
                 ParameterCount = 100,
-                Layers = new List<ModelLayer>
+                ModelLayers = new List<ModelLayer>
                 {
                     new() { LayerId = 1 },
                     new() { LayerId = 2 }
@@ -37,7 +38,7 @@ public sealed class IngestionStatisticsServiceTests
                 ModelType = "Vision",
                 Architecture = null,
                 ParameterCount = 50,
-                Layers = new List<ModelLayer>
+                ModelLayers = new List<ModelLayer>
                 {
                     new() { LayerId = 3 }
                 }

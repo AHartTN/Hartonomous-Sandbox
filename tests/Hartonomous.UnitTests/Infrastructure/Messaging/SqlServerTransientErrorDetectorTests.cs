@@ -4,13 +4,10 @@ using System.Linq;
 using System.Reflection;
 using Hartonomous.Infrastructure.Services.Messaging;
 using Microsoft.Data.SqlClient;
-
-#pragma warning disable
-
-namespace Hartonomous.UnitTests.Infrastructure.Messaging;
-
 using Xunit;
 using Xunit.Abstractions;
+
+#pragma warning disable
 
 namespace Hartonomous.UnitTests.Infrastructure.Messaging;
 

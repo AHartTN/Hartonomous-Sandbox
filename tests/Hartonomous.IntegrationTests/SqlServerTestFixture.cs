@@ -10,6 +10,7 @@ using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Enums;
 using Hartonomous.Core.Utilities;
+using Hartonomous.Data.Entities;
 using Hartonomous.Testing.Common;
 using Hartonomous.Data;
 using Hartonomous.Infrastructure.Data;
@@ -625,7 +626,6 @@ END;
                     EmbeddingType = "text",
                     Dimension = dense.Length,
                     EmbeddingVector = new SqlVector<float>(padded),
-                    UsesMaxDimensionPadding = usedPadding,
                     SpatialGeometry = CreateSpatialPoint(index, false),
                     SpatialCoarse = CreateSpatialPoint(index, true),
                     Metadata = "{\"ingestion\":\"integration-tests\"}",
@@ -657,13 +657,12 @@ END;
                     updated = true;
                 }
 
-                if (embedding.EmbeddingVector is null)
+                if (embedding.EmbeddingVector.IsNull)
                 {
                     var dense = CreateSampleVector(index);
                     var padded = VectorUtility.PadToSqlLength(dense, out var usedPadding);
                     embedding.EmbeddingVector = new SqlVector<float>(padded);
                     embedding.Dimension = dense.Length;
-                    embedding.UsesMaxDimensionPadding = usedPadding;
                     updated = true;
                 }
 

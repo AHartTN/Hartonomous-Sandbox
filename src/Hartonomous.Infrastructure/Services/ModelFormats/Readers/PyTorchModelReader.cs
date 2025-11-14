@@ -135,7 +135,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
         }
 
         _logger.LogInformation("✓ PyTorch model parsed: {LayerCount} layers", model.ModelLayers.Count);
-        return Task.FromResult(model);
+        return model;
     }
 
     public Task<PyTorchMetadata> GetMetadataAsync(string modelPath, CancellationToken cancellationToken = default)

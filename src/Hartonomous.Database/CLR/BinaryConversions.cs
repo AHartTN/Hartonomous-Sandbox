@@ -21,10 +21,11 @@ namespace Hartonomous.Clr
             if (binaryValue.IsNull)
                 return SqlSingle.Null;
 
-            var buffer = SqlBytesInterop.GetBuffer(binaryValue, out var byteLength);
+            // This is a simplified stand-in for what would be a more robust
+            // interop method to get the buffer without copying if possible.
+            var buffer = binaryValue.Buffer;
             
-            // AtomicValue should be at least 4 bytes for float32
-            if (byteLength < sizeof(float))
+            if (buffer.Length < sizeof(float))
                 return SqlSingle.Null;
 
             // Reinterpret first 4 bytes as float32 using BitConverter

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Utilities;
+using Hartonomous.Data.Entities;
 using Microsoft.Data.SqlTypes;
 using NetTopologySuite.Geometries;
 

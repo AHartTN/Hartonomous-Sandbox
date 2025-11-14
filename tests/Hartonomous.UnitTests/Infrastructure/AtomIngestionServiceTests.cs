@@ -8,6 +8,7 @@ using Hartonomous.Core.Entities;
 using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Core.Models;
+using Hartonomous.Data.Entities;
 using Hartonomous.Infrastructure.Services;
 using Microsoft.Data.SqlTypes;
 using Microsoft.Extensions.Configuration;
@@ -173,7 +174,7 @@ public class AtomIngestionServiceTests
         public Task<Atom> AddAsync(Atom atom, CancellationToken cancellationToken = default)
         {
             atom.AtomId = Interlocked.Increment(ref _nextId);
-            foreach (var embedding in atom.Embeddings)
+            foreach (var embedding in atom.AtomEmbeddings)
             {
                 embedding.AtomId = atom.AtomId;
                 embedding.AtomEmbeddingId = embedding.AtomEmbeddingId == 0
@@ -300,3 +301,4 @@ public class AtomIngestionServiceTests
         }
     }
 }
+

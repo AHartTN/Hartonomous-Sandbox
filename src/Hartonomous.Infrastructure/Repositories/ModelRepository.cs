@@ -89,7 +89,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
                 // Parse supported modalities
                 if (requiredModalities != Modality.None)
                 {
-                    var supportedModalities = EnumExtensions.ParseModalities(model.Metadata!.SupportedModalities);
+                    var supportedModalities = EnumExtensions.ParseModalities(model.ModelMetadatum!.SupportedModalities);
                     var supportsAllModalities = (supportedModalities & requiredModalities) == requiredModalities;
 
                     if (!supportsAllModalities)
@@ -98,7 +98,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
 
                 return true;
             })
-            .OrderByDescending(m => m.Metadata!.SupportedTasks != null ? 1 : 0) // Prioritize models with complete metadata
+            .OrderByDescending(m => m.ModelMetadatum!.SupportedTasks != null ? 1 : 0) // Prioritize models with complete metadata
             .ThenByDescending(m => m.ParameterCount ?? 0) // Larger models first (assumes higher capability)
             .Take(Math.Max(minCount, 100)) // Safety limit
             .ToList();

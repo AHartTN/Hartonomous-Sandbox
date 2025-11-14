@@ -199,7 +199,7 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
     {
         var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
-        var topOperations = await _dbContext.Set<Data.Entities.BillingUsageLedger>()
+        var topOperations = await _dbContext.Set<BillingUsageLedger>()
             .Where(b => b.TimestampUtc >= sevenDaysAgo
                 && (payload.TenantId == null || b.TenantId == payload.TenantId.ToString()))
             .GroupBy(b => new { b.Operation, b.TenantId })
@@ -245,7 +245,7 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
             var cacheKey = $"embedding:{tenantPrefix}:{embedding.AtomEmbeddingId}";
             
             // Serialize the vector to byte array for caching
-            if (embedding.EmbeddingVector != null)
+            if (!embedding.EmbeddingVector.IsNull)
             {
                 var vectorBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(embedding.EmbeddingVector);
                 await _cache.SetAsync(cacheKey, vectorBytes, TimeSpan.FromHours(2), cancellationToken);

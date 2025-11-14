@@ -28,16 +28,16 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
         Assert.False(string.IsNullOrWhiteSpace(activeConnectionString), "DbContext connection string was not initialised.");
 
         var sample = await Fixture.DbContext!.AtomEmbeddings
-            .Include(e => e.Components)
+            .Include(e => e.AtomEmbeddingComponents)
             .Include(e => e.Atom)
-            .Where(e => e.EmbeddingVector != null)
+            .Where(e => !e.EmbeddingVector.IsNull)
             .OrderBy(e => e.AtomEmbeddingId)
             .FirstOrDefaultAsync();
 
         Assert.NotNull(sample);
 
         Assert.NotNull(sample.EmbeddingVector);
-        var vector = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
+        var vector = VectorUtility.Materialize(sample!.EmbeddingVector, sample.Dimension);
         Assert.NotEmpty(vector);
 
         var results = await Fixture.InferenceService!
@@ -51,15 +51,15 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
     public async Task HybridSearch_ReturnsSpatialCandidates()
     {
         var sample = await Fixture.DbContext!.AtomEmbeddings
-            .Include(e => e.Components)
-            .Where(e => e.EmbeddingVector != null)
+            .Include(e => e.AtomEmbeddingComponents)
+            .Where(e => !e.EmbeddingVector.IsNull)
             .OrderByDescending(e => e.CreatedAt)
             .FirstOrDefaultAsync();
 
         Assert.NotNull(sample);
 
         Assert.NotNull(sample.EmbeddingVector);
-        var queryVector = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
+        var queryVector = VectorUtility.Materialize(sample!.EmbeddingVector, sample.Dimension);
         Assert.NotEmpty(queryVector);
 
         var results = await Fixture.InferenceService!
@@ -72,15 +72,15 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
     public async Task ComputeSpatialProjection_ProducesGeometry()
     {
         var sample = await Fixture.DbContext!.AtomEmbeddings
-            .Include(e => e.Components)
-            .Where(e => e.EmbeddingVector != null)
+            .Include(e => e.AtomEmbeddingComponents)
+            .Where(e => !e.EmbeddingVector.IsNull)
             .OrderBy(e => e.AtomEmbeddingId)
             .FirstOrDefaultAsync();
 
         Assert.NotNull(sample);
 
         Assert.NotNull(sample.EmbeddingVector);
-        var dense = VectorUtility.Materialize(sample!.EmbeddingVector!.Value, sample.Dimension);
+        var dense = VectorUtility.Materialize(sample!.EmbeddingVector, sample.Dimension);
         var padded = VectorUtility.PadToSqlLength(dense, out _);
         var spatialPoint = await Fixture.AtomEmbeddings!
             .ComputeSpatialProjectionAsync(new SqlVector<float>(padded), dense.Length);
@@ -101,7 +101,7 @@ public sealed class InferenceIntegrationTests : IntegrationTestBase
         Assert.NotNull(sample);
         Assert.NotNull(sample!.SpatialGeometry);
 
-        var spatial = sample.SpatialGeometry!;
+        var spatial = (NetTopologySuite.Geometries.Point)sample.SpatialGeometry!;
         var results = await Fixture.SpatialService!
             .MultiResolutionSearchAsync(spatial.X, spatial.Y, spatial.Z, coarseCandidates: 32, fineCandidates: 16, topK: 5);
 
@@ -217,3 +217,6 @@ WHERE StreamId = @streamId;", connection);
         Assert.True(streamReader.GetInt64(streamReader.GetOrdinal("PayloadSizeBytes")) > 0);
     }
 }
+
+
+

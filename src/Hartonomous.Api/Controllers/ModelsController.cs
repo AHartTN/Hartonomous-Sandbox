@@ -8,6 +8,7 @@ using Hartonomous.Api.DTOs.Models;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Data;
+using Hartonomous.Data.Entities;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Requests.Paging;
 using Hartonomous.Shared.Contracts.Responses;
@@ -173,7 +174,7 @@ public sealed class ModelsController : ApiControllerBase
                 model.ModelName,
                 model.Architecture ?? model.ModelType,
                 model.ParameterCount ?? 0,
-                model.Layers?.Count ?? 0);
+                model.ModelLayers?.Count ?? 0);
 
             return Ok(Success(response));
         }
@@ -226,7 +227,7 @@ public sealed class ModelsController : ApiControllerBase
 
     private static ModelDetail MapDetail(Model model)
     {
-        var layers = (model.Layers ?? new List<ModelLayer>())
+        var layers = (model.ModelLayers ?? new List<ModelLayer>())
             .OrderBy(layer => layer.LayerIdx)
             .Select(layer => new ModelLayerInfo(
                 layer.LayerId,
@@ -240,19 +241,19 @@ public sealed class ModelsController : ApiControllerBase
                 layer.AvgComputeTimeMs))
             .ToList();
 
-        var metadata = model.Metadata is null
+        var metadata = model.ModelMetadatum is null
             ? null
             : new ModelMetadataView(
-                model.Metadata.SupportedTasks,
-                model.Metadata.SupportedModalities,
-                model.Metadata.MaxInputLength,
-                model.Metadata.MaxOutputLength,
-                model.Metadata.EmbeddingDimension,
-                model.Metadata.PerformanceMetrics,
-                model.Metadata.TrainingDataset,
-                model.Metadata.TrainingDate?.ToDateTime(TimeOnly.MinValue),
-                model.Metadata.License,
-                model.Metadata.SourceUrl);
+                model.ModelMetadatum.SupportedTasks,
+                model.ModelMetadatum.SupportedModalities,
+                model.ModelMetadatum.MaxInputLength,
+                model.ModelMetadatum.MaxOutputLength,
+                model.ModelMetadatum.EmbeddingDimension,
+                model.ModelMetadatum.PerformanceMetrics,
+                model.ModelMetadatum.TrainingDataset,
+                model.ModelMetadatum.TrainingDate?.ToDateTime(TimeOnly.MinValue),
+                model.ModelMetadatum.License,
+                model.ModelMetadatum.SourceUrl);
 
         return new ModelDetail(
             model.ModelId,

@@ -179,8 +179,8 @@ public class GGUFModelBuilder
     public async Task<bool> ValidateModelCreationAsync(Model model, CancellationToken cancellationToken = default)
     {
         var dbModel = await _dbContext.Models
-            .Include(m => m.Layers)
-            .ThenInclude(l => l.TensorSegments)
+            .Include(m => m.ModelLayers)
+            .ThenInclude(l => l.LayerTensorSegments)
             .FirstOrDefaultAsync(m => m.ModelId == model.ModelId, cancellationToken);
 
         if (dbModel == null)

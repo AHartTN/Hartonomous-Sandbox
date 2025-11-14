@@ -94,16 +94,24 @@ BEGIN
         IF NOT EXISTS (SELECT 1 FROM @Weights)
         BEGIN
             -- Use CLR to parse GGUF/SafeTensors format
-            -- Placeholder: Will implement dbo.clr_ExtractModelWeights in Phase 2
-            -- For now, return gracefully (not an error during DACPAC build)
+            INSERT INTO @Weights (TensorName, LayerIndex, WeightIndex, WeightValue)
             SELECT 
-                @ParentAtomId AS ParentAtomId,
-                0 AS TotalWeights,
-                0 AS UniqueWeights,
-                0 AS DeduplicationPct,
-                @QuantizationBits AS QuantizationBits,
-                'NoWeightsFound' AS StorageMode;
-            RETURN 0;
+                TensorName,
+                LayerIndex,
+                WeightIndex,
+                WeightValue
+            FROM dbo.clr_ExtractModelWeights(@ModelFormat, @ModelData);
+
+            -- If still no weights, then the model is empty or format is unsupported
+            IF NOT EXISTS (SELECT 1 FROM @Weights)
+            BEGIN
+                SELECT 
+                    @ParentAtomId AS ParentAtomId,
+                    0 AS TotalWeights,
+                    0 AS UniqueWeights,
+                    'NoWeightsFound' AS StorageMode;
+                RETURN 0;
+            END
         END
         
         -- Quantize weights to reduce atom count (8-bit by default)

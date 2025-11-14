@@ -76,7 +76,7 @@ public class IngestionController : ControllerBase
                 SemanticSimilarity = result.SemanticSimilarity,
                 EmbeddingId = result.Embedding?.AtomEmbeddingId,
                 ActualDimension = result.Embedding?.Dimension ?? 0,
-                UsedPadding = result.Embedding?.UsesMaxDimensionPadding ?? false
+                UsedPadding = false // Property removed from schema
             };
 
             _logger.LogInformation(
