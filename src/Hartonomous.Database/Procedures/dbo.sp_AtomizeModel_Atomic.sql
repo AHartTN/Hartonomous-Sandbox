@@ -81,7 +81,13 @@ BEGIN
             CAST(a.CanonicalText AS FLOAT) AS WeightValue
         FROM dbo.TensorAtoms ta
         INNER JOIN dbo.Atoms a ON ta.AtomId = a.AtomId
-        WHERE ta.ModelId = (SELECT m.ModelId FROM dbo.Models m WHERE m.AtomId = @ParentAtomId)
+        WHERE ta.ModelId IN (
+            -- Find ModelId by matching model metadata/name from parent atom
+            SELECT m.ModelId 
+            FROM dbo.Models m
+            CROSS APPLY (SELECT CAST(lob.Metadata AS NVARCHAR(MAX)) AS meta FROM dbo.AtomsLOB lob WHERE lob.AtomId = @ParentAtomId) parent_meta
+            WHERE JSON_VALUE(parent_meta.meta, '$.modelName') = m.ModelName
+        )
         AND EXISTS (SELECT 1 FROM dbo.Atoms WHERE AtomId = @ParentAtomId AND TenantId = @TenantId);
         
         -- If no TensorAtoms, this is first ingestion - extract from binary

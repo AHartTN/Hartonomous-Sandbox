@@ -34,3 +34,4 @@ CREATE TABLE [dbo].[AtomRelations] (
     INDEX [IX_AtomRelations_Tenant] NONCLUSTERED ([TenantId], [RelationType])
 )
 WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[AtomRelations_History]));
+

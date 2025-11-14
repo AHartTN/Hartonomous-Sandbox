@@ -151,10 +151,6 @@ CREATE INDEX [IX_ModelLayers_Z_Range] ON [dbo].[ModelLayers] ([ModelId], [ZMin],
 GO
 CREATE UNIQUE INDEX [IX_ModelMetadata_ModelId] ON [dbo].[ModelMetadata] ([ModelId]);
 GO
-CREATE INDEX [IX_Models_ModelName] ON [dbo].[Models] ([ModelName]);
-GO
-CREATE INDEX [IX_Models_ModelType] ON [dbo].[Models] ([ModelType]);
-GO
 CREATE INDEX [IX_TenantSecurityPolicy_EffectiveDates] ON [dbo].[TenantSecurityPolicy] ([EffectiveFrom], [EffectiveTo]);
 GO
 CREATE INDEX [IX_TenantSecurityPolicy_IsActive] ON [dbo].[TenantSecurityPolicy] ([IsActive]);
@@ -192,33 +188,6 @@ GO
 CREATE INDEX [IX_Videos_ResolutionWidth_ResolutionHeight] ON [dbo].[Videos] ([ResolutionWidth], [ResolutionHeight]);
 GO
 
-GO
-PRINT 'Adding indexes for dbo.SemanticFeatures...';
-GO
-CREATE INDEX ix_semantic_topic_technical ON dbo.SemanticFeatures(TopicTechnical) WHERE TopicTechnical > 0.5;
-GO
-CREATE INDEX ix_semantic_topic_business ON dbo.SemanticFeatures(TopicBusiness) WHERE TopicBusiness > 0.5;
-GO
-CREATE INDEX ix_semantic_topic_scientific ON dbo.SemanticFeatures(TopicScientific) WHERE TopicScientific > 0.5;
-GO
-CREATE INDEX ix_semantic_topic_creative ON dbo.SemanticFeatures(TopicCreative) WHERE TopicCreative > 0.5;
-GO
-CREATE INDEX ix_semantic_sentiment ON dbo.SemanticFeatures(SentimentScore);
-GO
-CREATE INDEX ix_semantic_temporal ON dbo.SemanticFeatures(TemporalRelevance) WHERE TemporalRelevance > 0.5;
-GO
-
-
-GO
-PRINT 'Adding indexes for dbo.EventHubCheckpoints...';
-GO
-CREATE UNIQUE INDEX UX_EventHubCheckpoints_Composite ON dbo.EventHubCheckpoints (UniqueKeyHash);
-GO
-CREATE INDEX IX_EventHubCheckpoints_Owner ON dbo.EventHubCheckpoints (OwnerIdentifier) WHERE OwnerIdentifier IS NOT NULL;
-GO
-
-
-GO
 PRINT 'Adding indexes for graph.AtomGraphNodes and graph.AtomGraphEdges...';
 GO
 CREATE INDEX IX_AtomGraphNodes_Modality ON graph.AtomGraphNodes (Modality, Subtype);

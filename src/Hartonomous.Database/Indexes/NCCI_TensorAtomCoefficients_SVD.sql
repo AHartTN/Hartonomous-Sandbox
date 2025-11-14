@@ -5,6 +5,5 @@ CREATE NONCLUSTERED COLUMNSTORE INDEX [NCCI_TensorAtomCoefficients_SVD]
     (
         [ParentLayerId],
         [TensorAtomId],
-        [Coefficient],
-        [Rank]
+        [Coefficient]
     );

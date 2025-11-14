@@ -102,13 +102,14 @@
   <!-- SQL Build Items (explicit includes for classic SSDT) -->
   <ItemGroup>
     <Build Include="Security\*.sql" />
+    <Build Include="Schemas\*.sql" />
+    <Build Include="Types\*.sql" />
     <Build Include="Tables\*.sql" />
-    <Build Include="Views\*.sql" />
+    <Build Include="Indexes\*.sql" />
     <Build Include="Functions\*.sql" />
+    <Build Include="Views\*.sql" />
     <Build Include="Procedures\*.sql" />
     <Build Include="Aggregates\*.sql" />
-    <Build Include="Types\*.sql" />
-    <Build Include="Schemas\*.sql" />
     <Build Include="ServiceBroker\Contracts\*.sql" />
     <Build Include="ServiceBroker\MessageTypes\*.sql" />
     <Build Include="ServiceBroker\Queues\*.sql" />
@@ -165,10 +166,11 @@
     <!-- ONLY include production atomic decomposition extractors (no external dependencies) -->
     <Compile Include="CLR\ImagePixelExtractor.cs" />
     <Compile Include="CLR\AudioFrameExtractor.cs" />
+    <Compile Include="CLR\AtomicStream.cs" />
+    <Compile Include="CLR\AtomicStreamFunctions.cs" />
+    <Compile Include="CLR\SqlBytesInterop.cs" />
+    <Compile Include="CLR\BinaryConversions.cs" />
     <Compile Include="CLR\Properties\AssemblyInfo.cs" />
-    
-    <!-- Exclude all other CLR files (dependencies not resolved in SSDT build) -->
-    <Compile Remove="CLR\**\*.cs" Exclude="CLR\ImagePixelExtractor.cs;CLR\AudioFrameExtractor.cs;CLR\Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <!-- Framework References for CLR -->
   <ItemGroup>

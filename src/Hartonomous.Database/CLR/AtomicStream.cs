@@ -47,7 +47,7 @@ namespace Hartonomous.Clr
 
         public SqlGuid StreamId => _isNull || _streamId == Guid.Empty ? SqlGuid.Null : new SqlGuid(_streamId);
 
-        public SqlDateTime CreatedUtc => _isNull || _createdUtcTicks == 0 ? SqlDateTime.Null : new SqlDateTime(new DateTime(_createdUtcTicks, DateTimeKind.Utc));
+        public DateTime CreatedUtc => _isNull || _createdUtcTicks == 0 ? DateTime.MinValue : new DateTime(_createdUtcTicks, DateTimeKind.Utc);
 
         public SqlString Scope => _scope;
 
@@ -58,7 +58,7 @@ namespace Hartonomous.Clr
         public SqlInt32 SegmentCount => !_isNull && _segments != null ? new SqlInt32(_segments.Count) : SqlInt32.Zero;
 
         [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = false)]
-        public void Initialize(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
+        public void Initialize(SqlGuid streamId, DateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
         {
             if (streamId.IsNull || streamId.Value == Guid.Empty)
             {
@@ -66,7 +66,7 @@ namespace Hartonomous.Clr
             }
 
             _streamId = streamId.Value;
-            _createdUtcTicks = createdUtc.IsNull ? DateTime.UtcNow.Ticks : EnsureUtc(createdUtc.Value).Ticks;
+            _createdUtcTicks = EnsureUtc(createdUtc).Ticks;
             _scope = Normalize(scope);
             _model = Normalize(model);
             _metadata = metadata.IsNull ? SqlString.Null : metadata;
@@ -76,7 +76,7 @@ namespace Hartonomous.Clr
         }
 
         [SqlMethod(IsDeterministic = false, IsPrecise = false)]
-        public static AtomicStream Create(SqlGuid streamId, SqlDateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
+        public static AtomicStream Create(SqlGuid streamId, DateTime createdUtc, SqlString scope, SqlString model, SqlString metadata)
         {
             var stream = new AtomicStream();
             stream.Initialize(streamId, createdUtc, scope, model, metadata);
@@ -84,7 +84,7 @@ namespace Hartonomous.Clr
         }
 
         [SqlMethod(IsMutator = true, IsDeterministic = false, IsPrecise = false)]
-        public void AddSegment(SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
+        public void AddSegment(SqlString kind, DateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
         {
             EnsureInitialized();
 
@@ -93,7 +93,7 @@ namespace Hartonomous.Clr
 
             var segment = new Segment(
                 ParseSegmentKind(kind),
-                timestampUtc.IsNull ? DateTime.UtcNow.Ticks : EnsureUtc(timestampUtc.Value).Ticks,
+                EnsureUtc(timestampUtc).Ticks,
                 contentType.IsNull ? null : contentType.Value,
                 metadata.IsNull ? null : metadata.Value,
                 clone);
@@ -102,7 +102,7 @@ namespace Hartonomous.Clr
         }
 
         [SqlMethod(IsDeterministic = false, IsPrecise = false)]
-        public static AtomicStream AppendSegment(AtomicStream stream, SqlString kind, SqlDateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
+        public static AtomicStream AppendSegment(AtomicStream stream, SqlString kind, DateTime timestampUtc, SqlString contentType, SqlString metadata, SqlBytes payload)
         {
             stream.AddSegment(kind, timestampUtc, contentType, metadata, payload);
             return stream;
@@ -116,10 +116,10 @@ namespace Hartonomous.Clr
         }
 
         [SqlMethod(IsDeterministic = true, IsPrecise = true)]
-        public SqlDateTime GetSegmentTimestamp(SqlInt32 ordinal)
+        public DateTime GetSegmentTimestamp(SqlInt32 ordinal)
         {
             var segment = RequireSegment(ordinal);
-            return new SqlDateTime(new DateTime(segment.TimestampTicks, DateTimeKind.Utc));
+            return new DateTime(segment.TimestampTicks, DateTimeKind.Utc);
         }
 
         [SqlMethod(IsDeterministic = true, IsPrecise = true)]

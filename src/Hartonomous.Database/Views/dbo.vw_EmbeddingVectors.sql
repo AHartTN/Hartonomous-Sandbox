@@ -4,7 +4,7 @@ AS
 SELECT 
     relations.SourceAtomId,
     relations.SequenceIndex AS ComponentIndex,
-    CAST(atoms.AtomicValue AS FLOAT) AS ComponentValue,
+    dbo.clr_BinaryToFloat(atoms.AtomicValue) AS ComponentValue,
     relations.AtomRelationId
 FROM dbo.AtomRelations AS relations
 INNER JOIN dbo.Atoms AS atoms ON atoms.AtomId = relations.TargetAtomId
