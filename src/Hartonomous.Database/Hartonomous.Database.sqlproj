@@ -23,6 +23,11 @@
     <Folder Include="Scripts\Pre-Deployment" />
     <Folder Include="Scripts\Post-Deployment" />
     <Folder Include="CLR" />
+    <Folder Include="ServiceBroker" />
+    <Folder Include="ServiceBroker\Contracts" />
+    <Folder Include="ServiceBroker\MessageTypes" />
+    <Folder Include="ServiceBroker\Queues" />
+    <Folder Include="ServiceBroker\Services" />
   </ItemGroup>
   <PropertyGroup>
     <Name>Hartonomous.Database</Name>
@@ -101,6 +106,10 @@
     <Build Include="Aggregates\*.sql" />
     <Build Include="Types\*.sql" />
     <Build Include="Schemas\*.sql" />
+    <Build Include="ServiceBroker\Contracts\*.sql" />
+    <Build Include="ServiceBroker\MessageTypes\*.sql" />
+    <Build Include="ServiceBroker\Queues\*.sql" />
+    <Build Include="ServiceBroker\Services\*.sql" />
   </ItemGroup>
   <ItemGroup>
     <!-- Exclude problematic migration/scripting files that need post-deployment handling -->

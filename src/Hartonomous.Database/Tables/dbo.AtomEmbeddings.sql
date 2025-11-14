@@ -16,7 +16,7 @@ CREATE TABLE [dbo].[AtomEmbeddings]
     [SpatialProjZ] FLOAT NULL,
     [ModelId] INT NULL,
     [EmbeddingType] NVARCHAR(50) NOT NULL DEFAULT ('semantic'),
-    [Metadata] NVARCHAR(MAX) NULL,
+    [Metadata] JSON NULL,
     [TenantId] INT NOT NULL DEFAULT (0),
     [LastUpdated] DATETIME2 NOT NULL DEFAULT (SYSUTCDATETIME()),
     [LastComputedUtc] DATETIME2 NULL,
@@ -25,5 +25,7 @@ CREATE TABLE [dbo].[AtomEmbeddings]
 
     CONSTRAINT [PK_AtomEmbeddings] PRIMARY KEY CLUSTERED ([AtomEmbeddingId]),
     CONSTRAINT [FK_AtomEmbeddings_Atoms] FOREIGN KEY ([AtomId])
-        REFERENCES [dbo].[Atoms]([AtomId]) ON DELETE CASCADE
+        REFERENCES [dbo].[Atoms]([AtomId]) ON DELETE CASCADE,
+    CONSTRAINT [FK_AtomEmbeddings_Models] FOREIGN KEY ([ModelId])
+        REFERENCES [dbo].[Models]([ModelId]) ON DELETE SET NULL
 );

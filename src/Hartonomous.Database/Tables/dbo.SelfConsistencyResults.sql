@@ -5,8 +5,8 @@ CREATE TABLE dbo.SelfConsistencyResults (
     NumSamples INT NOT NULL,
     ConsensusAnswer NVARCHAR(MAX),
     AgreementRatio FLOAT NOT NULL,
-    ConsensusMetrics NVARCHAR(MAX) NULL, -- JSON metrics
-    SampleData NVARCHAR(MAX), -- JSON array of samples
+    ConsensusMetrics JSON NULL, -- JSON metrics
+    SampleData JSON, -- JSON array of samples
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 

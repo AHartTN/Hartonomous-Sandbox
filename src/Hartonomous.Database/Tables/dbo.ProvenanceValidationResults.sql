@@ -1,7 +1,7 @@
 CREATE TABLE dbo.ProvenanceValidationResults (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     OperationId UNIQUEIDENTIFIER NOT NULL,
-    ValidationResults NVARCHAR(MAX), -- JSON array of validation checks
+    ValidationResults JSON, -- JSON array of validation checks
     OverallStatus NVARCHAR(20) NOT NULL, -- 'PASS', 'WARN', 'FAIL'
     ValidationDurationMs INT NOT NULL,
     ValidatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),

@@ -10,7 +10,7 @@ CREATE TABLE [dbo].[Models]
     [ModelType]             NVARCHAR(100)    NOT NULL,
     [ModelVersion]          NVARCHAR(50)     NULL,
     [Architecture]          NVARCHAR(100)    NULL,
-    [Config]                NVARCHAR(MAX)    NULL, -- JSON column type applied via CHECK constraint
+    [Config]                JSON             NULL, -- Native JSON type for structured configuration
     [ParameterCount]        BIGINT           NULL,
     [IngestionDate]         DATETIME2(7)     NOT NULL CONSTRAINT DF_Models_IngestionDate DEFAULT (SYSUTCDATETIME()),
     [CreatedAt]             DATETIME2(7)     NOT NULL CONSTRAINT DF_Models_CreatedAt DEFAULT (SYSUTCDATETIME()),
@@ -19,11 +19,8 @@ CREATE TABLE [dbo].[Models]
     [AverageInferenceMs]    FLOAT            NULL,
     [TenantId]              INT              NOT NULL CONSTRAINT DF_Models_TenantId DEFAULT (0),
     [IsActive]              BIT              NOT NULL CONSTRAINT DF_Models_IsActive DEFAULT (1),
-    [MetadataJson]          NVARCHAR(MAX)    NULL,
+    [MetadataJson]          JSON             NULL, -- Native JSON type for model metadata
     [SerializedModel]       VARBINARY(MAX)   NULL,
 
-    CONSTRAINT [PK_Models] PRIMARY KEY CLUSTERED ([ModelId] ASC),
-
-    CONSTRAINT [CK_Models_Config_IsJson]
-        CHECK ([Config] IS NULL OR ISJSON([Config]) = 1)
+    CONSTRAINT [PK_Models] PRIMARY KEY CLUSTERED ([ModelId] ASC)
 );

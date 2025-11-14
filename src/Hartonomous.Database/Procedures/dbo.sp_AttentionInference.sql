@@ -63,7 +63,7 @@ BEGIN
 
         -- Get generated atoms for this step
         DECLARE @GeneratedAtoms NVARCHAR(MAX);
-        SELECT @GeneratedAtoms = GeneratedAtomIds
+        SELECT @GeneratedAtoms = CAST(GeneratedAtomIds AS NVARCHAR(MAX))
         FROM provenance.GenerationStreams
         WHERE GenerationStreamId = @StepStreamId;
 

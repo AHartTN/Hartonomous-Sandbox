@@ -223,19 +223,67 @@ PRINT 'Adding indexes for graph.AtomGraphNodes and graph.AtomGraphEdges...';
 GO
 CREATE INDEX IX_AtomGraphNodes_Modality ON graph.AtomGraphNodes (Modality, Subtype);
 GO
--- CREATE SPATIAL INDEX SIX_AtomGraphNodes_SpatialKey ON graph.AtomGraphNodes (SpatialKey) USING GEOMETRY_AUTO_GRID WITH (BOUNDING_BOX = (-1000000, -1000000, 1000000, 1000000), CELLS_PER_OBJECT = 16);
--- GO
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'SIX_AtomGraphNodes_SpatialKey'
+    AND object_id = OBJECT_ID('graph.AtomGraphNodes')
+)
+BEGIN
+    CREATE SPATIAL INDEX SIX_AtomGraphNodes_SpatialKey 
+    ON graph.AtomGraphNodes (SpatialKey) 
+    WITH (
+        BOUNDING_BOX = (-10000000, -10000000, 10000000, 10000000),
+        GRIDS = (
+            LEVEL_1 = MEDIUM,
+            LEVEL_2 = MEDIUM,
+            LEVEL_3 = MEDIUM,
+            LEVEL_4 = LOW
+        ),
+        CELLS_PER_OBJECT = 16,
+        PAD_INDEX = ON,
+        SORT_IN_TEMPDB = ON
+    );
+    PRINT '✓ SIX_AtomGraphNodes_SpatialKey created';
+END
+ELSE
+BEGIN
+    PRINT '✓ SIX_AtomGraphNodes_SpatialKey already exists';
+END;
+GO
+
 CREATE INDEX IX_AtomGraphEdges_Type ON graph.AtomGraphEdges (RelationType);
 GO
--- Graph edge indexes on $from_id and $to_id are created automatically
--- CREATE INDEX IX_AtomGraphEdges_FromTo ON graph.AtomGraphEdges (, );
--- GO
--- CREATE JSON INDEX JX_AtomGraphNodes_Semantics ON graph.AtomGraphNodes (Semantics);
--- GO
--- CREATE SPATIAL INDEX SIX_AtomGraphEdges_SpatialExpression ON graph.AtomGraphEdges (SpatialExpression) USING GEOMETRY_AUTO_GRID WITH (BOUNDING_BOX = (-1000000, -1000000, 1000000, 1000000), CELLS_PER_OBJECT = 16);
--- GO
--- CREATE JSON INDEX JX_AtomGraphEdges_Metadata ON graph.AtomGraphEdges (Metadata);
--- GO
+
+-- Graph edge indexes on $from_id and $to_id are created in separate script (graph.AtomGraphEdges_Add_PseudoColumn_Indexes.sql)
+
+IF NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'SIX_AtomGraphEdges_SpatialExpression'
+    AND object_id = OBJECT_ID('graph.AtomGraphEdges')
+)
+BEGIN
+    CREATE SPATIAL INDEX SIX_AtomGraphEdges_SpatialExpression 
+    ON graph.AtomGraphEdges (SpatialExpression) 
+    WITH (
+        BOUNDING_BOX = (-10000000, -10000000, 10000000, 10000000),
+        GRIDS = (
+            LEVEL_1 = HIGH,
+            LEVEL_2 = MEDIUM,
+            LEVEL_3 = MEDIUM,
+            LEVEL_4 = LOW
+        ),
+        CELLS_PER_OBJECT = 16,
+        PAD_INDEX = ON,
+        SORT_IN_TEMPDB = ON
+    );
+    PRINT '✓ SIX_AtomGraphEdges_SpatialExpression created';
+END
+ELSE
+BEGIN
+    PRINT '✓ SIX_AtomGraphEdges_SpatialExpression already exists';
+END;
+GO
 
 -- Creates and repairs spatial indexes required by the platform. Runnable multiple times safely.
 

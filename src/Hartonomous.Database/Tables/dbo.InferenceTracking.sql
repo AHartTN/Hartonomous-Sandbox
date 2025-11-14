@@ -1,11 +1,11 @@
 CREATE TABLE dbo.InferenceRequests (
     InferenceId BIGINT IDENTITY(1,1) NOT NULL,
     TaskType NVARCHAR(100) NOT NULL,
-    InputData NVARCHAR(MAX) NULL,
-    OutputData NVARCHAR(MAX) NULL,
-    ModelsUsed NVARCHAR(MAX) NULL,
+    InputData JSON NULL,
+    OutputData JSON NULL,
+    ModelsUsed JSON NULL,
     EnsembleStrategy NVARCHAR(50) NULL,
-    OutputMetadata NVARCHAR(MAX) NULL,
+    OutputMetadata JSON NULL,
     UserRating TINYINT NULL,
     TotalDurationMs INT NULL,
     Status NVARCHAR(50) NOT NULL DEFAULT 'pending',
@@ -31,9 +31,11 @@ CREATE TABLE dbo.InferenceSteps (
     OperationType NVARCHAR(100) NULL,
     DurationMs INT NULL,
     RowsReturned INT NULL,
-    Metadata NVARCHAR(MAX) NULL,
+    Metadata JSON NULL,
     CONSTRAINT PK_InferenceSteps PRIMARY KEY CLUSTERED (InferenceStepId),
     CONSTRAINT FK_InferenceSteps_Inference FOREIGN KEY (InferenceId) REFERENCES dbo.InferenceRequests(InferenceId) ON DELETE CASCADE,
+    CONSTRAINT FK_InferenceSteps_Atoms FOREIGN KEY (AtomId) REFERENCES dbo.Atoms(AtomId),
+    CONSTRAINT FK_InferenceSteps_ModelLayers FOREIGN KEY (LayerId) REFERENCES dbo.ModelLayers(LayerId),
     INDEX IX_InferenceSteps_Inference (InferenceId, StepNumber),
     INDEX IX_InferenceSteps_Layer (LayerId) WHERE (LayerId IS NOT NULL)
 );

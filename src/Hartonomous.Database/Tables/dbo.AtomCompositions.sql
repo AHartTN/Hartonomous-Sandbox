@@ -19,7 +19,7 @@ CREATE TABLE [dbo].[AtomCompositions] (
     [DimensionM]        INT           NULL,
     
     -- Metadata
-    [Metadata]          NVARCHAR(MAX) NULL,      -- JSON for component-specific data
+    [Metadata]          JSON NULL,      -- JSON for component-specific data
     [CreatedAt]         DATETIME2(7)  NOT NULL DEFAULT (SYSUTCDATETIME()),
     
     CONSTRAINT [PK_AtomCompositions] PRIMARY KEY CLUSTERED ([CompositionId] ASC),

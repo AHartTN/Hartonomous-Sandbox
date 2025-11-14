@@ -17,7 +17,7 @@ CREATE TABLE [dbo].[Atoms] (
     [ComponentStream] VARBINARY (MAX)  NULL,  -- Deprecated: use atomic decomposition instead
     
     -- Metadata
-    [Metadata]        NVARCHAR(MAX)    NULL,
+    [Metadata]        JSON    NULL,
     [CreatedAt]       DATETIME2 (7)    NOT NULL DEFAULT (SYSUTCDATETIME()),
     [CreatedUtc]      DATETIME2 (7)    NOT NULL DEFAULT (SYSUTCDATETIME()),
     [UpdatedAt]       DATETIME2 (7)    NULL,

@@ -10,7 +10,7 @@ CREATE TABLE [dbo].[AudioData] (
     [WaveformLeft]       GEOMETRY       NULL,
     [WaveformRight]      GEOMETRY       NULL,
     [GlobalEmbedding]    VECTOR(1998)   NULL,
-    [Metadata]           NVARCHAR(MAX)  NULL,
+    [Metadata]           JSON  NULL,
     [IngestionDate]      DATETIME2 (7)  NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_AudioData] PRIMARY KEY CLUSTERED ([AudioId] ASC)
 );

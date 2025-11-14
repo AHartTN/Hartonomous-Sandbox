@@ -10,7 +10,7 @@ CREATE TABLE [dbo].[ModelLayers] (
     [QuantizationType]    NVARCHAR (20)  NULL,
     [QuantizationScale]   FLOAT (53)     NULL,
     [QuantizationZeroPoint] FLOAT (53)     NULL,
-    [Parameters]          NVARCHAR(MAX)  NULL,
+    [Parameters]          JSON  NULL,
     [ParameterCount]      BIGINT         NULL,
     [ZMin]                FLOAT (53)     NULL,
     [ZMax]                FLOAT (53)     NULL,

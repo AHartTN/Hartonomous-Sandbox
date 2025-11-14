@@ -9,7 +9,7 @@ CREATE TABLE dbo.ProvenanceAuditResults (
     FailedOperations INT NOT NULL,
     AverageValidationScore FLOAT,
     AverageSegmentCount FLOAT,
-    Anomalies NVARCHAR(MAX), -- JSON array of detected anomalies
+    Anomalies JSON, -- JSON array of detected anomalies
     AuditDurationMs INT NOT NULL,
     AuditedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 

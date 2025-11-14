@@ -17,8 +17,8 @@ BEGIN
         Units DECIMAL(18,6) NOT NULL,
         BaseRate DECIMAL(18,6) NOT NULL,
         Multiplier DECIMAL(18,6) NOT NULL DEFAULT 1.0,
-        TotalCost DECIMAL(18,6) NOT NULL,
-        MetadataJson NVARCHAR(MAX) NULL,
+        TotalCost DECIMAL(19, 6) NOT NULL,
+        MetadataJson JSON NULL, -- Native JSON for billing metadata
         TimestampUtc DATETIME2(7) NOT NULL DEFAULT SYSUTCDATETIME(),
         
         CONSTRAINT PK_BillingUsageLedger_New PRIMARY KEY CLUSTERED (LedgerId)

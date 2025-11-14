@@ -10,7 +10,7 @@ CREATE TABLE dbo.PendingActions (
     ApprovedUtc DATETIME2 NULL,
     ApprovedBy NVARCHAR(128) NULL,
     ExecutedUtc DATETIME2 NULL,
-    ResultJson NVARCHAR(MAX) NULL,
+    ResultJson JSON NULL, -- Native JSON for action execution results
     ErrorMessage NVARCHAR(MAX) NULL,
     CONSTRAINT PK_PendingActions PRIMARY KEY CLUSTERED (ActionId),
     INDEX IX_PendingActions_Status (Status),

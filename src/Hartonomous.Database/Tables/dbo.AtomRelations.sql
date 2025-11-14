@@ -5,7 +5,7 @@ CREATE TABLE [dbo].[AtomRelations] (
     [RelationType]     NVARCHAR (128)NOT NULL,
     [Weight]           REAL          NULL,
     [SpatialExpression]GEOMETRY      NULL,
-    [Metadata]         NVARCHAR(MAX) NULL,
+    [Metadata]         JSON NULL,
     [CreatedAt]        DATETIME2 (7) NOT NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_AtomRelations] PRIMARY KEY CLUSTERED ([AtomRelationId] ASC),
     CONSTRAINT [FK_AtomRelations_Atoms_SourceAtomId] FOREIGN KEY ([SourceAtomId]) REFERENCES [dbo].[Atoms] ([AtomId]),

@@ -13,5 +13,6 @@ CREATE TABLE dbo.EventAtoms (
     INDEX IX_EventAtoms_ClusterId (ClusterId),
     INDEX IX_EventAtoms_CreatedAt (CreatedAt DESC),
 
-    FOREIGN KEY (StreamId) REFERENCES dbo.StreamOrchestrationResults(Id)
+    CONSTRAINT FK_EventAtoms_StreamOrchestration FOREIGN KEY (StreamId) REFERENCES dbo.StreamOrchestrationResults(Id),
+    CONSTRAINT FK_EventAtoms_Atoms FOREIGN KEY (CentroidAtomId) REFERENCES dbo.Atoms(AtomId)
 );

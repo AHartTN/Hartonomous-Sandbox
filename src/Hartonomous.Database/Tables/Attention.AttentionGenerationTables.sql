@@ -5,8 +5,8 @@
 CREATE TABLE dbo.AttentionGenerationLog (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     ModelId INT NOT NULL,
-    InputAtomIds NVARCHAR(MAX) NOT NULL,
-    ContextJson NVARCHAR(MAX),
+    InputAtomIds JSON NOT NULL,
+    ContextJson JSON,
     MaxTokens INT NOT NULL,
     Temperature FLOAT NOT NULL,
     TopK INT NOT NULL,
@@ -30,7 +30,7 @@ CREATE TABLE dbo.AttentionInferenceResults (
     ModelId INT NOT NULL,
     MaxReasoningSteps INT NOT NULL,
     AttentionHeads INT NOT NULL,
-    ReasoningSteps NVARCHAR(MAX), -- JSON array of reasoning steps
+    ReasoningSteps JSON, -- JSON array of reasoning steps
     TotalSteps INT NOT NULL,
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -48,7 +48,7 @@ CREATE TABLE dbo.TransformerInferenceResults (
     Layers INT NOT NULL,
     AttentionHeads INT NOT NULL,
     FeedForwardDim INT NOT NULL,
-    LayerResults NVARCHAR(MAX), -- JSON array of layer results
+    LayerResults JSON, -- JSON array of layer results
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 

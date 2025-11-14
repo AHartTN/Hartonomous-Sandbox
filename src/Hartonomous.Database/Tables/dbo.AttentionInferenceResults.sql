@@ -5,11 +5,13 @@ CREATE TABLE dbo.AttentionInferenceResults (
     ModelId INT NOT NULL,
     MaxReasoningSteps INT NOT NULL,
     AttentionHeads INT NOT NULL,
-    ReasoningSteps NVARCHAR(MAX), -- JSON array of reasoning steps
+    ReasoningSteps JSON, -- JSON array of reasoning steps
     TotalSteps INT NOT NULL,
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 
     INDEX IX_AttentionInferenceResults_ProblemId (ProblemId),
-    INDEX IX_AttentionInferenceResults_CreatedAt (CreatedAt DESC)
+    INDEX IX_AttentionInferenceResults_CreatedAt (CreatedAt DESC),
+
+    CONSTRAINT FK_AttentionInferenceResults_Models FOREIGN KEY (ModelId) REFERENCES dbo.Models(ModelId)
 );

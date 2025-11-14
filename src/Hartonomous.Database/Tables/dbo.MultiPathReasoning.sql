@@ -5,7 +5,7 @@ CREATE TABLE dbo.MultiPathReasoning (
     NumPaths INT NOT NULL,
     MaxDepth INT NOT NULL,
     BestPathId INT,
-    ReasoningTree NVARCHAR(MAX), -- JSON representation of reasoning tree
+    ReasoningTree JSON, -- JSON representation of reasoning tree
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 

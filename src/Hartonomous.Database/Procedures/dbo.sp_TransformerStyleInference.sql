@@ -48,7 +48,7 @@ BEGIN
 
         -- Get attention output
         DECLARE @AttentionOutput NVARCHAR(MAX);
-        SELECT TOP 1 @AttentionOutput = GeneratedAtomIds
+        SELECT TOP 1 @AttentionOutput = CAST(GeneratedAtomIds AS NVARCHAR(MAX))
         FROM dbo.AttentionGenerationLog
         WHERE ModelId = @ModelId AND CreatedAt >= @LayerStartTime
         ORDER BY CreatedAt DESC;

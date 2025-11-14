@@ -10,7 +10,7 @@ CREATE TABLE [dbo].[TextDocuments] (
     [TopicVector]        VECTOR(1998)    NULL,
     [SentimentScore]     REAL            NULL,
     [Toxicity]           REAL            NULL,
-    [Metadata]           NVARCHAR(MAX)   NULL,
+    [Metadata]           JSON   NULL,
     [IngestionDate]      DATETIME2 (7)   NULL DEFAULT (SYSUTCDATETIME()),
     [LastAccessed]       DATETIME2 (7)   NULL,
     [AccessCount]        BIGINT          NOT NULL DEFAULT CAST(0 AS BIGINT),

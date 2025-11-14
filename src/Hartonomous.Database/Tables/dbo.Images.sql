@@ -11,7 +11,7 @@ CREATE TABLE [dbo].[Images] (
     [ObjectRegions]      GEOMETRY         NULL,
     [SaliencyRegions]    GEOMETRY         NULL,
     [GlobalEmbedding]    VECTOR(1998)     NULL,
-    [Metadata]           NVARCHAR(MAX)    NULL,
+    [Metadata]           JSON    NULL,
     [IngestionDate]      DATETIME2 (7)    NULL DEFAULT (SYSUTCDATETIME()),
     [LastAccessed]       DATETIME2 (7)    NULL,
     [AccessCount]        BIGINT           NOT NULL DEFAULT CAST(0 AS BIGINT),

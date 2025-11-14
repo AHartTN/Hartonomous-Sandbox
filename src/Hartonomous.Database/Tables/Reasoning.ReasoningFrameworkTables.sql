@@ -6,7 +6,7 @@ CREATE TABLE dbo.ReasoningChains (
     Id INT IDENTITY(1,1) PRIMARY KEY,
     ProblemId UNIQUEIDENTIFIER NOT NULL,
     ReasoningType NVARCHAR(50) NOT NULL DEFAULT 'chain_of_thought',
-    ChainData NVARCHAR(MAX), -- JSON array of reasoning steps
+    ChainData JSON, -- JSON array of reasoning steps
     TotalSteps INT NOT NULL,
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
@@ -23,7 +23,7 @@ CREATE TABLE dbo.SelfConsistencyResults (
     NumSamples INT NOT NULL,
     ConsensusAnswer NVARCHAR(MAX),
     AgreementRatio FLOAT NOT NULL,
-    SampleData NVARCHAR(MAX), -- JSON array of samples
+    SampleData JSON, -- JSON array of samples
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 
@@ -39,7 +39,7 @@ CREATE TABLE dbo.MultiPathReasoning (
     NumPaths INT NOT NULL,
     MaxDepth INT NOT NULL,
     BestPathId INT,
-    ReasoningTree NVARCHAR(MAX), -- JSON representation of reasoning tree
+    ReasoningTree JSON, -- JSON representation of reasoning tree
     DurationMs INT NOT NULL,
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
 

@@ -21,7 +21,7 @@ BEGIN
         DECLARE @Metadata NVARCHAR(MAX);
         
         SELECT 
-            @Metadata = a.Metadata,
+            @Metadata = CAST(a.Metadata AS NVARCHAR(MAX)),
             @Content = p.PayloadData,
             @ContentType = p.ContentType
         FROM dbo.Atoms a

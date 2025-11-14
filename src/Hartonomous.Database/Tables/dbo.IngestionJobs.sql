@@ -5,6 +5,6 @@ CREATE TABLE [dbo].[IngestionJobs] (
     [CompletedAt]    DATETIME2 (7)   NULL,
     [Status]         NVARCHAR (64)   NULL,
     [SourceUri]      NVARCHAR (1024) NULL,
-    [Metadata]       NVARCHAR(MAX)   NULL,
+    [Metadata]       JSON   NULL,
     CONSTRAINT [PK_IngestionJobs] PRIMARY KEY CLUSTERED ([IngestionJobId] ASC)
 );

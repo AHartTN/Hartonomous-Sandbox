@@ -7,11 +7,12 @@ CREATE TABLE graph.AtomGraphNodes
     SourceUri           NVARCHAR(2048)  NULL,
     PayloadLocator      NVARCHAR(512)   NULL,
     CanonicalText       NVARCHAR(MAX)   NULL,
-    Metadata            NVARCHAR(MAX)   NULL,
-    Semantics           NVARCHAR(MAX)   NULL,
+    Metadata            JSON   NULL,
+    Semantics           JSON   NULL,
     SpatialKey          GEOMETRY        NULL,
     CreatedAt           DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
     UpdatedAt           DATETIME2       NOT NULL DEFAULT SYSUTCDATETIME(),
-    CONSTRAINT UX_AtomGraphNodes_AtomId UNIQUE (AtomId)
+    CONSTRAINT PK_AtomGraphNodes PRIMARY KEY CLUSTERED (AtomId),
+    CONSTRAINT UX_AtomGraphNodes_AtomId UNIQUE NONCLUSTERED (AtomId)
 ) AS NODE;
 GO

@@ -6,7 +6,7 @@ CREATE TABLE [dbo].[TensorAtoms] (
     [AtomType]        NVARCHAR (128) NOT NULL,
     [SpatialSignature]GEOMETRY       NULL,
     [GeometryFootprint]GEOMETRY      NULL,
-    [Metadata]        NVARCHAR(MAX)  NULL,
+    [Metadata]        JSON  NULL,
     [ImportanceScore] REAL           NULL,
     [CreatedAt]       DATETIME2 (7)  NOT NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_TensorAtoms] PRIMARY KEY CLUSTERED ([TensorAtomId] ASC),

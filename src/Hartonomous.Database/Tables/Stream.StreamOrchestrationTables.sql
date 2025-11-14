@@ -21,9 +21,9 @@ CREATE TABLE dbo.StreamOrchestrationResults (
 -- StreamFusionResults: Store multi-modal stream fusion results
 CREATE TABLE dbo.StreamFusionResults (
     Id INT IDENTITY(1,1) PRIMARY KEY,
-    StreamIds NVARCHAR(MAX) NOT NULL,
+    StreamIds JSON NOT NULL,
     FusionType NVARCHAR(50) NOT NULL,
-    Weights NVARCHAR(MAX),
+    Weights JSON,
     FusedStream VARBINARY(MAX),
     ComponentCount INT,
     DurationMs INT NOT NULL,

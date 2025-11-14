@@ -8,7 +8,7 @@ CREATE TABLE [dbo].[Videos] (
     [NumFrames]          BIGINT         NOT NULL,
     [Format]             NVARCHAR (20)  NULL,
     [GlobalEmbedding]    VECTOR(1998)   NULL,
-    [Metadata]           NVARCHAR(MAX)  NULL,
+    [Metadata]           JSON  NULL,
     [IngestionDate]      DATETIME2 (7)  NULL DEFAULT (SYSUTCDATETIME()),
     CONSTRAINT [PK_Videos] PRIMARY KEY CLUSTERED ([VideoId] ASC)
 );
