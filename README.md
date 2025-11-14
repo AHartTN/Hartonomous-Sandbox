@@ -165,48 +165,51 @@ dotnet test tests/Hartonomous.UnitTests
 
 ## Project Structure
 
-- **`src/Hartonomous.Api`**: ASP.NET Core REST API with 18 controller endpoints
-- **`src/Hartonomous.Admin`**: Blazor Server admin portal with telemetry dashboards
-- **`src/Hartonomous.Workers.*`**: Background services (CDC consumer, Neo4j sync)
+- **`src/Hartonomous.Database`**: DACPAC project (AI runtime - T-SQL + CLR assemblies)
+- **`src/Hartonomous.SqlClr`**: SQL CLR implementation (.NET Framework 4.8.1 in-process functions)
 - **`src/Hartonomous.Core`**: Domain entities, value objects, interfaces
-- **`src/Hartonomous.Data`**: EF Core DbContext and entity configurations
-- **`src/Hartonomous.Infrastructure`**: Service implementations, pipelines, messaging
-- **`src/SqlClr`**: SQL CLR implementation (.NET Framework 4.8.1)
-- **`sql/`**: Database schema scripts (tables, procedures, functions)
+- **`src/Hartonomous.Infrastructure`**: Repository implementations, Neo4j sync
+- **`src/Hartonomous.Api`**: ASP.NET Core management API (optional - calls stored procedures)
+- **`src/Hartonomous.Admin`**: Blazor Server admin portal with telemetry dashboards
+- **`src/Hartonomous.Workers.*`**: CDC/Neo4j sync workers (compliance only)
 - **`scripts/`**: PowerShell deployment automation
 - **`tests/`**: Unit, integration, and end-to-end test suites
 
-## REST API
+**AI Execution**: All inference, embedding generation, and model operations execute in-process within SQL Server via stored procedures and CLR assemblies. The API is an optional management layer.
 
-Hartonomous provides a comprehensive REST API for all operations:
+## Management API (Optional)
+
+Hartonomous provides an optional REST API for external tooling integration. **All AI operations execute in SQL Server** - the API simply calls stored procedures:
 
 ```bash
-# Ingest content
+# Ingest content (calls sp_IngestAtom_Atomic)
 curl -X POST http://localhost:5000/api/ingestion/ingest \
   -H "Content-Type: application/json" \
   -d '{"sourceUri": "file:///documents/report.txt", "modality": "text"}'
 
-# Generate embeddings
+# Generate embeddings (calls sp_GenerateEmbedding - in-process CLR)
 curl -X POST http://localhost:5000/api/embeddings/generate \
   -H "Content-Type: application/json" \
-  -d '{"text": "sample text", "modelName": "text-embedding-3-large"}'
+  -d '{"text": "sample text"}'
 
-# Semantic search
+# Semantic search (calls sp_SemanticSearch - in-process VECTOR operations)
 curl -X POST http://localhost:5000/api/search/semantic \
   -H "Content-Type: application/json" \
   -d '{"query": "financial reports", "topK": 10}'
 
-# Query provenance
+# Query provenance (calls graph traversal procedures)
 curl -X GET http://localhost:5000/api/provenance/trace/atom/{atomId}
 ```
 
-See [docs/api/rest-api.md](docs/api/rest-api.md) for complete API documentation.
+**You can also call stored procedures directly via SqlClient** - the API is for convenience only.
+
+See [docs/api/rest-api.md](docs/api/rest-api.md) for complete endpoint documentation.
 
 ## Documentation
 
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - Database-first design, CLR layer, OODA loop, provenance tracking
 - **[Atomic Decomposition](docs/architecture/atomic-decomposition.md)** - "Periodic Table of Knowledge" philosophy, radical atomization, spatial indexing
-- **[REST API Reference](docs/api/rest-api.md)** - Complete endpoint documentation with examples
+- **[Management API Reference](docs/api/rest-api.md)** - REST endpoints for external tooling (all AI runs in SQL Server)
 - **[Deployment Guide](docs/deployment/deployment-guide.md)** - Production deployment and configuration
 - **[Database Schema](docs/development/database-schema.md)** - Complete schema reference and design patterns
 - **[CLR Security](docs/security/clr-security.md)** - Security model and best practices

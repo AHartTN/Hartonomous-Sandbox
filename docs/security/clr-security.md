@@ -372,14 +372,14 @@ WHERE event_data.value('(event/@name)[1]', 'varchar(50)') = 'clr_execution';
 **Impact**:
 - No GPU acceleration for vector operations
 - CPU SIMD only (AVX2/SSE4)
-- Performance: 4-8x slower than GPU
+- Performance: CPU-bound but in-process, no serialization overhead
 
 **Rationale**:
 - ILGPU requires UNSAFE + unverifiable MSIL
 - SQL Server CLR verifier rejects unverifiable code
-- Risk of SQL Server crashes > performance gain
+- In-process CPU execution maintains ACID guarantees
 
-**Alternative**: Offload GPU-accelerated inference to separate process or service that can use native libraries, with results passed back to SQL Server.
+**Optimization**: Leverage System.Numerics.Vectors for AVX2/SSE4 SIMD acceleration on modern CPUs. This provides substantial performance gains while maintaining in-process execution and transaction safety.
 
 ### No Native Libraries
 

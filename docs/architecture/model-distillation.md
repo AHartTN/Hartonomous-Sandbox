@@ -1,8 +1,8 @@
 # Model Distillation & Student Model Extraction
 
-**Status**: Fully Implemented  
-**Service**: `StudentModelService` in `src/Hartonomous.Infrastructure/Services/StudentModelService.cs`  
-**Methods**: 3 extraction strategies + model comparison
+**Status**: Fully Implemented (CLR + T-SQL)  
+**Implementation**: In-process CLR assemblies in `src/Hartonomous.SqlClr/`  
+**Methods**: 3 extraction strategies + model comparison (all execute in SQL Server)
 
 ---
 
@@ -243,11 +243,11 @@ CREATE SPATIAL INDEX IX_ModelLayers_Weights ON dbo.ModelLayers(WeightsGeometry);
 
 ## Integration with OODA Loop
 
-Student model extraction can be triggered autonomously:
+Student model extraction can be triggered autonomously via Service Broker:
 
 1. **sp_Analyze** detects frequent inference requests for specific task
 2. **sp_Hypothesize** generates hypothesis: "Create task-specific student model"
-3. **sp_Act** calls `StudentModelService.ExtractByImportanceAsync()`
+3. **sp_Act** calls in-process CLR functions: `clr_ExtractModelByImportance()`
 4. **sp_Learn** measures inference latency improvement with student model
 
 **Example Autonomous Flow:**
@@ -256,13 +256,15 @@ Student model extraction can be triggered autonomously:
 Detect: 80% of requests are code-related
   ↓ Hypothesize
 Extract student model from Qwen3-Coder (32B → 8B, code layers only)
-  ↓ Act
-Deploy student model to API
+  ↓ Act (in-process CLR)
+Store extracted model weights as Atoms in database
   ↓ Learn
 Measure: 70% latency reduction, 90% accuracy retention
   ↓ Success
 Keep student model, potentially extract more specialized students
 ```
+
+**All operations execute in-process within SQL Server** - no external services required.
 
 ---
 
@@ -341,34 +343,32 @@ public async Task<Model> MergeModelsAsync(
 
 ---
 
-## API Integration
+## Direct SQL Execution
 
-**Endpoint**: `POST /api/models/distill` (NOT YET IMPLEMENTED)
+**All model distillation operations execute in-process via T-SQL**:
 
-**Expected Request:**
+```sql
+-- Extract student model by importance threshold
+EXEC sp_ExtractStudentModel 
+    @ParentModelId = 5,
+    @ImportanceThreshold = 0.7,
+    @TargetSizeRatio = 0.30,
+    @StudentModelName = 'Llama-4-70B_Student_30%';
 
-```json
-{
-  "parentModelId": 5,
-  "extractionStrategy": "importance",
-  "targetSizeRatio": 0.30,
-  "autoFineTune": true,
-  "targetTask": "code_generation"
-}
+-- Extract by layer range
+EXEC sp_ExtractStudentModelByLayers
+    @ParentModelId = 5,
+    @StartLayer = 10,
+    @EndLayer = 34,
+    @StudentModelName = 'Llama4-Middle-Layers';
+
+-- Extract by spatial region
+EXEC sp_ExtractStudentModelBySpatialRegion
+    @ParentModelId = 5,
+    @SpatialRegionWKT = 'POLYGON((...))';
 ```
 
-**Expected Response:**
-
-```json
-{
-  "studentModelId": 42,
-  "studentModelName": "Llama-4-70B_Student_30%",
-  "layerCount": 24,
-  "compressionRatio": 3.33,
-  "extractionTimeMs": 1250,
-  "fineTuningJobId": "abc-123-def" 
-}
-```
+**No external services required** - all extraction logic in CLR assemblies.
 
 ---
 
@@ -427,8 +427,10 @@ ORDER BY CompletedAt DESC;
 ## Next Steps
 
 1. **Add Activation Tracking**: Record layer activations during inference to calculate true importance
-2. **Implement Quantization**: Add int8/int4 dtype conversion during extraction
-3. **Automatic Fine-Tuning**: Trigger training job after extraction
-4. **API Endpoint**: Expose `/api/models/distill` for manual extraction
-5. **Multi-Parent Merge**: Combine layers from multiple models
-6. **Pruning**: Parameter-level weight pruning within layers
+2. **Implement Quantization**: Add int8/int4 dtype conversion during extraction (CLR functions)
+3. **Automatic Fine-Tuning**: Trigger training job after extraction via Service Broker
+4. **Multi-Parent Merge**: Combine layers from multiple models (in-process CLR)
+5. **Pruning**: Parameter-level weight pruning within layers (CLR SIMD operations)
+6. **LoRA Extraction**: Extract Low-Rank Adaptation deltas from fine-tuned models
+
+**All enhancements will be in-process CLR implementations** - no external services.

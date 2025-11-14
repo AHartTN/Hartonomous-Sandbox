@@ -120,11 +120,11 @@ dotnet test /p:CollectCoverage=true
 
 ```
 src/
-├── Hartonomous.Api/          # REST API
+├── Hartonomous.Api/          # Management API (optional - for external tooling)
 ├── Hartonomous.Core/         # Core business logic
-├── Hartonomous.Infrastructure/  # Data access, external services
-├── Hartonomous.Database/     # DACPAC project (source of truth)
-└── Hartonomous.Workers.*/    # Background workers
+├── Hartonomous.Infrastructure/  # Repository implementations, Neo4j sync
+├── Hartonomous.Database/     # DACPAC project (AI runtime source of truth)
+└── Hartonomous.Workers.*/    # CDC/Neo4j sync workers (compliance only)
 
 tests/
 ├── Hartonomous.Core.Tests/  # Unit tests

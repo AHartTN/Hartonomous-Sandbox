@@ -16,10 +16,10 @@ Welcome to Hartonomous! This guide will help you get the platform running in you
 - **Windows Server 2019+** or **Windows 10/11**
 
 ### Optional
-- **Neo4j 5.x** (Community or Enterprise) - for provenance graph
+- **Neo4j 5.x** (Community or Enterprise) - for provenance graph mirror (regulatory compliance)
 - **Docker Desktop** - for containerized Neo4j
 
-**Note**: Embedding generation should use native CLR transformer implementation. External services may be used temporarily during development but should be replaced with enterprise-grade native implementation.
+**Note**: All AI inference (embedding generation, tokenization, model execution) runs in-process within SQL Server via T-SQL and CLR. Neo4j is only for regulatory compliance provenance mirroring.
 
 ### System Requirements
 - **RAM**: 16GB minimum, 32GB+ recommended
@@ -150,22 +150,19 @@ docker run -d `
 cat neo4j\schemas\CoreSchema.cypher | docker exec -i neo4j cypher-shell -u neo4j -p password
 ```
 
-### Configure Embedding Generation
+### Configure In-Process Embedding Generation
 
-**Enterprise Approach** (Recommended):
-Implement native transformer-based embedding generation in CLR:
-- Load pre-trained model weights (BERT, RoBERTa, etc.) from ingested atoms
-- Implement tokenization (WordPiece/BPE) via CLR functions
-- Forward pass through transformer encoder using MathNet.Numerics
+**Implementation**: All embedding generation runs in-process via SQL CLR:
+- Load pre-trained model weights (BERT, RoBERTa, etc.) from ingested atoms via `sp_IngestModel`
+- Tokenization via CLR functions: `clr_TokenizeBPE`, `clr_TokenizeWordPiece`
+- Forward pass through transformer encoder using MathNet.Numerics BLAS
 - Layer normalization and pooling in SQL CLR
-- Store embeddings as VECTOR(1998) directly
+- Store embeddings as VECTOR(1998) directly in AtomEmbeddings table
+- All operations executed within SQL Server transaction context
 
-**Development Temporary Workaround** (Azure OpenAI):
-For rapid prototyping only - should be replaced:
+**No external services required** - this is in-process AGI.
 
-1. Create Azure OpenAI resource
-2. Deploy `text-embedding-3-large` model
-3. Update `appsettings.json` in Hartonomous.Api:
+**Configuration** (if using legacy code paths):
 
 ```json
 {

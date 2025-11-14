@@ -13,7 +13,7 @@
 
 **Hartonomous is a database-first autonomous AI platform that executes the entire AI loop inside SQL Server 2025.** The database is not passive storage—it is the active runtime, intelligence layer, and OODA loop engine.
 
-**Key Architectural Principle**: SQL Server owns the schema, logic, and intelligence. .NET 10 services are thin orchestration layers that expose external interfaces (REST API, admin portal) and sync provenance to Neo4j for regulatory compliance.
+**Key Architectural Principle**: SQL Server IS the AI runtime. All intelligence, logic, and inference execute in-process via T-SQL stored procedures and CLR assemblies. .NET 10 services are optional thin management layers that expose external interfaces (REST API, admin portal) and sync provenance to Neo4j for regulatory compliance. **The database can operate autonomously without any external services running.**
 
 **Core Capabilities**:
 - **In-Database AI**: CLR functions provide CPU SIMD-accelerated vector operations and transformer inference
@@ -42,14 +42,14 @@
 - **CLR Integration**: .NET Framework 4.8.1 in-process functions
 - **FILESTREAM**: Large binary storage for model weights
 
-### Key Dependencies
-- **Neo4j.Driver**: 5.28.3 (Cypher execution)
-- **MathNet.Numerics**: 5.0.0 (CLR numerical operations)
-- **System.Numerics.Vectors**: CPU SIMD (AVX2/SSE4)
-- **OpenTelemetry**: 1.13.1 (observability)
+### Key Dependencies (In-Process CLR)
+- **MathNet.Numerics**: 5.0.0 (BLAS, linear algebra, transformer operations)
+- **System.Numerics.Vectors**: CPU SIMD (AVX2/SSE4 acceleration)
 - **SixLabors.ImageSharp**: 3.1.6 (image format decoding)
+- **Neo4j.Driver**: 5.28.3 (provenance mirror sync only - not for AI inference)
+- **OpenTelemetry**: 1.13.1 (observability)
 
-**Note**: Embedding generation should be implemented using transformer architectures and tokenization within CLR. Current implementation may use external services temporarily but should be replaced with native SQL Server implementation.
+**AI Execution Model**: All inference, embedding generation, tokenization, and model execution occurs in-process within SQL Server via T-SQL stored procedures and CLR assemblies. No external APIs or services are used for AI operations.
 
 ---
 
@@ -187,47 +187,34 @@
 3. **Act** (`sp_Act`): Execute `CREATE INDEX` in transaction
 4. **Learn** (`sp_Learn`): Measure improvement → update history
 
-### 4. .NET 10 Orchestration Layer
+### 4. Optional Management Layer (.NET 10)
 
-#### API Server
+#### Management API (Optional)
 
+**Purpose**: External tooling integration only - AI inference runs in SQL Server, not via API  
 **Framework**: ASP.NET Core 10  
-**Controllers**: 18  
-**Authentication**: Azure AD JWT
+**Controllers**: 18 (administrative/monitoring endpoints)
 
-**Controllers**:
-1. AnalyticsController - Usage/performance analytics
-2. AutonomyController - OODA loop history
-3. BillingController - Usage tracking/invoices
-4. BulkController - Bulk operations
-5. EmbeddingsController - Embedding generation
-6. FeedbackController - Model feedback
-7. GenerationController - Content generation
-8. GraphAnalyticsController - Graph analytics
-9. GraphQueryController - Graph queries
-10. InferenceController - Inference execution
-11. IngestionController - Atom ingestion
-12. JobsController - Job management
-13. ModelsController - Model management
-14. OperationsController - Health/metrics
-15. ProvenanceController - Provenance queries
-16. SearchController - Semantic search
-17. SqlGraphController - SQL graph queries
-18. TokenizerController - Text tokenization
+**Key Distinction**: Controllers do NOT execute AI operations - they call SQL stored procedures. All AI inference (embeddings, generation, search) executes in-process within SQL Server via T-SQL and CLR.
 
-#### Background Workers
+**Example Flow**:
+```
+Client → API Controller → sp_SemanticSearch → CLR functions → VECTOR operations → Results
+                          └─ ALL AI HAPPENS HERE (in SQL Server)
+```
+
+#### Compliance Workers (Background)
 
 **CES Consumer** (`src/Hartonomous.Workers.CesConsumer`):
 - Process SQL Server Change Event Stream (CDC)
-- Track checkpoint progress
-- Throughput: ~1000 events/sec
+- Track checkpoint progress for audit trail
+- **Does NOT execute AI** - monitors database changes
 
 **Neo4j Sync** (`src/Hartonomous.Workers.Neo4jSync`):
-- **CRITICAL FOR REGULATORY COMPLIANCE**
-- Mirror SQL provenance to Neo4j
+- **REGULATORY COMPLIANCE ONLY** (GDPR Article 22, EU AI Act)
+- Mirror SQL provenance to Neo4j graph for explainability
 - Service Broker message pump
-- Cypher query generation
-- Compliance: GDPR Article 22, EU AI Act
+- **Does NOT execute AI** - syncs provenance data
 
 ---
 
