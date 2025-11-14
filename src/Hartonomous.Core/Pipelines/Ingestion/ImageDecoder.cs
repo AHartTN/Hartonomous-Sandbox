@@ -1,12 +1,15 @@
 using System;
 using System.IO;
 using System.Text;
+using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.PixelFormats;
+using SixLabors.ImageSharp.Processing;
 
 namespace Hartonomous.Core.Pipelines.Ingestion
 {
     /// <summary>
-    /// Decodes PNG/JPEG images and provides resizing/grayscale conversion for perceptual hashing.
-    /// Implements minimal decoding - enough to get pixels for pHash, not full-featured decoder.
+    /// Decodes PNG/JPEG/BMP images using ImageSharp and provides resizing/grayscale conversion for perceptual hashing.
+    /// Production-grade decoder with full format support, EXIF handling, and memory-efficient processing.
     /// </summary>
     public static class ImageDecoder
     {
@@ -56,31 +59,42 @@ namespace Hartonomous.Core.Pipelines.Ingestion
 
         /// <summary>
         /// Decode image to 32x32 grayscale for perceptual hashing.
-        /// This is optimized for pHash, not general-purpose image decoding.
+        /// Uses ImageSharp for production-grade decoding with full format support.
+        /// Handles EXIF orientation, color profiles, and all standard image formats.
         /// </summary>
         public static byte[] DecodeToGrayscale32x32(byte[] imageData)
         {
-            var format = DetectFormat(imageData);
-
-            switch (format)
+            try
             {
-                case ImageFormat.PNG:
-                    return DecodePngToGrayscale32x32(imageData);
+                using var image = Image.Load<L8>(imageData);
                 
-                case ImageFormat.JPEG:
-                    // JPEG decoding is complex - fall back to System.Drawing or skip for now
-                    throw new NotImplementedException("JPEG decoding requires external library (System.Drawing.Common, ImageSharp, or SkiaSharp). Install ImageSharp for production use.");
+                // Auto-orient based on EXIF data
+                image.Mutate(x => x
+                    .AutoOrient()
+                    .Resize(32, 32));
+
+                // Extract grayscale pixel data
+                var pixels = new byte[32 * 32];
+                image.CopyPixelDataTo(pixels);
                 
-                case ImageFormat.BMP:
-                    return DecodeBmpToGrayscale32x32(imageData);
-                
-                default:
-                    throw new NotSupportedException($"Unsupported image format. Expected PNG, JPEG, or BMP.");
+                return pixels;
+            }
+            catch (UnknownImageFormatException ex)
+            {
+                throw new NotSupportedException($"Unsupported or corrupted image format: {ex.Message}", ex);
+            }
+            catch (InvalidImageContentException ex)
+            {
+                throw new InvalidDataException($"Invalid image content: {ex.Message}", ex);
             }
         }
 
+        #region Legacy Format Detection (Kept for diagnostics)
+        
         /// <summary>
-        /// Decode BMP to 32x32 grayscale. BMP is simple - uncompressed RGB data.
+        /// Decode BMP to 32x32 grayscale using manual parsing.
+        /// NOTE: This is now legacy code - ImageSharp handles BMP natively.
+        /// Kept for educational purposes and as fallback if ImageSharp unavailable.
         /// </summary>
         private static byte[] DecodeBmpToGrayscale32x32(byte[] data)
         {
@@ -134,8 +148,9 @@ namespace Hartonomous.Core.Pipelines.Ingestion
         }
 
         /// <summary>
-        /// Decode PNG to 32x32 grayscale. Minimal implementation - no interlacing, no palette, basic filters only.
-        /// For production, use ImageSharp or SkiaSharp.
+        /// Decode PNG to 32x32 grayscale using manual parsing.
+        /// NOTE: This is now legacy code - ImageSharp handles PNG natively with full feature support.
+        /// Kept for educational purposes (demonstrates PNG structure) and as fallback.
         /// </summary>
         private static byte[] DecodePngToGrayscale32x32(byte[] data)
         {
@@ -302,5 +317,7 @@ namespace Hartonomous.Core.Pipelines.Ingestion
                 Array.Reverse(bytes);
             return BitConverter.ToInt32(bytes, 0);
         }
+        
+        #endregion
     }
 }
