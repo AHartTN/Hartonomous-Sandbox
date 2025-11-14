@@ -40,6 +40,7 @@ GO
 :r .\Optimize_ColumnstoreCompression.sql
 
 -- Data seeding and configuration
+:r .\Seed.RefStatus.sql
 :r .\Seed.TopicKeywords.sql
 :r .\RegisterAgentTools.sql
 :r .\Configure.Neo4jSyncActivation.sql

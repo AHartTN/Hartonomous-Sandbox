@@ -23,8 +23,9 @@ BEGIN
         INSERT INTO @AtomsToProcess
         SELECT TOP (@BatchSize)
             a.AtomId,
-            CAST(a.Content AS NVARCHAR(MAX)) AS Content
+            CAST(lob.Content AS NVARCHAR(MAX)) AS Content
         FROM dbo.Atoms a
+        LEFT JOIN dbo.AtomsLOB lob ON a.AtomId = lob.AtomId
         LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId AND ae.ModelId = @ModelId
         WHERE a.TenantId = @TenantId
               AND a.IsDeleted = 0

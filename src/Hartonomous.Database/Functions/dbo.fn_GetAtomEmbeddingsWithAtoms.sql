@@ -18,12 +18,13 @@ RETURN
         a.SourceType,
         a.SourceUri,
         a.CanonicalText,
-        a.PayloadLocator,
-        a.Metadata,
+        lob.PayloadLocator,
+        lob.Metadata,
         a.ReferenceCount,
         a.SpatialKey,
         a.CanonicalText AS AtomText
     FROM dbo.AtomEmbeddings ae
     INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
+    LEFT JOIN dbo.AtomsLOB lob ON a.AtomId = lob.AtomId
     WHERE @dimension IS NULL OR ae.Dimension = @dimension
 );

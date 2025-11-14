@@ -21,10 +21,11 @@ BEGIN
         DECLARE @Metadata NVARCHAR(MAX);
         
         SELECT 
-            @Metadata = CAST(a.Metadata AS NVARCHAR(MAX)),
+            @Metadata = CAST(lob.Metadata AS NVARCHAR(MAX)),
             @Content = p.PayloadData,
             @ContentType = p.ContentType
         FROM dbo.Atoms a
+        LEFT JOIN dbo.AtomsLOB lob ON a.AtomId = lob.AtomId
         JOIN dbo.AtomPayloadStore p ON a.AtomId = p.AtomId
         WHERE a.AtomId = @AtomId AND a.TenantId = @TenantId;
         

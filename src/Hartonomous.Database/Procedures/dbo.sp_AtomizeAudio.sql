@@ -14,17 +14,18 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- Retrieve the parent audio atom
+        -- Retrieve the parent audio atom (join LOBs)
         DECLARE @Content NVARCHAR(MAX);
         DECLARE @ContentType NVARCHAR(100);
         DECLARE @Metadata NVARCHAR(MAX);
         
         SELECT 
-            @Content = Content,
-            @ContentType = ContentType,
-            @Metadata = Metadata
-        FROM dbo.Atoms
-        WHERE AtomId = @AtomId AND TenantId = @TenantId;
+            @Content = lob.Content,
+            @ContentType = a.ContentType,
+            @Metadata = CAST(lob.Metadata AS NVARCHAR(MAX))
+        FROM dbo.Atoms a
+        LEFT JOIN dbo.AtomsLOB lob ON a.AtomId = lob.AtomId
+        WHERE a.AtomId = @AtomId AND a.TenantId = @TenantId;
         
         IF @Content IS NULL
         BEGIN

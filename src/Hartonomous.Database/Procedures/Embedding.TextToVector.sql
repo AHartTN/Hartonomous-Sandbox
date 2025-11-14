@@ -240,27 +240,39 @@ BEGIN
     UPDATE @vector
     SET Value = Value / @norm;
 
-    DECLARE @embeddingJson NVARCHAR(MAX);
-
-    WITH NumberSeries AS (
-        SELECT TOP (@sqlVectorDimension)
-            ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS idx
-        FROM sys.all_objects
-    )
-    SELECT @embeddingJson = '[' +
-        STRING_AGG(
-            LTRIM(RTRIM(STR(
-                CASE WHEN ns.idx < @embeddingBaseDimension THEN COALESCE(v.Value, 0.0) ELSE 0.0 END,
-                38,
-                12
-            ))),
+    -- Build embedding JSON array using chunked concatenation to avoid STRING_AGG 8000 byte limit
+    DECLARE @embeddingJson NVARCHAR(MAX) = '[';
+    DECLARE @chunkSize INT = 100;
+    DECLARE @currentIdx INT = 0;
+    DECLARE @chunk NVARCHAR(MAX);
+    
+    WHILE @currentIdx < @sqlVectorDimension
+    BEGIN
+        WITH NumberSeries AS (
+            SELECT TOP (@chunkSize)
+                @currentIdx + ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) - 1 AS idx
+            FROM sys.all_objects
+        )
+        SELECT @chunk = STRING_AGG(
+            CAST(
+                CASE WHEN ns.idx < @embeddingBaseDimension THEN COALESCE(v.Value, 0.0) ELSE 0.0 END
+                AS FLOAT
+            ),
             ','
         ) WITHIN GROUP (ORDER BY ns.idx)
-        + ']'
-    FROM NumberSeries AS ns
-    LEFT JOIN @vector AS v ON v.Component = ns.idx;
-
-    SET @embedding = TRY_CAST(CONVERT(NVARCHAR(MAX), @embeddingJson) AS VECTOR(1998));
+        FROM NumberSeries AS ns
+        LEFT JOIN @vector AS v ON v.Component = ns.idx
+        WHERE ns.idx < @sqlVectorDimension;
+        
+        IF @currentIdx > 0
+            SET @embeddingJson = @embeddingJson + ',';
+        
+        SET @embeddingJson = @embeddingJson + @chunk;
+        SET @currentIdx = @currentIdx + @chunkSize;
+    END;
+    
+    SET @embeddingJson = @embeddingJson + ']';
+    SET @embedding = TRY_CAST(@embeddingJson AS VECTOR(1998));
 
     IF @embedding IS NULL
         THROW 50082, 'Failed to construct embedding vector from vocabulary projection.', 1;
