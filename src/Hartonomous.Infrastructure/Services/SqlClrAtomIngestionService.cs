@@ -175,7 +175,7 @@ public class SqlClrAtomIngestionService : IAtomIngestionService
                 CreatedAt = reader.GetDateTime(10),
                 UpdatedAt = reader.IsDBNull(11) ? null : reader.GetDateTime(11),
                 IsActive = reader.GetBoolean(12),
-                Embeddings = new List<AtomEmbedding>() // Will be populated if needed
+                AtomEmbeddings = new List<AtomEmbedding>() // Will be populated if needed
             };
         }
 

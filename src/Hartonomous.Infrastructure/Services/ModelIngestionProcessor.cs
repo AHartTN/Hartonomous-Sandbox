@@ -75,9 +75,9 @@ public class ModelIngestionProcessor
 
             var savedModel = await _modelRepository.AddAsync(model, cancellationToken).ConfigureAwait(false);
 
-            if (model.Layers is { Count: > 0 })
+            if (model.ModelLayers is { Count: > 0 })
             {
-                var orderedLayers = model.Layers
+                var orderedLayers = model.ModelLayers
                     .OrderBy(l => l.LayerIdx)
                     .ToList();
 
@@ -92,7 +92,7 @@ public class ModelIngestionProcessor
                 }
 
                 await _layerRepository.BulkInsertAsync(orderedLayers, cancellationToken).ConfigureAwait(false);
-                savedModel.Layers = orderedLayers;
+                savedModel.ModelLayers = orderedLayers;
 
                 await CreateSuccessorRelationsAsync(savedModel, layerAtoms, cancellationToken).ConfigureAwait(false);
             }

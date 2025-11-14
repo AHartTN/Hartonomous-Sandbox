@@ -34,19 +34,19 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
 
     public async Task<Model> ReadAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        ArgumentException.ThrowIfNullOrEmpty(modelPath);
+        ArgumentException.ThrowIfNullOrEmpty(filePath);
         cancellationToken.ThrowIfCancellationRequested();
 
-        _logger.LogInformation("Reading PyTorch model from: {Path}", modelPath);
+        _logger.LogInformation("Reading PyTorch model from: {Path}", filePath);
 
         PyTorchModelLoadResult loadResult;
         try
         {
-            loadResult = _modelLoader.Load(modelPath, cancellationToken);
+            loadResult = _modelLoader.Load(filePath, cancellationToken);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to load PyTorch model: {Path}", modelPath);
+            _logger.LogError(ex, "Failed to load PyTorch model: {Path}", filePath);
             throw;
         }
 
@@ -54,11 +54,11 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
 
         var model = new Model
         {
-            ModelName = Path.GetFileNameWithoutExtension(modelPath),
+            ModelName = Path.GetFileNameWithoutExtension(filePath),
             ModelType = metadata.ModelType ?? "PyTorch",
             Architecture = metadata.Architecture,
             IngestionDate = DateTime.UtcNow,
-            Layers = new List<ModelLayer>()
+            ModelLayers = new List<ModelLayer>()
         };
 
         model.Config = JsonSerializer.Serialize(new
@@ -109,22 +109,22 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
                 WeightsGeometry = _layerRepository.CreateGeometryFromWeights(parameter.Weights)
             };
 
-            model.Layers.Add(layer);
+            model.ModelLayers.Add(layer);
             totalParameters += parameter.Weights.LongLength;
             _logger.LogDebug("Added parameter layer: {LayerName} ({Count} weights)", layer.LayerName, layer.ParameterCount);
         }
 
-        if (model.Layers.Count == 0)
+        if (model.ModelLayers.Count == 0)
         {
-            model.Layers.Add(new ModelLayer
+            model.ModelLayers.Add(new ModelLayer
             {
                 LayerIdx = 0,
                 LayerName = "model",
                 LayerType = "PyTorchModel",
                 Parameters = JsonSerializer.Serialize(new
                 {
-                    file_path = modelPath,
-                    file_size = new FileInfo(modelPath).Length
+                    file_path = filePath,
+                    file_size = new FileInfo(filePath).Length
                 })
             });
         }
@@ -134,7 +134,7 @@ public class PyTorchModelReader : IModelFormatReader<PyTorchMetadata>
             model.ParameterCount = totalParameters;
         }
 
-        _logger.LogInformation("✓ PyTorch model parsed: {LayerCount} layers", model.Layers.Count);
+        _logger.LogInformation("✓ PyTorch model parsed: {LayerCount} layers", model.ModelLayers.Count);
         return Task.FromResult(model);
     }
 

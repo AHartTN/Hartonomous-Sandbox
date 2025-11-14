@@ -35,7 +35,7 @@ public class IngestionStatisticsService : IIngestionStatisticsService
         {
             TotalModels = models.Count(),
             TotalParameters = models.Sum(m => m.ParameterCount ?? 0),
-            TotalLayers = models.Sum(m => m.Layers?.Count ?? 0),
+            TotalLayers = models.Sum(m => m.ModelLayers?.Count ?? 0),
             ArchitectureBreakdown = models
                 .GroupBy(m => m.Architecture ?? "Unknown")
                 .ToDictionary(g => g.Key, g => g.Count())

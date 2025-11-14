@@ -36,15 +36,15 @@ public class TokenVocabularyRepository : ITokenVocabularyRepository
             return new Dictionary<string, (int, string)>();
         }
 
-        var tokens = await _context.TokenVocabulary
+        var tokens = await _context.TokenVocabularies
             .Where(tv => tokenList.Contains(tv.Token))
-            .Select(tv => new { tv.Token, tv.DimensionIndex })
+            .Select(tv => new { tv.Token, tv.TokenId })
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
         var result = tokens.ToDictionary(
             t => t.Token,
-            t => (t.DimensionIndex, t.Token));
+            t => (t.TokenId, t.Token));
 
         _logger.LogDebug("Retrieved {Count} tokens from vocabulary for {RequestedCount} token texts",
             result.Count, tokenList.Count);
@@ -55,8 +55,8 @@ public class TokenVocabularyRepository : ITokenVocabularyRepository
     /// <inheritdoc/>
     public async Task<IEnumerable<TokenVocabulary>> GetAllTokensAsync(CancellationToken cancellationToken = default)
     {
-        var tokens = await _context.TokenVocabulary
-            .OrderBy(tv => tv.DimensionIndex)
+        var tokens = await _context.TokenVocabularies
+            .OrderBy(tv => tv.TokenId)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 

@@ -191,11 +191,11 @@ public class GGUFModelBuilder
             return false;
 
         // Validate layers exist
-        if (!dbModel.Layers.Any())
+        if (!dbModel.ModelLayers.Any())
             return false;
 
         // Validate tensor segments exist
-        if (!dbModel.Layers.Any(l => l.TensorSegments.Any()))
+        if (!dbModel.ModelLayers.Any(l => l.LayerTensorSegments.Any()))
             return false;
 
         return true;

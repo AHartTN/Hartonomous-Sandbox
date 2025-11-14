@@ -34,8 +34,8 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
     protected override IQueryable<Model> IncludeRelatedEntities(IQueryable<Model> query)
     {
         return query
-            .Include(m => m.Metadata)
-            .Include(m => m.Layers)
+                            .Include(m => m.ModelMetadatum)
+            .Include(m => m.ModelLayers)
             .AsSplitQuery();
     }
 
@@ -70,9 +70,9 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
 
         // Get all models with metadata
         var modelsWithMetadata = await IncludeRelatedEntities(DbSet.AsNoTracking())
-            .Where(m => m.Metadata != null &&
-                       m.Metadata.SupportedTasks != null &&
-                       m.Metadata.SupportedModalities != null)
+            .Where(m => m.ModelMetadatum != null &&
+                       m.ModelMetadatum.SupportedTasks != null &&
+                       m.ModelMetadatum.SupportedModalities != null)
             .ToListAsync(cancellationToken);
 
         // Filter in-memory by parsing JSON (client-side evaluation for complex JSON queries)
@@ -80,7 +80,7 @@ public class ModelRepository : EfRepository<Model, int>, IModelRepository
             .Where(model =>
             {
                 // Parse supported tasks
-                var supportedTasks = EnumExtensions.ParseTaskTypes(model.Metadata!.SupportedTasks);
+                var supportedTasks = EnumExtensions.ParseTaskTypes(model.ModelMetadatum!.SupportedTasks);
                 var supportsAnyTask = tasks.Any(t => (supportedTasks & t) != TaskType.None);
 
                 if (!supportsAnyTask)

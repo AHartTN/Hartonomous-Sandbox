@@ -415,8 +415,11 @@ public class ModelDiscoveryService : IModelDiscoveryService
             var formatInfo = await DetectFormatAsync(path, cancellationToken);
             return formatInfo.Confidence > 0.5;
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogWarning(ex,
+                "Model validation failed for path '{Path}': {ErrorType} - {ErrorMessage}",
+                path, ex.GetType().Name, ex.Message);
             return false;
         }
     }

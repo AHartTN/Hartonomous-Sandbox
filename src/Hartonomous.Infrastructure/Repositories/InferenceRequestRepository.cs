@@ -19,7 +19,7 @@ public class InferenceRequestRepository : EfRepository<InferenceRequest, long>, 
 
     protected override IQueryable<InferenceRequest> IncludeRelatedEntities(IQueryable<InferenceRequest> query)
     {
-        return query.Include(x => x.Steps);
+        return query.Include(r => r.InferenceSteps);
     }
 
     public new Task<InferenceRequest?> GetByIdAsync(long inferenceId, CancellationToken cancellationToken = default)

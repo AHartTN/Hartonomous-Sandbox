@@ -35,17 +35,17 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
 
     public async Task<Model> ReadAsync(string filePath, CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Reading Safetensors model from: {Path}", modelPath);
+        _logger.LogInformation("Reading Safetensors model from: {Path}", filePath);
 
         var model = new Model
         {
-            ModelName = Path.GetFileNameWithoutExtension(modelPath),
+            ModelName = Path.GetFileNameWithoutExtension(filePath),
             ModelType = "Safetensors",
             IngestionDate = DateTime.UtcNow,
-            Layers = new List<ModelLayer>()
+            ModelLayers = new List<ModelLayer>()
         };
 
-        using (var fileStream = new FileStream(modelPath, FileMode.Open, FileAccess.Read))
+        using (var fileStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
         {
             using (var reader = new BinaryReader(fileStream))
             {
@@ -114,7 +114,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
                                 layer.ParameterCount = weights.Length;
                             }
 
-                            model.Layers.Add(layer);
+                            model.ModelLayers.Add(layer);
                             layerIdx++;
                         }
                     }
@@ -122,7 +122,7 @@ public class SafetensorsModelReader : IModelFormatReader<SafetensorsMetadata>
             }
         }
 
-        _logger.LogInformation("✓ Safetensors model parsed: {LayerCount} layers", model.Layers.Count);
+        _logger.LogInformation("✓ Safetensors model parsed: {LayerCount} layers", model.ModelLayers.Count);
         return model;
     }
 

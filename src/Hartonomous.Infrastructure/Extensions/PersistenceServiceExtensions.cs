@@ -87,14 +87,13 @@ public static class PersistenceServiceExtensions
         services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<ICdcRepository, CdcRepository>();
-        
-        // TODO: Implement OODA Loop repositories
-        // services.AddScoped<IAutonomousAnalysisRepository, AutonomousAnalysisRepository>();
-        // services.AddScoped<IAutonomousActionRepository, AutonomousActionRepository>();
-        // services.AddScoped<IAutonomousLearningRepository, AutonomousLearningRepository>();
-        // services.AddScoped<IConceptDiscoveryRepository, ConceptDiscoveryRepository>();
-        // services.AddScoped<IVectorSearchRepository, VectorSearchRepository>();
-        
+
+        // OODA Loop implemented via SQL Server Service Broker + T-SQL stored procedures:
+        // - sp_Analyze: Observe/analyze performance, detect anomalies
+        // - sp_Act: Execute improvements (UPDATE STATISTICS, force plans, warm cache)
+        // - sp_Learn: Measure outcomes, update model weights
+        // No C# repositories needed - all logic in database for ACID guarantees
+
         services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
 
         // Atomic component repositories (deduplicated storage)

@@ -44,7 +44,7 @@ public class AtomRepository : EfRepository<Atom, long>, IAtomRepository
     protected override IQueryable<Atom> IncludeRelatedEntities(IQueryable<Atom> query)
     {
         return query
-            .Include(a => a.Embeddings)
+            .Include(a => a.AtomEmbeddings)
             .Include(a => a.TensorAtoms)
             .AsSplitQuery(); // Prevent N+1 with multiple includes
     }
@@ -54,7 +54,7 @@ public class AtomRepository : EfRepository<Atom, long>, IAtomRepository
     public async Task<Atom?> GetByContentHashAsync(byte[] contentHash, CancellationToken cancellationToken = default)
     {
         return await DbSet
-            .Include(a => a.Embeddings)
+            .Include(a => a.AtomEmbeddings)
             .AsSplitQuery()
             .FirstOrDefaultAsync(a => a.ContentHash == contentHash, cancellationToken);
     }

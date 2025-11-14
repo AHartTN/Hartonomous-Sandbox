@@ -109,7 +109,7 @@ public sealed class EnsembleInferenceService : IEnsembleInferenceService
         }
 
         // Step 3: Calculate confidence from consensus
-        var totalModels = inferenceRequest.Steps.Count;
+        var totalModels = inferenceRequest.InferenceSteps.Count;
         var consensusCount = resultRows.Count(r => r.IsConsensus);
         var confidence = totalModels > 0 && resultRows.Count > 0
             ? (float)consensusCount / resultRows.Count
@@ -141,7 +141,8 @@ public sealed class EnsembleInferenceService : IEnsembleInferenceService
         }
 
         // Step 5: Build ModelContributions from InferenceSteps
-        var contributions = inferenceRequest.Steps
+        // Step 6: Calculate per-model contributions
+        var contributions = inferenceRequest.InferenceSteps
             .Where(s => s.Model != null)
             .Select(step => new ModelContribution
             {

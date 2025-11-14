@@ -4,6 +4,7 @@ using Hartonomous.Core.Performance;
 using Hartonomous.Infrastructure.Data.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.SqlTypes;
+using ImageSharpImage = SixLabors.ImageSharp.Image;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using SixLabors.ImageSharp;
@@ -523,7 +524,7 @@ public sealed class EmbeddingService : IEmbeddingService
 
         try
         {
-            using var image = Image.Load<Rgb24>(imageData);
+            using var image = ImageSharpImage.Load<Rgb24>(imageData);
             
             // Compute RGB histogram
             image.ProcessPixelRows(accessor =>
@@ -562,7 +563,7 @@ public sealed class EmbeddingService : IEmbeddingService
 
         try
         {
-            using var image = Image.Load<Rgb24>(imageData);
+            using var image = ImageSharpImage.Load<Rgb24>(imageData);
             using var grayscale = image.Clone();
             
             // Convert to grayscale and apply Sobel edge detection
@@ -632,7 +633,7 @@ public sealed class EmbeddingService : IEmbeddingService
 
         try
         {
-            using var image = Image.Load<Rgb24>(imageData);
+            using var image = ImageSharpImage.Load<Rgb24>(imageData);
             
             // Compute Local Binary Pattern (LBP) approximation and variance
             var textureStats = new List<float>();
@@ -711,7 +712,7 @@ public sealed class EmbeddingService : IEmbeddingService
 
         try
         {
-            using var image = Image.Load<Rgb24>(imageData);
+            using var image = ImageSharpImage.Load<Rgb24>(imageData);
             
             // Compute spatial moments (Hu moments approximation)
             double m00 = 0, m10 = 0, m01 = 0, m11 = 0, m20 = 0, m02 = 0;

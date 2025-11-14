@@ -24,7 +24,7 @@ public sealed class InferenceRepository : EfRepository<InferenceRequest, long>, 
 
     protected override IQueryable<InferenceRequest> IncludeRelatedEntities(IQueryable<InferenceRequest> query)
     {
-        return query.Include(r => r.Steps);
+        return query.Include(r => r.InferenceSteps);
     }
 
     public async Task<IEnumerable<InferenceRequest>> GetRecentAsync(int count = 100, CancellationToken cancellationToken = default)

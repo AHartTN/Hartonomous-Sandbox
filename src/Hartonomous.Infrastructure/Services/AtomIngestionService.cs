@@ -85,7 +85,7 @@ public class AtomIngestionService : IAtomIngestionService
             await _atomRepository.IncrementReferenceCountAsync(existing.AtomId, 1, cancellationToken).ConfigureAwait(false);
             _logger.LogDebug("Atom duplicate detected by hash (atomId={AtomId}, modality={Modality})", existing.AtomId, existing.Modality);
 
-            var matchingEmbedding = SelectMatchingEmbedding(existing.Embeddings, request.EmbeddingType, request.ModelId);
+            var matchingEmbedding = SelectMatchingEmbedding(existing.AtomEmbeddings, request.EmbeddingType, request.ModelId);
 
             return new AtomIngestionResult
             {
@@ -207,18 +207,17 @@ public class AtomIngestionService : IAtomIngestionService
                 SpatialBucketY = (int)Math.Round(rawY, 0, MidpointRounding.ToZero),
                 SpatialBucketZ = hasZ ? (int)Math.Round(rawZ, 0, MidpointRounding.ToZero) : NoZBucket,
                 EmbeddingVector = sqlVector,
-                UsesMaxDimensionPadding = usedPadding,
                 Metadata = policy is null
                     ? null
                     : $"{{\"semanticThreshold\":{policy.SemanticThreshold?.ToString("F2") ?? "null"},\"policy\":\"{policy.PolicyName}\"}}"
             };
 
-            atom.Embeddings.Add(newEmbedding);
+            atom.AtomEmbeddings.Add(newEmbedding);
         }
 
         var savedAtom = await _atomRepository.AddAsync(atom, cancellationToken).ConfigureAwait(false);
 
-        if (newEmbedding is not null && newEmbedding.EmbeddingVector is null && embedding is { Length: > 0 })
+        if (newEmbedding is not null && newEmbedding.EmbeddingVector.IsNull && embedding is { Length: > 0 })
         {
             var components = embedding!
                 .Select((value, index) => new AtomEmbeddingComponent

@@ -250,25 +250,26 @@ public sealed class AdvancedImageAtomizer : IImageAtomizer
     /// <summary>
     /// Object detection using YOLO or Faster R-CNN
     /// 
-    /// TODO: Integrate with ONNX Runtime for YOLOv8:
-    /// 
-    /// using Microsoft.ML.OnnxRuntime;
-    /// var session = new InferenceSession("yolov8n.onnx");
-    /// var results = session.Run(PrepareInput(imageData));
-    /// 
-    /// foreach (var detection in ParseYoloOutput(results)) {
-    ///     yield return new AtomCandidate {
-    ///         Modality = "image",
-    ///         Subtype = "object-detection",
-    ///         BinaryPayload = CropToBox(imageData, detection.BoundingBox),
-    ///         Boundary = new AtomBoundary {
-    ///             SpatialBounds = detection.BoundingBox,
-    ///             StructuralPath = $"object[{detection.Class}]"
-    ///         },
-    ///         Metadata = { ["objectClass"] = detection.Class, ["confidence"] = detection.Score },
-    ///         QualityScore = detection.Score
-    ///     };
-    /// }
+    /// TODO: Implement spatial tensor query for object detection
+    /// ARCHITECTURE (Database-First, No VRAM):
+    ///
+    /// 1. Extract image features (tiles/patches) → GEOMETRY points via CLR
+    /// 2. Query TensorAtoms: SELECT WHERE ModelType='object_detection'
+    ///    ORDER BY SpatialSignature.STDistance(@imageFeaturesGeometry) ASC
+    /// 3. R-tree returns relevant detector weights (backbone + head components)
+    /// 4. CLR SIMD processes image tiles using retrieved tensor components
+    /// 5. Generate bounding box atoms with class labels
+    ///
+    /// NO ONNX Runtime, NO YOLO external - object detection model (e.g., YOLO/RCNN weights)
+    /// ingested as TensorAtoms, inference via spatial proximity + CLR SIMD
+    ///
+    /// yield return new AtomCandidate {
+    ///     Modality = "image",
+    ///     Subtype = "object-detection",
+    ///     BinaryPayload = CropToBox(imageData, detection.BoundingBox),
+    ///     Boundary = new AtomBoundary { SpatialBounds = detection.BoundingBox },
+    ///     Metadata = { ["objectClass"] = detection.Class, ["confidence"] = detection.Score }
+    /// };
     /// </summary>
     private async IAsyncEnumerable<AtomCandidate> DetectObjectsAsync(
         byte[] imageData,
@@ -288,25 +289,28 @@ public sealed class AdvancedImageAtomizer : IImageAtomizer
     /// 
     /// using Tesseract;
     /// using var engine = new TesseractEngine("./tessdata", "eng", EngineMode.Default);
-    /// using var pix = Pix.LoadFromMemory(imageData);
-    /// using var page = engine.Process(pix);
-    /// 
-    /// foreach (var block in page.GetIterator().GetRegions()) {
-    ///     yield return new AtomCandidate {
-    ///         Modality = "image",
-    ///         Subtype = "ocr-region",
-    ///         CanonicalText = block.GetText(),
-    ///         BinaryPayload = CropToBox(imageData, block.BoundingBox),
-    ///         Boundary = new AtomBoundary {
-    ///             SpatialBounds = new BoundingBox {
-    ///                 X = block.X, Y = block.Y,
-    ///                 Width = block.Width, Height = block.Height
-    ///             }
-    ///         },
-    ///         Metadata = { ["ocrConfidence"] = block.Confidence },
-    ///         QualityScore = block.Confidence / 100.0
-    ///     };
-    /// }
+    /// TODO: Implement spatial tensor query for OCR
+    /// ARCHITECTURE (Database-First, No VRAM):
+    ///
+    /// 1. Extract text region features (MSER/stroke width) → GEOMETRY points
+    /// 2. Query TensorAtoms: SELECT WHERE ModelType='ocr_recognition'
+    ///    ORDER BY SpatialSignature.STDistance(@regionFeaturesGeometry) ASC
+    /// 3. R-tree returns relevant OCR encoder/decoder weights
+    /// 4. CLR SIMD processes text regions using retrieved tensor components
+    /// 5. Generate text atoms per detected region with confidence scores
+    ///
+    /// NO Tesseract external dependency - OCR model (e.g., TrOCR/EasyOCR weights)
+    /// ingested as TensorAtoms, inference via spatial proximity + CLR SIMD
+    ///
+    /// yield return new AtomCandidate {
+    ///     Modality = "image",
+    ///     Subtype = "ocr-region",
+    ///     CanonicalText = recognizedText,
+    ///     BinaryPayload = CropToBox(imageData, region.BoundingBox),
+    ///     Boundary = new AtomBoundary { SpatialBounds = region.BoundingBox },
+    ///     Metadata = { ["ocrConfidence"] = confidence },
+    ///     QualityScore = confidence
+    /// };
     /// </summary>
     private async IAsyncEnumerable<AtomCandidate> ExtractOcrRegionsAsync(
         byte[] imageData,

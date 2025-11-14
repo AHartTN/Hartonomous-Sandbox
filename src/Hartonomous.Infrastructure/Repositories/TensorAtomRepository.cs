@@ -30,7 +30,7 @@ public class TensorAtomRepository : EfRepository<TensorAtom, long>, ITensorAtomR
     /// </summary>
     protected override IQueryable<TensorAtom> IncludeRelatedEntities(IQueryable<TensorAtom> query)
     {
-        return query.Include(t => t.Coefficients);
+        return query.Include(t => t.TensorAtomCoefficients);
     }
 
     // Domain-specific queries
@@ -55,7 +55,7 @@ public class TensorAtomRepository : EfRepository<TensorAtom, long>, ITensorAtomR
             .OrderByDescending(t => t.ImportanceScore)
             .ThenByDescending(t => t.CreatedAt)
             .Take(take)
-            .Include(t => t.Coefficients)
+                            .Include(ta => ta.TensorAtomCoefficients)
             .AsNoTracking()
             .ToListAsync(cancellationToken);
     }

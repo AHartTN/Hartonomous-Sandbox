@@ -8,12 +8,13 @@ using System.Threading.Tasks;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data.Entities;
+using Hartonomous.Core.Interfaces;
 
 namespace Hartonomous.Infrastructure.Services.Generation;
 
 /// <summary>
 /// MULTIMODAL ENSEMBLE GENERATION - THE REAL ARCHITECTURE
-/// 
+///
 /// This is NOT a RAG system. This implements your full vision:
 /// - Multimodal context: text + image + audio + video + sensor atoms unified
 /// - Multi-model ensemble: queries ALL models via TensorAtoms.SpatialSignature
@@ -22,7 +23,7 @@ namespace Hartonomous.Infrastructure.Services.Generation;
 /// - Zero VRAM: CPU SIMD only (no GPU dependency)
 /// - Explainable: AtomicStream nano-provenance + Neo4j graph
 /// - Self-modifying: distillation, pruning, weight updates via OODA loop
-/// 
+///
 /// Core: sp_GenerateWithAttention queries TensorAtoms.WeightsGeometry via STPointN()
 /// to extract weights, performs multi-head attention over mixed-modality embeddings,
 /// samples from unified atom space (not separate text/image/audio tables).
@@ -31,13 +32,16 @@ public sealed class MultimodalEnsembleGenerator
 {
     private readonly string _connectionString;
     private readonly ILogger<MultimodalEnsembleGenerator> _logger;
+    private readonly ITenantContext _tenantContext;
 
     public MultimodalEnsembleGenerator(
         string connectionString,
-        ILogger<MultimodalEnsembleGenerator> logger)
+        ILogger<MultimodalEnsembleGenerator> logger,
+        ITenantContext tenantContext)
     {
         _connectionString = connectionString ?? throw new ArgumentNullException(nameof(connectionString));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _tenantContext = tenantContext ?? throw new ArgumentNullException(nameof(tenantContext));
     }
 
     /// <summary>
@@ -151,7 +155,10 @@ public sealed class MultimodalEnsembleGenerator
             command.Parameters.AddWithValue("@TopK", topK);
             command.Parameters.AddWithValue("@TopP", topP);
             command.Parameters.AddWithValue("@AttentionHeads", attentionHeads);
-            command.Parameters.AddWithValue("@TenantId", DBNull.Value); // TODO: Get from ITenantContext
+
+            // Get tenant ID from context for proper multi-tenant isolation
+            var tenantId = _tenantContext.GetCurrentTenantId();
+            command.Parameters.AddWithValue("@TenantId", tenantId.HasValue ? (object)tenantId.Value : DBNull.Value);
 
             await using var reader = await command.ExecuteReaderAsync(cancellationToken);
             

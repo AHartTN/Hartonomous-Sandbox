@@ -48,7 +48,7 @@ public class AtomEmbeddingRepository : EfRepository<AtomEmbedding, long>, IAtomE
     /// </summary>
     protected override IQueryable<AtomEmbedding> IncludeRelatedEntities(IQueryable<AtomEmbedding> query)
     {
-        return query.Include(e => e.Components);
+        return query.Include(e => e.AtomEmbeddingComponents);
     }
 
     // Domain-specific queries
@@ -57,7 +57,7 @@ public class AtomEmbeddingRepository : EfRepository<AtomEmbedding, long>, IAtomE
     {
         return await DbSet
             .Where(e => e.AtomId == atomId)
-            .Include(e => e.Components)
+            .Include(e => e.AtomEmbeddingComponents)
             .AsNoTracking()
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -199,7 +199,7 @@ ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
         var embedding = await DbSet
             .Where(e => e.AtomEmbeddingId == searchResult.EmbeddingId.Value)
             .Include(e => e.Atom)
-            .Include(e => e.Components)
+            .Include(e => e.AtomEmbeddingComponents)
             .AsNoTracking()
             .AsSplitQuery()
             .FirstOrDefaultAsync(cancellationToken)
@@ -277,7 +277,7 @@ ORDER BY ae.SpatialGeometry.STDistance(geometry::STGeomFromText(@wkt, @srid));
 
         var embeddings = await DbSet
             .Where(e => candidateIds.Contains(e.AtomEmbeddingId))
-            .Include(e => e.Components)
+            .Include(e => e.AtomEmbeddingComponents)
             .Include(e => e.Atom)
             .AsNoTracking()
             .AsSplitQuery()
@@ -297,7 +297,7 @@ ORDER BY ae.SpatialGeometry.STDistance(geometry::STGeomFromText(@wkt, @srid));
 
             float[] candidateVector = embedding.EmbeddingVector is { IsNull: false } stored
                 ? VectorUtility.Materialize(stored, embedding.Dimension)
-                : VectorUtility.MaterializeFromComponents(embedding.Components, embedding.Dimension);
+                : VectorUtility.MaterializeFromComponents(embedding.AtomEmbeddingComponents, embedding.Dimension);
 
             if (candidateVector.Length == 0)
             {

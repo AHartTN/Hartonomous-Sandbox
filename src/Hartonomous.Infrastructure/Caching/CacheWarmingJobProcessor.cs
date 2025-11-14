@@ -143,7 +143,7 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
         var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
         
         // Query most accessed models from billing ledger
-        var topModels = await _dbContext.Set<Core.Entities.BillingUsageLedger>()
+        var topModels = await _dbContext.Set<BillingUsageLedger>()
             .Where(b => b.TimestampUtc >= sevenDaysAgo 
                 && b.Operation.Contains("Model")
                 && (payload.TenantId == null || b.TenantId == payload.TenantId.ToString()))
@@ -172,7 +172,7 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
     /// </summary>
     private async Task<int> WarmTenantsCache(CacheWarmingPayload payload, CancellationToken cancellationToken)
     {
-        var query = _dbContext.Set<Core.Entities.BillingUsageLedger>()
+        var query = _dbContext.Set<BillingUsageLedger>()
             .Where(b => payload.TenantId == null || b.TenantId == payload.TenantId.ToString())
             .GroupBy(b => b.TenantId)
             .Select(g => new { TenantId = g.Key, LastActivity = g.Max(x => x.TimestampUtc) })
@@ -199,7 +199,7 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
     {
         var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
 
-        var topOperations = await _dbContext.Set<Core.Entities.BillingUsageLedger>()
+        var topOperations = await _dbContext.Set<Data.Entities.BillingUsageLedger>()
             .Where(b => b.TimestampUtc >= sevenDaysAgo
                 && (payload.TenantId == null || b.TenantId == payload.TenantId.ToString()))
             .GroupBy(b => new { b.Operation, b.TenantId })
@@ -231,7 +231,8 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
     {
         // Query top N most recently accessed embeddings
         // Note: AtomEmbedding does not have TenantId - tenant filtering happens via Atom navigation
-        var recentEmbeddings = await _dbContext.Set<Core.Entities.AtomEmbedding>()
+        var oneHourAgo = DateTime.UtcNow.AddHours(-1);
+        var recentEmbeddings = await _dbContext.Set<AtomEmbedding>()
             .OrderByDescending(e => e.CreatedAt)
             .Take(payload.MaxItemsPerType)
             .Select(e => new { e.AtomEmbeddingId, e.EmbeddingVector })

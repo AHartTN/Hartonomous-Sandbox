@@ -8,10 +8,14 @@ namespace Hartonomous.Infrastructure.Services.Tenant;
 
 /// <summary>
 /// Retrieves tenant context from HTTP request claims populated by Azure Entra External ID.
-/// Supports both "tenant_id" and "tid" claim types for compatibility.
+/// Uses TenantMappingService for safe GUID-to-INT resolution with database backing.
+/// Falls back to HttpContext.Items cache for synchronous access.
+///
+/// IMPORTANT: Requires TenantResolutionMiddleware to run first to pre-resolve tenant GUID.
 /// </summary>
 public class HttpContextTenantContext : ITenantContext
 {
+    private const string TenantIdItemKey = "Hartonomous.TenantId";
     private readonly IHttpContextAccessor _httpContextAccessor;
 
     public HttpContextTenantContext(IHttpContextAccessor httpContextAccessor)
@@ -25,12 +29,19 @@ public class HttpContextTenantContext : ITenantContext
         if (httpContext?.User == null)
             return null;
 
+        // Check if tenant ID was already resolved by TenantResolutionMiddleware
+        if (httpContext.Items.TryGetValue(TenantIdItemKey, out var cachedTenantId))
+        {
+            return cachedTenantId as int?;
+        }
+
+        // FALLBACK ONLY - Middleware should handle this
         // Try multiple claim types for tenant ID:
         // 1. "tenant_id" - custom claim from Entra External ID
         // 2. "tid" - standard Azure AD tenant ID claim
         // 3. "http://schemas.microsoft.com/identity/claims/tenantid" - legacy claim type
-        var tenantClaim = httpContext.User.Claims.FirstOrDefault(c => 
-            c.Type == "tenant_id" || 
+        var tenantClaim = httpContext.User.Claims.FirstOrDefault(c =>
+            c.Type == "tenant_id" ||
             c.Type == "tid" ||
             c.Type == ClaimTypes.TenantId ||
             c.Type == "http://schemas.microsoft.com/identity/claims/tenantid");
@@ -39,23 +50,34 @@ public class HttpContextTenantContext : ITenantContext
             return null;
 
         // Parse tenant ID - support both integer IDs and GUID-based IDs
-        // For GUID-based tenant IDs from Azure AD, we'll need to map to our integer TenantId
         if (int.TryParse(tenantClaim.Value, out var tenantId))
+        {
+            httpContext.Items[TenantIdItemKey] = tenantId;
             return tenantId;
+        }
 
-        // If it's a GUID (Azure AD tenant ID), hash to integer for now
-        // Production: Maintain a TenantMapping table to map Azure AD tenant GUIDs to internal integer IDs
+        // CRITICAL: If GUID-based tenant ID found but not resolved by middleware,
+        // this is a configuration error. Log warning and return null to avoid
+        // unsafe GetHashCode() approach.
         if (Guid.TryParse(tenantClaim.Value, out var tenantGuid))
         {
-            // Use GetHashCode as deterministic mapping - stable across app restarts
-            // This is acceptable for development, but production should use database mapping
-            return Math.Abs(tenantGuid.GetHashCode()) % 1_000_000; // Keep in reasonable range
+            // TenantResolutionMiddleware should have resolved this already
+            // Returning null forces proper error handling upstream
+            return null;
         }
 
         return null;
     }
 
     public bool HasTenantContext => GetCurrentTenantId().HasValue;
+
+    /// <summary>
+    /// Internal method for TenantResolutionMiddleware to set resolved tenant ID.
+    /// </summary>
+    internal static void SetResolvedTenantId(HttpContext httpContext, int tenantId)
+    {
+        httpContext.Items[TenantIdItemKey] = tenantId;
+    }
 }
 
 /// <summary>

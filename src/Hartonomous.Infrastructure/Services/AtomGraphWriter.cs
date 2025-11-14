@@ -228,7 +228,7 @@ WHEN NOT MATCHED THEN
                     writer.WriteNumber("modelId", primaryEmbedding.ModelId.Value);
                 }
 
-                writer.WriteBoolean("usesMaxDimensionPadding", primaryEmbedding.UsesMaxDimensionPadding);
+                // UsesMaxDimensionPadding property no longer exists on AtomEmbedding
                 writer.WriteEndObject();
             }
 

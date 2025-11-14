@@ -56,7 +56,7 @@ public class OnnxModelReader : IModelFormatReader<OnnxMetadata>
                 outputs = loadResult.Outputs
             }),
             IngestionDate = DateTime.UtcNow,
-            Layers = new List<ModelLayer>()
+            ModelLayers = new List<ModelLayer>()
         };
 
         var layerIdx = 0;
@@ -90,7 +90,7 @@ public class OnnxModelReader : IModelFormatReader<OnnxMetadata>
                 WeightsGeometry = _layerRepository.CreateGeometryFromWeights(weights)
             };
 
-            model.Layers.Add(layer);
+            model.ModelLayers.Add(layer);
             totalParameters += layer.ParameterCount ?? 0;
             _logger.LogDebug("Added initializer layer {LayerName} with {Count} parameters", layer.LayerName, layer.ParameterCount);
             layerIdx++;
@@ -98,7 +98,7 @@ public class OnnxModelReader : IModelFormatReader<OnnxMetadata>
 
         model.ParameterCount = totalParameters;
 
-        _logger.LogInformation("✓ ONNX model parsed: {LayerCount} layers", model.Layers.Count);
+        _logger.LogInformation("✓ ONNX model parsed: {LayerCount} layers", model.ModelLayers.Count);
         return model;
     }
 

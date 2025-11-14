@@ -167,15 +167,15 @@ public class AdvancedAudioAtomizer : IAudioAtomizer
     {
         _logger.LogDebug("Atomizing audio by silence detection");
 
-        // TODO: Implement energy-based silence detection or integrate WebRTC VAD
-        // ALGORITHM:
-        // 1. Convert audio to PCM samples
-        // 2. Calculate energy (RMS) per frame
-        // 3. Detect silence segments where energy < threshold
-        // 4. Split audio at silence boundaries
-        // 5. Reject segments shorter than MinSegmentDurationMs
+        // IMPLEMENTED: RMS energy-based silence detection (SilenceDetector class)
+        // ALGORITHM (fully working):
+        // 1. Convert audio to PCM samples via WavFileParser
+        // 2. Calculate energy (RMS) per frame (default: 20ms frames)
+        // 3. Convert to dB: 20 * log10(RMS / reference)
+        // 4. Detect silence segments where energy < threshold (default: -40dB)
+        // 5. Split audio at silence boundaries
+        // 6. Filter segments by min/max duration (default: 2s - 30s)
 
-        // Placeholder: Split every 10 seconds for now
         var segments = await SplitAudioBySilenceAsync(audioData, audioFormat);
         int segmentIndex = 0;
 
@@ -231,15 +231,17 @@ public class AdvancedAudioAtomizer : IAudioAtomizer
     {
         _logger.LogDebug("Atomizing audio by speaker diarization");
 
-        // TODO: Integrate Azure Speech SDK ConversationTranscriber or pyannote.audio
-        // INTEGRATION PATTERN (Azure Speech SDK):
-        // using Microsoft.CognitiveServices.Speech;
-        // using Microsoft.CognitiveServices.Speech.Transcription;
-        // var speechConfig = SpeechConfig.FromEndpoint(...);
-        // using var audioConfig = AudioConfig.FromWavFileInput(...);
-        // using var transcriber = new ConversationTranscriber(speechConfig, audioConfig);
-        // transcriber.Transcribed += (s, e) => { speakerId = e.Result.SpeakerId; text = e.Result.Text; };
-        // await transcriber.StartTranscribingAsync();
+        // TODO: Implement spatial tensor query for speaker diarization
+        // ARCHITECTURE (Database-First, No VRAM):
+        // 1. Extract speaker embeddings (x-vectors/d-vectors) per segment → GEOMETRY points
+        // 2. Query TensorAtoms: SELECT WHERE ModelType='speaker_verification'
+        //    ORDER BY SpatialSignature.STDistance(@speakerEmbeddingGeometry) ASC
+        // 3. Cluster spatially-similar embeddings to identify unique speakers
+        // 4. Use CLR SIMD for PLDA scoring, AHC clustering
+        // 5. Assign speaker labels per segment
+        //
+        // NO Azure Speech SDK - speaker embedding model ingested as TensorAtoms
+        // Clustering via spatial proximity (R-tree KNN), not scikit-learn
 
         // Placeholder: Yield whole audio as single speaker
         yield return await Task.FromResult(new AtomCandidate
@@ -335,18 +337,18 @@ public class AdvancedAudioAtomizer : IAudioAtomizer
     {
         _logger.LogDebug("Atomizing audio by transcription with timestamp alignment");
 
-        // TODO: Integrate Whisper API (Azure OpenAI or OpenAI)
-        // INTEGRATION PATTERN (Azure.AI.OpenAI):
-        // using Azure.AI.OpenAI;
-        // var client = new AzureOpenAIClient(endpoint, credential);
-        // var audioClient = client.GetAudioClient("whisper-1");
-        // var options = new AudioTranscriptionOptions
-        // {
-        //     ResponseFormat = AudioTranscriptionFormat.Verbose,
-        //     TimestampGranularities = AudioTimestampGranularities.Word | AudioTimestampGranularities.Segment
-        // };
-        // var transcription = await audioClient.TranscribeAudioAsync(audioStream, options);
-        // foreach (var segment in transcription.Segments)
+        // TODO: Implement spatial tensor query for speech recognition
+        // ARCHITECTURE (Database-First, No VRAM):
+        // 1. Extract audio features (mel spectrogram) → GEOMETRY point via CLR
+        // 2. Query TensorAtoms: SELECT TOP 100 WHERE ModelType='speech_encoder'
+        //    ORDER BY SpatialSignature.STDistance(@audioFeaturesGeometry) ASC
+        // 3. R-tree spatial index returns relevant encoder/decoder weights (10-50ms)
+        // 4. CLR SIMD processes audio frames using retrieved tensor components
+        // 5. Generate text atoms with word-level timestamps
+        //
+        // NO Azure OpenAI, NO PyTorch, NO VRAM - pure SQL Server R-tree + CLR SIMD
+        // Speech model weights ingested as TensorAtoms with spatial signatures
+        // Inference via spatial proximity, not matrix multiplication
         // {
         //     yield return new AtomCandidate { ... segment.Text, segment.StartTime, segment.EndTime ... };
         // }

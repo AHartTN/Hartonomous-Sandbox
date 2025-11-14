@@ -91,9 +91,9 @@ public sealed class InferenceOrchestratorAdapter : IInferenceOrchestrator
         if (!string.IsNullOrEmpty(modality))
         {
             models = models.Where(m =>
-                m.Metadata != null &&
-                m.Metadata.SupportedModalities != null &&
-                m.Metadata.SupportedModalities.Contains(modality, StringComparison.OrdinalIgnoreCase)
+                m.ModelMetadatum != null &&
+                m.ModelMetadatum.SupportedModalities != null &&
+                m.ModelMetadatum.SupportedModalities.Contains(modality, StringComparison.OrdinalIgnoreCase)
             ).ToList();
         }
 
