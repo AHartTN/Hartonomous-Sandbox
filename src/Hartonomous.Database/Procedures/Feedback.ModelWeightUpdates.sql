@@ -71,7 +71,7 @@ BEGIN
             w.Value = w.Value + (u.UpdateMagnitude * @learningRate),
             w.LastUpdated = SYSUTCDATETIME(),
             w.UpdateCount = ISNULL(w.UpdateCount, 0) + 1
-        FROM Weights w
+        FROM dbo.Weights w
         INNER JOIN #LayerUpdates u ON w.LayerID = u.LayerID
         WHERE u.UpdateMagnitude > 0;
 
