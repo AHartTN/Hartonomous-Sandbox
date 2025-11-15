@@ -63,7 +63,7 @@ BEGIN
         INSERT INTO @ValidationResult VALUES ('Segment Count', 'FAIL', 'Segment count (' + CAST(@SegmentCount AS NVARCHAR(10)) + ') below minimum requirement (' + CAST(@MinSegments AS NVARCHAR(10)) + ')');
 
     -- Check stream age
-    DECLARE @StreamCreatedUtc DATETIME2 = @ProvenanceStream.CreatedAt;
+    DECLARE @StreamCreatedUtc DATETIME2 = @ProvenanceStream.CreatedUtc;
     IF @StreamCreatedUtc IS NOT NULL
     BEGIN
         DECLARE @StreamAgeHours FLOAT = DATEDIFF(MINUTE, @StreamCreatedUtc, SYSUTCDATETIME()) / 60.0;

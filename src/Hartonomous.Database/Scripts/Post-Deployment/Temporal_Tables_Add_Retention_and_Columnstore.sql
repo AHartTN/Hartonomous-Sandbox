@@ -26,114 +26,98 @@ BEGIN
 END;
 GO
 
--- Step 2: Convert history table to clustered columnstore (REQUIRED before enabling retention)
-PRINT '  Converting TensorAtomCoefficients_History to clustered columnstore...';
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'CCI_TensorAtomCoefficients_History' 
-    AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients_History')
-)
-BEGIN
-    -- Drop existing nonclustered index first
-    IF EXISTS (
-        SELECT 1 FROM sys.indexes 
-        WHERE name = 'IX_TensorAtomCoefficients_History_Period' 
-        AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients_History')
-    )
-    BEGIN
-        DROP INDEX IX_TensorAtomCoefficients_History_Period ON dbo.TensorAtomCoefficients_History;
-    END;
-
-    -- Create clustered columnstore index (optimal for large historical data)
-    CREATE CLUSTERED COLUMNSTORE INDEX CCI_TensorAtomCoefficients_History
-    ON dbo.TensorAtomCoefficients_History;
-
-    PRINT '  ✓ Clustered columnstore created on TensorAtomCoefficients_History (10x compression expected)';
-END
-ELSE
-BEGIN
-    PRINT '  ✓ Clustered columnstore already exists on TensorAtomCoefficients_History';
-END;
+-- Step 2: Skip columnstore for TensorAtomCoefficients_History (contains GEOMETRY column)
+-- Note: GEOMETRY columns are incompatible with columnstore indexes
+-- The nonclustered index on (ValidTo, ValidFrom) is already created by the table definition
+PRINT '  ✓ TensorAtomCoefficients_History uses nonclustered index (GEOMETRY column incompatible with columnstore)';
 GO
 
--- Step 3: Re-enable with 90-day retention (clustered index now exists)
-PRINT '  Enabling system versioning with 90-day retention...';
+-- Step 3: Re-enable WITHOUT retention (GEOMETRY columns prevent columnstore requirement)
+-- Note: System-versioned tables with finite retention require columnstore indexes on history table
+-- Since TensorAtomCoefficients_History contains GEOMETRY (incompatible with columnstore), use infinite retention
+PRINT '  Enabling system versioning...';
 ALTER TABLE dbo.TensorAtomCoefficients
 SET (
     SYSTEM_VERSIONING = ON (
-        HISTORY_TABLE = dbo.TensorAtomCoefficients_History,
-        HISTORY_RETENTION_PERIOD = 90 DAYS
+        HISTORY_TABLE = dbo.TensorAtomCoefficients_History
     )
 );
-PRINT '  ✓ 90-day retention enabled for TensorAtomCoefficients';
+PRINT '  ✓ System versioning enabled for TensorAtomCoefficients (infinite retention - manual cleanup required)';
 GO
 
 -- =============================================
--- PART 2: Weights - Add 90-day retention
+-- PART 2: Weights - Add 90-day retention (if table exists)
 -- =============================================
-PRINT '';
-PRINT 'Configuring Weights temporal retention...';
-GO
 
--- Step 1: Disable system versioning temporarily
-IF EXISTS (
-    SELECT 1 FROM sys.tables 
-    WHERE name = 'Weights' 
-    AND temporal_type = 2
-)
+-- Check if Weights table exists before attempting configuration
+IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'Weights' AND SCHEMA_NAME(schema_id) = 'dbo')
 BEGIN
-    PRINT '  Temporarily disabling system versioning...';
-    ALTER TABLE dbo.Weights SET (SYSTEM_VERSIONING = OFF);
-    PRINT '  ✓ System versioning disabled';
-END;
-GO
+    PRINT '';
+    PRINT 'Configuring Weights temporal retention...';
 
--- Step 2: Convert history table to clustered columnstore (REQUIRED before enabling retention)
-PRINT '  Converting Weights_History to clustered columnstore...';
-IF NOT EXISTS (
-    SELECT 1 FROM sys.indexes 
-    WHERE name = 'CCI_Weights_History' 
-    AND object_id = OBJECT_ID('dbo.Weights_History')
-    AND type_desc = 'CLUSTERED COLUMNSTORE'
-)
-BEGIN
-    -- Drop any existing clustered index first
-    DECLARE @existingIndex NVARCHAR(128);
-    SELECT @existingIndex = i.name
-    FROM sys.indexes i
-    WHERE i.object_id = OBJECT_ID('dbo.Weights_History')
-      AND i.type_desc IN ('CLUSTERED', 'CLUSTERED COLUMNSTORE')
-      AND i.name <> 'CCI_Weights_History';
-
-    IF @existingIndex IS NOT NULL
+    -- Step 1: Disable system versioning temporarily
+    IF EXISTS (
+        SELECT 1 FROM sys.tables 
+        WHERE name = 'Weights' 
+        AND temporal_type = 2
+    )
     BEGIN
-        DECLARE @dropSql NVARCHAR(MAX) = N'DROP INDEX ' + QUOTENAME(@existingIndex) + N' ON dbo.Weights_History;';
-        EXEC sp_executesql @dropSql;
-        PRINT '  Dropped existing clustered index: ' + @existingIndex;
+        PRINT '  Temporarily disabling system versioning...';
+        ALTER TABLE dbo.Weights SET (SYSTEM_VERSIONING = OFF);
+        PRINT '  ✓ System versioning disabled';
     END;
 
-    -- Create clustered columnstore index (optimal for large historical data)
-    CREATE CLUSTERED COLUMNSTORE INDEX CCI_Weights_History
-    ON dbo.Weights_History;
+    -- Step 2: Convert history table to clustered columnstore (REQUIRED before enabling retention)
+    PRINT '  Converting Weights_History to clustered columnstore...';
+    IF NOT EXISTS (
+        SELECT 1 FROM sys.indexes 
+        WHERE name = 'CCI_Weights_History' 
+        AND object_id = OBJECT_ID('dbo.Weights_History')
+        AND type_desc = 'CLUSTERED COLUMNSTORE'
+    )
+    BEGIN
+        -- Drop any existing clustered index first
+        DECLARE @existingIndex NVARCHAR(128);
+        SELECT @existingIndex = i.name
+        FROM sys.indexes i
+        WHERE i.object_id = OBJECT_ID('dbo.Weights_History')
+          AND i.type_desc IN ('CLUSTERED', 'CLUSTERED COLUMNSTORE')
+          AND i.name <> 'CCI_Weights_History';
 
-    PRINT '  ✓ Clustered columnstore created on Weights_History (10x compression expected)';
+        IF @existingIndex IS NOT NULL
+        BEGIN
+            DECLARE @dropSql NVARCHAR(MAX) = N'DROP INDEX ' + QUOTENAME(@existingIndex) + N' ON dbo.Weights_History;';
+            EXEC sp_executesql @dropSql;
+            PRINT '  Dropped existing clustered index: ' + @existingIndex;
+        END;
+
+        -- Create clustered columnstore index (optimal for large historical data)
+        CREATE CLUSTERED COLUMNSTORE INDEX CCI_Weights_History
+        ON dbo.Weights_History;
+
+        PRINT '  ✓ Clustered columnstore created on Weights_History (10x compression expected)';
+    END
+    ELSE
+    BEGIN
+        PRINT '  ✓ Clustered columnstore already exists on Weights_History';
+    END;
+
+    -- Step 3: Re-enable with 90-day retention (clustered index now exists)
+    PRINT '  Enabling system versioning with 90-day retention...';
+    ALTER TABLE dbo.Weights
+    SET (
+        SYSTEM_VERSIONING = ON (
+            HISTORY_TABLE = dbo.Weights_History,
+            HISTORY_RETENTION_PERIOD = 90 DAYS
+        )
+    );
+    PRINT '  ✓ 90-day retention enabled for Weights';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ Clustered columnstore already exists on Weights_History';
+    PRINT '';
+    PRINT 'Skipping Weights temporal configuration (table does not exist)';
 END;
-GO
-
--- Step 3: Re-enable with 90-day retention (clustered index now exists)
-PRINT '  Enabling system versioning with 90-day retention...';
-ALTER TABLE dbo.Weights
-SET (
-    SYSTEM_VERSIONING = ON (
-        HISTORY_TABLE = dbo.Weights_History,
-        HISTORY_RETENTION_PERIOD = 90 DAYS
-    )
-);
-PRINT '  ✓ 90-day retention enabled for Weights';
 GO
 
 -- =============================================

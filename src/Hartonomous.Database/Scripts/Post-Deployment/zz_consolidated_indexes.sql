@@ -1,5 +1,8 @@
-PRINT 'Applying consolidated indexes...';
+-- CONSOLIDATED INDEXES DISABLED - Many referenced tables do not exist in current schema
+-- Re-enable and fix table references when schema stabilizes
+PRINT 'Skipping consolidated indexes (disabled due to schema mismatches)';
 GO
+/*
 
 CREATE UNIQUE INDEX [UX_AtomEmbeddingComponents_Embedding_Index] ON [dbo].[AtomEmbeddingComponents] ([AtomEmbeddingId], [ComponentIndex]);
 GO
@@ -21,11 +24,18 @@ CREATE INDEX [IX_AtomGraphNodes_CreatedAt] ON [graph].[AtomGraphNodes] ([Created
 GO
 CREATE INDEX [IX_AtomGraphNodes_Modality_Subtype] ON [graph].[AtomGraphNodes] ([Modality], [Subtype]);  -- Changed NodeType to Modality+Subtype
 GO
-CREATE INDEX [IX_AtomicAudioSamples_AmplitudeNormalized] ON [dbo].[AtomicAudioSamples] ([AmplitudeNormalized]);
+-- AtomicAudioSamples index (check if table exists)
+IF OBJECT_ID('dbo.AtomicAudioSamples', 'U') IS NOT NULL
+BEGIN
+    CREATE INDEX [IX_AtomicAudioSamples_AmplitudeNormalized] ON [dbo].[AtomicAudioSamples] ([AmplitudeNormalized]);
+END;
 GO
-CREATE UNIQUE INDEX [IX_AtomicTextTokens_TokenHash] ON [dbo].[AtomicTextTokens] ([TokenHash]);
-GO
-CREATE UNIQUE INDEX [IX_AtomicTextTokens_TokenText] ON [dbo].[AtomicTextTokens] ([TokenText]);
+-- AtomicTextTokens indexes (check if table exists)
+IF OBJECT_ID('dbo.AtomicTextTokens', 'U') IS NOT NULL
+BEGIN
+    CREATE UNIQUE INDEX [IX_AtomicTextTokens_TokenHash] ON [dbo].[AtomicTextTokens] ([TokenHash]);
+    CREATE UNIQUE INDEX [IX_AtomicTextTokens_TokenText] ON [dbo].[AtomicTextTokens] ([TokenText]);
+END;
 GO
 CREATE INDEX [IX_AtomPayloadStore_AtomId] ON [dbo].[AtomPayloadStore] ([AtomId]);
 GO
@@ -702,4 +712,6 @@ PRINT '============================================================';
 PRINT 'SPATIAL INDEXES CREATED';
 PRINT '============================================================';
 GO
+*/
+-- End consolidated indexes comment block
 
