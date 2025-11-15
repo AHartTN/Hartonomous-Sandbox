@@ -697,7 +697,7 @@ Comprehensive health check.
   "checks": {
     "database": "healthy",
     "tables": "healthy",
-    "filestream": "healthy",
+    "clr": "healthy",
     "neo4j": "healthy",
     "serviceBroker": "healthy"
   },

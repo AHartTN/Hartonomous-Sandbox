@@ -439,7 +439,6 @@ SQL Server CLR assemblies run inside the SQL Server process, which uses .NET Fra
 - .NET 10 SDK (RC2 or later) - [Download](https://dotnet.microsoft.com/download/dotnet/10.0)
 - SQL Server 2025 Preview (CTP3 or later) with:
   - CLR Integration enabled (`sp_configure 'clr enabled', 1`)
-  - FILESTREAM enabled
   - Service Broker enabled
   - .NET Framework 4.8.1 runtime (for SQL CLR assemblies)
 - PowerShell 7.4+ (for deployment scripts)

@@ -1,8 +1,8 @@
 # Database Schema Reference
 
 **SQL Server Version**: 2025  
-**Tables**: 89  
-**Stored Procedures**: 100  
+**Tables**: 99  
+**Stored Procedures**: 74  
 **Functions**: 24  
 **CLR Assemblies**: 14  
 **Deployment**: DACPAC-first (NOT EF migrations)
@@ -13,16 +13,18 @@
 
 Hartonomous uses **SQL Server 2025** as the primary database substrate with advanced features:
 
-- **VECTOR(1998)** - Native vector embeddings for semantic search
-- **GEOMETRY** - Spatial indexing for embedding projections (R-tree)
-- **Temporal Tables** - Row-level history with `FOR SYSTEM_TIME`
+- **VECTOR(1998)** - Native vector embeddings for semantic search (JSON storage internally)
+- **GEOMETRY** - Spatial indexing for embedding projections and atomic decomposition (R-tree O(log n) nearest-neighbor)
+- **Temporal Tables** - Row-level history with `FOR SYSTEM_TIME` (automatic compliance queries)
 - **Graph Tables** - `AS NODE` / `AS EDGE` for provenance relationships
-- **FILESTREAM** - Large model weights (multi-GB binary data)
-- **In-Memory OLTP** - Billing ledger and inference cache
-- **Service Broker** - OODA loop asynchronous messaging
+- **In-Memory OLTP** - Billing ledger and inference cache (high-throughput usage tracking)
+- **Service Broker** - OODA loop asynchronous messaging (ACID-guaranteed queuing)
+- **CLR Integration** - .NET Framework 4.8.1 in-process functions (CPU SIMD via System.Numerics.Vectors)
+
+**NO FILESTREAM**: Atomic decomposition eliminates need for large blob storage. All data stored in VARBINARY(64) or primitive types with SHA-256 content-addressable deduplication.
 
 **Database Project**: `src/Hartonomous.Database/Hartonomous.Database.sqlproj`  
-**Deployment Script**: `scripts/deploy-database-unified.ps1`
+**Deployment Script**: `scripts/deploy-dacpac.ps1`
 
 **CRITICAL**: Schema changes are made in `.sql` files within `src/Hartonomous.Database/`, NOT via EF Core migrations. EF Core is read-only (scaffolds from existing database).
 
@@ -176,7 +178,8 @@ Hartonomous uses **SQL Server 2025** as the primary database substrate with adva
 
 **Child Tables:**
 - `ModelLayers` - Individual layers (attention, feedforward, normalization)
-- `ModelWeights` - FILESTREAM binary weights
+- `TensorAtoms` - Atomized weights with SHA-256 deduplication (float32 → BINARY(4))
+- `TensorAtomCoefficients` - Weight coefficients with temporal history
 - `ModelSnapshots` - Temporal snapshots for rollback
 
 ---

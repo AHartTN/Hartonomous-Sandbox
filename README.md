@@ -1,8 +1,18 @@
 # Hartonomous
 
-## Database-First AI Platform for SQL Server 2025
+**Autonomous Database Intelligence Platform**
 
-Hartonomous is an enterprise-grade AI platform built on SQL Server 2025 that implements a **"Periodic Table of Knowledge"** architecture. Everything—text, images, audio, video, and even AI model weights—is decomposed into fundamental, deduplicated atoms stored as primitive data types. By leveraging SQL Server's vector search, CLR integration, and content-addressable storage (CAS), Hartonomous eliminates redundancy while providing full provenance tracking and regulatory compliance—all within your existing database infrastructure.
+[![SQL Server 2025](https://img.shields.io/badge/SQL_Server-2025-CC2927?logo=microsoft-sql-server)](https://www.microsoft.com/sql-server/)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4?logo=.net)](https://dotnet.microsoft.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
+---
+
+## What is Hartonomous?
+
+Hartonomous is a **database-native AI platform** that stores knowledge at the **atomic level** and enables **semantic reasoning directly in SQL Server**. Unlike traditional systems that store files or embeddings, Hartonomous atomically decomposes EVERYTHING—images, models, text, audio—into fundamental 4-byte atoms with **content-addressable deduplication** and **geometric spatial indexing**.
+
+**Core Paradigm**: If you can't run SQL queries like `SELECT * FROM weights WHERE value > 0.9`, your AI model isn't queryable—it's a blob. Hartonomous makes **every pixel, every weight, every token** a first-class database citizen.
 
 ## Why Hartonomous?
 

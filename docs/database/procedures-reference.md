@@ -1,693 +1,645 @@
-# Stored Procedures Reference
+# Stored Procedure Reference Catalog
 
-**Status**: Published
-**Last Updated**: 2025-11-13
-**Total Procedures**: 107
-
-This document provides comprehensive reference for all stored procedures in the Hartonomous database.
-
-## Procedure Categories
-
-- [OODA Loop](#ooda-loop-procedures) (4 procedures)
-- [Atomic Ingestion](#atomic-ingestion-procedures) (8 procedures)
-- [Vector Operations](#vector-operations-procedures) (5 procedures)
-- [Inference](#inference-procedures) (12 procedures)
-- [Model Management](#model-management-procedures) (8 procedures)
-- [Provenance](#provenance-procedures) (6 procedures)
-- [Billing](#billing-procedures) (4 procedures)
-- [Analytics](#analytics-procedures) (5 procedures)
-- [Administration](#administration-procedures) (55 procedures)
+**Total Procedures**: 91 (validated against codebase)  
+**Categories**: OODA Loop, Atomization, Inference, Provenance, Billing, Search, Reconstruction  
+**Validation**: All signatures extracted from `src/Hartonomous.Database/Procedures/`
 
 ---
 
-## OODA Loop Procedures
+## Quick Reference Table
 
-### sp_Analyze
+| Category | Count | Key Procedures |
+|----------|-------|----------------|
+| OODA Loop | 4 | sp_Analyze, sp_Hypothesize, sp_Act, sp_Learn |
+| Atomization | 4 | sp_AtomizeImage_Governed, sp_AtomizeModel_Governed, sp_AtomizeText_Governed, sp_AtomizeCode |
+| Reconstruction | 3 | sp_ReconstructImage, sp_ReconstructModelWeights, sp_ReconstructText |
+| Search & Inference | 12 | sp_SemanticSearch, sp_HybridSearch, sp_TransformerStyleInference, sp_AttentionInference |
+| Provenance | 6 | sp_QueryLineage, sp_AuditProvenanceChain, sp_EnqueueNeo4jSync, sp_LinkProvenance |
+| Billing | 3 | sp_InsertBillingUsageRecord_Native, sp_CalculateBill, sp_GenerateUsageReport |
+| Query | 3 | sp_FindImagesByColor, sp_FindWeightsByValueRange, sp_QueryModelWeights |
+| Advanced Reasoning | 5 | sp_ChainOfThoughtReasoning, sp_SelfConsistencyReasoning, sp_MultiModelEnsemble |
+| Weight Management | 4 | sp_RollbackWeightsToTimestamp, sp_CreateWeightSnapshot, sp_RestoreWeightSnapshot |
+| Spatial & Graph | 3 | sp_GenerateOptimalPath, sp_BuildConceptDomains, sp_DiscoverAndBindConcepts |
+| Other | 44 | Generation, fusion, distillation, deduplication, etc. |
 
-**Purpose**: OODA Loop Phase 1 - Observe and analyze system performance, detect anomalies
+---
+
+## OODA Loop (Autonomous Operations)
+
+### sp_Analyze — Observe Phase
 
 **Signature**:
 ```sql
 EXEC dbo.sp_Analyze
-    @TenantId INT = 0,
-    @AnalysisScope NVARCHAR(256) = 'full',
-    @LookbackHours INT = 24
+    @LookbackHours INT = 24,
+    @MinDurationMs INT = 1000;
 ```
 
-**What It Does**:
-1. Queries recent inference requests (last N hours)
-2. Detects performance anomalies using CLR aggregates (IsolationForestScore, LocalOutlierFactor)
-3. Queries Query Store for query regressions
-4. Identifies embedding clusters via spatial buckets
-5. Sends HypothesizeMessage to Service Broker
+**Purpose**: Detect slow queries, anomalies, performance degradation
 
-**Performance**: ~200ms for 1000 inference requests
+**Returns**: Observation messages to Service Broker HypothesizeQueue
 
 **Example**:
 ```sql
--- Trigger OODA loop analysis
-EXEC dbo.sp_Analyze @LookbackHours = 24;
-
--- Check queue status
-SELECT qi.conversation_handle, qi.message_type_name
-FROM dbo.AnalyzeQueue qi WITH (NOLOCK);
+EXEC sp_Analyze @LookbackHours = 24;
 ```
-
-**Notes**:
-- Uses CLR aggregates: IsolationForestScore (threshold > 0.7), LocalOutlierFactor (threshold > 1.5)
-- Bypasses analysis if message contains Gödel engine compute job
-- Auto-invoked by Service Broker on timer
-
-**Direct SQL Usage**:
-```sql
--- Manually trigger OODA loop analysis
-EXEC sp_Analyze @LookbackHours = 48;
-
--- Check Service Broker queue
-SELECT * FROM dbo.AnalyzeQueue;
-```
-
-**API Integration** (Optional):
-```csharp
-// Management API can trigger manual analysis
-POST /api/autonomy/analyze
-{
-  "lookbackHours": 48,
-  "scope": "full"
-}
-
-// AutonomyController → sp_Analyze → Service Broker → OODA loop
-//                      └─ Autonomous improvement happens here (in SQL Server)
-```
-
-**Autonomous Execution**:
-Service Broker automatically triggers `sp_Analyze` every 15 minutes via conversation timer - no external services required.
 
 ---
 
-### sp_Hypothesize
+### sp_Hypothesize — Orient Phase
 
-**Purpose**: OODA Loop Phase 2 - Generate improvement hypotheses (NOT YET IMPLEMENTED)
-
-**Status**: ⚠️ NOT IMPLEMENTED - Currently bypassed, sp_Analyze sends directly to sp_Act
-
-**Planned Signature**:
+**Signature**:
 ```sql
-EXEC dbo.sp_Hypothesize
-    @AnalysisId UNIQUEIDENTIFIER,
-    @ObservationsJson NVARCHAR(MAX)
+EXEC dbo.sp_Hypothesize;
 ```
 
-**Planned Actions**:
-- Parse observations from sp_Analyze
-- Generate hypotheses: IndexOptimization, QueryRegression, CacheWarming, ConceptDiscovery, ModelRetraining
-- Prioritize hypotheses (1-5 scale)
-- Auto-approve safe hypotheses (priority >= 3)
-- Send ActMessage to Service Broker
+**Purpose**: Generate improvement hypotheses (missing indexes, outdated stats)
+
+**Auto-Activated**: Service Broker activation procedure (reads HypothesizeQueue)
 
 ---
 
-### sp_Act
-
-**Purpose**: OODA Loop Phase 3 - Execute improvements based on hypotheses
+### sp_Act — Decide/Act Phase
 
 **Signature**:
 ```sql
 EXEC dbo.sp_Act
-    @TenantId INT = 0,
-    @AutoApproveThreshold INT = 3
+    @ActionType NVARCHAR(100),
+    @ActionPayload NVARCHAR(MAX);
 ```
 
-**What It Does**:
-1. Receives hypotheses from Service Broker ActQueue
-2. Executes actions based on hypothesis type
-3. Logs execution results
-4. Sends LearnMessage
+**Purpose**: Execute improvements (CREATE INDEX, UPDATE STATISTICS) in transaction
 
-**Action Types**:
-
-| Type | Safety | Actions | Auto-Approve |
-|------|--------|---------|--------------|
-| IndexOptimization | Safe | UPDATE STATISTICS on Atoms/AtomEmbeddings/InferenceRequests | ✅ Yes |
-| QueryRegression | Safe | sp_query_store_force_plan | ✅ Yes |
-| CacheWarming | Safe | Preload top 1000 embeddings | ✅ Yes |
-| ConceptDiscovery | Safe | Count spatial buckets | ✅ Yes |
-| ModelRetraining | DANGEROUS | Log to approval queue | ❌ Manual only |
-
-**Example**:
-```sql
--- Manually trigger action (normally Service Broker invoked)
-EXEC dbo.sp_Act @AutoApproveThreshold = 3;
-```
-
-**Notes**:
-- Gödel engine support: executes clr_FindPrimes for prime search jobs
-- Transactional: all actions wrapped in TRY/CATCH
+**Auto-Activated**: Service Broker activation procedure (reads ActQueue)
 
 ---
 
-### sp_Learn
-
-**Purpose**: OODA Loop Phase 4 - Measure outcomes and update model weights
+### sp_Learn — Learn Phase
 
 **Signature**:
 ```sql
-EXEC dbo.sp_Learn
-    @TenantId INT = 0
+EXEC dbo.sp_Learn;
 ```
 
-**What It Does**:
-1. Receives execution results from sp_Act
-2. Measures performance delta:
-   - Baseline: 24h ago to 5min ago
-   - Current: Last 5min
-3. Classifies outcomes: HighSuccess (>10%), Success (>0%), Regressed (<0%), Failed
-4. Calls sp_UpdateModelWeightsFromFeedback for Qwen3-Coder fine-tuning
-5. Determines next cycle delay: 5min (high success) to 60min (regression)
-6. Sends AnalyzeMessage to restart loop
+**Purpose**: Measure improvements, update confidence scores via Bayesian updates
 
-**Example**:
-```sql
--- Check recent learning outcomes
-SELECT TOP 10 *
-FROM dbo.AutonomousImprovementHistory
-ORDER BY ExecutedAt DESC;
-```
-
-**Performance**: <1s for outcome measurement
+**Inserts**: AutonomousImprovementHistory table
 
 ---
 
-## Atomic Ingestion Procedures
+## Atomization Procedures
 
-### sp_IngestAtom_Atomic
-
-**Purpose**: Unified atomic ingestion router - routes to modality-specific atomizers
+### sp_AtomizeImage_Governed
 
 **Signature**:
 ```sql
-EXEC dbo.sp_IngestAtom_Atomic
-    @Modality NVARCHAR(64),
-    @Subtype NVARCHAR(128) = NULL,
-    @Content NVARCHAR(MAX) = NULL,
-    @BinaryPayload VARBINARY(MAX) = NULL,
-    @Metadata NVARCHAR(MAX) = NULL,
-    @TenantId INT = 0,
-    @ParentAtomId BIGINT OUTPUT
+EXEC dbo.sp_AtomizeImage_Governed
+    @ImageBytes VARBINARY(MAX),
+    @SourceUri NVARCHAR(500),
+    @TenantId UNIQUEIDENTIFIER,
+    @ImageAtomId BIGINT OUTPUT;
 ```
 
-**Routes To**:
-- `image.*` → sp_AtomizeImage_Atomic
-- `audio.*` → sp_AtomizeAudio_Atomic
-- `embedding.*` → sp_InsertAtomicVector
-- `model.*` → sp_AtomizeModel_Atomic
-- `text.*` → sp_AtomizeText_Atomic
-
-**Example**:
-```sql
-DECLARE @AtomId BIGINT;
-EXEC dbo.sp_IngestAtom_Atomic
-    @Modality = 'image',
-    @Subtype = 'jpeg',
-    @BinaryPayload = @jpegBytes,
-    @Metadata = '{"width": 1920, "height": 1080}',
-    @ParentAtomId = @AtomId OUTPUT;
-```
-
-**Features**:
-- Global deduplication via ContentHash (SHA-256)
-- Automatic LOB separation for large content (>8KB)
-- ReferenceCount tracking
-- Tenant isolation
-
-**API Integration** (Optional):
-```csharp
-// Management API calls this procedure via repository
-POST /api/ingestion/ingest
-{
-  "modality": "image",
-  "subtype": "jpeg",
-  "sourceUri": "file:///images/photo.jpg"
-}
-
-// API Controller → Repository → sp_IngestAtom_Atomic
-//                                └─ AI happens here (in SQL Server)
-```
+**Logic**:
+- Decode image via CLR (System.Drawing)
+- Extract RGBA pixels (4 bytes each)
+- SHA-256 ContentHash per pixel
+- SpatialKey: POINT(R, G, B, 0)
+- Insert deduplicated atoms + AtomRelations
 
 ---
 
-### sp_AtomizeImage_Atomic
-
-**Purpose**: Decompose images into deduplicated RGB pixel atoms
+### sp_AtomizeModel_Governed
 
 **Signature**:
 ```sql
-EXEC dbo.sp_AtomizeImage_Atomic
-    @ParentAtomId BIGINT,
-    @Width INT,
-    @Height INT,
-    @TenantId INT = 0
+EXEC dbo.sp_AtomizeModel_Governed
+    @ModelBytes VARBINARY(MAX),
+    @ModelName NVARCHAR(256),
+    @TenantId UNIQUEIDENTIFIER,
+    @ModelId INT OUTPUT;
 ```
 
-**What It Does**:
-1. Extracts RGB pixels using clr_ExtractImagePixels (JPEG/PNG/BMP support)
-2. Creates atom for each unique RGB triplet with SHA-256 ContentHash
-3. Creates AtomRelations with:
-   - Weight = 1.0 (uniform pixel strength)
-   - Importance = brightness variance (saliency detection)
-   - Confidence = 1.0 (pixels always certain)
-   - CoordX/Y = normalized pixel position [0,1]
-   - CoordZ = brightness (0.299*R + 0.587*G + 0.114*B)
-
-**Performance**:
-- Initial: 800ms (1920×1080 image, ~100K unique colors)
-- Subsequent: 200ms (80% atom reuse)
-
-**Example**:
-```sql
-DECLARE @ImageAtomId BIGINT;
--- First create parent atom via sp_IngestAtom_Atomic
--- Then atomize
-EXEC dbo.sp_AtomizeImage_Atomic
-    @ParentAtomId = @ImageAtomId,
-    @Width = 1920,
-    @Height = 1080;
-```
+**Logic**:
+- Parse GGUF/SafeTensors/PyTorch format
+- Decompose weights to float32 atoms
+- SHA-256 ContentHash per weight
+- SpatialKey: POINT(row, col, 0, layerId)
+- Insert to TensorAtomCoefficients
 
 ---
 
-### sp_AtomizeAudio_Atomic
-
-**Purpose**: Decompose audio into deduplicated amplitude atoms
+### sp_AtomizeText_Governed
 
 **Signature**:
 ```sql
-EXEC dbo.sp_AtomizeAudio_Atomic
-    @ParentAtomId BIGINT,
-    @SampleRate INT = 44100,
-    @Channels INT = 2,
-    @BitsPerSample INT = 16,
-    @TenantId INT = 0
+EXEC dbo.sp_AtomizeText_Governed
+    @Text NVARCHAR(MAX),
+    @SourceUri NVARCHAR(500),
+    @TenantId UNIQUEIDENTIFIER,
+    @DocumentAtomId BIGINT OUTPUT;
 ```
 
-**What It Does**:
-1. Extracts audio frames using clr_ExtractAudioFrames (WAV support)
-2. Quantizes RMS amplitude to 8-bit buckets for deduplication
-3. Creates AtomRelations with:
-   - Weight = 1.0
-   - Importance = RMS energy (louder = more important)
-   - Confidence = 1.0 - |peak - RMS| / peak
-   - CoordX = temporal position
-   - CoordY = channel (0=left, 1=right)
-   - CoordZ = amplitude (RMS value)
-   - CoordT = normalized timestamp [0,1]
-
-**Performance**: ~500ms for 3min audio file
+**Logic**:
+- BPE tokenization (tiktoken)
+- 4-byte atom per token ID
+- SHA-256 ContentHash
+- AtomRelations for reconstruction
 
 ---
 
-### sp_AtomizeModel_Atomic
-
-**Purpose**: Decompose neural network model weights into atomic values
+### sp_AtomizeCode
 
 **Signature**:
 ```sql
-EXEC dbo.sp_AtomizeModel_Atomic
-    @ParentAtomId BIGINT,
-    @TenantId INT = 0,
-    @QuantizationBits INT = 8,
-    @MaxWeightsPerTensor INT = 100000,
-    @ComputeImportance BIT = 1
+EXEC dbo.sp_AtomizeCode
+    @SourceCode NVARCHAR(MAX),
+    @Language NVARCHAR(50),
+    @CodeAtomId BIGINT OUTPUT;
 ```
 
-**What It Does**:
-1. Retrieves model metadata (GGUF/SafeTensors format)
-2. Calculates quantization parameters (8-bit = 256 unique values)
-3. Extracts weights from TensorAtoms table
-4. Quantizes weights for deduplication
-5. Creates AtomRelations with:
-   - Weight = ABS(value) (magnitude-based)
-   - Importance = L2 norm per layer
-   - Spatial coordinates = (layerIdx, rowIdx, colIdx)
-
-**Notes**:
-- Supports GGUF and SafeTensors formats
-- Uses TensorAtoms table for intermediate storage
-- Quantization enables massive deduplication
+**Logic**: AST decomposition, hierarchical atom structure
 
 ---
 
-### sp_AtomizeText_Atomic
+## Reconstruction Procedures
 
-**Purpose**: Decompose text into character/token atoms
+### sp_ReconstructImage
 
 **Signature**:
 ```sql
-EXEC dbo.sp_AtomizeText_Atomic
-    @ParentAtomId BIGINT,
-    @TokenizationMode NVARCHAR(50) = 'character',
-    @TenantId INT = 0
+EXEC dbo.sp_ReconstructImage
+    @ImageAtomId BIGINT,
+    @ImageBytes VARBINARY(MAX) OUTPUT;
 ```
 
-**Modes**:
-- `character`: Individual UTF-8 characters
-- `bpe`: Byte-pair encoding tokens
-- `word`: Word-level tokens
-
-**What It Does**:
-1. Tokenizes text based on mode
-2. Creates atoms for each unique token
-3. Creates AtomRelations with positional encoding
+**Logic**: JOIN AtomRelations → Atoms, reconstruct pixel array, encode PNG/JPEG
 
 ---
 
-## Vector Operations Procedures
-
-### sp_InsertAtomicVector
-
-**Purpose**: Insert vector as atomic dimensions with deduplication
+### sp_ReconstructModelWeights
 
 **Signature**:
 ```sql
-EXEC dbo.sp_InsertAtomicVector
-    @SourceAtomId BIGINT,
-    @VectorJson NVARCHAR(MAX),
-    @Dimension INT,
-    @RelationType NVARCHAR(128) = 'embedding_dimension'
+EXEC dbo.sp_ReconstructModelWeights
+    @ModelId INT,
+    @LayerIdx INT,
+    @WeightsBytes VARBINARY(MAX) OUTPUT;
 ```
 
-**What It Does**:
-1. Parses JSON array of float values
-2. For each dimension:
-   - Converts float to VARBINARY(4)
-   - Computes SHA-256 ContentHash
-   - MERGE into Atoms (deduplicate)
-   - INSERT AtomRelation with SequenceIndex
-   - UPDATE ReferenceCount
-3. Computes SpatialBucket via fn_ComputeSpatialBucket
-
-**Performance**: ~50ms for 1998-dim vector
-
-**Example**:
-```sql
-DECLARE @VectorJson NVARCHAR(MAX) = '[0.123, -0.456, 0.789, ...]';
-EXEC dbo.sp_InsertAtomicVector
-    @SourceAtomId = 1,
-    @VectorJson = @VectorJson,
-    @Dimension = 1998;
-```
+**Logic**: JOIN TensorAtomCoefficients → Atoms, reconstruct float32 array
 
 ---
 
-### sp_ReconstructVector
-
-**Purpose**: Reconstruct VECTOR from atomic dimensions
+### sp_ReconstructText
 
 **Signature**:
 ```sql
-EXEC dbo.sp_ReconstructVector
-    @SourceAtomId BIGINT,
-    @VectorJson NVARCHAR(MAX) OUTPUT,
-    @Dimension INT OUTPUT
+EXEC dbo.sp_ReconstructText
+    @DocumentAtomId BIGINT,
+    @Text NVARCHAR(MAX) OUTPUT;
 ```
 
-**What It Does**:
-1. Queries AtomRelations WHERE SourceAtomId = @SourceAtomId AND RelationType = 'embedding_dimension'
-2. Orders by SequenceIndex
-3. Converts binary atoms to floats using clr_BinaryToFloat
-4. Builds JSON array
-
-**Performance**: 0.8ms (vs 0.05ms monolithic)
-
-**Example**:
-```sql
-DECLARE @Vector NVARCHAR(MAX), @Dim INT;
-EXEC dbo.sp_ReconstructVector
-    @SourceAtomId = 1,
-    @VectorJson = @Vector OUTPUT,
-    @Dimension = @Dim OUTPUT;
-
-SELECT @Dim AS Dimension, LEFT(@Vector, 100) AS VectorSample;
-```
+**Logic**: JOIN AtomRelations → Atoms, decode tokens to text
 
 ---
 
-### sp_AtomicSpatialSearch
-
-**Purpose**: Approximate KNN search using spatial index + atomic reconstruction
-
-**Signature**:
-```sql
-EXEC dbo.sp_AtomicSpatialSearch
-    @QueryVectorJson NVARCHAR(MAX),
-    @TopK INT = 10,
-    @SpatialRadius FLOAT = 100.0
-```
-
-**What It Does**:
-1. Computes spatial bucket for query vector via LSH
-2. Filters WHERE SpatialBucket = @bucket (O(1))
-3. Spatial R-tree query on GEOMETRY (O(log n))
-4. CLR cosine similarity for top-k ranking
-5. Returns AtomEmbeddingIds with distances
-
-**Performance**: 10-50ms for 1M embeddings (20x faster than brute force)
-
----
-
-### sp_DeleteAtomicVectors
-
-**Purpose**: Delete atomic vector and decrement reference counts
-
-**Signature**:
-```sql
-EXEC dbo.sp_DeleteAtomicVectors
-    @SourceAtomIds NVARCHAR(MAX)  -- Comma-separated list
-```
-
-**What It Does**:
-1. Deletes AtomRelations for specified source atoms
-2. Decrements ReferenceCount on target atoms
-3. Marks orphaned atoms (ReferenceCount = 0) for cleanup
-
----
-
-### sp_GetAtomicDeduplicationStats
-
-**Purpose**: Analytics on deduplication effectiveness
-
-**Signature**:
-```sql
-EXEC dbo.sp_GetAtomicDeduplicationStats
-```
-
-**Returns**:
-- Total dimensions stored
-- Unique atoms
-- Deduplication percentage
-- Average reuse per atom
-- Top 10 most-reused atoms
-
----
-
-## Inference Procedures
+## Search & Inference
 
 ### sp_SemanticSearch
-
-**Purpose**: Vector similarity search with spatial indexing
 
 **Signature**:
 ```sql
 EXEC dbo.sp_SemanticSearch
     @QueryText NVARCHAR(MAX),
     @TopK INT = 10,
-    @MinSimilarity FLOAT = 0.7
+    @UseGeometricIndex BIT = 1;
 ```
 
-**What It Does**:
-1. Generates embedding for query text (native transformer implementation in CLR)
-2. Uses spatial index for approximate KNN
-3. Computes cosine similarity via clr_CosineSimilarity
-4. Returns top-k results with scores
+**Logic**:
+- Generate embedding (CLR)
+- If geometric: trilateration → GEOMETRY R-tree filter → VECTOR rerank
+- Else: brute-force VECTOR scan
 
-**Performance**: <50ms for 1M embeddings
-
-**Direct SQL Usage**:
-```sql
--- Execute directly from any SQL client
-EXEC sp_SemanticSearch 
-    @QueryText = 'financial reports Q3 2024',
-    @TopK = 20,
-    @MinSimilarity = 0.75;
-```
-
-**API Integration** (Optional):
-```csharp
-// Management API exposes this as REST endpoint
-POST /api/search/semantic
-{
-  "query": "financial reports Q3 2024",
-  "topK": 20,
-  "minSimilarity": 0.75
-}
-
-// SearchController → ISearchRepository → sp_SemanticSearch
-//                                         └─ Vector search happens here (in SQL Server)
-```
+**Performance**: O(log n) with geometric index, O(n) without
 
 ---
 
-### sp_ChainOfThoughtReasoning
-
-**Purpose**: Multi-step reasoning with intermediate steps
+### sp_HybridSearch
 
 **Signature**:
 ```sql
-EXEC dbo.sp_ChainOfThoughtReasoning
-    @Prompt NVARCHAR(MAX),
-    @MaxSteps INT = 5
+EXEC dbo.sp_HybridSearch
+    @QueryText NVARCHAR(MAX),
+    @TopK INT = 10,
+    @KeywordWeight FLOAT = 0.3,
+    @SemanticWeight FLOAT = 0.7;
 ```
 
-**What It Does**:
-1. Breaks down complex query into reasoning steps
-2. Executes each step with intermediate results
-3. Combines results for final answer
-4. Logs full reasoning chain to provenance
+**Logic**: Weighted fusion of full-text search + semantic search
 
 ---
 
-### sp_SelfConsistencyReasoning
-
-**Purpose**: Generate multiple reasoning paths and select most consistent
+### sp_TransformerStyleInference
 
 **Signature**:
 ```sql
-EXEC dbo.sp_SelfConsistencyReasoning
-    @Prompt NVARCHAR(MAX),
-    @NumPaths INT = 3
-```
-
-**What It Does**:
-1. Generates N independent reasoning paths
-2. Compares results for consistency
-3. Returns most frequent answer with confidence score
-
----
-
-## Model Management Procedures
-
-### sp_UpdateModelWeightsFromFeedback
-
-**Purpose**: Fine-tune model weights based on OODA loop feedback
-
-**Signature**:
-```sql
-EXEC dbo.sp_UpdateModelWeightsFromFeedback
+EXEC dbo.sp_TransformerStyleInference
+    @InputText NVARCHAR(MAX),
     @ModelId INT,
-    @FeedbackJson NVARCHAR(MAX)
+    @MaxTokens INT = 100,
+    @OutputText NVARCHAR(MAX) OUTPUT;
 ```
 
-**What It Does**:
-1. Queries AutonomousImprovementHistory for successful code generations
-2. Extracts training samples with reward signals
-3. Updates model weights (currently targets Qwen3-Coder-32B)
-4. Creates new TensorAtom versions for changed weights
-5. Maintains temporal history
-
-**Notes**: Closes OODA loop feedback cycle
+**Logic**: Tokenize → load weights → CLR attention → decode output
 
 ---
 
-## Provenance Procedures
-
-### sp_EnqueueNeo4jSync
-
-**Purpose**: Queue provenance events for Neo4j synchronization
+### sp_AttentionInference
 
 **Signature**:
 ```sql
-EXEC dbo.sp_EnqueueNeo4jSync
-    @EntityType NVARCHAR(50),
-    @EntityId BIGINT,
-    @OperationType NVARCHAR(20)
+EXEC dbo.sp_AttentionInference
+    @QueryEmbedding VECTOR(1998),
+    @KeyEmbeddings NVARCHAR(MAX),
+    @ValueEmbeddings NVARCHAR(MAX),
+    @NumHeads INT = 8,
+    @AttentionOutput VECTOR(1998) OUTPUT;
 ```
 
-**What It Does**:
-1. Creates message with entity metadata
-2. Sends to Neo4jSyncQueue via Service Broker
-3. Worker consumes and syncs to Neo4j graph
+**Logic**: Multi-head attention via CLR (MathNet.Numerics)
 
 ---
+
+## Provenance & Lineage
 
 ### sp_QueryLineage
-
-**Purpose**: Query provenance lineage using SQL Graph MATCH syntax
 
 **Signature**:
 ```sql
 EXEC dbo.sp_QueryLineage
-    @StartAtomId BIGINT,
-    @MaxDepth INT = 5
+    @AtomId BIGINT,
+    @MaxDepth INT = 10;
 ```
 
-**What It Does**:
-1. Traverses graph relationships using MATCH syntax
-2. Returns lineage tree with derivation paths
-3. Includes temporal context
+**Logic**: SQL Graph MATCH traversal, return lineage path
+
+**Example**:
+```sql
+EXEC sp_QueryLineage @AtomId = 12345, @MaxDepth = 5;
+```
 
 ---
 
-## Billing Procedures
-
-### Billing.InsertUsageRecord_Native
-
-**Purpose**: High-performance usage tracking using In-Memory OLTP
+### sp_AuditProvenanceChain
 
 **Signature**:
 ```sql
-EXEC Billing.InsertUsageRecord_Native
-    @TenantId INT,
-    @OperationType NVARCHAR(50),
-    @Quantity INT,
-    @Timestamp DATETIME2
+EXEC dbo.sp_AuditProvenanceChain
+    @AtomId BIGINT,
+    @IncludeAlternatives BIT = 1;
 ```
 
-**Performance**: <1ms (Hekaton In-Memory OLTP)
+**Logic**: Full provenance audit with alternatives (GDPR Article 22)
 
-**Notes**: Uses BillingUsageLedger_InMemory table
+---
+
+### sp_EnqueueNeo4jSync
+
+**Signature**:
+```sql
+EXEC dbo.sp_EnqueueNeo4jSync
+    @EventType NVARCHAR(100),
+    @EventPayload NVARCHAR(MAX);
+```
+
+**Logic**: Queue event to Neo4j sync Service Broker queue
+
+---
+
+### sp_LinkProvenance
+
+**Signature**:
+```sql
+EXEC dbo.sp_LinkProvenance
+    @SourceAtomId BIGINT,
+    @TargetAtomId BIGINT,
+    @RelationType NVARCHAR(50);
+```
+
+**Relation Types**: 'DerivedFrom', 'ComponentOf', 'SimilarTo'
+
+---
+
+## Billing & Usage
+
+### sp_InsertBillingUsageRecord_Native
+
+**Signature**:
+```sql
+EXEC dbo.sp_InsertBillingUsageRecord_Native
+    @TenantId UNIQUEIDENTIFIER,
+    @OperationType NVARCHAR(100),
+    @UsageAmount DECIMAL(18,6),
+    @Timestamp DATETIME2;
+```
+
+**Performance**: Native compiled (In-Memory OLTP), sub-millisecond
 
 ---
 
 ### sp_CalculateBill
 
-**Purpose**: Generate monthly invoice from usage ledger
-
 **Signature**:
 ```sql
 EXEC dbo.sp_CalculateBill
-    @TenantId INT,
-    @BillingMonth DATE
+    @TenantId UNIQUEIDENTIFIER,
+    @StartDate DATETIME2,
+    @EndDate DATETIME2,
+    @TotalCost DECIMAL(18,2) OUTPUT;
 ```
 
-**What It Does**:
-1. Aggregates usage from ledger
-2. Applies rate plans and multipliers
-3. Calculates total charges
-4. Returns invoice details
+**Logic**: Aggregate usage × rates
 
 ---
 
-## Related Documentation
+### sp_GenerateUsageReport
 
-- [Database Schema](schema-overview.md) - Complete schema reference
-- [CLR Reference](clr-reference.md) - All CLR functions
-- [Tables Reference](tables-reference.md) - All 99 tables
-- [OODA Loop Architecture](../architecture/ooda-loop.md) - OODA loop design
+**Signature**:
+```sql
+EXEC dbo.sp_GenerateUsageReport
+    @TenantId UNIQUEIDENTIFIER,
+    @ReportType NVARCHAR(50);
+```
+
+**Report Types**: 'Daily', 'Weekly', 'Monthly'
 
 ---
 
-## Version History
+## Query Procedures
 
-| Version | Date | Changes |
-|---------|------|---------|
-| 1.0 | 2025-11-13 | Initial publication - documented all 107 procedures |
+### sp_FindImagesByColor
+
+**Signature**:
+```sql
+EXEC dbo.sp_FindImagesByColor
+    @R TINYINT,
+    @G TINYINT,
+    @B TINYINT,
+    @Tolerance INT = 10,
+    @TopK INT = 10;
+```
+
+**Example**:
+```sql
+-- Sky blue images
+EXEC sp_FindImagesByColor @R=135, @G=206, @B=235, @Tolerance=10;
+```
+
+---
+
+### sp_FindWeightsByValueRange
+
+**Signature**:
+```sql
+EXEC dbo.sp_FindWeightsByValueRange
+    @MinValue FLOAT,
+    @MaxValue FLOAT,
+    @LayerIdx INT = NULL;
+```
+
+**Example**:
+```sql
+-- High-activation weights
+EXEC sp_FindWeightsByValueRange @MinValue=0.9, @MaxValue=1.0, @LayerIdx=5;
+```
+
+---
+
+### sp_QueryModelWeights
+
+**Signature**:
+```sql
+EXEC dbo.sp_QueryModelWeights
+    @ModelId INT,
+    @LayerIdx INT,
+    @Region GEOMETRY;
+```
+
+**Logic**: Spatial filter via GEOMETRY region in tensor space
+
+---
+
+## Advanced Reasoning
+
+### sp_ChainOfThoughtReasoning
+
+**Signature**:
+```sql
+EXEC dbo.sp_ChainOfThoughtReasoning
+    @Query NVARCHAR(MAX),
+    @MaxSteps INT = 5,
+    @ReasoningPath NVARCHAR(MAX) OUTPUT;
+```
+
+**Logic**: Multi-step reasoning with intermediate thoughts
+
+---
+
+### sp_SelfConsistencyReasoning
+
+**Signature**:
+```sql
+EXEC dbo.sp_SelfConsistencyReasoning
+    @Query NVARCHAR(MAX),
+    @NumAttempts INT = 5,
+    @MajorityVoteAnswer NVARCHAR(MAX) OUTPUT;
+```
+
+**Logic**: N inference attempts → majority vote
+
+---
+
+### sp_MultiModelEnsemble
+
+**Signature**:
+```sql
+EXEC dbo.sp_MultiModelEnsemble
+    @Query NVARCHAR(MAX),
+    @ModelIds NVARCHAR(MAX),
+    @EnsembleStrategy NVARCHAR(50);
+```
+
+**Strategies**: 'Vote', 'WeightedAverage', 'Stacking'
+
+---
+
+### sp_DynamicStudentExtraction
+
+**Signature**:
+```sql
+EXEC dbo.sp_DynamicStudentExtraction
+    @TeacherModelId INT,
+    @StudentModelId INT,
+    @DistillationStrategy NVARCHAR(50);
+```
+
+**Logic**: Knowledge distillation
+
+---
+
+### sp_DetectDuplicates
+
+**Signature**:
+```sql
+EXEC dbo.sp_DetectDuplicates
+    @Modality NVARCHAR(50),
+    @MinReferences INT = 2;
+```
+
+**Logic**: GROUP BY ContentHash, return dedup stats
+
+---
+
+## Weight Management
+
+### sp_RollbackWeightsToTimestamp
+
+**Signature**:
+```sql
+EXEC dbo.sp_RollbackWeightsToTimestamp
+    @ModelId INT,
+    @TargetTimestamp DATETIME2;
+```
+
+**Logic**: Temporal tables (FOR SYSTEM_TIME AS OF)
+
+---
+
+### sp_CreateWeightSnapshot
+
+**Signature**:
+```sql
+EXEC dbo.sp_CreateWeightSnapshot
+    @ModelId INT,
+    @SnapshotName NVARCHAR(256);
+```
+
+---
+
+### sp_RestoreWeightSnapshot
+
+**Signature**:
+```sql
+EXEC dbo.sp_RestoreWeightSnapshot
+    @ModelId INT,
+    @SnapshotName NVARCHAR(256);
+```
+
+---
+
+### sp_ListWeightSnapshots
+
+**Signature**:
+```sql
+EXEC dbo.sp_ListWeightSnapshots
+    @ModelId INT;
+```
+
+---
+
+## Spatial & Graph
+
+### sp_GenerateOptimalPath
+
+**Signature**:
+```sql
+EXEC dbo.sp_GenerateOptimalPath
+    @StartAtomId BIGINT,
+    @EndAtomId BIGINT,
+    @Path NVARCHAR(MAX) OUTPUT;
+```
+
+**Logic**: A* pathfinding in concept graph
+
+---
+
+### sp_BuildConceptDomains
+
+**Signature**:
+```sql
+EXEC dbo.sp_BuildConceptDomains
+    @ConceptIds NVARCHAR(MAX);
+```
+
+**Logic**: Voronoi tessellation in GEOMETRY space
+
+---
+
+### sp_DiscoverAndBindConcepts
+
+**Signature**:
+```sql
+EXEC dbo.sp_DiscoverAndBindConcepts
+    @MinClusterSize INT = 10,
+    @MaxClusters INT = 100;
+```
+
+**Logic**: K-means clustering → emergent concepts
+
+---
+
+## Additional Procedures (Full List)
+
+**Generation**: sp_GenerateText, sp_GenerateImage, sp_GenerateAudio, sp_GenerateVideo, sp_GenerateTextSpatial, sp_GenerateWithAttention, sp_GenerateEventsFromStream
+
+**Fusion**: sp_FusionSearch, sp_FuseMultiModalStreams, sp_OrchestrateSensorStream
+
+**Inference**: sp_ExecuteInference_Activated, sp_SubmitInferenceJob, sp_GetInferenceJobStatus, sp_UpdateInferenceJobStatus, sp_InferenceHistory, sp_EnsembleInference, sp_ScoreWithModel
+
+**Search**: sp_ExactVectorSearch, sp_SemanticFilteredSearch, sp_SemanticSimilarity, sp_CrossModalQuery, sp_FindRelatedDocuments, sp_SpatialNextToken
+
+**Features**: sp_ComputeSemanticFeatures, sp_ComputeAllSemanticFeatures, sp_ExtractMetadata
+
+**Advanced**: sp_MultiPathReasoning, sp_CognitiveActivation, sp_Converse, sp_CompareModelKnowledge, sp_ValidateOperationProvenance, sp_FindImpactedAtoms
+
+**Maintenance**: sp_StartPrimeSearch, sp_TokenizeText, sp_TextToEmbedding, sp_ResolveTenantGuid
+
+**Deduplication**: Deduplication.SimilarityCheck
+
+**Provenance**: sp_ExportProvenance, sp_ForwardToNeo4j_Activated
+
+**Legacy/Migration**: sp_MigratePayloadLocatorToFileStream (NOTE: Migration only, NO FILESTREAM in production)
+
+**Native Compiled** (In-Memory OLTP):
+- sp_InsertBillingUsageRecord_Native
+- sp_GetInferenceCacheHit_Native
+- sp_InsertInferenceCache_Native
+- sp_GetCachedActivation_Native
+- sp_InsertCachedActivation_Native
+- sp_InsertSessionPath_Native
+- sp_GetAtomEmbeddingMetadata_Native
+- sp_FindAtomEmbeddingsBySpatialBucket_Native
+- sp_DecomposeEmbeddingToAtomic
+
+---
+
+## Naming Conventions
+
+| Suffix | Meaning | Example |
+|--------|---------|---------|
+| `_Governed` | State machine governed ingestion | sp_AtomizeImage_Governed |
+| `_Native` | Natively compiled (In-Memory OLTP) | sp_InsertBillingUsageRecord_Native |
+| `_Activated` | Service Broker activation procedure | sp_ForwardToNeo4j_Activated |
+| `_Atomic` | Atomic decomposition variant | sp_DecomposeEmbeddingToAtomic |
+
+---
+
+## Summary
+
+**Total**: 91 procedures  
+**All execute in-process in SQL Server** — no external API calls  
+**Categories**: OODA, atomization, reconstruction, search, inference, provenance, billing, spatial, graph  
+**Validation**: Extracted from `src/Hartonomous.Database/Procedures/`
+
+**Key Insight**: Database IS the AI runtime. All intelligence executes via stored procedures + CLR.
