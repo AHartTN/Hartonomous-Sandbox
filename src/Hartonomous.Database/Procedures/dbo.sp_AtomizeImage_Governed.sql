@@ -19,6 +19,7 @@ BEGIN
     DECLARE @ParentAtomId BIGINT;
     DECLARE @RowsInChunk BIGINT;
     DECLARE @TotalPixels BIGINT = CAST(@ImageWidth AS BIGINT) * CAST(@ImageHeight AS BIGINT);
+    DECLARE @TenantId INT; -- V3: Added for tenancy
 
     -- Load job state
     SELECT
@@ -27,7 +28,8 @@ BEGIN
         @CurrentAtomOffset = CurrentAtomOffset,
         @AtomQuota = AtomQuota,
         @TotalAtomsProcessed = TotalAtomsProcessed,
-        @ParentAtomId = ParentAtomId
+        @ParentAtomId = ParentAtomId,
+        @TenantId = TenantId -- V3: Retrieve TenantId from the job
     FROM dbo.IngestionJobs
     WHERE IngestionJobId = @IngestionJobId;
 
@@ -139,8 +141,8 @@ BEGIN
                 USING #UniquePixels AS S
                 ON T.[ContentHash] = S.[ContentHash]
                 WHEN NOT MATCHED BY TARGET THEN
-                    INSERT ([Modality], [Subtype], [ContentHash], [AtomicValue], [ReferenceCount])
-                    VALUES ('image', 'rgba-pixel', S.[ContentHash], S.[AtomicValue], 0);
+                    INSERT ([Modality], [Subtype], [ContentHash], [AtomicValue], [ReferenceCount], [TenantId])
+                    VALUES ('image', 'rgba-pixel', S.[ContentHash], S.[AtomicValue], 0, @TenantId);
 
                 INSERT INTO #PixelToAtomId ([R], [G], [B], [A], [AtomId])
                 SELECT up.[R], up.[G], up.[B], up.[A], a.[AtomId]

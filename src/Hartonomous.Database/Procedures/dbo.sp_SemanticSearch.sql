@@ -4,7 +4,9 @@ CREATE PROCEDURE dbo.sp_SemanticSearch
     @query_dimension INT = 768,
     @top_k INT = 5,
     @category NVARCHAR(50) = NULL,
-    @use_hybrid BIT = 1
+    @use_hybrid BIT = 1,
+    @TenantId INT, -- V3: Added for security
+    @EmbeddingType NVARCHAR(50) = NULL -- V3: Added for filtering
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -73,9 +75,6 @@ BEGIN
         AtomId BIGINT NOT NULL,
         Modality NVARCHAR(128) NULL,
         Subtype NVARCHAR(128) NULL,
-        SourceType NVARCHAR(128) NULL,
-        SourceUri NVARCHAR(2048) NULL,
-        CanonicalText NVARCHAR(MAX) NULL,
         EmbeddingType NVARCHAR(128) NULL,
         ModelId INT NULL,
         ExactDistance FLOAT NULL,
@@ -104,8 +103,6 @@ BEGIN
             AtomId BIGINT,
             Modality NVARCHAR(128),
             Subtype NVARCHAR(128),
-            SourceUri NVARCHAR(2048),
-            SourceType NVARCHAR(128),
             EmbeddingType NVARCHAR(128),
             ModelId INT,
             exact_distance FLOAT,
@@ -120,7 +117,9 @@ BEGIN
             @query_spatial_y = @spatial_y,
             @query_spatial_z = @spatial_z,
             @spatial_candidates = @spatial_candidates,
-            @final_top_k = @top_k;
+            @final_top_k = @top_k,
+            @embedding_type = @EmbeddingType,
+            @TenantId = @TenantId;
 
         INSERT INTO @Results
         (
@@ -128,9 +127,6 @@ BEGIN
             AtomId,
             Modality,
             Subtype,
-            SourceType,
-            SourceUri,
-            CanonicalText,
             EmbeddingType,
             ModelId,
             ExactDistance,
@@ -143,9 +139,6 @@ BEGIN
             h.AtomId,
             h.Modality,
             h.Subtype,
-            h.SourceType,
-            h.SourceUri,
-            a.CanonicalText,
             h.EmbeddingType,
             h.ModelId,
             h.exact_distance,
@@ -155,7 +148,6 @@ BEGIN
         FROM @Hybrid AS h
         INNER JOIN dbo.Atoms AS a ON a.AtomId = h.AtomId
         WHERE @category IS NULL
-           OR a.SourceType = @category
            OR a.Subtype = @category;
     END
     ELSE
@@ -166,9 +158,6 @@ BEGIN
             AtomId,
             Modality,
             Subtype,
-            SourceType,
-            SourceUri,
-            CanonicalText,
             EmbeddingType,
             ModelId,
             ExactDistance,
@@ -181,9 +170,6 @@ BEGIN
             ae.AtomId,
             a.Modality,
             a.Subtype,
-            a.SourceType,
-            a.SourceUri,
-            a.CanonicalText,
             ae.EmbeddingType,
             ae.ModelId,
             VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) AS distance,
@@ -192,9 +178,14 @@ BEGIN
             'VECTOR_ONLY'
         FROM dbo.AtomEmbeddings AS ae
         INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
-        WHERE ae.SpatialKey IS NOT NULL
-          AND ae.Dimension = @query_dimension
-          AND (@category IS NULL OR a.SourceType = @category OR a.Subtype = @category)
+        WHERE 
+            -- V3: TENANCY MODEL
+            (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
+            -- V3: EMBEDDING TYPE FILTER
+            AND (@EmbeddingType IS NULL OR ae.EmbeddingType = @EmbeddingType)
+            AND ae.SpatialKey IS NOT NULL
+            AND ae.Dimension = @query_dimension
+            AND (@category IS NULL OR a.Subtype = @category)
         ORDER BY distance ASC;
     END;
 
@@ -219,9 +210,6 @@ BEGIN
         r.AtomId AS AtomId,
         r.Modality,
         r.Subtype,
-        r.SourceType,
-        r.SourceUri,
-        r.CanonicalText,
         r.EmbeddingType,
         r.ModelId,
         r.ExactDistance AS CosineDistance,

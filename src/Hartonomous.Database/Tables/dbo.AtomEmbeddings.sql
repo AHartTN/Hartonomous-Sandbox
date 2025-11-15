@@ -6,6 +6,7 @@ CREATE TABLE [dbo].[AtomEmbeddings] (
     [AtomEmbeddingId]   BIGINT         IDENTITY (1, 1) NOT NULL,
     [AtomId]            BIGINT         NOT NULL,  -- FK to dbo.Atoms (the parent object)
     [ModelId]           INT            NOT NULL,  -- FK to dbo.Models (the embedder)
+    [EmbeddingType]     NVARCHAR(50)   NOT NULL DEFAULT 'semantic', -- V3 ARCHITECTURE: Restored for flexible categorization.
     
     -- 3D/4D spatial projection (semantic space)
     [SpatialKey]        GEOMETRY       NOT NULL,

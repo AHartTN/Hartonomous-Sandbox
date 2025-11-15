@@ -16,6 +16,7 @@ BEGIN
     DECLARE @AtomQuota BIGINT, @TotalAtomsProcessed BIGINT;
     DECLARE @ParentAtomId BIGINT;
     DECLARE @RowsInChunk BIGINT;
+    DECLARE @TenantId INT; -- V3: Added for tenancy
 
     -- 1. Load job state
     SELECT
@@ -24,7 +25,8 @@ BEGIN
         @CurrentAtomOffset = CurrentAtomOffset,
         @AtomQuota = AtomQuota,
         @TotalAtomsProcessed = TotalAtomsProcessed,
-        @ParentAtomId = ParentAtomId
+        @ParentAtomId = ParentAtomId,
+        @TenantId = TenantId -- V3: Retrieve TenantId from the job
     FROM dbo.IngestionJobs
     WHERE IngestionJobId = @IngestionJobId;
 
@@ -127,8 +129,8 @@ BEGIN
                 USING #UniqueTokens AS S
                 ON T.[ContentHash] = S.[ContentHash]
                 WHEN NOT MATCHED BY TARGET THEN
-                    INSERT ([Modality], [Subtype], [ContentHash], [AtomicValue], [ReferenceCount])
-                    VALUES ('text', 'token', S.[ContentHash], S.[AtomicValue], 0);
+                    INSERT ([Modality], [Subtype], [ContentHash], [AtomicValue], [ReferenceCount], [TenantId])
+                    VALUES ('text', 'token', S.[ContentHash], S.[AtomicValue], 0, @TenantId);
 
                 -- Get AtomIds
                 INSERT INTO #TokenToAtomId ([TokenText], [AtomId])

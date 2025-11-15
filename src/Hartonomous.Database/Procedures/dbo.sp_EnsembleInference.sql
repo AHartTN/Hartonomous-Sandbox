@@ -1,6 +1,7 @@
 CREATE PROCEDURE dbo.sp_EnsembleInference
     @inputData NVARCHAR(MAX),
     @modelIds NVARCHAR(MAX),
+    @TenantId INT, -- V3: Added for security
     @taskType NVARCHAR(50) = 'classification',
     @inputEmbedding VECTOR(1998) = NULL,
     @topK INT = 10
@@ -61,17 +62,15 @@ BEGIN
         AtomId BIGINT,
         Modality NVARCHAR(128),
         Subtype NVARCHAR(128),
-        SourceType NVARCHAR(128), -- Now Modality
-        SourceUri NVARCHAR(2048), -- Removed (NULL)
-        CanonicalText NVARCHAR(MAX), -- Derived from AtomicValue
         ModelCount INT,
         AvgDistance FLOAT,
         EnsembleScore FLOAT
     );
 
     ;WITH Weighted AS (
+        -- V3: Pass TenantId to the underlying function
         SELECT *
-        FROM dbo.fn_EnsembleAtomScores(@embedding, @modelsJson, @topK * 2, NULL)
+        FROM dbo.fn_EnsembleAtomScores(@embedding, @modelsJson, @topK * 2, @TenantId)
     )
     INSERT INTO @scored
     SELECT
@@ -79,9 +78,6 @@ BEGIN
         AtomId,
         MAX(Modality) AS Modality,
         MAX(Subtype) AS Subtype,
-        MAX(SourceType) AS SourceType, -- Modality
-        MAX(SourceUri) AS SourceUri, -- NULL
-        MAX(CanonicalText) AS CanonicalText, -- Derived
         COUNT(DISTINCT ModelId) AS ModelCount,
         AVG(Distance) AS AvgDistance,
         SUM(WeightedScore) AS EnsembleScore
@@ -115,9 +111,6 @@ BEGIN
         AtomId,
         Modality,
         Subtype,
-        SourceType,
-        SourceUri,
-        CanonicalText,
         ModelCount,
         AvgDistance AS CosineDistance,
         EnsembleScore,

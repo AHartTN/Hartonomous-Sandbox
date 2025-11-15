@@ -1,6 +1,7 @@
 -- Core atomic storage with temporal support and strict schema-level governance
 CREATE TABLE [dbo].[Atoms] (
     [AtomId]          BIGINT           IDENTITY (1, 1) NOT NULL,
+    [TenantId]        INT              NOT NULL DEFAULT 0, -- V3 ARCHITECTURE: Restored for ownership and RLS.
     [Modality]        VARCHAR(50)      NOT NULL,
     [Subtype]         VARCHAR(50)      NULL,
     [ContentHash]     BINARY(32)       NOT NULL,

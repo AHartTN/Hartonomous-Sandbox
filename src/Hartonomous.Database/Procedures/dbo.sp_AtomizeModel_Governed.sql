@@ -18,6 +18,7 @@ BEGIN
     DECLARE @AtomQuota BIGINT, @TotalAtomsProcessed BIGINT;
     DECLARE @ParentAtomId BIGINT, @ModelId INT;
     DECLARE @RowsInChunk BIGINT;
+    DECLARE @TenantId INT; -- V3: Added for tenancy
 
     -- 1. Load job state and governance parameters
     SELECT
@@ -27,7 +28,8 @@ BEGIN
         @AtomQuota = AtomQuota,
         @TotalAtomsProcessed = TotalAtomsProcessed,
         @ParentAtomId = ParentAtomId,
-        @ModelId = ModelId
+        @ModelId = ModelId,
+        @TenantId = TenantId -- V3: Retrieve TenantId from the job
     FROM dbo.IngestionJobs
     WHERE IngestionJobId = @IngestionJobId;
 
@@ -131,8 +133,8 @@ BEGIN
                 USING #UniqueWeights AS S
                 ON T.[ContentHash] = S.[ContentHash]
                 WHEN NOT MATCHED BY TARGET THEN
-                    INSERT ([Modality], [Subtype], [ContentHash], [AtomicValue], [ReferenceCount])
-                    VALUES ('model', 'float32-weight', S.[ContentHash], S.[AtomicValue], 0);
+                    INSERT ([Modality], [Subtype], [ContentHash], [AtomicValue], [ReferenceCount], [TenantId])
+                    VALUES ('model', 'float32-weight', S.[ContentHash], S.[AtomicValue], 0, @TenantId);
 
                 -- 3g. Update reference counts atomically
                 UPDATE a
