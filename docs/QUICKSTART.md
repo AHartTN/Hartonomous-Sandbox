@@ -44,7 +44,7 @@ Edit `src/Hartonomous.Database/Hartonomous.Database.sqlproj`:
 
 **What this does:**
 - Creates 99 tables (Atoms, TensorAtoms, AtomRelations, AtomEmbeddings, Models, etc.)
-- Deploys 91 stored procedures (OODA loop, governed atomization, inference, search, reconstruction, provenance)
+- Deploys 74 stored procedures (OODA loop, governed atomization, inference, search, reconstruction, provenance)
 - Registers 60+ CLR functions (atomizers, spatial operations, neural aggregates)
 - Sets up Service Broker for autonomous operations
 - Configures spatial indexes, temporal tables, columnstore indexes

@@ -403,7 +403,7 @@ EXEC Admin.WeightSnapshot
 
 ---
 
-## STORED PROCEDURES CATALOG - 91 Procedures (Validated)
+## STORED PROCEDURES CATALOG - 74 Procedures (CORRECTED)
 
 **Note**: This is a partial listing. See `docs/database/procedures-reference.md` for complete catalog with all 91 procedures.
 

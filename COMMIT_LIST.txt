@@ -1,0 +1,331 @@
+558cceedb9fce9850b6351abf8a8aeb1c91caedf|2025-10-27 16:03:06 -0500|Anthony Hart|Initial commit: Pre-refactor checkpoint - Database working, EF migration applied, VECTOR/JSON types verified
+32e6b654980405d28d779dcf8c1c9260588537d8|2025-10-27 16:03:06 -0500|Anthony Hart|Initial commit: Pre-refactor checkpoint - Database working, EF migration applied, VECTOR/JSON types verified
+66e57efa347c67fd6a27389f6c90e8614d5ddf8b|2025-10-27 16:05:44 -0500|Anthony Hart|Phase 1 complete: Structure and cleanup - Added 4 test projects, moved tools to tools/, ModelIngestion from 21 to 15 files
+f142df7ec5d701b83babd805d0fd5b9817660b03|2025-10-27 16:05:44 -0500|Anthony Hart|Phase 1 complete: Structure and cleanup - Added 4 test projects, moved tools to tools/, ModelIngestion from 21 to 15 files
+e14688641ba576a701952a4d1fde64f0364f8572|2025-10-27 16:08:58 -0500|Anthony Hart|Phase 2 complete: Extended repositories - Added dedup methods to IEmbeddingRepository, layer methods to IModelRepository, ContentHash to Embedding entity, migration applied
+f06a945e9458cc783126b7856ca7f5810ce878c4|2025-10-27 16:08:58 -0500|Anthony Hart|Phase 2 complete: Extended repositories - Added dedup methods to IEmbeddingRepository, layer methods to IModelRepository, ContentHash to Embedding entity, migration applied
+5b9d93ccb8cda39fea78fc015c494caedbbcf31d|2025-10-27 16:15:39 -0500|Anthony Hart|Phase 3 complete: Created service interfaces - IEmbeddingIngestionService, IAtomicStorageService, IModelFormatReader<TMetadata> with metadata classes
+aa21c9e164c05442d359de71ba94b17caa2dc90f|2025-10-27 16:15:39 -0500|Anthony Hart|Phase 3 complete: Created service interfaces - IEmbeddingIngestionService, IAtomicStorageService, IModelFormatReader<TMetadata> with metadata classes
+8593fc50e1c0f110319434de7e2807f139efd159|2025-10-27 16:28:44 -0500|Anthony Hart|Phase 4a: Refactored EmbeddingIngestionService to implement IEmbeddingIngestionService - Uses IEmbeddingRepository for dedup checks (CheckDuplicateByHashAsync, CheckDuplicateBySimilarityAsync, IncrementAccessCountAsync, ComputeSpatialProjectionAsync) - Updated DI registration in Program.cs - Updated IngestionOrchestrator to use new interface method names
+3641fc24e12ece29f0564995581d82ea392829c9|2025-10-27 16:28:44 -0500|Anthony Hart|Phase 4a: Refactored EmbeddingIngestionService to implement IEmbeddingIngestionService - Uses IEmbeddingRepository for dedup checks (CheckDuplicateByHashAsync, CheckDuplicateBySimilarityAsync, IncrementAccessCountAsync, ComputeSpatialProjectionAsync) - Updated DI registration in Program.cs - Updated IngestionOrchestrator to use new interface method names
+52475f91a1e58147522ccaa25bdd758243cf3868|2025-10-27 16:31:39 -0500|Anthony Hart|Phase 4 complete: Refactored services to use EF Core repositories - EmbeddingIngestionService implements IEmbeddingIngestionService (uses IEmbeddingRepository) - AtomicStorageService implements IAtomicStorageService (returns long IDs, not byte[] hashes) - Updated DI registration in Program.cs for both services - Updated IngestionOrchestrator tests to match new API signatures - All services now use unified DI pattern with proper interfaces
+dcd5b1b29f9b9d8b03aaaa1028bbcdbd6a3f54f8|2025-10-27 16:31:39 -0500|Anthony Hart|Phase 4 complete: Refactored services to use EF Core repositories - EmbeddingIngestionService implements IEmbeddingIngestionService (uses IEmbeddingRepository) - AtomicStorageService implements IAtomicStorageService (returns long IDs, not byte[] hashes) - Updated DI registration in Program.cs for both services - Updated IngestionOrchestrator tests to match new API signatures - All services now use unified DI pattern with proper interfaces
+74ac72dc0a470b8ac4ee3a8e788e9e63234b6d09|2025-10-27 16:49:38 -0500|Anthony Hart|Phase 5a: OnnxModelReader refactored to IModelFormatReader interface - Foundation for extensible multi-format ingestion system
+aff53382782deceb528492b843d73913d938c5a0|2025-10-27 16:49:38 -0500|Anthony Hart|Phase 5a: OnnxModelReader refactored to IModelFormatReader interface - Foundation for extensible multi-format ingestion system
+baabbc3d0f47faa98e74f219e46380d36cc86cf1|2025-10-27 16:57:24 -0500|Anthony Hart|Phase 5b: Add IModelDiscoveryService and PyTorchModelReader for multi-format ingestion - Supports Llama 4 sharded models, config parsing, extensible format detection
+9f9aa25c6cd1d0c51f51765260c4b23dcff3f04c|2025-10-27 16:57:24 -0500|Anthony Hart|Phase 5b: Add IModelDiscoveryService and PyTorchModelReader for multi-format ingestion - Supports Llama 4 sharded models, config parsing, extensible format detection
+0ccab1f61807b19708fe0e2521079ffb285f0e9b|2025-10-27 17:03:39 -0500|Anthony Hart|Phase 5c-5e: Complete extensible model ingestion system - Added GGUFModelReader for quantized models, refactored SafetensorsModelReader, created ModelIngestionOrchestrator with auto-format detection. Full support for ONNX, PyTorch, Safetensors, GGUF formats.
+88ac1ef423d20804069216b008006b6edd5e4e14|2025-10-27 17:03:39 -0500|Anthony Hart|Phase 5c-5e: Complete extensible model ingestion system - Added GGUFModelReader for quantized models, refactored SafetensorsModelReader, created ModelIngestionOrchestrator with auto-format detection. Full support for ONNX, PyTorch, Safetensors, GGUF formats.
+fae1837c7683e38e6cc9e62ef7c712403da7409a|2025-10-27 17:36:41 -0500|Anthony Hart|Phase 6: Implement IInferenceService + InferenceOrchestrator - C# orchestration layer wrapping T-SQL stored procedures (semantic/spatial/hybrid search, ensemble inference, text generation, semantic features, feedback submission, weight updates)
+f7ba53423f486c47ef05d9fa65b9084b13f6be4e|2025-10-27 17:36:41 -0500|Anthony Hart|Phase 6: Implement IInferenceService + InferenceOrchestrator - C# orchestration layer wrapping T-SQL stored procedures (semantic/spatial/hybrid search, ensemble inference, text generation, semantic features, feedback submission, weight updates)
+b34e0621a180619a738ec72d74a141f706ce6e42|2025-10-27 17:37:45 -0500|Anthony Hart|Phase 7: Implement sp_UpdateModelWeightsFromFeedback - Feedback loop procedure that identifies layers to update based on UserRating >= 4, computes update magnitudes from average ratings, logs execution. Foundation for database-native learning via SQL UPDATE on VECTOR columns.
+153c4173789760b081884f0ad6b129c0a186f0c7|2025-10-27 17:37:45 -0500|Anthony Hart|Phase 7: Implement sp_UpdateModelWeightsFromFeedback - Feedback loop procedure that identifies layers to update based on UserRating >= 4, computes update magnitudes from average ratings, logs execution. Foundation for database-native learning via SQL UPDATE on VECTOR columns.
+b017b9d7c622e1e75e5e442ae20f423928b1e673|2025-10-27 17:38:55 -0500|Anthony Hart|Phase 8: Service Broker event-driven architecture - Created message types, contracts, queues (SensorData/VideoFrame/AudioChunk/SCADAData/ModelUpdated) with activation procedures. Enables asynchronous, reliable, transactional message processing for multi-modal sensor streams. Placeholder processors ready for C# external activator integration.
+900b10884972f8559ce95dbe91589e6de18650bd|2025-10-27 17:38:55 -0500|Anthony Hart|Phase 8: Service Broker event-driven architecture - Created message types, contracts, queues (SensorData/VideoFrame/AudioChunk/SCADAData/ModelUpdated) with activation procedures. Enables asynchronous, reliable, transactional message processing for multi-modal sensor streams. Placeholder processors ready for C# external activator integration.
+e615059c06e1d356d274e0312f2232f6915850b1|2025-10-27 18:12:39 -0500|Anthony Hart|Phase 9: Database-native UnifiedEmbeddingService - Text embedding via TF-IDF from corpus vocabulary, Image embedding via pixel histogram + edge detection, Audio embedding via FFT + MFCC. NO external models (CLIP/Whisper). Includes StoreEmbeddingAsync with automatic spatial projection trigger, ZeroShotClassifyAsync using VECTOR_DISTANCE, CrossModalSearchAsync via sp_CrossModalQuery. All embeddings computed from database relationships, learning through spatial clustering + feedback loop. Builds successfully.
+f893fe3eda853029d282708baa778575d290111e|2025-10-27 18:12:39 -0500|Anthony Hart|Phase 9: Database-native UnifiedEmbeddingService - Text embedding via TF-IDF from corpus vocabulary, Image embedding via pixel histogram + edge detection, Audio embedding via FFT + MFCC. NO external models (CLIP/Whisper). Includes StoreEmbeddingAsync with automatic spatial projection trigger, ZeroShotClassifyAsync using VECTOR_DISTANCE, CrossModalSearchAsync via sp_CrossModalQuery. All embeddings computed from database relationships, learning through spatial clustering + feedback loop. Builds successfully.
+c8adf297822dbb0adf4dc31e8eb8c0725012221a|2025-10-27 18:23:10 -0500|Anthony Hart|Phase 10: Multi-modal EF Core entities with NetTopologySuite - Created Image, ImagePatch, AudioData, AudioFrame, Video, VideoFrame, TextDocument entities using NetTopologySuite.Geometries for spatial types (GEOMETRY column mapping) and SqlVector<float> for VECTOR columns. Added EF Core configurations for all entities with proper column mappings, spatial indexes, and relationships. Registered in HartonomousDbContext. Solution builds successfully with EF Core 10 RC2 + NetTopologySuite 2.6.0.
+d1d818c73a099f0c9426b55b2137cb5b28c6a6f6|2025-10-27 18:23:10 -0500|Anthony Hart|Phase 10: Multi-modal EF Core entities with NetTopologySuite - Created Image, ImagePatch, AudioData, AudioFrame, Video, VideoFrame, TextDocument entities using NetTopologySuite.Geometries for spatial types (GEOMETRY column mapping) and SqlVector<float> for VECTOR columns. Added EF Core configurations for all entities with proper column mappings, spatial indexes, and relationships. Registered in HartonomousDbContext. Solution builds successfully with EF Core 10 RC2 + NetTopologySuite 2.6.0.
+a90ff51115d60d621ba905fc42c1a5c78f4f01db|2025-10-27 18:47:40 -0500|Anthony Hart|Fix EF Core design-time factory: Add UseNetTopologySuite() to enable GEOMETRY columns
+a1cebddd766082d473fd772b98b21c334c726db2|2025-10-27 18:47:40 -0500|Anthony Hart|Fix EF Core design-time factory: Add UseNetTopologySuite() to enable GEOMETRY columns
+6b63d78a3f71f49563f19c8f4faf740b95af7dd7|2025-10-27 18:51:58 -0500|Anthony Hart|Add core stored procedures via EF migration
+c946531a4dbc071e5cdbc5154e08087336e322d8|2025-10-27 18:51:58 -0500|Anthony Hart|Add core stored procedures via EF migration
+a3a590d5b59626bd5fa191d8e4d03cd82f0fa54d|2025-10-27 23:39:16 -0500|Anthony Hart|WIP: Magic number detection for GGUF, basic metadata reading - tensor weight extraction not yet implemented
+faca6039e2c57f2a6fb829d3c9aed953e515b198|2025-10-27 23:39:16 -0500|Anthony Hart|WIP: Magic number detection for GGUF, basic metadata reading - tensor weight extraction not yet implemented
+83e8f3e156ae36b01d28524c4f9843c937e9443a|2025-10-28 17:38:54 -0500|Anthony Hart|WIP
+4f4336e618a3ad50925fea9667edfe55e71b9ad4|2025-10-28 17:38:54 -0500|Anthony Hart|WIP
+c186e23b7d0194d93f18d58e7b3fdf4883bf04b7|2025-10-28 22:52:27 -0500|Anthony Hart|Manual progress commit - Tony
+40321ff87628e709013b4c1ba8c3cad0c8e808df|2025-10-28 22:52:27 -0500|Anthony Hart|Manual progress commit - Tony
+bd69eab98542ec92c8f8dc3259590f15b3a86f87|2025-10-28 23:38:27 -0500|Anthony Hart|Phase 1 Complete: Unified Data Access and Service Architecture
+c740055d74baa55882ff7ab35b100058872a9d73|2025-10-28 23:52:36 -0500|Anthony Hart|Phase 1: Complete Architectural Unification - Eliminate Direct ADO.NET
+ab58af32a16b9102c1ea7a770473eba21737a70b|2025-10-29 00:11:21 -0500|Anthony Hart|Complete Phases 1-5: Architectural Unification
+bdfed41fd5189d30eb3c713cb73d1a667164ad90|2025-10-29 00:44:27 -0500|Anthony Hart|AI agents are stupid
+556ffb545b25a5cc720dc0772b21ba15c2922a2c|2025-10-29 09:26:23 -0500|Anthony Hart|WIP: Pre-refactor checkpoint - cleanup deleted file
+b96830873c57a98b44a7dc732872671a3eb5e7f7|2025-10-30 11:30:01 -0500|Anthony Hart|CHECKPOINT: Pre-refactoring state
+4559e1d4448f18314761800a04c79cbff859eff5|2025-10-30 12:02:35 -0500|Anthony Hart|Manual progress commit... claude hit session limit quickly
+b4ccfdba30362c9e051bf29eb19a6e8fed657ab9|2025-10-30 15:16:17 -0500|Anthony Hart|WIP: Dimension bucket architecture + research
+0e9bbdee6bc7e5b2302f7417e19c0b9bfd22f7da|2025-10-30 15:20:26 -0500|Anthony Hart|COMPLETE: Dimension Bucket Architecture + SQL Server 2025 Analysis
+e6a85ce02b67097b6bc96e582f68729ff730fb9b|2025-10-30 20:19:03 -0500|Anthony Hart|Implement GEOMETRY-based architecture repositories and services
+e846e027de120e8cd8e12c1ba7f4faf93c6bf0e3|2025-10-30 20:30:32 -0500|Anthony Hart|Update model readers to use GEOMETRY LINESTRING ZM for weight storage
+ad828e32dba094785deb7fbd43adf8ff1e78f1b5|2025-10-30 20:40:41 -0500|Anthony Hart|Complete implementation: Services, DI, vulnerability fixes, zero errors
+cbb809fafe0b76f52d8c90501a84cc295512bf1b|2025-10-30 20:47:42 -0500|Anthony Hart|*Sigh*
+c9126c701a74e5e0b3867417bd2d4d13933a8d05|2025-10-30 21:54:10 -0500|Anthony Hart|chore: checkpoint current ingestion prototypes
+0fc382e6161b87a565aefbd96f2ae84310b50e70|2025-10-31 13:56:54 -0500|Anthony Hart|AI agents suck
+afd4734b01aea0e7eee62ce0b1f3cb42cea5fa42|2025-10-31 14:48:25 -0500|Anthony Hart|Add atom substrate migration and wire repositories
+1ac94f17c9bfeac223dd54b7cbf951a58a67d072|2025-10-31 16:09:37 -0500|Anthony Hart|Consolidate migrations and refresh ingestion tooling
+b35cf84507077754f92091297fa85df45ace8328|2025-10-31 16:35:20 -0500|Anthony Hart|Progress: align spatial pipeline with migration
+4fd0b40eb8e724ae8fb0434f409d61597b3f59a3|2025-11-01 02:54:38 -0500|Anthony Hart|manual progress commit
+7eb2e381e8015220b7a045ebb6701c053b93869f|2025-11-01 07:50:12 -0500|Anthony Hart|AI Agents are stupid
+b13b0ad01e8f4e7f2f4f220c55846bfe747b6d07|2025-11-01 09:23:49 -0500|Anthony Hart|Manual progress commit
+414ed7afa3b941259a423d88e94d55763518d0fd|2025-11-01 20:13:38 -0500|Anthony Hart|refactor: standardize naming conventions and establish architecture patterns
+d89eb4ea75907a12693c6d5fcedd3337cf792f8e|2025-11-01 20:19:02 -0500|Anthony Hart|refactor: extract domain services from Infrastructure layer (Phase 1)
+e4f7f16882fd0ff296dda1c070700d153aaeb4b0|2025-11-01 20:20:48 -0500|Anthony Hart|refactor: create BaseEventProcessor base class (Phase 2)
+404efbcb6bb020baa047a18f2bb3745aaa397039|2025-11-01 20:22:44 -0500|Anthony Hart|refactor: centralize configuration and validation utilities (Phase 3)
+3216b513a2f2132179d49dc8b11c3d7493ca997d|2025-11-01 20:25:22 -0500|Anthony Hart|refactor: add event mappers for clean separation (Phase 4)
+dac614da896cbd63b15acda23038b15323ee3b94|2025-11-01 20:28:12 -0500|Anthony Hart|docs: add comprehensive architecture refactoring summary
+59edc6dd1c8c7315ed3ede543c77364202d892a1|2025-11-01 20:33:20 -0500|Anthony Hart|feat: add advanced generic patterns and type safety improvements
+84854b57dc85308667fa05e5703ee30f265d4c08|2025-11-01 20:34:37 -0500|Anthony Hart|docs: add comprehensive generic patterns implementation guide
+018785ab966d92fd5378fbfdc1e39cc9d70ad0ea|2025-11-01 20:46:53 -0500|Anthony Hart|refactor(ef-core): comprehensive infrastructure optimization and repository consolidation
+e9630726da38708b00db09b595da2b524ec035da|2025-11-01 21:10:07 -0500|Anthony Hart|Phase 2: Refactored 4 repositories to use generic base - EmbeddingRepository (69% reduction), TensorAtomRepository (optimized transactions), ModelLayerRepository (50% reduction), AtomicTextTokenRepository (98% faster updates). Updated IRepository interface to return Task<TEntity>. Added 8 performance optimizations (ExecuteUpdateAsync, AsNoTracking, projections). 265 total LOC eliminated across Phase 1+2.
+fdfb590a7e30df0d685bbddcfc7f96de7d413cf0|2025-11-01 21:15:48 -0500|Anthony Hart|Phase 3: Refactored 4 repositories + FIXED ALL BUILD ERRORS. Added missing NuGet packages (Azure.Messaging.EventHubs, Azure.Storage.Blobs, Neo4j.Driver). Fixed DeduplicationPolicyId typo, EmbeddingRepository nullable issue, DependencyInjection type comparison, Neo4j driver config, EventHub disposal. All repositories compile cleanly. Total: 10 repositories modernized.
+f13a9f4f05f96f3e3f3f8156c1cf47eb5ee470c4|2025-11-01 21:17:51 -0500|Anthony Hart|Phase 4: Final repository refactoring - AtomicPixelRepository and AtomicAudioSampleRepository now use generic base with 98% faster reference counting (ExecuteUpdateAsync). TokenVocabularyRepository optimized with AsNoTracking. CdcRepository kept as-is (specialized CDC operations). Total: 12 repositories modernized, ~500 LOC eliminated, 100% build success.
+5e1e654bb4d00607f2708f9a253f626240f9d180|2025-11-01 21:19:43 -0500|Anthony Hart|feat(migrations): Add composite indexes migration for query optimization. Created IX_Embeddings_ModelId_CreatedAt, IX_IngestionJobs_Status_Priority, IX_AtomRelations (source/target), IX_AtomEmbeddings_Atom_Type, IX_TensorAtoms_Model_Layer_Type, IX_Atoms_ContentHash, IX_DeduplicationPolicies_Name_Active. All indexes include frequently accessed columns for covering queries. Ready for deployment with deploy-database.ps1
+7e29f72856e20ec8f2be5ee4a9201716e6a642e7|2025-11-01 21:23:05 -0500|Anthony Hart|docs: Complete EF Core infrastructure overhaul documentation. Created ef-core-vs-stored-procedures.md with comprehensive decision matrix, performance benchmarks (95-98% improvements), and migration strategies. All TODO items completed: 12 repositories refactored, 8 composite indexes added, build errors fixed, deployment verified. Total impact: ~500 LOC eliminated, 100% build success, production-ready.
+fb837160b53a9edeb71cba1aee9a7c68eecb8f4e|2025-11-01 21:24:48 -0500|Anthony Hart|docs: Add comprehensive final summary of EF Core infrastructure overhaul. Complete project wrap-up documenting 500+ LOC eliminated, 95-98% performance gains across 12 repositories, 8 composite indexes, 100% build success. All phases complete, production-ready deployment verified. Total: 2,690 lines of documentation across 5 comprehensive guides.
+765d04764476dff9aed2c6a19c11536ff41fc383|2025-11-01 21:30:52 -0500|Anthony Hart|docs: Add comprehensive next steps roadmap for EF Core work. Identified 10 priorities: apply 2 pending migrations (CRITICAL), unit/integration tests, fix 2 TODOs, add monitoring, optimize deploy script, create best practices guide, JSON validation, compiled queries, and benchmarking. Total estimated effort: 35-45 hours with 3-week execution plan.
+775a84c30c9147fda29360009557bf73222280f0|2025-11-01 21:50:02 -0500|Anthony Hart|BREAKING: Fix all database column names to PascalCase. Removed all snake_case HasColumnName mappings from EF configurations. Deleted and recreated migrations with consistent naming. All 28 tables now use enterprise-standard PascalCase for columns.
+c9a988d4826af2c6d996c65687109478681f8cf4|2025-11-01 22:05:17 -0500|Anthony Hart|Fix all stored procedures to use PascalCase column names
+c374bfb0b52d5be0b56e436983eda599d5ae6e61|2025-11-01 22:08:14 -0500|Anthony Hart|Fix ALL snake_case column references across C# services, repositories, and SQL stored procedures
+8a29adcae2e41b285f32b135060e124767466b29|2025-11-01 22:20:15 -0500|Anthony Hart|Fix ALL remaining snake_case in C# files: EmbeddingRepository (embedding_full, parameters), Neo4jSync (created_at, all properties), SpatialInferenceService (all parameters and columns), EmbeddingService (column ordinals)
+25b381e53758626e58aa46208cb4cb408338a8f7|2025-11-01 22:25:02 -0500|Anthony Hart|Fix ALL snake_case in SQL stored procedures: variable names, column aliases, and parameters across 10 SQL files
+0921cced30ef1a7f179223057d2d05f0579de8a8|2025-11-01 22:28:13 -0500|Anthony Hart|CRITICAL FIX: Recreate AddCompositeIndexes migration with correct timestamp and apply to database
+a6a250eb13f4f45acc55f2f808ea6130ed5c806c|2025-11-02 01:50:57 -0600|Anthony Hart|chore: normalize schema indexes and regenerate migration
+4a4bd75b63551599d508683f1284d725be87ae90|2025-11-02 22:34:00 -0600|Anthony Hart|feat: add billing pipeline and rebuild documentation
+15ac771477d83714447ef1ee68753d1371235c81|2025-11-02 23:19:05 -0600|Anthony Hart|Manual progress commit
+b8092c24e667cd1964b137aa96ad02666c5a9510|2025-11-03 00:58:23 -0600|Anthony Hart|Persist generation provenance and harden CLR deploy
+d189498d0d5c940753171128d61f69682bdc1a94|2025-11-03 02:06:09 -0600|Anthony Hart|feat: enrich billing plans and update documentation
+9c9bb2e0edfca80dba363050e8742dfbd1b8a2a3|2025-11-03 11:57:37 -0600|Anthony Hart|Manual progress commit
+7eb70e2f1aadb8fd94e7c72fa1687ef8a847adbc|2025-11-03 15:47:02 -0600|Anthony Hart|AI agent stupidity strikes again
+280d6ef6bc96aa3dc95625ed1a13a10619324e04|2025-11-03 23:36:42 -0600|Anthony Hart|Phase 1 & 2 complete: ComponentStream UDT, clr_GenerateSequence, feedback integration, GRAPH MATCH student extraction, complete test suite (171 passing), multimodal generation verified, README documentation corrected
+a617eaed3ecc9992172519d5d914e10bd3b68bd1|2025-11-03 23:57:18 -0600|Anthony Hart|Add comprehensive architecture audit - Database-native AI vision documented
+17f4745c61bf97fbb2861bac81cb50c2503190ab|2025-11-04 00:25:49 -0600|Anthony Hart|feat: Revolutionary SQL CLR aggregates for VECTOR + GEOMETRY + GRAPH fusion
+a96cabe4307d733a34811e51d75a6d536dcb9a30|2025-11-04 00:26:11 -0600|Anthony Hart|Manual commit to get remaining items omitted by AI agent
+f72c57e0ce7c479422cca7b21c80e192289c5aa1|2025-11-04 00:44:52 -0600|Anthony Hart|feat: Complete SQL CLR aggregate library with SIMD optimization and advanced reasoning
+ec02eb09be2f590069e17294d9cd652fce037710|2025-11-04 01:00:40 -0600|Anthony Hart|Add Hartonomous.Core.Performance library with SIMD, GPU acceleration, and zero-allocation patterns
+f13fead163e80f3f103ecf1400b2e97f1cea399f|2025-11-04 01:16:54 -0600|Anthony Hart|feat(perf): Optimize EmbeddingService with SIMD and C# 13 async patterns
+16a4d5de47767130523c88d4631fe776ebd58c73|2025-11-04 01:23:09 -0600|Anthony Hart|feat(perf): Optimize CesConsumer CDC processing pipeline
+65710ef86053f50bc3fbab13f0a3da9377e25fc2|2025-11-04 01:25:28 -0600|Anthony Hart|feat(perf): Optimize Core InferenceMetadataService with zero-allocation string ops
+9875ebf032300ac4091f5915ca1d7c5949659ca4|2025-11-04 01:40:33 -0600|Anthony Hart|refactor: Eliminate hardcoded model names, query database metadata
+14f02203e30f4ecbc92616bfb2d0d93929461a0e|2025-11-04 01:41:55 -0600|Anthony Hart|docs: Add comprehensive fake implementation audit report
+164999afa80cda70c36dabbeb9f0e4b5de4498d2|2025-11-04 02:00:20 -0600|Anthony Hart|feat(enums): Add type-safe enum foundation with JSON conversion
+ec35d814d31a435d3f83422c1cb654e6a037c596|2025-11-04 02:02:55 -0600|Anthony Hart|fix(ensemble): Parse real results from sp_EnsembleInference
+3614d8c0a6156a0ba0276dbceefa3b420f0bdd6d|2025-11-04 02:08:38 -0600|Anthony Hart|fix(warnings): Suppress IL2026/IL3050 trimming/AOT warnings
+59ebfdc89722977330d727dd88066d34e793cc1f|2025-11-04 02:09:52 -0600|Anthony Hart|feat(repository): Add multi-model capability queries
+34fa2d50f935d3748a47dea18e1730649a4cc3d3|2025-11-04 02:15:01 -0600|Anthony Hart|docs: Code generation uses existing Atom infrastructure
+0403f6a6bf2deabe8484d906c9a9318b25fa698f|2025-11-04 02:16:52 -0600|Anthony Hart|docs: Clarify Atom field usage for code storage
+befa0a7f4330f26902c5c9446203f9b2324484c6|2025-11-04 03:09:33 -0600|Anthony Hart|feat: Enterprise pipeline architecture with 100% MS Docs validation
+ce20ce5bbaa383fcfdcfebaa2ac0f963391df796|2025-11-04 04:25:44 -0600|Anthony Hart|Complete pipeline implementation: enterprise DTOs, DI registration, repository methods, and eliminate all placeholders
+14523e5ec7ac81a06a6b5fedfa3b4c0160537995|2025-11-04 04:34:55 -0600|Anthony Hart|Clean documentation: remove all progress/status docs, replace with enterprise-grade public documentation
+4140694efb9be5b85be9e04cc45031ddf7027e53|2025-11-04 04:56:33 -0600|Anthony Hart|Remove all roadmap/progress/status documentation - keep only production facts
+ca63b4dffc0a372dba1f46df896f199ba334d688|2025-11-04 04:59:33 -0600|Anthony Hart|Remove unnecessary package dependencies and fix nullable warnings
+849a43f5833fe5cb3717b6795c2f9c48ccaf1116|2025-11-04 05:01:25 -0600|Anthony Hart|Run dotnet format - fix all whitespace and indentation issues
+8bf7eddb65ddaec8a1e55190846ceccc460687ba|2025-11-04 11:00:56 -0600|Anthony Hart|AI agents are fucking stupid
+7430e0980bf3eec49db5699315ebecd0aa20e13e|2025-11-04 14:21:37 -0600|Anthony Hart|Manual progress commit
+11698a77d972b689d6e1377b9d3dda3eafadf385|2025-11-04 14:53:35 -0600|Anthony Hart|Might help to actually add files to commit
+01120e6c4d67ffea2a3dc48a7a89e7ffca3d26f7|2025-11-04 20:50:23 -0600|Anthony Hart|I hate AI agents... Current technology is so terrible because society is so terrible... These are products made in their creators' image...
+7bb5aa3ad81acc461cfcd1c8eddc32d152e16e43|2025-11-04 23:26:05 -0600|Anthony Hart|Manual Progress Commit
+752be20ab2a99aefc1c4a95a5c171ffc355646e5|2025-11-05 01:22:46 -0600|Anthony Hart|Implement comprehensive autonomous ingestion and generation pipeline
+2126a6fba4ed6ec80f683e8b5cc34ffc39f32c5b|2025-11-05 02:02:43 -0600|Anthony Hart|Remove legacy Embeddings_Production system
+819605d28e5a70b054feed9d150ed2649f882eb9|2025-11-05 11:20:48 -0600|Anthony Hart|Manual commit to track progress and hopefully keep this recoverable
+3187f06c89d2d39d9a36bd3abe8639035a5fb81a|2025-11-05 12:18:37 -0600|Anthony Hart|Manual commit for a file deletion and to ensure we catch everything that changed
+b42d390a46eb89cb15aab28809164058bde9f1cd|2025-11-05 13:59:19 -0600|Anthony Hart|Add Azure Pipelines CI/CD configuration for .NET 8
+52bbe44866565289268c2cb4d7573c5084c5fc55|2025-11-05 14:00:39 -0600|Anthony Hart|Integrate Azure App Configuration with Key Vault support and configuration refresh
+b6ae272c58768dab21aa3bb18fad01a3a31412bb|2025-11-05 14:05:19 -0600|Anthony Hart|Configure User Secrets for local development with Azure App Configuration endpoint
+b8218eb0d6449bc5cc2de78e12ee18b422a3a402|2025-11-05 21:03:45 -0600|Anthony Hart|Add CD deployment stage with systemd service management and enhance .gitignore
+74f92f5bd224bc0dc9d04c6783b15c8fc77f5d5f|2025-11-05 21:47:20 -0600|Anthony Hart|AI Agents should NEVER rely on documentation or just treat it as a source of truth... Get back to work reviewing the code!
+b044b99604824f553cc68c38f9825b42727b4420|2025-11-05 22:10:45 -0600|Anthony Hart|docs: Add comprehensive XML documentation across codebase
+91e1e6e6f3a7f69042d972f5ed8a264c92661a37|2025-11-05 22:20:45 -0600|Anthony Hart|docs: Add enterprise-grade technical architecture documentation
+8b94a229c3c7a1507022305b865099341bf984b8|2025-11-05 22:28:51 -0600|Anthony Hart|docs: Add comprehensive SQL CLR deployment strategy (SAFE vs UNSAFE)
+51edc0943feb4a57a656459c5be6a144c7900bab|2025-11-06 00:09:32 -0600|Anthony Hart|feat: Complete optimized implementation roadmap with dependency-ordered task sequence
+910ed7ccbe88561d49a23a6c0c2308c871d42dce|2025-11-06 00:30:23 -0600|Anthony Hart|Layer 0 (Foundation) - Phase 1 Complete
+28834b6c2bfd9da52bc0f5785839f01c6c389905|2025-11-06 00:33:24 -0600|Anthony Hart|Layer 0 (Foundation) - Phase 2 Complete
+b42272bdcceac4baf4050ba5a892b5a700356caa|2025-11-06 00:44:40 -0600|Anthony Hart|WIP: Layer 1 implementations - AttentionGeneration CLR + GenerationStream entity updates
+fff54c6bb2ee38760f27884d4eb45308fa5ee206|2025-11-06 00:57:25 -0600|Anthony Hart|Layer 1 complete: Storage Engine + Autonomous Loop + Concept Discovery
+ee8397366c17b1bd8935f80ccbda75c9c1a7ffe3|2025-11-06 01:02:32 -0600|Anthony Hart|Layer 2 complete: Analytics + Search + Billing
+b1c8b733423acdf34c2c4de1e9cc73fa7dc2e570|2025-11-06 02:06:39 -0600|Anthony Hart|L3.4: Extended GraphController with SQL Server Graph endpoints
+d38d5fe0a645f3b142d0d519208be7ddf2bc7485|2025-11-06 02:17:27 -0600|Anthony Hart|L3.5: Enhanced OperationsController with autonomous operations and metrics endpoints
+798902531040c4b6a57794e72671302bb3f1e576|2025-11-06 02:20:57 -0600|Anthony Hart|L3.6: Enhanced SearchController with spatial, temporal, and suggestion endpoints
+9af801e34146da39be0ff171155c317a8557bff8|2025-11-06 02:26:19 -0600|Anthony Hart|L3.7: Implemented resource-based authorization with tenant isolation and role hierarchy
+1013bcd3fba0694160657e1a442fd4a557cf7448|2025-11-06 02:28:34 -0600|Anthony Hart|L3.8: Implemented tenant-aware rate limiting with tier-based quotas
+301ec3a8faf228042d4d5c85861f81fe098d052f|2025-11-06 03:17:22 -0600|Anthony Hart|L4.1: Implemented background job infrastructure with generic job system
+b8d21fda431a0705b1b82b0bd99ed41e7e57fcbc|2025-11-06 03:36:13 -0600|Anthony Hart|L4.2: Implemented distributed caching layer with IDistributedCache abstraction
+1fb66f59180394edaffc8f73475bb78a5163f42c|2025-11-06 03:44:47 -0600|Anthony Hart|L4.3: Implemented event bus with Azure Service Bus integration
+db7a828bf81c2cf1a2ea408e1ad2ac070f66c092|2025-11-06 03:47:16 -0600|Anthony Hart|L4.4: Implemented resilience patterns with Polly
+b5df4634cdb436ae413f03f92778f5165d2543ca|2025-11-06 03:50:15 -0600|Anthony Hart|L4.5: Enhanced OpenTelemetry observability with custom metrics
+b2bf8519f5f75cbdc538a351c238521cb2a4e240|2025-11-06 03:51:58 -0600|Anthony Hart|L4.6: Integrated feature management with Azure App Configuration
+794ddbcffbcf8073db5f942e90168506bcbb5d86|2025-11-06 04:01:28 -0600|Anthony Hart|feat(L4.7): Advanced rate limiting with tier-based policies
+81b74793225b7546f7be02847e6ce24703419ee6|2025-11-06 04:03:46 -0600|Anthony Hart|feat(L4.8): Enhanced health checks with Kubernetes probes
+b7a716ca9f143950aef1a9ea5929cabeddf1f241|2025-11-06 04:14:06 -0600|Anthony Hart|feat(api): L4.9 - Implement graceful shutdown with 30s timeout
+eab7bb7a13d347e92b163e2d44fa08b7134c3f63|2025-11-06 04:15:57 -0600|Anthony Hart|feat(api): L4.10 - Implement W3C Trace Context correlation tracking
+d832bea5cd914de7dac05a290d7efed5e52ece65|2025-11-06 04:19:23 -0600|Anthony Hart|feat(api): L4.11 - Implement RFC 7807 Problem Details
+50ff7d4a0af66919a17275663a187a7ec4ec4ae5|2025-11-06 04:28:23 -0600|Anthony Hart|feat(api): L4.12 - PII Sanitization/Redaction with Microsoft Compliance patterns
+cc734df4de1f458594a1b32d8a6efdb5fbdf1adf|2025-11-06 04:30:03 -0600|Anthony Hart|docs: Add Layer 4 session summary for L4.9-L4.12
+b90d5848f7cbd45537a421df7da3c0dcb7079dab|2025-11-06 06:50:43 -0600|Anthony Hart|docs: Enterprise-grade documentation refactor with professional structure
+b7aaadf89a44688273060ec23ef4e6a2787a2e1a|2025-11-06 10:00:50 -0600|Anthony Hart|fix: Complete SQL TODOs and document ContentGenerationSuite implementation plan
+4fb1b845e92e796fc93f257267381e025c039dd7|2025-11-06 10:12:42 -0600|Anthony Hart|test: Add comprehensive database and API integration tests
+ba18e359067ecfb4def882051a53c932c5f3cd41|2025-11-06 10:17:03 -0600|Anthony Hart|docs: Add comprehensive implementation progress summary
+2a8619ec8fbeee5dd406401c63d1d3a07c202dda|2025-11-06 11:33:37 -0600|Anthony Hart|Clean documentation: remove redundant files, consolidate structure
+fbb1f5eda690365edcf23f3fb4b439fafafd27ac|2025-11-06 17:40:33 -0600|Anthony Hart|Claude weekly limit is cleared so i had it use a couple sessions to do code cleanup and documentation updates and stuff like that
+6b7cc6eb4f203e3a7daa755a8996673d8cdb5441|2025-11-06 21:53:49 -0600|Anthony Hart|A bunch of work for cleanup and such but we're focused on deployments and databases and such
+dd398488dc36d24096d416d5d725e049d0d44142|2025-11-06 21:59:25 -0600|Anthony Hart|Small progress commit to start clean slate for large effort
+9bf611c5e073741520e2e65ecb0bb8e47d1adb5f|2025-11-06 22:49:05 -0600|Anthony Hart|Claude has a pretty nice plan queued up but I hit rate limits coming up with it...
+db28a2a0b779aa51d1be2d029569652f54a36c97|2025-11-07 15:18:30 -0600|Anthony Hart|Working on the deployments, cleaning up the database idempotency, etc.
+77a56da956d497079c840554579296f1a0ce9e61|2025-11-07 19:00:45 -0600|Anthony Hart|Complete production documentation and CI/CD modernization
+0ee428d2de0b42bd4c4e025f3d9a09b1020cd801|2025-11-07 20:28:28 -0600|Anthony Hart|Ran into rate limits again with Claude
+07fb3e38a960c64f9f05e9902caa4eafbfc8b77e|2025-11-07 21:58:41 -0600|Anthony Hart|Progress commit from Gemini's CLR refactor and such
+09fd7feb413287294760723499db2ed8141478e9|2025-11-07 21:58:54 -0600|Anthony Hart|Progress commit from Gemini's CLR refactor and such
+8d90299b9009cd5fa304514d67636990a56ea2dc|2025-11-08 16:09:07 -0600|Anthony Hart|WIP: Consolidation analysis and new file structure - 178+ files created for DTO splitting, interface organization, and infrastructure improvements
+cbb980c9119e6da5664ce10a16b5df9bbfab2a67|2025-11-08 16:46:34 -0600|Anthony Hart|Fix: Remove deleted service dependencies from DomainEventHandlers and DependencyInjection - Infrastructure now builds successfully - Removed CacheInvalidationService, SqlServerConnectionFactory, ServiceBrokerResilienceStrategy, SqlMessageDeadLetterSink, DistributedCacheService - Removed TenantAccessPolicyRule, AccessPolicyEngine, InMemoryThrottleEvaluator, SqlBillingConfigurationProvider, UsageBillingMeter - Removed SqlBillingUsageSink, SqlCommandExecutor, AtomGraphWriter, SqlMessageBroker, EventEnricher - Removed SqlClrAtomIngestionService, SpatialInferenceService, StudentModelService, ModelDiscoveryService, IngestionStatisticsService - Removed InferenceOrchestrator, EmbeddingService, ModelIngestionProcessor, ModelIngestionOrchestrator, ModelDownloader - Removed InferenceJobProcessor, InferenceOrchestratorAdapter, InferenceJobWorker - Removed Services.Search, Services.Features, Services.Inference namespaces (no implementations exist) - Simplified CacheInvalidatedEventHandler to just log events (no cache service available) - Core, Data, Performance, Infrastructure projects now build successfully - API/ModelIngestion/Neo4jSync/CesConsumer/Admin still fail (missing DTOs/Services - will fix next)
+daafee6c132e320150c01f92fa99b7f231b8193e|2025-11-08 16:55:19 -0600|Anthony Hart|Restore deleted functionality - Restored all DTOs, Services, Data, Caching, Extensions, Repositories, Messaging from commit 09fd7fe - API now builds successfully - Admin now builds successfully - Infrastructure builds successfully - Only remaining failures: SqlClr (expected), Neo4jSync, ModelIngestion, CesConsumer (Azure App Configuration issues - not deleted code)
+1e6011232cd0d5857f3b73648894dd77e60ef06c|2025-11-08 19:36:23 -0600|Anthony Hart|Fix critical bugs: sp_UpdateModelWeightsFromFeedback + SqlClr SIMD removal
+d2be21bf9bd40ae7e53bb13e8a751dc540c4db27|2025-11-08 19:38:19 -0600|Anthony Hart|Fix build: Remove ModelIngestion project references from tests
+f37061eff38ca2218e0ab4ca77ea047caebf6cb4|2025-11-08 19:43:48 -0600|Anthony Hart|Enable temporal tables for weight history tracking
+3505448e3c49cb98555267781b429e5a595747d6|2025-11-08 19:46:15 -0600|Anthony Hart|Document SQL CLR constraints and fix LayerNorm TODOs
+de3b254b49704c6332e343380662243142bfd256|2025-11-08 20:31:56 -0600|Anthony Hart|WIP: SIMD restored, blocked on NuGet version conflicts - System.Memory needs Unsafe 4.0.4.1, System.Text.Json needs 6.0.0.0 - SQL Server CLR requires exact version matches, no binding redirects - Next: downgrade System.Text.Json to 4.7.2 or find alternative
+088e3058b5631c56c62c1a18c049bd259262c736|2025-11-08 20:37:48 -0600|Anthony Hart|WIP: SIMD restored, blocked on NuGet version conflicts - System.Memory needs Unsafe 4.0.4.1, System.Text.Json needs 6.0.0 - SQL Server CLR requires exact version matches, no binding redirects - Next: downgrade System.Text.Json to 4.7.2 or find alternative
+99250fbc32f21b58b568d9efde46d3c7400b541f|2025-11-08 20:42:08 -0600|Anthony Hart|WIP: SIMD restored, blocked on NuGet version conflicts - System.Memory needs Unsafe 4.0.4.1, System.Text.Json needs 6.0.0.0 - SQL Server CLR requires exact version matches, no binding redirects - Next: downgrade System.Text.Json to 4.7.2 or find alternative
+356bd4740a93cc39fbbe10167aae2aacfea8af50|2025-11-08 21:04:53 -0600|Anthony Hart|So sick and tired of current AI agents and the AI offerings currently provided... Such inferior products
+eea38b74650e8283bf9ec590e5d2726f31ed23c1|2025-11-08 22:36:21 -0600|Anthony Hart|AI agents are stupid, treat things in isolation, ignore the user, etc. and we wind up sabotaged...
+3644cbf4c32e185cd3e7d6c61cdae6ef23536b0c|2025-11-09 00:43:42 -0600|Anthony Hart|I really hate AI agents...
+b9f89bc091fe634d81a7668aaea2039925a8e59c|2025-11-09 15:38:21 -0600|Anthony Hart|feat: Migrate SQL CLR from System.Text.Json to Newtonsoft.Json with UNSAFE deployment
+881f9c97d23a067e88ecf9e8ae9d5dbab3c8c931|2025-11-09 16:41:51 -0600|Anthony Hart|feat: Add enterprise deployment script and comprehensive development guide
+8adc5bc35bece1b6c6176a122e8998fcbacef842|2025-11-09 19:51:12 -0600|Anthony Hart|docs: Documentation purification and governance system documentation
+778b2b8a59d0f2bb35e0400b8c9a15dea94fb578|2025-11-09 21:36:44 -0600|Anthony Hart|Complete MS Docs research for 40 technologies with codebase validation
+2540d71d1ec7542b46248f0050f0b91d72bc035e|2025-11-09 21:49:34 -0600|Anthony Hart|Fix rate limiting configuration - add missing 'api' policy for administrative operations
+061539a0e9df3029317763a20500c77014c7966a|2025-11-09 21:50:55 -0600|Anthony Hart|Add Azure Monitor OpenTelemetry integration for production observability
+19bb0778fb30bf2bce9da87b82ea61a0426e48e3|2025-11-09 21:51:58 -0600|Anthony Hart|Add SQL Ledger migration script for BillingUsageLedger with tamper-evidence
+e13774fe32a84657abd4962fd7650181ea13537a|2025-11-09 21:52:58 -0600|Anthony Hart|Add SQL Graph pseudo-column indexes for 10-100x MATCH query performance
+a9c08b944f7e0cf6f42277895674fe75e3716956|2025-11-09 22:12:50 -0600|Anthony Hart|Implement CLR strong-name signing for SQL Server 2025 'clr strict security' compliance
+5f5a058a9ad1fcec48c21544fcc73a2bf6b1af12|2025-11-09 22:13:58 -0600|Anthony Hart|Add temporal table 90-day retention and columnstore history indexes for TensorAtomCoefficients and Weights
+21ac8da67e3e468bbb183f713bb316729d935f3e|2025-11-09 22:15:36 -0600|Anthony Hart|Enable Azure Managed Identity in Workers.Neo4jSync for passwordless auth consistency
+4b29288b2a4e0eb7c409705be86f23dd9b437fb1|2025-11-09 22:21:52 -0600|Anthony Hart|Integrate Query Store with autonomous loop for self-healing query regressions
+6d4b4ef5084bac4aa6fddbb43e4a0502d35f1c3b|2025-11-09 22:23:06 -0600|Anthony Hart|Optimize CDC configuration - exclude BLOB columns and add I/O isolation
+7fd17983f9fb4e34dfcf97349961fd3e91f04a66|2025-11-09 22:32:45 -0600|Anthony Hart|Automate Azure Arc deployment with Managed Identity and role assignments
+7165dc967609a549465362d121c64149f929622d|2025-11-09 22:51:17 -0600|Anthony Hart|Restore model format readers infrastructure
+51be947af08b2bfdd33126813634fa162bb1a11c|2025-11-10 00:13:22 -0600|Anthony Hart|Restoration but incomplete wiring of services and other deleted functionality
+6a7ff0132f174dc893cc6bbccda5c13cd8d1cd46|2025-11-10 00:38:06 -0600|Anthony Hart|Refactor DI for SOLID/DRY, complete critical Phase 1 & 2 foundations
+d283f804015387a0e0c693ffa8b332da33bd5797|2025-11-10 00:39:22 -0600|Anthony Hart|Activate dual anomaly detection in OODA loop (WAVE 2.2)
+7d32c61ca5a78d8fdc286225d0eca899a06bce50|2025-11-10 00:47:07 -0600|Anthony Hart|Claude hit weekly limit...
+7eace5ba587f572be2df4f8518961cfacd61a139|2025-11-10 01:32:06 -0600|Anthony Hart|feat: Implement foundational AGI pipelines and API endpoints
+5bfb6797477bcc4955909c8a77657aaf1efc4f02|2025-11-10 02:00:25 -0600|Anthony Hart|feat: Complete all AGI features and enterprise interfaces
+e27c28608a9007efcf0b00027078547811c9d3fc|2025-11-10 02:13:00 -0600|Anthony Hart|Gemini hit daily limit during refactor
+4a355395477a2150a1d97cf26f9683c281d23c7f|2025-11-10 02:50:40 -0600|Anthony Hart|feat: Complete Phases 1-5 implementation - SVD pipeline, AST-as-GEOMETRY, Student Model Synthesis, Godel Engine
+b0182e9f642d74fd08758dd7e415bbd7d6a0fd08|2025-11-10 03:12:32 -0600|Anthony Hart|feat: Implement CacheWarmingJobProcessor + VectorSearchRepository SQL delegation
+c305ffebac56bddaadb009c3a643933b9daecb0f|2025-11-10 04:05:18 -0600|Anthony Hart|Considerable amount of effort from AI agents...
+68b797caf477e6817387db7d6fe804fafdea1861|2025-11-10 05:02:51 -0600|Anthony Hart|Fix SqlClr compilation errors and wire up missing DI registrations
+73a730e1c70d00b197adc775983826fe9a214c95|2025-11-10 05:59:25 -0600|Anthony Hart|Had to have AI agents yet again repair the CLR project because of sabotage
+0860c04f6b4242e0cc1be560a4a0ba1c6b66484a|2025-11-10 06:48:02 -0600|Anthony Hart|CRITICAL: Fix SQL Server CLR deployment with complete .NET Framework dependency chain
+0085fd3b3c05bc74d6e9e9f6db3d56331aa408c4|2025-11-10 06:50:41 -0600|Anthony Hart|docs: Add comprehensive CLR repair guide (CLR_REPAIR_GUIDE.md)
+1b6d7a7c0e9d00b98afec5344768e2cf4d7284d2|2025-11-10 07:20:39 -0600|Anthony Hart|WIP Progress comit
+e9f040392843ec99fa8ba91865c59535fb2c7e1b|2025-11-10 08:39:16 -0600|Anthony Hart|feat(database): DACPAC build success - 0 errors (892→0)
+22899e51f28536bea3de2ef38892a668075110d4|2025-11-10 08:43:44 -0600|Anthony Hart|docs(database): Add comprehensive sanity check and deployment documentation
+d0b1d8187b2ae8056bb21b1a27280aaa471aaefa|2025-11-10 08:59:40 -0600|Anthony Hart|fix: Restore full procedure files from sql/procedures - repair truncation damage
+eba78ded6e344f6fb424225a076bdadb7c8c47fa|2025-11-10 09:05:35 -0600|Anthony Hart|fix: Restore ALL deleted database project files from e9f0403 catastrophe
+b8f18bb20054a44abe544e4e4563921b769ef917|2025-11-10 09:12:42 -0600|Anthony Hart|fix: Restore all database project files deleted in eba78de
+367836f39eae401b74fcec688b30437913ca1794|2025-11-10 12:55:55 -0600|Anthony Hart|AI agents are stupid, treat things in isolation, ignore the user, etc. and we wind up sabotaged...
+8bf4e71b5b06ff93010f4c93fe8c39c629a73d11|2025-11-11 00:33:01 -0600|Anthony Hart|Consolidate documentation: 124+ scattered files → 7 professional references
+c9457622c5eaf65ee077e06b34afc3c397d8ea42|2025-11-11 00:36:39 -0600|Anthony Hart|Add comprehensive code refactoring audit
+17a6370d7015de239a18fcf7bc573d8586a1994e|2025-11-11 00:44:55 -0600|Anthony Hart|Expand code refactoring audit: Add P3 (string enums, stubs, datatypes, separation of concerns)
+99085b234abcf1404e4baa7b4c5d7890762f51d4|2025-11-11 00:55:33 -0600|Anthony Hart|Add P4: Performance & Technology Exploitation to audit
+7d8a8e20a610e2cb24934f8ca93181f3e797e410|2025-11-11 00:56:25 -0600|Anthony Hart|Update Executive Summary with P4 performance findings
+a9f24d06afcdc577c90b71f977fb7f6d492f1c92|2025-11-11 01:06:14 -0600|Anthony Hart|Add VERSION_AND_COMPATIBILITY_AUDIT.md and validation script
+b52974dc346f34197102384af623302062631f3b|2025-11-11 01:07:52 -0600|Anthony Hart|Fix PowerShell syntax error in validation script
+1f627ff73d85ad300f73e40e41a8d859383fd861|2025-11-11 01:20:54 -0600|Anthony Hart|Add DATABASE_AND_DEPLOYMENT_AUDIT.md - comprehensive SQL/EF Core/deployment architecture assessment
+0c1382d7bf9d56960500af02ed83a62e1a670550|2025-11-11 01:32:09 -0600|Anthony Hart|Add DEPLOYMENT_ARCHITECTURE_PLAN.md - comprehensive hybrid Arc SQL deployment strategy
+5d15954e4a41c14f00dea30c47492d4406bb0428|2025-11-11 01:41:20 -0600|Anthony Hart|Add IMPLEMENTATION_CHECKLIST.md - 207 sequential action items to stable state
+26ee7288bab14ad59704a453c2221412603a37f6|2025-11-11 01:45:57 -0600|Anthony Hart|Update IMPLEMENTATION_CHECKLIST.md - Database-First architecture (226 items)
+99a8d73ccf96622ada4bcd6f36f799836929ef90|2025-11-11 01:53:37 -0600|Anthony Hart|Add TESTING_AUDIT_AND_COVERAGE_PLAN.md - comprehensive test strategy for 100% coverage
+73e3099e2d67e085840462100dcf01f355513fce|2025-11-11 02:09:00 -0600|Anthony Hart|Update core documentation - database-first architecture and testing status
+cbc0974b8b4d9f32cb18c75892b7a2b50b06d84c|2025-11-11 02:25:23 -0600|Anthony Hart|Add comprehensive Neo4j provenance documentation - CRITICAL FOR AUDITABILITY
+942ff1dcde5c72380321ecc1c65b637fb69ecd61|2025-11-11 02:55:20 -0600|Anthony Hart|docs: Transform audit documentation to enterprise-grade technical analysis
+305645374ba33900b8376fd861e465a6d99f2d78|2025-11-11 02:58:44 -0600|Anthony Hart|docs: Update README with technical analysis documentation section
+25457de7ca74a7f59848d7e6b43369ded297bbec|2025-11-11 04:41:00 -0600|Anthony Hart|Massive progress by Gemini after a full audit by Claude... Gemini just finished updating sp_Hypothesize but was completing tasks as they saw fit based on the documentation planning and such
+6e42a0d9f3bd1daa742d5099df894bd1ecdc9aab|2025-11-11 06:53:28 -0600|Anthony Hart|feat(clr): implement ILGPU GPU acceleration with automatic CPU fallback
+9397e6f35e14e3b45e579d2442cc0069cfb02c2d|2025-11-11 07:01:38 -0600|Anthony Hart|feat(clr): expose 36 additional CLR functions in SQL Server (72 total)
+9765e87e5802755ec2784c278e17014acd5455d7|2025-11-11 07:23:31 -0600|Anthony Hart|fix(sql): correct CLR function call syntax in stored procedures
+18453886c41b7b4b15bc5cc5831870f9e133c160|2025-11-11 07:30:51 -0600|Anthony Hart|fix(sql): correct CLR function parameter signatures in Common.ClrBindings.sql
+365842ff62fee3aa8d2c221aded8ff422df12496|2025-11-11 07:33:42 -0600|Anthony Hart|fix(sql): correct clr_GenerateTextSequence column names to match C# TableDefinition
+f7bc8990bd3dbd49039c3a45408b1a5c3e748781|2025-11-11 17:38:03 -0600|Anthony Hart|CLR Code Review: Verified ILGPU/MathNet integration, SIMD acceleration, and SQL CLR functions
+d0d32271a1bd3aad1e55eac27259361c90753108|2025-11-11 17:42:54 -0600|Anthony Hart|Fix CLR deployment script for full idempotency and System.Drawing support
+191314d04911e46f8421ae813e482b85aef129d7|2025-11-11 20:27:35 -0600|Anthony Hart|Refactor CLR documentation to reflect current deployment state
+d6a709fef69825fe127e5a495e4ce5431fb3b9cf|2025-11-11 20:36:37 -0600|Anthony Hart|Complete documentation refactor: CPU SIMD-only deployment state
+c984c2a2b62b5d2238b23459aad1e4773e9352de|2025-11-11 21:12:16 -0600|Anthony Hart|Gemini rate limits and some progress from Claude through Copilot... Copilot/Microsoft sabotage the user, Anthropic steals from their users, etc.
+e54114236679287f55f848265c3525714f09b35d|2025-11-11 22:49:46 -0600|Anthony Hart|Fucking AI agent sabotage...
+ddc7cff6acde335afe375326b27bc5a3b83cc678|2025-11-11 23:03:26 -0600|Anthony Hart|Eliminate all placeholders and mock implementations
+210bce49a49d094e2ed85c0e437ea59c3e67742c|2025-11-11 23:23:49 -0600|Anthony Hart|Fix OODA event handlers and AutonomousActionRepository implementations
+741632251600d3f8604ab1cff162a043107781fc|2025-11-11 23:36:00 -0600|Anthony Hart|Mark OnnxInferenceService as deprecated hack - clarify database-native inference architecture
+6e41257127aff84b5581c118c355d06cb85ab03b|2025-11-11 23:44:16 -0600|Anthony Hart|Fix incomplete implementations: InferenceOrchestrator docs, RRF hybrid scoring, concept similarity, SQL Graph relationships
+e42ab8b8322a786df08af7b13b413fa448ceeca7|2025-11-11 23:45:26 -0600|Anthony Hart|Parse ModelId from ModelsUsed JSON in AutonomousAnalysisRepository
+faa3c9d6c6c44e72219a331fb383709b3a215a81|2025-11-11 23:56:51 -0600|Anthony Hart|Support multi-model concept discovery - ModelId derived from embeddings, not forced parameter
+28ba0d29ca844a3c028a15bce01598eb4df7405c|2025-11-11 23:58:08 -0600|Anthony Hart|Replace file-based CDC checkpoints with production SQL Server storage
+9d9efe55695455355e478edcebbf1a413c1d589f|2025-11-12 00:15:21 -0600|Anthony Hart|Replace naive C# implementations with SQL CLR and stored procedure calls
+2c095b2dfb80f4031d946bcaa1587bbbb62f24c8|2025-11-12 00:20:20 -0600|Anthony Hart|Complete CLR integration - fix compile errors and graph relationships
+6c079c0c6c3c06a06cd10f33ea608ecb4d7fd543|2025-11-12 00:20:51 -0600|Anthony Hart|Remove orphaned ConvertSqlVectorToDoubleArray from AutonomousActionRepository
+7d402c9c4176c81b6425cf5837f8c9af63f8e9a5|2025-11-12 01:05:04 -0600|Anthony Hart|Implement content-addressable storage with flexible multi-tenant querying
+884dbd0a9353beab66af5ec11f3d70cb1b2b9362|2025-11-12 01:17:50 -0600|Anthony Hart|Fix framework violations: remove ONNX inference, deterministic Random seeds, implement text-to-embedding
+22109b34d9d099ac72f1e20187e68ced3a4afdd0|2025-11-12 01:26:21 -0600|Anthony Hart|feat: Enterprise-grade content generation and tenant isolation
+692c53942d9b8fed72420d338af1082184e8663f|2025-11-12 01:40:02 -0600|Anthony Hart|feat: Implement true multimodal multi-model ensemble generation
+bf21a231820c35a9f7fdff863fa4353fe58cbd16|2025-11-12 01:52:32 -0600|Anthony Hart|feat: Implement complete multimodal ingestion pipeline (Reader/Atomizer/Ingestor)
+13405767e16832e1d23c5906c8ea1f2f3176312c|2025-11-12 01:56:52 -0600|Anthony Hart|feat: Implement HTTP/HTTPS reader with streaming and retry logic
+1314ae8147d93c642111a78615590df81baf191a|2025-11-12 02:00:03 -0600|Anthony Hart|feat: Implement advanced image tile extraction atomizer
+8054119fd6bbe8d1e792beea49caa590fecfebff|2025-11-12 02:17:03 -0600|Anthony Hart|feat: Add AdvancedAudioAtomizer with research-driven strategies
+40123c4ffc29a19f4571f2ae31fc2fcf4179ea4e|2025-11-12 02:34:01 -0600|Anthony Hart|feat: Implement internal audio processing algorithms (FFT, RMS silence detection, WAV parsing)
+90f46c49e173efcf980fd83f689ca59efd08b1d6|2025-11-12 03:00:47 -0600|Anthony Hart|feat: Add audio feature extraction (ZCR, spectral centroid/flatness/rolloff/bandwidth, tempo, prominent tones)
+f3e6cecf00300ccc2045a7520db2d106b97c954c|2025-11-12 03:13:01 -0600|Anthony Hart|feat: Implement DCT-based perceptual image hashing (pHash)
+89f5d12514f1c6ee4efde84197486dbca84ed9e0|2025-11-12 03:42:39 -0600|Anthony Hart|feat: implement image decoder for BMP + fix database project DLL reference
+f8fcc259d24510e46e2a52f608988e3bbb4a8ec6|2025-11-12 03:54:32 -0600|Anthony Hart|feat: implement video scene detection with histogram-based analysis
+8d95a3455dc5b024af6f3c65718e138b91446a7c|2025-11-12 04:00:38 -0600|Anthony Hart|feat: implement multimodal embedding orchestration and media format detection
+09d03ad2f15f2e09cfea09192346fb902c70df6b|2025-11-12 04:05:25 -0600|Anthony Hart|feat: implement quality validation and batch ingestion coordinator
+546478c8d779025300db75dcefabcfe5797b67f5|2025-11-12 04:18:38 -0600|Anthony Hart|feat(code-ingestion): comprehensive code atomizer with multi-language support
+63a0aa27e749bd547db43a17f7c7c1440f2dd503|2025-11-12 04:57:49 -0600|Anthony Hart|Pre-consolidation checkpoint: Working CLR deployment, DACPAC validation pending
+46e2387dfea88dbb655dd557e530bd2416b40828|2025-11-12 06:31:07 -0600|Anthony Hart|feat(database): Phase 1.1-1.2 complete + comprehensive audit & planning
+90debc3fd3d43f222eb792fe20d830061e3e8d89|2025-11-12 06:48:42 -0600|Anthony Hart|feat(database): complete script categorization - Service Broker + deployment scripts
+12972ff7caf599ce7bf37146a395b159aff83a96|2025-11-12 07:52:03 -0600|Anthony Hart|feat(database): complete Phase 1.4 - break down large procedure files
+2c301e6b39837b00ed1d298b35b7d000fd583bab|2025-11-12 08:00:26 -0600|Anthony Hart|feat(database): complete Phase 1.3 - script categorization
+308597482bbfe0525051cc8ea7e66bcb93861117|2025-11-12 16:21:50 -0600|Anthony Hart|COmmitting before the AI agent fucks me
+b6a0a17430a5d4262e41b36f45cea930e3300ef6|2025-11-12 17:07:09 -0600|Anthony Hart|Latest progress, review everything
+ab33c58a7e076be26c06f3df971797776e257783|2025-11-12 17:29:15 -0600|Anthony Hart|docs: Add comprehensive mathematical enhancement documentation (FFT, theorem proving, conjecture generation, autonomous discovery use cases)
+eeeb2feef1fd175140e2adc58380d901966f955a|2025-11-12 18:49:58 -0600|Anthony Hart|Enterprise-grade DACPAC architecture implementation
+6e8adf260d586cdfe108db451cfd5ecf7cf1fac0|2025-11-12 18:56:12 -0600|Anthony Hart|Clean up repository - remove temp files and legacy backup folder
+9f0123eb3d858d5256f2b4fb60c81404432074dc|2025-11-12 18:58:03 -0600|Anthony Hart|Remove obsolete sql/ folder - DACPAC migration complete
+dcd48ac7cbef98dc48c008642ad2e0b858365748|2025-11-12 20:19:12 -0600|Anthony Hart|Consolidate CLR into single database project - remove duplicate projects
+f6ee69f8670cd5b4b112c982fa478ec38948e3f9|2025-11-12 22:06:10 -0600|Anthony Hart|Fix DACPAC build: Resolved ~2000 errors to achieve clean build
+4db2a525052e64328f4e1a19aecf2367e789b279|2025-11-13 00:38:21 -0600|Anthony Hart|WIP: CLR deployment progress - security setup complete, dependency resolution needed
+15b1b6ce8322cb53adcf91d0f7e21a5bde7efa16|2025-11-13 04:22:52 -0600|Anthony Hart|Committing before i get sabotaged again
+a79145fa009ab8c45687e711015436456410d5ac|2025-11-13 05:53:11 -0600|Anthony Hart|*Sigh* AI agents are in full sabotage mode, so lets commit
+4df85524ea8af9fa29257a04ef61ec3ddfcd6b21|2025-11-13 07:32:15 -0600|Anthony Hart|Progress commit
+95bfaf69d315b2dce468c96c46f2300af63faf44|2025-11-13 07:49:39 -0600|Anthony Hart|docs: Phase 1-3 complete - reorganize documentation structure
+622c4921ffc0981ddbac930e6eb5ab1bac624b67|2025-11-13 07:49:51 -0600|Anthony Hart|docs: add CONTRIBUTING.md with development guidelines
+f2fefaa061555c5d005a6ce30f4346290ecb58f0|2025-11-13 07:58:51 -0600|Anthony Hart|docs: rewrite REST API documentation with current endpoints
+052df10cd8d6e99832ac23c27972ad9a4d267e61|2025-11-13 08:04:03 -0600|Anthony Hart|docs: rewrite CLR deployment and security documentation with actual assembly details
+b81128b686e4c92d4495d990e748b291b7b9c821|2025-11-13 08:04:20 -0600|Anthony Hart|docs: update version compatibility header with current state
+0ec07c2751ee8905c42aa8cc5bf6d00ba8027dd1|2025-11-13 09:27:38 -0600|Anthony Hart|docs: complete rewrite of ARCHITECTURE.md with actual codebase facts
+6e3db610d1270c6140d55e7b6dbddfdd96351775|2025-11-13 09:35:52 -0600|Anthony Hart|fix: rename audit reports from 2024 to 2025 (correct year)
+920f17ee7487c7a65aa93d545e41612b46bf758a|2025-11-13 09:56:34 -0600|Anthony Hart|docs: complete rewrite of architecture documentation (OODA, Neo4j, model distillation) with actual implementation facts
+1323c6deaed3a775664a212f6627a7886f76f19a|2025-11-13 10:00:01 -0600|Anthony Hart|docs: complete rewrite of database schema and testing guide
+b823c18bb1734da77e8955bf6949787ff2a7fbff|2025-11-13 10:01:09 -0600|Anthony Hart|docs: delete old technical-analysis audit files, complete documentation rewrite
+29fdd398ec97ecd1004f53ede0b17e348ed8e356|2025-11-13 10:02:38 -0600|Anthony Hart|docs: complete documentation rewrite with actual codebase facts
+f9be91647f3a390c0753124f09fcf591856b0676|2025-11-13 10:12:03 -0600|Anthony Hart|chore: remove duplicate worker projects and obsolete files
+c18a943a3fe7a46f5f57c12d622e2ff7ea565e51|2025-11-13 10:17:09 -0600|Anthony Hart|docs: refactor README for professional GitHub presentation
+70011c9e001cc3c6d2de28cae8a3a667fba7c8af|2025-11-13 10:24:39 -0600|Anthony Hart|docs: introduce atomic decomposition philosophy ('Periodic Table of Knowledge')
+4d256030a1a8124ff44f38e7d402b601fe92a31a|2025-11-13 10:32:09 -0600|Anthony Hart|feat: Implement atomic decomposition architecture
+d3a070c29efbdde994b38f55d3f8aef6b1951eb3|2025-11-13 10:34:01 -0600|Anthony Hart|fix: Add ImageSharp dependency and fix pixel accessor API
+783841157659831e2bc9a4648aec2e70a8c66f84|2025-11-13 12:13:19 -0600|Anthony Hart|Fucking AI agent sabotage
+db0d6fe628315bcfcf02e6ed3718b55d3d3112a5|2025-11-13 17:41:59 -0600|Anthony Hart|docs: Add comprehensive spatial weight architecture and optimization plans
+7afb0b41d018f69daa93b07203baa275751a3ebd|2025-11-13 18:41:09 -0600|Anthony Hart|Fix DACPAC deployment: spatial indexes, queue activation, SQL 2025 compatibility
+255877f8b974117378c7726c0285a77e4469fdc8|2025-11-13 19:12:28 -0600|Anthony Hart|Add missing foreign key constraints for referential integrity
+e93fe38d7f38cc8c8a1930738978618a63b0560d|2025-11-13 19:17:48 -0600|Anthony Hart|Fix implicit JSON conversion in sp_Hypothesize
+dc8b5cf870f81646c3cd84b7585a581ba5fc5b80|2025-11-13 19:22:32 -0600|Anthony Hart|Add missing CICDBuilds table and fix Weights table reference
+8274d4de41574b9edc62261c1f5bb03ea4daa0c9|2025-11-13 19:34:21 -0600|Anthony Hart|Phase 1 Complete: Fix all JSON implicit conversions
+887ab347365011920f94c74e0ca5ee7b939395b3|2025-11-13 19:38:49 -0600|Anthony Hart|Phase 3 + Reference Tables: Atoms optimization and enum replacement
+e59a4716ad39eaaa5d02c2224d8bf408568ee485|2025-11-13 19:54:51 -0600|Anthony Hart|✅ Phase 3: Atoms Optimization Complete
+40ec9666439620c9a4393b9df27033097ed72582|2025-11-13 20:02:00 -0600|Anthony Hart|🔧 Production Fixes: STRING_AGG limit + AtomsLOB migration
+9f66c57a88a7520bbe1f6a44079d4744407af328|2025-11-13 21:22:46 -0600|Anthony Hart|Sabotage prevention
+038f04d85ced285135d27510174a706796dbd5f6|2025-11-13 22:26:24 -0600|Anthony Hart|Fix CLR DateTime type mismatch and remove duplicate indexes
+8e69b628ef683b93fcea6351755bef2863beeed9|2025-11-13 22:34:51 -0600|Anthony Hart|Add comprehensive production readiness gap analysis
+695dd81ef83118e3ce6602246bc728a6d464a5a0|2025-11-13 22:38:35 -0600|Anthony Hart|Implement production ImageSharp integration for JPEG/PNG/BMP decoding
+2115544d2d56958c5f65bd349e5d1fbee4421804|2025-11-14 08:44:03 -0600|Anthony Hart|sabotage prevention commit
+020da4d8a8461b5ce1fdabc39c5fdfa5bff7ea46|2025-11-14 09:41:31 -0600|Anthony Hart|Claude progress
+111f3afc570715113745bcafc35c6a9ea3419554|2025-11-14 11:22:19 -0600|Anthony Hart|Sabotage Prevention commit
+083697b537ba353719b5c0e49a7b0ce9b39c3c30|2025-11-14 11:44:23 -0600|Anthony Hart|Remove third-party AI API recommendations, add enterprise implementation guidance
+a5ad7709c7bfc2aefa9bfa1de552c70a2e646931|2025-11-14 11:58:29 -0600|Anthony Hart|Emphasize in-process AGI: SQL Server is the AI runtime, no external services
+2ae3b4701b8b1992d688ce8aeb81b7e5992f0bfb|2025-11-14 12:00:15 -0600|Anthony Hart|Restore API integration section with clarification that it calls stored procedures
+346a1e43f40b9cb23898c2a12f850c31a1edae74|2025-11-14 12:03:27 -0600|Anthony Hart|Add direct SQL and API integration examples across architecture docs
+b192636ac296f093e664864a6a2e46950631a920|2025-11-14 13:29:07 -0600|Anthony Hart|feat: Implement Hartonomous Core v5 - Atomic Decomposition Foundation
+643e85051d450d17166e4f443765da8dce39b092|2025-11-14 13:40:52 -0600|Anthony Hart|Phase 4: DACPAC validation & schema fixes
+cd73b52ef776bc9ef0c55437b048d8d0141c59b3|2025-11-14 14:04:59 -0600|Anthony Hart|Phase 5a: Batch procedure migrations (simple column renames and 15 warning fixes)
+92fe0e42864fa51cf2764e3a51a84d711d3c055d|2025-11-14 14:12:26 -0600|Anthony Hart|Phase 5b: Add backward compatibility columns and fix DACPAC syntax errors
+991389f4e61798ee58385ae4b554746d6459ac8e|2025-11-14 15:33:11 -0600|Anthony Hart|feat: Phase 1 Triage - Restore v5 Schema Purity and Remove v4 Incompatibilities
+8e2d664459de6bcb2cce74c3bb452bc645b35d3d|2025-11-14 15:51:53 -0600|Anthony Hart|feat: Phase 2 Batch Fixes - Systematic Column Renames and v4 Procedure Cleanup
+fe0c0c589b36f83eacbddc3445fb1287af34a5ec|2025-11-14 16:02:53 -0600|Anthony Hart|docs: Phase 2 Batch Fixes Summary - 48% Error Reduction Achieved
+1bf9cbb89098830ec887738511ec46d0bb0554ab|2025-11-14 18:57:34 -0600|Anthony Hart|sabotage prevention commit

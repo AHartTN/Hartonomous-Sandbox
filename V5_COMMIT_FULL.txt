@@ -1,0 +1,83 @@
+commit b192636ac296f093e664864a6a2e46950631a920
+Author: Anthony Hart <aharttn@gmail.com>
+Date:   Fri Nov 14 13:29:07 2025 -0600
+
+    feat: Implement Hartonomous Core v5 - Atomic Decomposition Foundation
+    
+    PHASE 1: FOUNDATIONAL SCHEMA
+    - Remove EF Core migrations (enforce database-first workflow)
+    - Delete 18 legacy tables (AtomsLOB, TensorAtomPayloads, modality tables)
+    - Rewrite dbo.Atoms with strict VARBINARY(64) governance (Trojan Horse defense)
+    - Rewrite dbo.AtomCompositions for structural representation (XYZM spatial)
+    - Rewrite dbo.TensorAtomCoefficients for OLAP analytics (columnstore)
+    - Rewrite dbo.AtomEmbeddings for semantic representation (Hilbert ready)
+    - Update dbo.IngestionJobs for governed, resumable state machine
+    - Add vw_ReconstructModelLayerWeights for materialized weight queries
+    
+    PHASE 2: GOVERNED INGESTION & OODA
+    - Create CLR ModelStreamingFunctions for chunked model parsing (GGUF/SafeTensors)
+    - Create sp_AtomizeModel_Governed with resumable state machine
+    - Create sp_AtomizeText_Governed with XYZM structural storage
+    - Create sp_AtomizeImage_Governed with pixel decomposition
+    - Enhance sp_Analyze with spatio-temporal analytics (Pressure x Velocity)
+    - Enhance sp_Hypothesize with PendingActions persistence
+    - Add untapped knowledge detection to OODA loop
+    
+    PHASE 3: ADVANCED MATHEMATICAL CAPABILITIES
+    - Implement 3D Hilbert curve indexing (CLR + SQL wrappers)
+    - Create sp_BuildConceptDomains for Voronoi semantic regions
+    - Implement sp_GenerateOptimalPath for A* semantic pathfinding
+    - Add provenance.Concepts spatial columns (CentroidSpatialKey, ConceptDomain)
+    
+    BREAKING CHANGES:
+    - All blob storage removed (VARBINARY(MAX) forbidden)
+    - Legacy procedures replaced with governed versions
+    - C# entities will need regeneration
+    - Infrastructure services require updates
+    
+    Files: +13 new, ~8 modified, ~19 deleted
+    Status: 80% core implementation complete
+    Next: CLR registration, C# entity regen, service updates
+
+ IMPLEMENTATION_SUMMARY.md                          |  498 ++++
+ docs/LATEST_MASTER_PLAN.md                         |  841 ++++++
+ .../20251110135023_FullSchema.Designer.cs          | 2956 --------------------
+ .../Migrations/20251110135023_FullSchema.cs        | 1839 ------------
+ .../HartonomousDbContextModelSnapshot.cs           | 2953 -------------------
+ src/Hartonomous.Database/CLR/HilbertCurve.cs       |  178 ++
+ .../CLR/ModelStreamingFunctions.cs                 |  376 +++
+ .../dbo.clr_StreamAtomicWeights_Chunked.sql        |   25 +
+ .../Functions/dbo.fn_HilbertFunctions.sql          |   38 +
+ .../Procedures/dbo.sp_Analyze.sql                  |   44 +-
+ .../Procedures/dbo.sp_AtomizeImage_Governed.sql    |  226 ++
+ .../Procedures/dbo.sp_AtomizeModel_Governed.sql    |  220 ++
+ .../Procedures/dbo.sp_AtomizeText_Governed.sql     |  205 ++
+ .../Procedures/dbo.sp_BuildConceptDomains.sql      |  103 +
+ .../Procedures/dbo.sp_GenerateOptimalPath.sql      |  173 ++
+ .../Procedures/dbo.sp_Hypothesize.sql              |   25 +-
+ .../Tables/dbo.AtomCompositions.sql                |   72 +-
+ .../Tables/dbo.AtomEmbeddings.sql                  |   68 +-
+ .../Tables/dbo.AtomPayloadStore.sql                |   16 -
+ .../Tables/dbo.AtomicAudioSamples.sql              |   30 -
+ .../Tables/dbo.AtomicPixels.sql                    |   32 -
+ .../Tables/dbo.AtomicTextTokens.sql                |   13 -
+ .../Tables/dbo.AtomicWeights.sql                   |   33 -
+ src/Hartonomous.Database/Tables/dbo.Atoms.sql      |   75 +-
+ src/Hartonomous.Database/Tables/dbo.AtomsLOB.sql   |   83 -
+ src/Hartonomous.Database/Tables/dbo.AudioData.sql  |   16 -
+ .../Tables/dbo.AudioFrames.sql                     |   24 -
+ .../Tables/dbo.ImagePatches.sql                    |   26 -
+ src/Hartonomous.Database/Tables/dbo.Images.sql     |   19 -
+ .../Tables/dbo.IngestionJobs.sql                   |   51 +-
+ .../Tables/dbo.LayerTensorSegments.sql             |   22 -
+ .../Tables/dbo.TensorAtomCoefficients.sql          |   57 +-
+ .../Tables/dbo.TensorAtomPayloads.sql              |   12 -
+ .../Tables/dbo.TextDocuments.sql                   |   18 -
+ .../Tables/dbo.VideoFrames.sql                     |   14 -
+ src/Hartonomous.Database/Tables/dbo.Videos.sql     |   14 -
+ src/Hartonomous.Database/Tables/dbo.Weights.sql    |   19 -
+ .../Tables/dbo.Weights_History.sql                 |   15 -
+ .../Tables/provenance.Concepts.sql                 |   57 +-
+ .../Views/dbo.vw_EmbeddingVectors.sql              |   11 -
+ .../Views/dbo.vw_ReconstructModelLayerWeights.sql  |   20 +
+ 41 files changed, 3195 insertions(+), 8322 deletions(-)
