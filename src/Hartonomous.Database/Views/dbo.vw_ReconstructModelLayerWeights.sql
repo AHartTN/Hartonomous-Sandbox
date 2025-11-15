@@ -1,6 +1,8 @@
 -- =============================================
 -- vw_ReconstructModelLayerWeights: OLAP-Queryable Weight Reconstruction
 -- Provides materialized view of all model weights for analytics
+-- NOTE: AtomicValue is VARBINARY(64), binary-to-float conversion requires CLR or client-side processing
+-- This view returns the binary representation; decode client-side or use CLR functions
 -- =============================================
 CREATE VIEW [dbo].[vw_ReconstructModelLayerWeights] AS
 SELECT 
@@ -11,7 +13,7 @@ SELECT
     tac.[PositionX],
     tac.[PositionY],
     tac.[PositionZ],
-    CAST(a.[AtomicValue] AS REAL) AS [WeightValue]
+    a.[AtomicValue] AS [WeightValueBinary]  -- VARBINARY(64) containing IEEE 754 float32
 FROM [dbo].[TensorAtomCoefficients] tac
 JOIN [dbo].[Atoms] a ON tac.[TensorAtomId] = a.[AtomId]
 JOIN [dbo].[Models] m ON tac.[ModelId] = m.[ModelId]

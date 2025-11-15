@@ -11,6 +11,11 @@ CREATE TABLE [dbo].[TensorAtomCoefficients_History] (
     [TensorRole]              NVARCHAR(128) NULL,
     [Coefficient]             REAL    NULL,
     [ValidFrom]       DATETIME2(7)   NOT NULL,
-    [ValidTo]         DATETIME2(7)   NOT NULL,
-    INDEX [CCI_TensorAtomCoefficients_History] CLUSTERED COLUMNSTORE
+    [ValidTo]         DATETIME2(7)   NOT NULL
 );
+GO
+
+-- Index for temporal queries (cannot use columnstore with GEOMETRY)
+CREATE NONCLUSTERED INDEX [IX_TensorAtomCoefficients_History_Period]
+    ON [dbo].[TensorAtomCoefficients_History]([ValidTo] ASC, [ValidFrom] ASC);
+GO

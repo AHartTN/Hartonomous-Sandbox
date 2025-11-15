@@ -90,7 +90,8 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM sys.spatial_indexes WHERE name = 'SIX_Concepts_ConceptDomain')
     BEGIN
         CREATE SPATIAL INDEX [SIX_Concepts_ConceptDomain] 
-        ON [provenance].[Concepts]([ConceptDomain]);
+            ON [provenance].[Concepts]([ConceptDomain])
+            WITH (BOUNDING_BOX = (-1, -1, 1, 1));
     END
 
     DROP TABLE #ConceptCentroids;

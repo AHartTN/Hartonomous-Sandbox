@@ -10,8 +10,11 @@ CREATE TABLE [dbo].[AtomEmbeddings] (
     [EmbeddingType]     NVARCHAR(50)   NOT NULL DEFAULT 'semantic',  -- 'semantic', 'syntactic', 'visual', etc.
     [Dimension]         INT            NOT NULL,  -- Vector dimensionality: 768, 1536, 1998, etc.
 
-    -- 3D/4D spatial projection (semantic space)
+    -- 3D/4D spatial projection (semantic space) - for GEOMETRY-based spatial indexing
     [SpatialKey]        GEOMETRY       NOT NULL,
+    
+    -- Full-dimensional vector for similarity search - for VECTOR_DISTANCE operations
+    [EmbeddingVector]   VECTOR(1998)   NULL,  -- Full embedding vector for cosine/euclidean distance
 
     -- Grid-based spatial bucketing for coarse-grained queries
     [SpatialBucketX]    INT            NULL,
@@ -32,9 +35,13 @@ CREATE TABLE [dbo].[AtomEmbeddings] (
 GO
 
 -- Spatial index for semantic similarity search
+-- BOUNDING_BOX covers normalized embedding space (-1 to 1 for first 3 dimensions)
 CREATE SPATIAL INDEX [SIX_AtomEmbeddings_SpatialKey]
     ON [dbo].[AtomEmbeddings]([SpatialKey])
-    WITH (GRIDS = (LOW, LOW, MEDIUM, HIGH));
+    WITH (
+        BOUNDING_BOX = (-1, -1, 1, 1),
+        GRIDS = (LOW, LOW, MEDIUM, HIGH)
+    );
 GO
 
 -- Performance indexes

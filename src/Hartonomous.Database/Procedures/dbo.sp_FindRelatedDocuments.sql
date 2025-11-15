@@ -25,7 +25,7 @@ BEGIN
         BEGIN
             DECLARE @QueryEmbedding VECTOR(1998);
             
-            SELECT @QueryEmbedding = SpatialKey
+            SELECT @QueryEmbedding = EmbeddingVector
             FROM dbo.AtomEmbeddings
             WHERE AtomId = @AtomId AND TenantId = @TenantId;
             
@@ -34,12 +34,12 @@ BEGIN
                 INSERT INTO @Results (RelatedAtomId, VectorScore, GraphScore)
                 SELECT 
                     ae.AtomId,
-                    1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @QueryEmbedding) AS VectorScore,
+                    1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryEmbedding) AS VectorScore,
                     0.0
                 FROM dbo.AtomEmbeddings ae
                 WHERE ae.TenantId = @TenantId
                       AND ae.AtomId != @AtomId
-                      AND ae.SpatialKey IS NOT NULL;
+                      AND ae.EmbeddingVector IS NOT NULL;
             END
         END
         

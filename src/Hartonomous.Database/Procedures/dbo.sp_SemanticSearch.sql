@@ -172,8 +172,8 @@ BEGIN
             a.Subtype,
             ae.EmbeddingType,
             ae.ModelId,
-            VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) AS distance,
-            1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) AS similarity,
+            VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS distance,
+            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS similarity,
             NULL,
             'VECTOR_ONLY'
         FROM dbo.AtomEmbeddings AS ae
@@ -183,7 +183,7 @@ BEGIN
             (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
             -- V3: EMBEDDING TYPE FILTER
             AND (@EmbeddingType IS NULL OR ae.EmbeddingType = @EmbeddingType)
-            AND ae.SpatialKey IS NOT NULL
+            AND ae.EmbeddingVector IS NOT NULL
             AND ae.Dimension = @query_dimension
             AND (@category IS NULL OR a.Subtype = @category)
         ORDER BY distance ASC;

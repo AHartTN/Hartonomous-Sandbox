@@ -42,7 +42,7 @@ BEGIN
         INSERT INTO @InputFeatures
         SELECT 
             ae.AtomId,
-            ae.SpatialKey
+            ae.EmbeddingVector
         FROM dbo.AtomEmbeddings ae
         INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId
         WHERE ae.TenantId = @TenantId;

@@ -40,7 +40,8 @@ CREATE NONCLUSTERED COLUMNSTORE INDEX [NCCI_TensorAtomCoefficients]
 ON [dbo].[TensorAtomCoefficients]([TensorAtomId], [ModelId], [LayerIdx], [PositionX], [PositionY], [PositionZ]);
 GO
 
--- Spatial index for geometric queries
+-- Spatial index for geometric queries (BOUNDING_BOX required for GEOMETRY type)
 CREATE SPATIAL INDEX [SIX_TensorAtomCoefficients_SpatialKey] 
-ON [dbo].[TensorAtomCoefficients]([SpatialKey]);
+ON [dbo].[TensorAtomCoefficients]([SpatialKey])
+WITH (BOUNDING_BOX = (0, 0, 10000, 10000));
 GO

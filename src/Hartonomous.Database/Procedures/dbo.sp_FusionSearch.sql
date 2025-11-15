@@ -1,7 +1,7 @@
 CREATE PROCEDURE dbo.sp_FusionSearch
     @QueryVector VECTOR(1998),
     @Keywords NVARCHAR(MAX) = NULL,
-    @SpatialRegion GEOGRAPHY = NULL,
+    @SpatialRegion GEOMETRY = NULL,
     @TopK INT = 10,
     @VectorWeight FLOAT = 0.5,
     @KeywordWeight FLOAT = 0.3,
@@ -31,7 +31,7 @@ BEGIN
         INSERT INTO @Results (AtomId, VectorScore, KeywordScore, SpatialScore)
         SELECT 
             ae.AtomId,
-            1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @QueryVector) AS VectorScore,
+            1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS VectorScore,
             0.0 AS KeywordScore,
             0.0 AS SpatialScore
         FROM dbo.AtomEmbeddings ae
@@ -65,12 +65,12 @@ BEGIN
         BEGIN
             UPDATE r
             SET SpatialScore = CASE 
-                WHEN a.SpatialGeography IS NOT NULL AND a.SpatialGeography.STWithin(@SpatialRegion) = 1 
+                WHEN ae.SpatialKey IS NOT NULL AND ae.SpatialKey.STWithin(@SpatialRegion) = 1 
                 THEN 1.0
                 ELSE 0.0
             END
             FROM @Results r
-            INNER JOIN dbo.Atoms a ON r.AtomId = a.AtomId;
+            INNER JOIN dbo.AtomEmbeddings ae ON r.AtomId = ae.AtomId;
         END
         
         -- Compute combined score

@@ -28,11 +28,13 @@ CREATE TABLE [provenance].[Concepts] (
 );
 GO
 
--- Spatial index for concept domains
+-- Spatial index for concept domains (BOUNDING_BOX required for GEOMETRY type)
 CREATE SPATIAL INDEX [SIX_Concepts_ConceptDomain] 
-ON [provenance].[Concepts]([ConceptDomain]);
+ON [provenance].[Concepts]([ConceptDomain])
+WITH (BOUNDING_BOX = (-1, -1, 1, 1));
 GO
 
 CREATE SPATIAL INDEX [SIX_Concepts_CentroidSpatialKey] 
-ON [provenance].[Concepts]([CentroidSpatialKey]);
+ON [provenance].[Concepts]([CentroidSpatialKey])
+WITH (BOUNDING_BOX = (-1, -1, 1, 1));
 GO

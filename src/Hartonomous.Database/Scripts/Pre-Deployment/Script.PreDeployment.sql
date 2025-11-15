@@ -33,5 +33,8 @@ GO
 -- In-Memory OLTP filegroup (required for MEMORY_OPTIMIZED = ON tables)
 :r .\Setup_InMemory_Filegroup.sql
 
+-- Temporal tables need SYSTEM_VERSIONING turned off before schema compare modifies history indexes
+:r .\Disable_Temporal_SystemVersioning.sql
+
 PRINT 'Pre-deployment setup complete.';
 GO

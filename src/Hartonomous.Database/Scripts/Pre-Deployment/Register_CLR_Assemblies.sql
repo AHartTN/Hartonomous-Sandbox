@@ -269,8 +269,17 @@ ELSE
 
 GO
 
--- System.Drawing - GAC assembly, referenced but not deployed
-PRINT '  ○ System.Drawing (GAC assembly)';
+-- System.Drawing - GAC assembly, must be registered
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Drawing')
+BEGIN
+    PRINT '  Registering System.Drawing...';
+    CREATE ASSEMBLY [System.Drawing]
+    FROM 'C:\Windows\Microsoft.NET\Framework64\v4.0.30319\System.Drawing.dll'
+    WITH PERMISSION_SET = UNSAFE;
+    PRINT '  ✓ System.Drawing registered';
+END
+ELSE
+    PRINT '  ○ System.Drawing (GAC assembly)';
 
 GO
 

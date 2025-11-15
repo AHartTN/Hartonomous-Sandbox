@@ -49,7 +49,7 @@ BEGIN
         a.Subtype,
         ae.EmbeddingType,
         ae.ModelId,
-        VECTOR_DISTANCE(@distance_metric, ae.SpatialKey, @query_vector) AS exact_distance,
+        VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS exact_distance,
         c.SpatialDistance AS spatial_distance
     FROM dbo.AtomEmbeddings AS ae
     INNER JOIN @candidates AS c ON c.AtomEmbeddingId = ae.AtomEmbeddingId
@@ -57,9 +57,9 @@ BEGIN
     WHERE 
         -- V3: TENANCY MODEL (redundant check, but safe)
         (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
-        AND ae.SpatialKey IS NOT NULL
+        AND ae.EmbeddingVector IS NOT NULL
         AND ae.Dimension = @query_dimension
-    ORDER BY VECTOR_DISTANCE(@distance_metric, ae.SpatialKey, @query_vector);
+    ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
 
     PRINT 'Hybrid search complete: Spatial O(log n) + Vector O(k)';
 END;

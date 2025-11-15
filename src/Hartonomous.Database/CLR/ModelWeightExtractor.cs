@@ -16,7 +16,7 @@ namespace Hartonomous.Clr
         [SqlFunction(
             Name = "clr_ExtractModelWeights",
             FillRowMethodName = "FillWeightRow",
-            TableDefinition = "TensorName nvarchar(255), LayerIndex int, WeightIndex bigint, WeightValue float"
+            TableDefinition = "TensorName nvarchar(255), LayerIndex int, WeightIndex bigint, WeightValue real"
         )]
         public static IEnumerable ExtractModelWeights(SqlString modelFormat, SqlBytes modelData)
         {

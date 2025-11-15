@@ -17,7 +17,7 @@ RETURNS TABLE (
     TensorName nvarchar(255),
     LayerIndex int,
     WeightIndex bigint,
-    WeightValue float
+    WeightValue real  -- Changed from float to real to match C# SqlSingle
 )
 AS EXTERNAL NAME [Hartonomous.Clr].[Hartonomous.Clr.ModelWeightExtractor].ExtractModelWeights;
 GO

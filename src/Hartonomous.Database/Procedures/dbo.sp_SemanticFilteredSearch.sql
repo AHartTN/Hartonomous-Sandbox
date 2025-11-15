@@ -22,7 +22,7 @@ BEGIN
         ae.AtomId,
         a.Modality,
         a.Subtype,
-        VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_vector) AS vector_distance,
+        VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector) AS vector_distance,
         sf.TopicTechnical,
         sf.TopicBusiness,
         sf.TopicScientific,
@@ -37,7 +37,7 @@ BEGIN
         (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
         -- V3: EMBEDDING TYPE FILTER
         AND (@EmbeddingType IS NULL OR ae.EmbeddingType = @EmbeddingType)
-        AND ae.SpatialKey IS NOT NULL
+        AND ae.EmbeddingVector IS NOT NULL
         AND (@topic_filter IS NULL OR
             (@topic_filter = 'technical' AND sf.TopicTechnical >= @min_topic_score) OR
             (@topic_filter = 'business' AND sf.TopicBusiness >= @min_topic_score) OR
@@ -46,7 +46,7 @@ BEGIN
         AND (@min_sentiment IS NULL OR sf.SentimentScore >= @min_sentiment)
         AND (@max_sentiment IS NULL OR sf.SentimentScore <= @max_sentiment)
         AND sf.TemporalRelevance >= @min_temporal_relevance
-    ORDER BY VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_vector);
+    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_vector);
 
     PRINT '  ✓ Semantic-filtered search complete';
 END

@@ -17,16 +17,16 @@ BEGIN
         ae.EmbeddingType,
         ae.ModelId, 
         ae.SpatialKey.STDimension() AS Dimension,
-        VECTOR_DISTANCE(@distance_metric, ae.SpatialKey, @query_vector) AS distance,
-        1.0 - VECTOR_DISTANCE(@distance_metric, ae.SpatialKey, @query_vector) AS similarity,
+        VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS distance,
+        1.0 - VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS similarity,
         ae.CreatedAt
     FROM dbo.AtomEmbeddings AS ae
     INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
     WHERE 
         -- V3: TENANCY MODEL
         (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
-        AND ae.SpatialKey IS NOT NULL
+        AND ae.EmbeddingVector IS NOT NULL
         AND (@embedding_type IS NULL OR ae.EmbeddingType = @embedding_type)
         AND (@ModelId IS NULL OR ae.ModelId = @ModelId)
-    ORDER BY VECTOR_DISTANCE(@distance_metric, ae.SpatialKey, @query_vector);
+    ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
 END

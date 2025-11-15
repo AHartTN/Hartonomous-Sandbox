@@ -37,11 +37,11 @@ BEGIN
     SELECT TOP (@max_activated)
         ae.AtomEmbeddingId,
         ae.AtomId,
-        1.0 - VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) AS ActivationStrength
+        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS ActivationStrength
     FROM dbo.AtomEmbeddings AS ae
-    WHERE ae.SpatialKey IS NOT NULL
-      AND VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) <= @max_distance
-    ORDER BY VECTOR_DISTANCE('cosine', ae.SpatialKey, @query_embedding) ASC;
+    WHERE ae.EmbeddingVector IS NOT NULL
+      AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) <= @max_distance
+    ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) ASC;
 
     DECLARE @activated_count INT = @@ROWCOUNT;
     PRINT '  Activated nodes: ' + CAST(@activated_count AS NVARCHAR(10));
