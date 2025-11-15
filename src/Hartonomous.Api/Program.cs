@@ -121,16 +121,17 @@ builder.Services.AddOpenTelemetry()
             {
                 otlp.Endpoint = new Uri(endpoint);
             }
-        }))
-    // Azure Monitor Integration for production telemetry (conditional on connection string)
-    .UseAzureMonitor(options =>
+        }));
+
+// Azure Monitor Integration for production telemetry (only if connection string is configured)
+var applicationInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (!string.IsNullOrEmpty(applicationInsightsConnectionString))
+{
+    builder.Services.AddOpenTelemetry().UseAzureMonitor(options =>
     {
-        var connectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
-        if (!string.IsNullOrEmpty(connectionString))
-        {
-            options.ConnectionString = connectionString;
-        }
+        options.ConnectionString = applicationInsightsConnectionString;
     });
+}
 
 // Azure AD Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -543,8 +544,8 @@ app.UseHttpsRedirection();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
 
-// Enable Azure App Configuration refresh middleware
-app.UseAzureAppConfiguration();
+// Enable Azure App Configuration refresh middleware (only if configured)
+// app.UseAzureAppConfiguration(); // Commented out - not configured for local development
 
 // Correlation tracking middleware (W3C Trace Context)
 // Must be before UseRateLimiter and UseAuthentication

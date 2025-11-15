@@ -57,9 +57,9 @@ public sealed record OnnxInitializerInfo(
 
 public sealed class OnnxModelLoader : IOnnxModelLoader
 {
-    private readonly ILogger _logger;
+    private readonly ILogger<OnnxModelLoader> _logger;
 
-    public OnnxModelLoader(ILogger logger)
+    public OnnxModelLoader(ILogger<OnnxModelLoader> logger)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }

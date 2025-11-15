@@ -12,17 +12,14 @@ namespace Hartonomous.Infrastructure.Jobs;
 /// </summary>
 public class JobExecutor
 {
-    private readonly HartonomousDbContext _context;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<JobExecutor> _logger;
     private readonly Dictionary<string, Type> _processorTypes = new();
 
     public JobExecutor(
-        HartonomousDbContext context,
         IServiceProvider serviceProvider,
         ILogger<JobExecutor> logger)
     {
-        _context = context;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -47,13 +44,17 @@ public class JobExecutor
     /// <returns>True if job completed successfully, false if failed.</returns>
     public async Task<bool> ExecuteJobAsync(long jobId, CancellationToken cancellationToken)
     {
+        // Create a scope to resolve scoped services like DbContext
+        using var scope = _serviceProvider.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<HartonomousDbContext>();
+        
         var stopwatch = Stopwatch.StartNew();
         BackgroundJob? job = null;
 
         try
         {
             // Load job
-            job = await _context.Set<BackgroundJob>()
+            job = await dbContext.Set<BackgroundJob>()
                 .FirstOrDefaultAsync(j => j.JobId == jobId, cancellationToken);
 
             if (job == null)
@@ -81,7 +82,7 @@ public class JobExecutor
             {
                 _logger.LogWarning("Job {JobId} exceeded max retries ({MaxRetries}), dead lettering",
                     jobId, job.MaxRetries);
-                await DeadLetterJobAsync(job, "Maximum retry attempts exceeded", cancellationToken);
+                await DeadLetterJobAsync(job, dbContext, "Maximum retry attempts exceeded", cancellationToken);
                 return false;
             }
 
@@ -89,18 +90,18 @@ public class JobExecutor
             job.Status = JobStatus.InProgress;
             job.AttemptCount++;
             job.StartedAtUtc = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation("Executing job {JobId} (type: {JobType}, attempt: {Attempt}/{MaxRetries})",
                 jobId, job.JobType, job.AttemptCount, job.MaxRetries);
 
-            // Get processor
+            // Get processor from scoped service provider
             if (!_processorTypes.TryGetValue(job.JobType, out var processorType))
             {
                 throw new InvalidOperationException($"No processor registered for job type '{job.JobType}'");
             }
 
-            var processor = _serviceProvider.GetService(processorType);
+            var processor = scope.ServiceProvider.GetService(processorType);
             if (processor == null)
             {
                 throw new InvalidOperationException($"Failed to resolve processor of type '{processorType.Name}'");
@@ -141,7 +142,7 @@ public class JobExecutor
             job.ErrorMessage = null;
             job.ErrorStackTrace = null;
 
-            await _context.SaveChangesAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
 
             stopwatch.Stop();
             _logger.LogInformation("Job {JobId} completed successfully in {ElapsedMs}ms",
@@ -157,7 +158,7 @@ public class JobExecutor
 
             if (job != null)
             {
-                await MarkJobFailedAsync(job, ex, cancellationToken);
+                await MarkJobFailedAsync(job, dbContext, ex, cancellationToken);
             }
 
             return false;
@@ -167,7 +168,7 @@ public class JobExecutor
     /// <summary>
     /// Marks a job as failed and schedules retry if attempts remain.
     /// </summary>
-    private async Task MarkJobFailedAsync(BackgroundJob job, Exception exception, CancellationToken cancellationToken)
+    private async Task MarkJobFailedAsync(BackgroundJob job, HartonomousDbContext context, Exception exception, CancellationToken cancellationToken)
     {
         job.Status = JobStatus.Failed;
         job.ErrorMessage = exception.Message;
@@ -191,17 +192,17 @@ public class JobExecutor
                 job.JobId, delaySeconds, job.AttemptCount, job.MaxRetries);
         }
 
-        await _context.SaveChangesAsync(cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
     }
 
     /// <summary>
     /// Moves a job to dead letter state with a reason.
     /// </summary>
-    private async Task DeadLetterJobAsync(BackgroundJob job, string reason, CancellationToken cancellationToken)
+    private async Task DeadLetterJobAsync(BackgroundJob job, HartonomousDbContext context, string reason, CancellationToken cancellationToken)
     {
         job.Status = JobStatus.DeadLettered;
         job.ErrorMessage = reason;
         job.CompletedAtUtc = DateTime.UtcNow;
-        await _context.SaveChangesAsync(cancellationToken);
+        await context.SaveChangesAsync(cancellationToken);
     }
 }

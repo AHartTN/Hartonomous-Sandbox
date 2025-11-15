@@ -95,6 +95,7 @@ public static class PersistenceServiceExtensions
         // No C# repositories needed - all logic in database for ACID guarantees
 
         services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
+        services.AddScoped<IInferenceRepository, InferenceRepository>();
 
         // Atomic component repositories (deduplicated storage)
         services.AddScoped<Core.Interfaces.IAtomicTextTokenRepository, Repositories.AtomicTextTokenRepository>();

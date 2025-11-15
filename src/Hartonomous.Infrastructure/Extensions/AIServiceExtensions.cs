@@ -71,11 +71,27 @@ public static class AIServiceExtensions
         services.AddScoped<IInferenceService, InferenceOrchestrator>();
         services.AddScoped<IEmbeddingService, EmbeddingService>();
 
+        // Text generation using ingested TensorAtoms (requires connection string)
+        services.AddScoped<TensorAtomTextGenerator>(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var connectionString = config.GetConnectionString("HartonomousDb")
+                ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found");
+            return new TensorAtomTextGenerator(connectionString);
+        });
+
         // Time series prediction service
         // Note: TimeSeriesPredictionService requires connection string in constructor - register where needed
 
         // Multi-modal content generation suite (text, image, video, audio) - concrete class
-        services.AddScoped<ContentGenerationSuite>();
+        services.AddScoped<ContentGenerationSuite>(sp =>
+        {
+            var config = sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var connectionString = config.GetConnectionString("HartonomousDb")
+                ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found");
+            var textGenerator = sp.GetRequiredService<TensorAtomTextGenerator>();
+            return new ContentGenerationSuite(textGenerator, connectionString);
+        });
 
         // Content ingestion orchestration - concrete class
         services.AddScoped<ContentIngestionService>();
