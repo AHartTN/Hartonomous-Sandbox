@@ -6,20 +6,18 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        DECLARE @PayloadLocator NVARCHAR(1024);
         DECLARE @Modality NVARCHAR(64);
         DECLARE @CanonicalText NVARCHAR(MAX);
         DECLARE @ExtractedMetadata NVARCHAR(MAX);
         
         -- Load atom metadata
         SELECT 
-            @PayloadLocator = PayloadLocator,
             @Modality = Modality,
             @CanonicalText = CanonicalText
         FROM dbo.Atoms
         WHERE AtomId = @AtomId AND TenantId = @TenantId;
         
-        IF @PayloadLocator IS NULL
+        IF @Modality IS NULL
         BEGIN
             RAISERROR('Atom not found', 16, 1);
             RETURN -1;
@@ -37,7 +35,6 @@ BEGIN
                     @WordCount AS wordCount,
                     @CharCount AS charCount,
                     'en' AS language,
-                    @PayloadLocator AS payloadLocator,
                     FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
             );
@@ -48,7 +45,6 @@ BEGIN
             SET @ExtractedMetadata = (
                 SELECT 
                     @Modality AS modality,
-                    @PayloadLocator AS payloadLocator,
                     'External payload - metadata extraction requires payload loading' AS note,
                     FORMAT(SYSUTCDATETIME(), 'yyyy-MM-ddTHH:mm:ss.fffZ') AS extractedAt
                 FOR JSON PATH, WITHOUT_ARRAY_WRAPPER

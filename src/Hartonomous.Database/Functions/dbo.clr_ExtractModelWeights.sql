@@ -19,5 +19,5 @@ RETURNS TABLE (
     WeightIndex bigint,
     WeightValue float
 )
-AS EXTERNAL NAME SqlClrFunctions.[Hartonomous.Clr.ModelWeightExtractor].ExtractModelWeights;
+AS EXTERNAL NAME [Hartonomous.Clr].[Hartonomous.Clr.ModelWeightExtractor].ExtractModelWeights;
 GO

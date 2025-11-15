@@ -83,7 +83,7 @@ namespace Hartonomous.Clr
                     var streamId = Guid.NewGuid();
                     var stream = AtomicStream.Create(
                         streamId,
-                        new SqlDateTime(DateTime.UtcNow),
+                        DateTime.UtcNow,
                         "inference",
                         model.ModelName,
                         $"{{\"modelId\":{modelId.Value},\"temperature\":{temp},\"topK\":{topKValue},\"topP\":{topPValue},\"heads\":{heads}}}"
@@ -101,7 +101,7 @@ namespace Hartonomous.Clr
                     {
                         stream.AddSegment(
                             AtomicStreamSegmentKind.Input.ToString(),
-                            new SqlDateTime(DateTime.UtcNow),
+                            DateTime.UtcNow,
                             "application/atom-reference",
                             $"{{\"atomId\":{atomId}}}",
                             new SqlBytes(BitConverter.GetBytes(atomId))
@@ -155,7 +155,7 @@ namespace Hartonomous.Clr
                         var stepMetadata = $"{{\"step\":{step},\"candidateCount\":{candidates.Count},\"score\":{filtered[0].Score:F4}}}";
                         stream.AddSegment(
                             AtomicStreamSegmentKind.Output.ToString(),
-                            new SqlDateTime(DateTime.UtcNow),
+                            DateTime.UtcNow,
                             "application/atom-reference",
                             stepMetadata,
                             new SqlBytes(BitConverter.GetBytes(selectedAtomId))

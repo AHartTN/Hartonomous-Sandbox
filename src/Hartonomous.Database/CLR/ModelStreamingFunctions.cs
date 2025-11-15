@@ -27,6 +27,12 @@ public struct AtomicWeight
     }
 }
 
+// Helper class to hold counter for iterator methods (iterators cannot have ref/out params)
+internal class AtomCounter
+{
+    public long Count { get; set; }
+}
+
 public static partial class ModelStreamingFunctions
 {
     /// <summary>
@@ -51,7 +57,7 @@ public static partial class ModelStreamingFunctions
 
         long startAtom = atomOffset.IsNull ? 0 : atomOffset.Value;
         long atomsToRead = atomChunkSize.IsNull ? 1000000 : atomChunkSize.Value;
-        long atomsRead = 0;
+        var counter = new AtomCounter();
 
         using (var stream = modelData.Stream)
         using (var reader = new BinaryReader(stream, Encoding.UTF8, leaveOpen: true))
@@ -61,28 +67,28 @@ public static partial class ModelStreamingFunctions
             if (format == "gguf")
             {
                 // Parse GGUF format with chunked streaming
-                foreach (var weight in StreamGGUFWeights(reader, startAtom, atomsToRead, ref atomsRead))
+                foreach (var weight in StreamGGUFWeights(reader, startAtom, atomsToRead, counter))
                 {
                     yield return weight;
-                    if (atomsRead >= atomsToRead) break;
+                    if (counter.Count >= atomsToRead) break;
                 }
             }
             else if (format == "safetensors")
             {
                 // Parse SafeTensors format with chunked streaming
-                foreach (var weight in StreamSafeTensorsWeights(reader, startAtom, atomsToRead, ref atomsRead))
+                foreach (var weight in StreamSafeTensorsWeights(reader, startAtom, atomsToRead, counter))
                 {
                     yield return weight;
-                    if (atomsRead >= atomsToRead) break;
+                    if (counter.Count >= atomsToRead) break;
                 }
             }
             else if (format == "bin" || format == "pytorch")
             {
                 // Raw binary float32 weights
-                foreach (var weight in StreamRawBinaryWeights(reader, startAtom, atomsToRead, ref atomsRead))
+                foreach (var weight in StreamRawBinaryWeights(reader, startAtom, atomsToRead, counter))
                 {
                     yield return weight;
-                    if (atomsRead >= atomsToRead) break;
+                    if (counter.Count >= atomsToRead) break;
                 }
             }
         }
@@ -92,7 +98,7 @@ public static partial class ModelStreamingFunctions
         BinaryReader reader, 
         long startAtom, 
         long atomsToRead, 
-        ref long atomsRead)
+        AtomCounter counter)
     {
         // GGUF format: https://github.com/ggerganov/ggml/blob/master/docs/gguf.md
         
@@ -167,7 +173,7 @@ public static partial class ModelStreamingFunctions
                     SeekOrigin.Begin);
 
                 // Stream weights from this tensor
-                for (long i = offsetInTensor; i < atomsInThisTensor && atomsRead < atomsToRead; i++)
+                for (long i = offsetInTensor; i < atomsInThisTensor && counter.Count < atomsToRead; i++)
                 {
                     float value = ReadGGMLValue(reader, tensor.GGMLType);
                     
@@ -177,7 +183,7 @@ public static partial class ModelStreamingFunctions
                     int posZ = tensor.Shape.Length > 2 ? (int)(i / (tensor.Shape[0] * tensor.Shape[1])) : 0;
 
                     yield return new AtomicWeight(layerIdx, posX, posY, posZ, value);
-                    atomsRead++;
+                    counter.Count++;
                 }
                 
                 // Continue to next tensors if we need more atoms
@@ -193,10 +199,10 @@ public static partial class ModelStreamingFunctions
     }
 
     private static IEnumerable<AtomicWeight> StreamSafeTensorsWeights(
-        BinaryReader reader,
-        long startAtom,
-        long atomsToRead,
-        ref long atomsRead)
+        BinaryReader reader, 
+        long startAtom, 
+        long atomsToRead, 
+        AtomCounter counter)
     {
         // SafeTensors format: https://huggingface.co/docs/safetensors
         
@@ -224,7 +230,7 @@ public static partial class ModelStreamingFunctions
 
                 reader.BaseStream.Seek(byteOffset, SeekOrigin.Begin);
 
-                for (long i = offsetInTensor; i < tensor.ElementCount && atomsRead < atomsToRead; i++)
+                for (long i = offsetInTensor; i < tensor.ElementCount && counter.Count < atomsToRead; i++)
                 {
                     float value = reader.ReadSingle();
                     
@@ -233,7 +239,7 @@ public static partial class ModelStreamingFunctions
                     int posZ = tensor.Shape.Length > 2 ? (int)(i / (tensor.Shape[0] * tensor.Shape[1])) : 0;
 
                     yield return new AtomicWeight(layerIdx, posX, posY, posZ, value);
-                    atomsRead++;
+                    counter.Count++;
                 }
 
                 cumulativeAtoms += tensor.ElementCount;
@@ -248,21 +254,21 @@ public static partial class ModelStreamingFunctions
     }
 
     private static IEnumerable<AtomicWeight> StreamRawBinaryWeights(
-        BinaryReader reader,
-        long startAtom,
-        long atomsToRead,
-        ref long atomsRead)
+        BinaryReader reader, 
+        long startAtom, 
+        long atomsToRead, 
+        AtomCounter counter)
     {
         // Seek to start position (assuming float32)
         reader.BaseStream.Seek(startAtom * 4, SeekOrigin.Begin);
 
         int posX = 0;
-        while (atomsRead < atomsToRead && reader.BaseStream.Position < reader.BaseStream.Length)
+        while (counter.Count < atomsToRead && reader.BaseStream.Position < reader.BaseStream.Length)
         {
             float value = reader.ReadSingle();
             yield return new AtomicWeight(0, posX, 0, 0, value);
             posX++;
-            atomsRead++;
+            counter.Count++;
         }
     }
 

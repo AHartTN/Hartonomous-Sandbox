@@ -23,6 +23,7 @@ CREATE TABLE [dbo].[TensorAtomCoefficients] (
     [ValidFrom]       DATETIME2(7)   GENERATED ALWAYS AS ROW START NOT NULL,
     [ValidTo]         DATETIME2(7)   GENERATED ALWAYS AS ROW END NOT NULL,
     
+    CONSTRAINT [PK_TensorAtomCoefficients] PRIMARY KEY CLUSTERED ([TensorAtomId], [ModelId], [LayerIdx], [PositionX], [PositionY], [PositionZ]),
     PERIOD FOR SYSTEM_TIME ([ValidFrom], [ValidTo]),
     
     CONSTRAINT [FK_TensorAtomCoefficients_Atom] FOREIGN KEY ([TensorAtomId]) 

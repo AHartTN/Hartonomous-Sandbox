@@ -124,9 +124,9 @@ namespace Hartonomous.Clr.ModelParsers
 
                 for (int j = 0; j < QK_K; j++)
                 {
-                    int is = j / 16;
+                    int scaleIdx = j / 16;
                     int il = j % 16;
-                    byte q = (byte)((qh[il] >> (is % 4 * 2)) & 3);
+                    byte q = (byte)((qh[il] >> (scaleIdx % 4 * 2)) & 3);
                     // Simplified dequantization logic
                     yield return d * q - min;
                 }

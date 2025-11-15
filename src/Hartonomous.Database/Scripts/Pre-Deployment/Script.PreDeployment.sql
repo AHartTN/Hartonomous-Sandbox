@@ -24,7 +24,7 @@ SQLCMD Variables:
 PRINT 'Starting pre-deployment setup...';
 GO
 
--- CLR assembly registration (MUST be first - tables with CLR UDT columns depend on these assemblies)
+-- CLR assembly registration (dependencies only - main assembly deployed by DACPAC)
 :r .\Register_CLR_Assemblies.sql
 
 -- FILESTREAM filegroup (required for VARBINARY(MAX) FILESTREAM columns)

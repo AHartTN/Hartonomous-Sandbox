@@ -362,7 +362,7 @@ $deployArgs = @(
     "/TargetConnectionString:$connStr"
     "/p:IncludeCompositeObjects=True"
     "/p:BlockOnPossibleDataLoss=False"
-    "/p:DropObjectsNotInSource=False"
+    "/p:DropObjectsNotInSource=True"
     "/p:AllowIncompatiblePlatform=False"
     "/p:VerifyDeployment=True"
     "/Variables:DependenciesPath=$DependenciesPath"

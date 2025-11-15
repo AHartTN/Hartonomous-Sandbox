@@ -170,8 +170,9 @@ public static partial class SpatialFunctions
         double minY = boundingBox.STEnvelope().STPointN(1).STY.Value;
         double minZ = boundingBox.STEnvelope().STPointN(1).Z.IsNull ? 0 : boundingBox.STEnvelope().STPointN(1).Z.Value;
 
-        var minPoint = SqlGeometry.Point(minX, minY, 0);
-        minPoint.Z = new SqlDouble(minZ);
+        // Create 3D point using WKT - SqlGeometry.Z is read-only
+        var wkt = $"POINT ({minX} {minY} {minZ})";
+        var minPoint = SqlGeometry.STGeomFromText(new SqlChars(wkt), 0);
 
         return clr_ComputeHilbertValue(minPoint, precision);
     }
