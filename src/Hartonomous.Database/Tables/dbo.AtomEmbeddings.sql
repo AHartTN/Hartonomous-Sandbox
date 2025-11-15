@@ -1,29 +1,66 @@
 -- =============================================
 -- AtomEmbeddings: Semantic Representation for All Modalities
--- Stores 1:1 spatial projections for semantic similarity search
+-- Enterprise-grade multi-dimensional embedding storage with spatial indexing
 -- =============================================
 CREATE TABLE [dbo].[AtomEmbeddings] (
     [AtomEmbeddingId]   BIGINT         IDENTITY (1, 1) NOT NULL,
-    [AtomId]            BIGINT         NOT NULL,  -- FK to dbo.Atoms (the parent object)
-    [ModelId]           INT            NOT NULL,  -- FK to dbo.Models (the embedder)
-    [EmbeddingType]     NVARCHAR(50)   NOT NULL DEFAULT 'semantic', -- V3 ARCHITECTURE: Restored for flexible categorization.
-    
+    [AtomId]            BIGINT         NOT NULL,
+    [TenantId]          INT            NOT NULL DEFAULT 0,  -- Multi-tenancy support
+    [ModelId]           INT            NOT NULL,
+    [EmbeddingType]     NVARCHAR(50)   NOT NULL DEFAULT 'semantic',  -- 'semantic', 'syntactic', 'visual', etc.
+    [Dimension]         INT            NOT NULL,  -- Vector dimensionality: 768, 1536, 1998, etc.
+
     -- 3D/4D spatial projection (semantic space)
     [SpatialKey]        GEOMETRY       NOT NULL,
-    
-    -- Hilbert curve value for 1D indexing (populated by Phase 3.1)
+
+    -- Grid-based spatial bucketing for coarse-grained queries
+    [SpatialBucketX]    INT            NULL,
+    [SpatialBucketY]    INT            NULL,
+    [SpatialBucketZ]    INT            NULL,
+
+    -- Hilbert curve value for 1D indexing
     [HilbertValue]      BIGINT         NULL,
 
     [CreatedAt]         DATETIME2(7)   DEFAULT (SYSUTCDATETIME()) NOT NULL,
-    
+
     CONSTRAINT [PK_AtomEmbeddings] PRIMARY KEY CLUSTERED ([AtomEmbeddingId] ASC),
-    CONSTRAINT [FK_AtomEmbeddings_Atom] FOREIGN KEY ([AtomId]) 
+    CONSTRAINT [FK_AtomEmbeddings_Atom] FOREIGN KEY ([AtomId])
         REFERENCES [dbo].[Atoms] ([AtomId]) ON DELETE CASCADE,
-    CONSTRAINT [FK_AtomEmbeddings_Model] FOREIGN KEY ([ModelId]) 
+    CONSTRAINT [FK_AtomEmbeddings_Model] FOREIGN KEY ([ModelId])
         REFERENCES [dbo].[Models] ([ModelId])
 );
 GO
 
--- Indexes created as separate index definition files in /Indexes folder
--- SIX_AtomEmbeddings_SpatialKey (spatial index)
--- IX_AtomEmbeddings_Hilbert
+-- Spatial index for semantic similarity search
+CREATE SPATIAL INDEX [SIX_AtomEmbeddings_SpatialKey]
+    ON [dbo].[AtomEmbeddings]([SpatialKey])
+    WITH (GRIDS = (LOW, LOW, MEDIUM, HIGH));
+GO
+
+-- Performance indexes
+CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_AtomId]
+    ON [dbo].[AtomEmbeddings]([AtomId])
+    INCLUDE ([ModelId], [EmbeddingType], [Dimension]);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_TenantId_ModelId]
+    ON [dbo].[AtomEmbeddings]([TenantId], [ModelId], [EmbeddingType])
+    INCLUDE ([AtomId], [Dimension]);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_Dimension]
+    ON [dbo].[AtomEmbeddings]([Dimension], [EmbeddingType])
+    INCLUDE ([AtomId], [ModelId]);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_SpatialBuckets]
+    ON [dbo].[AtomEmbeddings]([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ])
+    INCLUDE ([AtomId], [ModelId])
+    WHERE [SpatialBucketX] IS NOT NULL;
+GO
+
+CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_Hilbert]
+    ON [dbo].[AtomEmbeddings]([HilbertValue] ASC)
+    INCLUDE ([AtomId], [ModelId])
+    WHERE [HilbertValue] IS NOT NULL;
+GO

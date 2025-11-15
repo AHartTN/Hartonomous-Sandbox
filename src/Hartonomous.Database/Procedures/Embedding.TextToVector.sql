@@ -22,13 +22,13 @@ BEGIN
     DECLARE @modelId INT = NULL;
     DECLARE @modelCapability NVARCHAR(50) = NULL;
     DECLARE @usedSelfReferentialModel BIT = 0;
+    DECLARE @durationMs INT;
 
     DECLARE @startTime DATETIME2 = SYSUTCDATETIME();
 
     -- V3 REFACTOR: The self-referential embedding path has been removed as it was calling a non-existent stored procedure (sp_IngestAtom)
     -- and represented a broken, incomplete architectural pattern. This procedure now exclusively uses the TF-IDF fallback.
     -- A proper, V3-compliant self-referential embedding model will be implemented separately.
-    DECLARE @usedSelfReferentialModel BIT = 0;
 
     -- FALLBACK: TF-IDF vocabulary projection (original implementation)
     SET @ModelName = COALESCE(@ModelName, 'tfidf_vocabulary_embedding_fallback');

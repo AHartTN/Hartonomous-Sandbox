@@ -934,9 +934,7 @@ public partial class HartonomousDbContext : DbContext
         {
             entity.HasKey(e => e.LedgerId).IsClustered(false);
 
-            entity
-                .ToTable("BillingUsageLedger_InMemory")
-                .IsMemoryOptimized();
+            entity.ToTable("BillingUsageLedger_InMemory", t => t.IsMemoryOptimized());
 
             entity.HasIndex(e => e.TenantId, "IX_TenantId_Hash");
 
@@ -995,9 +993,7 @@ public partial class HartonomousDbContext : DbContext
         {
             entity.HasKey(e => e.CacheId).IsClustered(false);
 
-            entity
-                .ToTable("CachedActivations_InMemory")
-                .IsMemoryOptimized();
+            entity.ToTable("CachedActivations_InMemory", t => t.IsMemoryOptimized());
 
             entity.HasIndex(e => e.LastAccessed, "IX_LastAccessed_Range");
 
@@ -1320,9 +1316,7 @@ public partial class HartonomousDbContext : DbContext
         {
             entity.HasKey(e => e.CacheId).IsClustered(false);
 
-            entity
-                .ToTable("InferenceCache_InMemory")
-                .IsMemoryOptimized();
+            entity.ToTable("InferenceCache_InMemory", t => t.IsMemoryOptimized());
 
             entity.HasIndex(e => e.CacheKey, "IX_CacheKey_Hash");
 
@@ -1711,9 +1705,7 @@ public partial class HartonomousDbContext : DbContext
         {
             entity.HasKey(e => e.SessionPathId).IsClustered(false);
 
-            entity
-                .ToTable("SessionPaths_InMemory")
-                .IsMemoryOptimized();
+            entity.ToTable("SessionPaths_InMemory", t => t.IsMemoryOptimized());
 
             entity.HasIndex(e => e.SessionId, "IX_SessionId_Hash");
 

@@ -4,11 +4,12 @@ CREATE TABLE [provenance].[Concepts] (
     [Description]          NVARCHAR (MAX) NULL,
     [CentroidVector]       VARBINARY (MAX)NOT NULL,
     [Centroid]             VARBINARY (MAX)NULL,
-    
+
     -- Spatial representations for semantic domains
     [CentroidSpatialKey]   GEOMETRY       NULL,  -- 3D centroid position
     [ConceptDomain]        GEOMETRY       NULL,  -- Voronoi domain polygon
-    
+    [HilbertValue]         BIGINT         NULL,  -- Hilbert curve index for fast lookups
+
     [VectorDimension]      INT            NOT NULL,
     [MemberCount]          INT            NOT NULL DEFAULT 0,
     [AtomCount]            INT            NOT NULL DEFAULT 0,

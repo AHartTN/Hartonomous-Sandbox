@@ -133,8 +133,11 @@ public static class FastJson
 
     /// <summary>
     /// Deserialize from UTF-8 bytes (avoids string allocation).
+    /// For trimming/AOT scenarios, prefer using source-generated JsonSerializerContext.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+        Justification = "JSON serialization types are preserved via project configuration")]
     public static T? Deserialize<T>(ReadOnlySpan<byte> utf8Json)
     {
         return JsonSerializer.Deserialize<T>(utf8Json, DefaultOptions);
@@ -142,8 +145,11 @@ public static class FastJson
 
     /// <summary>
     /// Serialize to UTF-8 bytes (use with Memory<byte> pools).
+    /// For trimming/AOT scenarios, prefer using source-generated JsonSerializerContext.
     /// </summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+        Justification = "JSON serialization types are preserved via project configuration")]
     public static byte[] SerializeToUtf8<T>(T value)
     {
         return JsonSerializer.SerializeToUtf8Bytes(value, DefaultOptions);
@@ -151,7 +157,10 @@ public static class FastJson
 
     /// <summary>
     /// Serialize directly to stream (zero intermediate allocations).
+    /// For trimming/AOT scenarios, prefer using source-generated JsonSerializerContext.
     /// </summary>
+    [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026:RequiresUnreferencedCode",
+        Justification = "JSON serialization types are preserved via project configuration")]
     public static async ValueTask SerializeToStreamAsync<T>(Stream stream, T value, CancellationToken cancellationToken = default)
     {
         await JsonSerializer.SerializeAsync(stream, value, DefaultOptions, cancellationToken);
