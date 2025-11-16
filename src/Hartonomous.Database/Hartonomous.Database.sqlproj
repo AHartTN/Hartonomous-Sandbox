@@ -248,10 +248,6 @@
       <HintPath>..\..\dependencies\System.Numerics.Vectors.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Microsoft.SqlServer.Types">
-      <HintPath>..\..\dependencies\Microsoft.SqlServer.Types.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="MathNet.Numerics">
       <HintPath>..\..\dependencies\MathNet.Numerics.dll</HintPath>
       <Private>False</Private>
