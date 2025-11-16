@@ -118,9 +118,9 @@
     <Build Include="ServiceBroker\Queues\*.sql" />
     <Build Include="ServiceBroker\Services\*.sql" />
     <None Include="Migrations\*.sql" />
-    <Build Include="dbo.sp_FindNearestAtoms.sql" />
-    <Build Include="dbo.sp_IngestAtoms.sql" />
-    <Build Include="dbo.sp_RunInference.sql" />
+    <None Include="dbo.sp_FindNearestAtoms.sql" />
+    <None Include="dbo.sp_IngestAtoms.sql" />
+    <None Include="dbo.sp_RunInference.sql" />
   </ItemGroup>
   <ItemGroup>
     <Build Remove="Tables\*Temporal*.sql" />
@@ -140,6 +140,9 @@
     <Build Remove="Procedures\dbo.sp_AtomizeModel.sql" />
     <Build Remove="Procedures\dbo.sp_AtomizeCode.sql" />
     <Build Remove="Procedures\dbo.sp_AtomIngestion.sql" />
+    <Build Remove="Procedures\dbo.sp_FindNearestAtoms.sql" />
+    <Build Remove="Procedures\dbo.sp_IngestAtoms.sql" />
+    <Build Remove="Procedures\dbo.sp_RunInference.sql" />
     <Build Remove="Scripts\Pre-Deployment\Enable_*.sql" />
     <Build Remove="Scripts\Pre-Deployment\Setup_*.sql" />
     <Build Remove="Scripts\Post-Deployment\graph.*.sql" />
@@ -241,6 +244,26 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Transactions" />
     <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>$(MSBuildProgramFiles32)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1\System.Numerics.Vectors.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.Types">
+      <HintPath>$(MSBuildProgramFiles32)\Microsoft SQL Server\160\SDK\Assemblies\Microsoft.SqlServer.Types.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.Server">
+      <HintPath>$(MSBuildProgramFiles32)\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1\Microsoft.SqlServer.Server.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json, Version=13.0.0.0, Culture=neutral, PublicKeyToken=30ad4fe6b2a6aeed">
+      <HintPath>C:\Users\ahart\.nuget\packages\newtonsoft.json\13.0.3\lib\net45\Newtonsoft.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="MathNet.Numerics">
+      <HintPath>C:\Users\ahart\.nuget\packages\mathnet.numerics\5.0.0\lib\net461\MathNet.Numerics.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <SqlCmdVariable Include="DependenciesPath">
