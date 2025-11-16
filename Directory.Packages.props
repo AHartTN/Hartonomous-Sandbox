@@ -18,9 +18,20 @@
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="Dapper" Version="2.1.28" />
     
+    <!-- Azure -->
+    <PackageVersion Include="Azure.Identity" Version="1.13.1" />
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.2.0" />
+    <PackageVersion Include="Azure.Storage.Blobs" Version="12.23.0" />
+    <PackageVersion Include="Azure.Storage.Queues" Version="12.20.1" />
+    <PackageVersion Include="Microsoft.Azure.AppConfiguration.AspNetCore" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Azure" Version="1.7.6" />
+    
     <!-- ASP.NET Core & Web -->
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.2.25502.107" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    
+    <!-- Microsoft Identity -->
+    <PackageVersion Include="Microsoft.Identity.Web" Version="3.3.0" />
     
     <!-- Entity Framework Core (NET 10 RC) -->
     <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
@@ -35,6 +46,19 @@
     <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0-rc.2.25502.107" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-rc.2.25502.107" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.0.0-rc.2.25502.107" />
+    
+    <!-- OpenTelemetry -->
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
+    
+    <!-- Feature Management -->
+    <PackageVersion Include="Microsoft.FeatureManagement.AspNetCore" Version="4.1.0" />
+    
+    <!-- Neo4j -->
+    <PackageVersion Include="Neo4j.Driver" Version="5.27.0" />
     
     <!-- Resilience -->
     <PackageVersion Include="Polly" Version="8.4.2" />

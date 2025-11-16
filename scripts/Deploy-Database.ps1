@@ -39,10 +39,20 @@ $sqlPackagePaths = @(
 )
 
 $sqlPackage = $null
-foreach ($path in $sqlPackagePaths) {
-    if (Test-Path $path) {
-        $sqlPackage = $path
-        break
+
+# First try dotnet tool
+$dotnetToolPath = Get-Command sqlpackage -ErrorAction SilentlyContinue
+if ($dotnetToolPath) {
+    $sqlPackage = $dotnetToolPath.Source
+}
+
+# Fall back to traditional paths
+if (-not $sqlPackage) {
+    foreach ($path in $sqlPackagePaths) {
+        if (Test-Path $path) {
+            $sqlPackage = $path
+            break
+        }
     }
 }
 
@@ -122,16 +132,11 @@ $deployArgs = @(
     "/SourceFile:$dacpacPath",
     "/TargetServerName:$Server",
     "/TargetDatabaseName:$Database",
+    "/TargetTrustServerCertificate:True",
     "/p:IncludeCompositeObjects=True",
     "/p:BlockOnPossibleDataLoss=False",
-    "/p:DropObjectsNotInSource=False",
-    "/p:DoNotDropObjectTypes=Users;RoleMembership",
     "/p:AllowIncompatiblePlatform=True"
 )
-
-if ($TrustServerCertificate) {
-    $deployArgs += "/p:Encrypt=False"
-}
 
 try {
     & $sqlPackage $deployArgs
