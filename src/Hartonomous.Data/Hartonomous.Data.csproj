@@ -17,8 +17,8 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="10.0.0-rc.2.25502.107" />
     <PackageReference Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
     <PackageReference Include="NetTopologySuite" Version="2.6.0" />
-    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="17.14.28" />
-    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.28" />
+    <PackageReference Include="Microsoft.Build.Tasks.Core" Version="17.14.29" />
+    <PackageReference Include="Microsoft.Build.Utilities.Core" Version="17.14.29" />
   </ItemGroup>
 
   <ItemGroup>
