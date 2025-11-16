@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- .NET 8 Core Libraries -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.0" />
+    <PackageVersion Include="Dapper" Version="2.1.28" />
+
+    <!-- Build Tools for .NET Framework (for Hartonomous.Database.sqlproj) -->
+    <PackageVersion Include="Microsoft.Data.Tools.MSBuild" Version="10.0.61804.210" />
+
+    <!-- These versions are from AUDIT-REPORT.md, noted as having vulnerabilities. -->
+    <!-- The audit report states these are for non-blocking build issues & to be updated in Week 2. -->
+    <!-- For now, we use the versions from the audit report to maintain the audited state. -->
+    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="17.14.8" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.8" />
+  </ItemGroup>
+</Project>

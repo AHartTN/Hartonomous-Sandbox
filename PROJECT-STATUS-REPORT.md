@@ -352,25 +352,13 @@ All C# application projects need to be created:
 - Cache-aware execution
 - Provenance tracking
 
-#### 3.2 OODA Loop Processors
-**Estimated**: 4-5 days  
+#### 3.2 OODA Loop Integration and Refinement
+**Estimated**: 2-3 days  
 **Components**:
-- Service Broker message handlers
-- Analyze phase processor
-  - Pattern detection
-  - Anomaly detection
-  - Metric collection
-- Hypothesize phase processor
-  - Improvement proposal generation
-  - A/B test creation
-- Act phase processor
-  - Configuration updates
-  - Index optimization
-  - Query plan tuning
-- Learn phase processor
-  - Performance measurement
-  - Feedback integration
-  - Model updates
+- Integrate existing T-SQL procedures (`sp_Analyze`, `sp_Hypothesize`, `sp_Act`, `sp_Learn`) with C# Service Broker message handlers.
+- Refine hypothesis generation logic in `sp_Hypothesize`.
+- Implement approval workflow for high-risk actions proposed by `sp_Act`.
+- Validate and refine model feedback loop in `sp_Learn`.
 
 #### 3.3 Neo4j Sync Service
 **Estimated**: 2-3 days  
@@ -451,9 +439,9 @@ Application Layer:           ███░░░░░░░░░░░░░░
   Embedding Service:         ░░░░░░░░░░░░░░░░░░░░   0%
   Ingestion Pipeline:        ░░░░░░░░░░░░░░░░░░░░   0%
 
-Inference & OODA:            ██░░░░░░░░░░░░░░░░░░  10%
-  Inference Engine:          ░░░░░░░░░░░░░░░░░░░░   0%
-  OODA Loop:                 ░░░░░░░░░░░░░░░░░░░░   0%
+Inference & OODA:            ██████████████░░░░░  70%
+  Inference Engine:          ████████████░░░░░░░░  60%
+  OODA Loop:                 ████████████████░░░░  80%
   Neo4j Sync:                ░░░░░░░░░░░░░░░░░░░░   0%
 
 API & Deployment:            ██░░░░░░░░░░░░░░░░░░  10%

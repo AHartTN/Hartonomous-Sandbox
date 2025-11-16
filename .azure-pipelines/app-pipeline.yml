@@ -1,0 +1,213 @@
+# =====================================================
+# Hartonomous CI/CD Pipeline - API + Workers
+# =====================================================
+# Builds .NET applications and deploys to HART-SERVER
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - src/Hartonomous.Api/**
+      - src/Hartonomous.Workers.*/**
+      - src/Hartonomous.Core/**
+      - src/Hartonomous.Infrastructure/**
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '8.x'
+
+stages:
+- stage: Build
+  displayName: 'Build Applications'
+  jobs:
+  - job: BuildDotNet
+    displayName: 'Build .NET Projects'
+    steps:
+    - task: UseDotNet@2
+      displayName: 'Install .NET SDK'
+      inputs:
+        version: '$(dotnetVersion)'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
+      inputs:
+        command: 'restore'
+        projects: 'Hartonomous.sln'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Solution'
+      inputs:
+        command: 'build'
+        projects: 'Hartonomous.sln'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Unit Tests'
+      inputs:
+        command: 'test'
+        projects: |
+          tests/Hartonomous.UnitTests/*.csproj
+          tests/Hartonomous.DatabaseTests/*.csproj
+        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'
+
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish Code Coverage'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(Agent.TempDirectory)/**/*coverage.cobertura.xml'
+
+    # Publish API
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish API'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: 'src/Hartonomous.Api/Hartonomous.Api.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/api'
+        zipAfterPublish: true
+
+    # Publish Workers (CES Consumer)
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish CES Consumer Worker'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: 'src/Hartonomous.Workers.CesConsumer/Hartonomous.Workers.CesConsumer.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/workers-ces'
+        zipAfterPublish: true
+
+    # Publish Workers (Neo4j Sync)
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Neo4j Sync Worker'
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: 'src/Hartonomous.Workers.Neo4jSync/Hartonomous.Workers.Neo4jSync.csproj'
+        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/workers-neo4j'
+        zipAfterPublish: true
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Build Artifacts'
+      inputs:
+        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+        ArtifactName: 'drop'
+
+- stage: DeployToHartServer
+  displayName: 'Deploy to HART-SERVER'
+  dependsOn: Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeployAPI
+    displayName: 'Deploy API'
+    pool:
+      name: 'Default'  # Your deployment group
+    environment: 'HART-SERVER'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: drop
+
+          - task: AzureKeyVault@2
+            displayName: 'Get Configuration from Key Vault'
+            inputs:
+              azureSubscription: 'Azure Developer Subscription'
+              KeyVaultName: 'kv-hartonomous-production'
+              SecretsFilter: '*'
+
+          # Deploy API as Windows Service
+          - powershell: |
+              $apiPath = "C:\Hartonomous\Api"
+              $serviceName = "HartonomousApi"
+              
+              # Stop service if running
+              if (Get-Service $serviceName -ErrorAction SilentlyContinue) {
+                  Stop-Service $serviceName -Force
+                  sc.exe delete $serviceName
+              }
+              
+              # Create directory
+              New-Item -ItemType Directory -Force -Path $apiPath
+              
+              # Extract and copy files
+              Expand-Archive -Path "$(Pipeline.Workspace)/drop/api/*.zip" -DestinationPath $apiPath -Force
+              
+              # Update appsettings with Key Vault values
+              $appsettings = Get-Content "$apiPath/appsettings.json" | ConvertFrom-Json
+              $appsettings.ConnectionStrings.Hartonomous = "$(SqlServerConnectionString)"
+              $appsettings.AzureAd.TenantId = "$(EntraTenantId)"
+              $appsettings.AzureAd.ClientId = "$(EntraApiClientId)"
+              $appsettings | ConvertTo-Json -Depth 10 | Set-Content "$apiPath/appsettings.json"
+              
+              # Create Windows Service
+              sc.exe create $serviceName binPath="$apiPath\Hartonomous.Api.exe" start=auto
+              sc.exe start $serviceName
+              
+              Write-Host "? API deployed and started as Windows Service"
+            displayName: 'Deploy API as Windows Service'
+
+          # Deploy CES Consumer Worker
+          - powershell: |
+              $workerPath = "C:\Hartonomous\Workers\CesConsumer"
+              $serviceName = "HartonomousCesWorker"
+              
+              if (Get-Service $serviceName -ErrorAction SilentlyContinue) {
+                  Stop-Service $serviceName -Force
+                  sc.exe delete $serviceName
+              }
+              
+              New-Item -ItemType Directory -Force -Path $workerPath
+              Expand-Archive -Path "$(Pipeline.Workspace)/drop/workers-ces/*.zip" -DestinationPath $workerPath -Force
+              
+              # Update appsettings
+              $appsettings = Get-Content "$workerPath/appsettings.json" | ConvertFrom-Json
+              $appsettings.ConnectionStrings.Hartonomous = "$(SqlServerConnectionString)"
+              $appsettings | ConvertTo-Json -Depth 10 | Set-Content "$workerPath/appsettings.json"
+              
+              sc.exe create $serviceName binPath="$workerPath\Hartonomous.Workers.CesConsumer.exe" start=auto
+              sc.exe start $serviceName
+              
+              Write-Host "? CES Consumer Worker deployed"
+            displayName: 'Deploy CES Consumer Worker'
+
+          # Deploy Neo4j Sync Worker
+          - powershell: |
+              $workerPath = "C:\Hartonomous\Workers\Neo4jSync"
+              $serviceName = "HartonomousNeo4jWorker"
+              
+              if (Get-Service $serviceName -ErrorAction SilentlyContinue) {
+                  Stop-Service $serviceName -Force
+                  sc.exe delete $serviceName
+              }
+              
+              New-Item -ItemType Directory -Force -Path $workerPath
+              Expand-Archive -Path "$(Pipeline.Workspace)/drop/workers-neo4j/*.zip" -DestinationPath $workerPath -Force
+              
+              # Update appsettings
+              $appsettings = Get-Content "$workerPath/appsettings.json" | ConvertFrom-Json
+              $appsettings.ConnectionStrings.Hartonomous = "$(SqlServerConnectionString)"
+              $appsettings.Neo4j.Uri = "$(Neo4jUri)"
+              $appsettings.Neo4j.Username = "$(Neo4jUsername)"
+              $appsettings.Neo4j.Password = "$(Neo4jPassword)"
+              $appsettings | ConvertTo-Json -Depth 10 | Set-Content "$workerPath/appsettings.json"
+              
+              sc.exe create $serviceName binPath="$workerPath\Hartonomous.Workers.Neo4jSync.exe" start=auto
+              sc.exe start $serviceName
+              
+              Write-Host "? Neo4j Sync Worker deployed"
+            displayName: 'Deploy Neo4j Sync Worker'
+
+          # Smoke test API
+          - powershell: |
+              Start-Sleep -Seconds 10  # Wait for API to start
+              $response = Invoke-RestMethod -Uri "http://localhost:5000/api/admin/health" -Method Get
+              Write-Host "API Health Check:"
+              $response | ConvertTo-Json
+            displayName: 'Smoke Test API'
+            continueOnError: true
