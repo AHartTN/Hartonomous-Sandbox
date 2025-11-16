@@ -7,6 +7,9 @@
     <UserSecretsId>b369d2c6-6a47-4fe1-8d8d-e0c0d2986f56</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Remove="Program.EntraId.cs" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Hartonomous.Core.Performance\Hartonomous.Core.Performance.csproj" />
     <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
     <ProjectReference Include="..\Hartonomous.Shared.Contracts\Hartonomous.Shared.Contracts.csproj" />

@@ -71,12 +71,12 @@ if (!string.IsNullOrEmpty(appConfigEndpoint)
             .ConfigureKeyVault(kv =>
             {
                 kv.SetCredential(azureCredential);
-            })
-            // Enable configuration refresh (optional)
-            .ConfigureRefresh(refresh =>
-            {
-                refresh.RegisterAll().SetRefreshInterval(TimeSpan.FromMinutes(5));
             });
+            // TODO: Fix configuration refresh - RegisterAll() API changed
+            // .ConfigureRefresh(refresh =>
+            // {
+            //     refresh.RegisterAll().SetRefreshInterval(TimeSpan.FromMinutes(5));
+            // });
     });
 
     // Add Azure App Configuration middleware for refresh support
@@ -275,25 +275,7 @@ builder.Services.AddRateLimiter(options =>
         return RateLimitPartition.GetNoLimiter(System.Net.IPAddress.Loopback);
     });
 
-    // Legacy policies for backward compatibility
-    options.AddFixedWindowLimiter("api", opt =>
-    {
-        opt.PermitLimit = 100;
-        opt.Window = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit = 10;
-    });
-
-    options.AddTokenBucketLimiter("inference", opt =>
-    {
-        opt.TokenLimit = 20;
-        opt.TokensPerPeriod = 5;
-        opt.ReplenishmentPeriod = TimeSpan.FromMinutes(1);
-        opt.QueueProcessingOrder = QueueProcessingOrder.OldestFirst;
-        opt.QueueLimit = 5;
-        opt.AutoReplenishment = true;
-    });
-
+    // Partitioned policies for per-user and tenant-aware rate limiting
     options.AddPolicy("per-user", context =>
     {
         var username = context.User.Identity?.Name ?? "anonymous";
@@ -328,6 +310,7 @@ builder.Services.AddRateLimiter(options =>
         var policy = context.RequestServices.GetRequiredService<TenantRateLimitPolicy>();
         return policy.GetTokenBucketPartition(context);
     });
+
 
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     options.OnRejected = async (context, cancellationToken) =>
