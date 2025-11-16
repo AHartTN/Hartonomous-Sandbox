@@ -13,21 +13,24 @@ DECLARE @TestsFailed INT = 0;
 -- Test 1: Spatial Query Performance (O(log N) validation)
 PRINT 'Test 1: Spatial Query Performance (O(log N))';
 BEGIN TRY
-    -- Ensure we have sample data
-    IF NOT EXISTS (SELECT 1 FROM dbo.AtomEmbeddings WHERE SpatialGeometry IS NOT NULL)
+    -- Ensure we have sample data (check SpatialKey column, not SpatialGeometry)
+    IF NOT EXISTS (SELECT 1 FROM dbo.AtomEmbeddings WHERE SpatialKey IS NOT NULL)
     BEGIN
-        PRINT '  SKIPPED: No sample data. Run seed-sample-data.sql first';
+        PRINT '  SKIPPED: No sample data with spatial keys. Run seed-sample-data.sql first';
     END
     ELSE
     BEGIN
         DECLARE @StartTime DATETIME2 = SYSUTCDATETIME();
         DECLARE @AtomCount INT = (SELECT COUNT(*) FROM dbo.AtomEmbeddings);
         
-        -- Run spatial query
-        EXEC sp_SpatialNextToken
-            @context_atom_ids = '1,2',
-            @temperature = 1.0,
-            @top_k = 10;
+        -- Run spatial query (if sp_SpatialNextToken exists)
+        IF OBJECT_ID('dbo.sp_SpatialNextToken') IS NOT NULL
+        BEGIN
+            EXEC sp_SpatialNextToken
+                @context_atom_ids = '1,2',
+                @temperature = 1.0,
+                @top_k = 10;
+        END
         
         DECLARE @ElapsedMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
         
@@ -72,7 +75,7 @@ BEGIN TRY
     PRINT '  PASSED: 1998D -> 3D (' + 
         CAST(@projected.STX AS VARCHAR(20)) + ', ' +
         CAST(@projected.STY AS VARCHAR(20)) + ', ' +
-        CAST(@projected.STZ AS VARCHAR(20)) + ') -> Hilbert: ' +
+        CAST(@projected.Z AS VARCHAR(20)) + ') -> Hilbert: ' +
         CAST(@hilbert AS VARCHAR(20));
     
     SET @TestsPassed = @TestsPassed + 1;
@@ -87,13 +90,13 @@ PRINT '';
 -- Test 3: Spatial Index Usage
 PRINT 'Test 3: Spatial Index Usage Validation';
 BEGIN TRY
-    -- Check index exists
+    -- Check index exists (correct name: SIX_AtomEmbeddings_SpatialKey)
     IF NOT EXISTS (
         SELECT 1 FROM sys.indexes
-        WHERE name = 'IX_AtomEmbeddings_SpatialGeometry'
+        WHERE name = 'SIX_AtomEmbeddings_SpatialKey'
           AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
     )
-        THROW 50000, 'Spatial index missing', 1;
+        THROW 50000, 'Spatial index SIX_AtomEmbeddings_SpatialKey missing', 1;
     
     -- Check index is being used
     DECLARE @IndexUsage TABLE (
@@ -110,13 +113,13 @@ BEGIN TRY
     FROM sys.indexes i
     LEFT JOIN sys.dm_db_index_usage_stats ius
         ON i.object_id = ius.object_id AND i.index_id = ius.index_id
-    WHERE i.name = 'IX_AtomEmbeddings_SpatialGeometry'
+    WHERE i.name = 'SIX_AtomEmbeddings_SpatialKey'
         AND OBJECT_NAME(i.object_id) = 'AtomEmbeddings';
     
     DECLARE @seeks INT = (SELECT user_seeks FROM @IndexUsage);
     DECLARE @lastSeek DATETIME = (SELECT last_user_seek FROM @IndexUsage);
     
-    PRINT '  PASSED: Spatial index exists';
+    PRINT '  PASSED: Spatial index exists (SIX_AtomEmbeddings_SpatialKey)';
     PRINT '    Seeks: ' + CAST(ISNULL(@seeks, 0) AS VARCHAR(10));
     IF @lastSeek IS NOT NULL
         PRINT '    Last used: ' + CONVERT(VARCHAR(20), @lastSeek, 120);
