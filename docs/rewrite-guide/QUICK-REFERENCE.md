@@ -4,7 +4,7 @@ This is a rapid-loading reference for anyone (human or AI) who needs to understa
 
 ## The One-Sentence Summary
 
-**Hartonomous replaces traditional vector-based AI with computational geometry, using SQL Server spatial R-Tree indexes for O(log N) semantic search and storing model weights as queryable GEOMETRY.**
+**Hartonomous is an autonomous geometric reasoning system with self-improvement (OODA loop), cross-modal synthesis, reasoning frameworks (Chain/Tree of Thought, Reflexion), behavioral analysis, and cryptographic provenance - all running on SQL Server spatial indexes instead of traditional neural networks.**
 
 ## Five Core Truths
 
@@ -40,25 +40,67 @@ This is a rapid-loading reference for anyone (human or AI) who needs to understa
 - Semantic similarity = spatial proximity, **regardless of modality**
 - **Code**: Spatial indexes on `AtomEmbeddings`, `AudioData.Spectrogram`, `VideoFrame.MotionVectors`, `CodeAtom.Embedding`
 
+### 6. Reasoning Frameworks Built-In
+- **Chain of Thought**: `sp_ChainOfThoughtReasoning` - linear step-by-step reasoning
+- **Tree of Thought**: `sp_MultiPathReasoning` - explores N parallel reasoning paths
+- **Reflexion**: `sp_SelfConsistencyReasoning` - generates N samples, finds consensus
+- **Stored**: Complete reasoning chains in `ReasoningChains`, `MultiPathReasoning`, `SelfConsistencyResults` tables
+
+### 7. Agent Tools Framework
+- **AgentTools table**: Registry of available procedures/functions
+- Agent dynamically selects tools based on task
+- Tools include: generation, reasoning, diagnostics, synthesis
+- **Code**: `Seed_AgentTools.sql`, `AgentTools` table
+
+### 8. Behavioral Analysis as Geometry
+- **SessionPaths table**: User journey stored as GEOMETRY (LINESTRING)
+- X,Y,Z = semantic position, M = timestamp
+- OODA detects failing paths, generates "FixUX" hypotheses
+- **Code**: `sp_Hypothesize.sql:239-258` - UX issue detection via geometry
+
+### 9. Both Retrieval AND Synthesis
+- **Retrieval**: Spatial queries return existing atoms
+- **Synthesis**: Generate NEW bytes (audio, images, video)
+- **Hybrid**: Retrieve guidance → synthesize new content
+- **Code**: `clr_GenerateHarmonicTone` (audio), `GenerateGuidedPatches` (image)
+
 ## What Got Eliminated
 
 | Traditional AI | Hartonomous |
 |---|---|
-| Matrix multiplication | Geometric distance (STDistance) |
-| Attention matrices O(N²) | Spatial navigation O(log N) |
-| Forward passes | Database queries |
+| O(N²) attention matrices | Spatial navigation O(log N) + O(K) |
+| Full forward passes | Spatial weight queries via STPointN |
 | GPU VRAM | SQL Server memory |
-| Vector indexes (read-only) | Spatial indexes (read-write) |
+| Vector indexes (read-only) | Spatial R-Tree + Hilbert (read-write) |
 | Non-deterministic | Deterministic projections |
-| Black box | Full provenance (Neo4j) |
+| Black box | Full provenance (Neo4j + reasoning chains) |
+| Static models | Self-improving via OODA loop |
+| Single modality | Unified cross-modal geometric space |
+| Retrieval OR synthesis | Both retrieval AND synthesis |
 
 ## Key Files Proving It Works
 
+**Core Geometric Engine**:
 1. **LandmarkProjection.cs** - 1998D → 3D projection (SIMD-accelerated)
 2. **AttentionGeneration.cs** - Complete inference via geometric navigation
 3. **sp_SpatialNextToken.sql** - Text generation using spatial R-Tree
 4. **Common.CreateSpatialIndexes.sql** - All spatial indexes defined
 5. **SpatialOperations.cs** - CLR bridge for projection
+
+**Reasoning Frameworks**:
+6. **sp_ChainOfThoughtReasoning.sql** - Linear step-by-step reasoning
+7. **sp_MultiPathReasoning.sql** - Tree of Thought exploration
+8. **sp_SelfConsistencyReasoning.sql** - Reflexion and consensus finding
+
+**OODA Loop**:
+9. **sp_Analyze.sql** - System observation and metrics
+10. **sp_Hypothesize.sql** - Hypothesis generation (7 types including UX fixes)
+11. **sp_Act.sql** - Hypothesis execution
+12. **sp_Learn.sql** - Weight updates and model pruning
+
+**Synthesis Capabilities**:
+13. **ImageGeneration.cs** - GenerateGuidedPatches for image synthesis
+14. **GenerationFunctions.cs** - clr_GenerateHarmonicTone for audio synthesis
 
 ## The "Periodic Table" Metaphor
 
@@ -76,12 +118,18 @@ This is a rapid-loading reference for anyone (human or AI) who needs to understa
 - Spatial indexes (not VECTOR indexes)
 - Model weights as queryable GEOMETRY
 - Cross-modal geometric space
+- Reasoning frameworks (CoT, ToT, Reflexion)
+- Agent tools framework and dynamic tool selection
+- Behavioral analysis (SessionPaths as GEOMETRY)
+- Synthesis capabilities (audio, image, video generation)
+- OODA loop self-improvement (weight updates, pruning, UX fixing)
 
 **MUST ELIMINATE**:
 - Any dependency on SQL Server 2025 preview VECTOR indexes
-- Traditional matrix-based transformers
+- Matrix multiplication as PRIMARY generation path (optional ProjectWithTensor feature can remain)
 - Non-deterministic generation
 - In-memory model loading
+- Traditional ANN indexes (replaced by spatial R-Tree)
 
 ## Commit Message Context
 
@@ -89,7 +137,12 @@ Recent commits: "AI agents suck", "More fucking AI stupidity"
 
 **Why**: Traditional AI agents are non-deterministic black boxes that can't be verified or traced.
 
-**Solution**: This architecture makes AI deterministic, queryable, and provably correct.
+**Solution**: This architecture makes AI deterministic, queryable, and provably correct:
+- Every decision tracked in Neo4j Merkle DAG
+- Reasoning chains stored in ReasoningChains/MultiPathReasoning/SelfConsistencyResults tables
+- SessionPaths capture complete user journey geometrically
+- Model weights queryable via SQL (no black box)
+- OODA loop provides autonomous self-improvement with full audit trail
 
 ## Migration Philosophy
 

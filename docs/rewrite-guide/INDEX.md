@@ -179,7 +179,52 @@ Query patterns and optimization
 - 7 hypothesis types (IndexOptimization, QueryRegression, CacheWarming, ConceptDiscovery, PruneModel, RefactorCode, FixUX)
 - Model weight updates (THE BREAKTHROUGH: sp_UpdateModelWeightsFromFeedback)
 - Gödel computational engine (self-referential computation via OODA)
+- Integration with reasoning frameworks, agent tools, behavioral analysis
 - Monitoring and safety mechanisms
+
+### 20 - Reasoning Frameworks Guide
+**Purpose**: Complete specification of Chain of Thought, Tree of Thought, and Reflexion frameworks
+**Key Topics**:
+- Chain of Thought: Linear step-by-step reasoning with coherence analysis
+- Tree of Thought: Parallel path exploration with quality scoring
+- Reflexion/Self-Consistency: Consensus finding via multiple samples
+- SQL schema (ReasoningChains, MultiPathReasoning, SelfConsistencyResults tables)
+- CLR aggregates (ChainOfThoughtCoherence, SelfConsistency)
+- OODA loop integration (reasoning quality monitoring)
+- Full provenance tracking in Neo4j
+
+### 21 - Agent Framework and Tool Selection
+**Purpose**: Complete specification of agent tools framework
+**Key Topics**:
+- AgentTools table registry (tools as database rows)
+- Dynamic tool selection via semantic similarity
+- JSON parameter binding and sp_executesql execution
+- Tool categories (generation, reasoning, diagnostics, synthesis)
+- OODA integration (tool performance tracking and optimization)
+- Adding new tools (simple INSERT statement)
+- Full provenance tracking in Neo4j
+
+### 22 - Cross-Modal Generation Examples
+**Purpose**: Showcase synthesis capabilities across modalities
+**Key Topics**:
+- Example 1: "Generate audio that sounds like this image"
+- Example 2: "Write a poem about this video"
+- Example 3: "Create image representing this code"
+- Example 4: "What does this silent film sound like?"
+- Technical implementations (retrieval + synthesis + hybrid)
+- CLR synthesis functions (clr_GenerateHarmonicTone, GenerateGuidedPatches)
+- Provenance tracking for cross-modal transformations
+
+### 23 - Behavioral Analysis and UX Optimization
+**Purpose**: Complete specification of geometric behavioral analysis system
+**Key Topics**:
+- SessionPaths as GEOMETRY (LINESTRING tracking user journeys)
+- Geometric path analysis (sessions ending in error regions, abnormally long paths)
+- sp_Hypothesize:239-258 - Automatic UX issue detection
+- OODA integration (FixUX hypothesis generation)
+- Geometric funnels and heatmaps
+- Full provenance tracking in Neo4j
+- Automatic UX improvement recommendations
 
 ---
 
@@ -234,6 +279,12 @@ Query patterns and optimization
 - ✅ Cross-modal search (sp_CrossModalQuery.sql)
 - ✅ Student model extraction (sp_DynamicStudentExtraction.sql)
 - ✅ Gödel computational engine (AutonomousComputeJobs)
+- ✅ Reasoning frameworks (sp_ChainOfThoughtReasoning, sp_MultiPathReasoning, sp_SelfConsistencyReasoning)
+- ✅ Agent tools framework (AgentTools table, sp_SelectAgentTool, sp_ExecuteAgentTool)
+- ✅ Behavioral analysis (SessionPaths as GEOMETRY, UX issue detection)
+- ✅ Synthesis capabilities (clr_GenerateHarmonicTone, GenerateGuidedPatches)
+- ✅ Model weight updates (sp_UpdateModelWeightsFromFeedback)
+- ✅ Model pruning (DELETE-based optimization)
 
 **What Must Be Fixed**:
 - ❌ .NET Standard dependencies in CLR project

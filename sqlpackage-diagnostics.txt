@@ -1,1 +1,0 @@
-Microsoft.Data.Tools.Diagnostics.Tracer Information: 0 : 2025-11-15T13:38:26 : SqlPackage failed
