@@ -82,10 +82,10 @@ PRINT 'Test 4: Spatial Indexes Exist...';
 BEGIN TRY
     IF NOT EXISTS (
         SELECT 1 FROM sys.indexes
-        WHERE name = 'IX_AtomEmbeddings_SpatialGeometry'
+        WHERE name = 'SIX_AtomEmbeddings_SpatialKey'
           AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
     )
-        THROW 50000, 'Spatial index IX_AtomEmbeddings_SpatialGeometry missing', 1;
+        THROW 50000, 'Spatial index SIX_AtomEmbeddings_SpatialKey missing', 1;
         
     PRINT '  ✓ PASSED: Spatial indexes exist';
     SET @TestsPassed = @TestsPassed + 1;

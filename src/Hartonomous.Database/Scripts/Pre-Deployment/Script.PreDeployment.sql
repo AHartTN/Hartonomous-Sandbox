@@ -15,5 +15,19 @@ BEGIN
 END
 GO
 
+-- Ensure Service Broker is enabled for async message processing
+IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = DB_NAME() AND is_broker_enabled = 1)
+BEGIN
+    PRINT 'Enabling Service Broker...';
+    DECLARE @sql NVARCHAR(MAX) = 'ALTER DATABASE ' + QUOTENAME(DB_NAME()) + ' SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE';
+    EXEC sp_executesql @sql;
+    PRINT 'Service Broker enabled.';
+END
+ELSE
+BEGIN
+    PRINT 'Service Broker already enabled.';
+END
+GO
+
 PRINT 'Pre-deployment setup complete.';
 GO
