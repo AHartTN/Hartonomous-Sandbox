@@ -1,70 +1,85 @@
 using System;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
-using Microsoft.SqlServer.Types;
+using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
 
 namespace Hartonomous.Clr
 {
     /// <summary>
-    /// Audio processing operations handled in-process via SQL CLR.
+    /// Audio processing operations using NetTopologySuite for spatial representations.
     /// </summary>
     public static class AudioProcessing
     {
+        private static readonly GeometryFactory _geometryFactory = new GeometryFactory(new PrecisionModel(), 0);
+        private static readonly SqlServerBytesWriter _geometryWriter = new SqlServerBytesWriter();
+        private static readonly SqlServerBytesReader _geometryReader = new SqlServerBytesReader();
+
         /// <summary>
         /// Convert 16-bit PCM audio samples into a line-string geometry representing the waveform.
         /// X-axis is time (seconds), Y-axis is normalized amplitude [-1, 1].
         /// </summary>
         [SqlFunction(IsDeterministic = false, IsPrecise = false)]
-        public static SqlGeometry AudioToWaveform(SqlBytes audioData, SqlInt32 channelCount, SqlInt32 sampleRate, SqlInt32 maxPoints)
+        public static SqlBytes AudioToWaveform(SqlBytes audioData, SqlInt32 channelCount, SqlInt32 sampleRate, SqlInt32 maxPoints)
         {
             if (audioData.IsNull)
             {
-                return SqlGeometry.Null;
+                return SqlBytes.Null;
             }
 
-            var buffer = SqlBytesInterop.GetBuffer(audioData, out var byteLength);
-            int channels = channelCount.IsNull || channelCount.Value <= 0 ? 1 : channelCount.Value;
-            int rate = sampleRate.IsNull || sampleRate.Value <= 0 ? 44100 : sampleRate.Value;
-            int desiredPoints = maxPoints.IsNull || maxPoints.Value <= 0 ? 4096 : Math.Max(2, maxPoints.Value);
-
-            int bytesPerSample = 2 * channels;
-            if (byteLength < bytesPerSample)
+            try
             {
-                return SqlGeometry.Null;
-            }
+                var buffer = SqlBytesInterop.GetBuffer(audioData, out var byteLength);
+                int channels = channelCount.IsNull || channelCount.Value <= 0 ? 1 : channelCount.Value;
+                int rate = sampleRate.IsNull || sampleRate.Value <= 0 ? 44100 : sampleRate.Value;
+                int desiredPoints = maxPoints.IsNull || maxPoints.Value <= 0 ? 4096 : Math.Max(2, maxPoints.Value);
 
-            int totalSamples = byteLength / bytesPerSample;
-            if (totalSamples < 2)
+                int bytesPerSample = 2 * channels;
+                if (byteLength < bytesPerSample)
+                {
+                    return SqlBytes.Null;
+                }
+
+                int totalSamples = byteLength / bytesPerSample;
+                if (totalSamples < 2)
+                {
+                    return SqlBytes.Null;
+                }
+
+                int stride = Math.Max(1, totalSamples / desiredPoints);
+                int actualPoints = Math.Min(desiredPoints, (totalSamples + stride - 1) / stride);
+                
+                var coordinates = new Coordinate[actualPoints];
+                int coordIndex = 0;
+                double samplePeriod = 1.0 / rate;
+
+                for (int i = 0; i < totalSamples && coordIndex < actualPoints; i += stride)
+                {
+                    double amplitude = ReadSampleNormalized(buffer, byteLength, i, channels);
+                    coordinates[coordIndex++] = new Coordinate(i * samplePeriod, amplitude);
+                }
+
+                // Ensure last sample included if not already
+                if ((totalSamples - 1) % stride != 0 && coordIndex < actualPoints)
+                {
+                    double amplitude = ReadSampleNormalized(buffer, byteLength, totalSamples - 1, channels);
+                    coordinates[coordIndex++] = new Coordinate((totalSamples - 1) * samplePeriod, amplitude);
+                }
+
+                if (coordIndex < coordinates.Length)
+                {
+                    Array.Resize(ref coordinates, coordIndex);
+                }
+
+                var lineString = _geometryFactory.CreateLineString(coordinates);
+                var geometryBytes = _geometryWriter.Write(lineString);
+
+                return new SqlBytes(geometryBytes);
+            }
+            catch
             {
-                return SqlGeometry.Null;
+                return SqlBytes.Null;
             }
-
-            int stride = Math.Max(1, totalSamples / desiredPoints);
-
-            var builder = new SqlGeometryBuilder();
-            builder.SetSrid(0);
-            builder.BeginGeometry(OpenGisGeometryType.LineString);
-
-            double samplePeriod = 1.0 / rate;
-            double amplitude = ReadSampleNormalized(buffer, byteLength, 0, channels);
-            builder.BeginFigure(0.0, amplitude);
-
-            for (int i = stride; i < totalSamples; i += stride)
-            {
-                amplitude = ReadSampleNormalized(buffer, byteLength, i, channels);
-                builder.AddLine(i * samplePeriod, amplitude);
-            }
-
-            if ((totalSamples - 1) % stride != 0)
-            {
-                amplitude = ReadSampleNormalized(buffer, byteLength, totalSamples - 1, channels);
-                builder.AddLine((totalSamples - 1) * samplePeriod, amplitude);
-            }
-
-            builder.EndFigure();
-            builder.EndGeometry();
-
-            return builder.ConstructedGeometry;
         }
 
         /// <summary>
@@ -320,52 +335,57 @@ namespace Hartonomous.Clr
 
         /// <summary>
         /// Generates a synthesized audio tone from a spatial signature GEOMETRY point.
-        /// This is a core "shape-to-content" function, translating an abstract spatial
-        /// representation into an audible output.
-        /// It maps geometric properties to audio synthesis parameters.
+        /// Maps geometric properties to audio synthesis parameters.
         /// </summary>
         [SqlFunction(IsDeterministic = false, IsPrecise = false)]
-        public static SqlBytes GenerateAudioFromSpatialSignature(SqlGeometry spatialSignature)
+        public static SqlBytes GenerateAudioFromSpatialSignature(SqlBytes spatialSignature)
         {
-            if (spatialSignature.IsNull || !spatialSignature.STGeometryType().Value.Equals("Point", StringComparison.OrdinalIgnoreCase))
+            if (spatialSignature.IsNull || spatialSignature.Length == 0)
             {
                 return SqlBytes.Null;
             }
 
-            // Map geometric properties to synthesis parameters.
-            // This mapping is conceptual and can be evolved.
-            // X -> Second Harmonic Level (structural complexity)
-            // Y -> Third Harmonic Level (timbral complexity)
-            // Z -> Fundamental Frequency (pitch)
-            // M -> Amplitude (importance/energy)
+            try
+            {
+                var geometry = _geometryReader.Read(spatialSignature.Value);
+                
+                if (geometry == null || geometry.IsEmpty || !(geometry is Point point))
+                {
+                    return SqlBytes.Null;
+                }
 
-            double x = spatialSignature.STX.IsNull ? 0.5 : spatialSignature.STX.Value;
-            double y = spatialSignature.STY.IsNull ? 0.5 : spatialSignature.STY.Value;
-            double z = spatialSignature.Z.IsNull ? 0.5 : spatialSignature.Z.Value;
-            double m = spatialSignature.M.IsNull ? 0.5 : spatialSignature.M.Value;
+                // Map geometric properties to synthesis parameters
+                double x = point.X;
+                double y = point.Y;
+                double z = double.IsNaN(point.Z) ? 0.5 : point.Z;
+                double m = point.M;  // M coordinate for measure/importance
+                if (double.IsNaN(m))
+                    m = 0.5;
 
-            // Normalize and scale parameters for GenerateHarmonicTone
-            // Clamp values to be within a sensible range.
-            var fundamentalHz = new SqlDouble(Clamp(z * 800 + 100, 50, 1200)); // Map Z to a frequency range (e.g., 100Hz to 900Hz)
-            var amplitude = new SqlDouble(Clamp(m, 0.1, 1.0)); // Map M directly to amplitude
-            var secondHarmonic = new SqlDouble(Clamp(x, 0.0, 1.0)); // Map X to second harmonic level
-            var thirdHarmonic = new SqlDouble(Clamp(y, 0.0, 1.0)); // Map Y to third harmonic level
+                // Normalize and scale parameters
+                var fundamentalHz = new SqlDouble(Clamp(z * 800 + 100, 50, 1200));
+                var amplitude = new SqlDouble(Clamp(m, 0.1, 1.0));
+                var secondHarmonic = new SqlDouble(Clamp(x, 0.0, 1.0));
+                var thirdHarmonic = new SqlDouble(Clamp(y, 0.0, 1.0));
 
-            // Standard audio parameters
-            var durationMs = new SqlInt32(1500); // 1.5 seconds
-            var sampleRate = new SqlInt32(44100);
-            var channelCount = new SqlInt32(1); // Mono
+                var durationMs = new SqlInt32(1500);
+                var sampleRate = new SqlInt32(44100);
+                var channelCount = new SqlInt32(1);
 
-            // Call the existing synthesizer with the derived parameters.
-            return GenerateHarmonicTone(
-                fundamentalHz,
-                durationMs,
-                sampleRate,
-                channelCount,
-                amplitude,
-                secondHarmonic,
-                thirdHarmonic
-            );
+                return GenerateHarmonicTone(
+                    fundamentalHz,
+                    durationMs,
+                    sampleRate,
+                    channelCount,
+                    amplitude,
+                    secondHarmonic,
+                    thirdHarmonic
+                );
+            }
+            catch
+            {
+                return SqlBytes.Null;
+            }
         }
     }
 }
