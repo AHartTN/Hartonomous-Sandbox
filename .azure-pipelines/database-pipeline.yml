@@ -76,14 +76,17 @@ stages:
               AdditionalArguments: '/p:IncludeCompositeObjects=True /p:BlockOnPossibleDataLoss=False'
 
           - powershell: |
-              Write-Host "Running database smoke tests..."
-              sqlcmd -S localhost -d Hartonomous -E -i "$(Pipeline.Workspace)/tests/complete-validation.sql"
-            displayName: 'Run Validation Tests'
-            continueOnError: true
+              Write-Host "Running database test suite..."
+              cd $(Build.SourcesDirectory)/tests
+              ./Run-DatabaseTests.ps1 -Server localhost -Database Hartonomous -OutputPath $(Build.ArtifactStagingDirectory)/test-results.xml
+            displayName: 'Run Database Test Suite'
+            continueOnError: false
 
           - task: PublishTestResults@2
             displayName: 'Publish Test Results'
+            condition: always()
             inputs:
               testResultsFormat: 'NUnit'
-              testResultsFiles: '**/test-results.xml'
-              failTaskOnFailedTests: false
+              testResultsFiles: '$(Build.ArtifactStagingDirectory)/test-results.xml'
+              failTaskOnFailedTests: true
+              testRunTitle: 'Hartonomous Database Tests'
