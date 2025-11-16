@@ -16,6 +16,7 @@
     <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.2" />
     <PackageVersion Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
     <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
+    <PackageVersion Include="NetTopologySuite.IO.SqlServerBytes" Version="2.1.0" />
     <PackageVersion Include="Dapper" Version="2.1.28" />
     
     <!-- Azure -->
