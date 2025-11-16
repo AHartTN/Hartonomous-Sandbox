@@ -6,8 +6,6 @@ using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
-using NetTopologySuite.IO;
-using NetTopologySuite.Geometries;
 
 namespace Hartonomous.Clr
 {
@@ -444,8 +442,8 @@ ORDER BY CreatedAt DESC;
         }
 
         /// <summary>
-        /// Load tensor weights from GEOMETRY representation via coordinate extraction.
-        /// This is the core "queryable tensors" implementation using NetTopologySuite.
+        /// Load tensor weights from GEOMETRY representation via STPointN() queries.
+        /// This is the core "queryable tensors" implementation.
         /// </summary>
         private static float[] LoadTensorWeightsFromGeometry(
             SqlConnection connection,
@@ -454,6 +452,7 @@ ORDER BY CreatedAt DESC;
         {
             using (var command = connection.CreateCommand())
             {
+                // Query the GEOMETRY representation of the tensor
                 command.CommandText = @"
 SELECT TOP 1
     ta.WeightsGeometry,
@@ -467,49 +466,34 @@ ORDER BY ta.ElementCount DESC;
                 using (var reader = command.ExecuteReader())
                 {
                     if (!reader.Read() || reader.IsDBNull(0))
-                        return null;
-
-                    try
-                    {
-                        byte[] geometryBytes = null;
-                        var geometryObj = reader.GetValue(0);
-                        
-                        if (geometryObj is byte[] bytes)
-                        {
-                            geometryBytes = bytes;
-                        }
-                        else if (geometryObj is System.Data.SqlTypes.SqlBytes sqlBytes && !sqlBytes.IsNull)
-                        {
-                            geometryBytes = sqlBytes.Value;
-                        }
-
-                        if (geometryBytes == null)
-                            return null;
-
-                        var _geometryReader = new SqlServerBytesReader();
-                        var geometry = _geometryReader.Read(geometryBytes);
-                        
-                        if (geometry == null || geometry.IsEmpty || !(geometry is LineString lineString))
-                            return null;
-
-                        // Extract weights from LineString coordinates (Y values)
-                        var weights = new List<float>();
-                        var coords = lineString.Coordinates;
-
-                        for (int i = 0; i < coords.Length && weights.Count < maxDimension; i++)
-                        {
-                            if (!double.IsNaN(coords[i].Y))
-                            {
-                                weights.Add((float)coords[i].Y);
-                            }
-                        }
-
-                        return weights.ToArray();
-                    }
-                    catch
                     {
                         return null;
                     }
+
+                    var geometry = reader.GetValue(0) as Microsoft.SqlServer.Types.SqlGeometry;
+                    var elementCount = reader.GetInt64(1);
+
+                    if (geometry == null || geometry.IsNull)
+                    {
+                        return null;
+                    }
+
+                    // Extract weights from GEOMETRY using STPointN()
+                    var weights = new List<float>();
+                    var pointCount = geometry.STNumPoints().Value;
+
+                    for (int i = 1; i <= pointCount && weights.Count < maxDimension; i++)
+                    {
+                        var point = geometry.STPointN(i);
+                        if (!point.IsNull)
+                        {
+                            // Y coordinate is the weight value
+                            var value = point.STY.Value;
+                            weights.Add((float)value);
+                        }
+                    }
+
+                    return weights.ToArray();
                 }
             }
         }

@@ -1,53 +1,52 @@
 using System;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.IO;
+using Microsoft.SqlServer.Types;
+using Newtonsoft.Json;
 using Hartonomous.Clr.Core;
 
 namespace Hartonomous.Clr
 {
     /// <summary>
-    /// CLR functions for spatial operations and projections using NetTopologySuite.
+    /// CLR functions for spatial operations and projections.
     /// </summary>
     public static class SpatialOperations
     {
-        private static readonly GeometryFactory _geometryFactory = new GeometryFactory(new PrecisionModel(), 0);
-        private static readonly SqlServerBytesWriter _geometryWriter = new SqlServerBytesWriter();
-
         /// <summary>
         /// Projects a high-dimensional vector to a 3D GEOMETRY point using a landmark-based projection.
-        /// Returns SQL Server geometry type compatible with built-in geometry.
+        /// This is the correct, mathematically sound replacement for the placeholder logic.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false, DataAccess = DataAccessKind.None)]
-        public static SqlBytes fn_ProjectTo3D(SqlBytes vector)
+        public static SqlGeometry fn_ProjectTo3D(SqlBytes vector)
         {
             if (vector.IsNull)
             {
-                return SqlBytes.Null;
+                return SqlGeometry.Null;
             }
 
             try
             {
-                // Convert SqlBytes to float array
+                // Convert SqlBytes to float array using the existing interop helper
                 var vectorFloats = SqlBytesInterop.GetFloatArray(vector, out _);
 
-                // Call the projection logic
+                // Call the projection logic from the bridge library
                 var (x, y, z) = LandmarkProjection.ProjectTo3D(vectorFloats);
 
-                // Create NetTopologySuite Point with Z coordinate
-                var coordinate = new CoordinateZ(x, y, z);
-                var point = _geometryFactory.CreatePoint(coordinate);
+                // Build the GEOMETRY point
+                var builder = new SqlGeometryBuilder();
+                builder.SetSrid(0); // Use the default spatial reference identifier
+                builder.BeginGeometry(OpenGisGeometryType.Point);
+                builder.BeginFigure(x, y, z, null);
+                builder.EndFigure();
+                builder.EndGeometry();
 
-                // Convert to SQL Server binary format
-                var geometryBytes = _geometryWriter.Write(point);
-                
-                return new SqlBytes(geometryBytes);
+                return builder.ConstructedGeometry;
             }
             catch (Exception e)
             {
+                // Log the error and return null. In a real system, you might write to an error log table.
                 SqlContext.Pipe.Send($"Error in fn_ProjectTo3D: {e.Message}");
-                return SqlBytes.Null;
+                return SqlGeometry.Null;
             }
         }
     }

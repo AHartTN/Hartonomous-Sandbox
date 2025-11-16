@@ -5,19 +5,16 @@ using System.Data.SqlTypes;
 using System.IO;
 using System.Text;
 using Microsoft.SqlServer.Server;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.IO;
+using Microsoft.SqlServer.Types;
 
 namespace Hartonomous.Clr
 {
     /// <summary>
-    /// CLR functions for model ingestion pipeline using NetTopologySuite.
+    /// CLR functions for model ingestion pipeline.
     /// Handles GGUF parsing, FILESTREAM reading, and tensor-to-GEOMETRY conversion.
     /// </summary>
     public static class ModelIngestionFunctions
     {
-        private static readonly GeometryFactory _geometryFactory = new GeometryFactory(new PrecisionModel(), 0);
-        private static readonly SqlServerBytesWriter _geometryWriter = new SqlServerBytesWriter();
         /// <summary>
         /// Parse GGUF model file header and return tensor catalog.
         /// Returns: Table with TensorName, DataType, Shape, ShapeRank, ElementCount, ByteOffset, ByteSize
@@ -145,67 +142,63 @@ namespace Hartonomous.Clr
         /// Each weight becomes a point (index, value) in the line string.
         /// </summary>
         [SqlFunction(IsDeterministic = false, IsPrecise = false)]
-        public static SqlBytes CreateMultiLineStringFromWeights(
+        public static SqlGeometry CreateMultiLineStringFromWeights(
             SqlBytes rawWeights,
             SqlString dataType,
             SqlInt32 maxPoints)
         {
             if (rawWeights.IsNull || dataType.IsNull)
-                return SqlBytes.Null;
+                return SqlGeometry.Null;
 
-            try
+            int pointLimit = maxPoints.IsNull || maxPoints.Value <= 0 ? 4096 : maxPoints.Value;
+            string dtype = dataType.Value.ToLowerInvariant();
+
+            var buffer = SqlBytesInterop.GetBuffer(rawWeights, out var byteLength);
+            
+            // Determine element size based on data type
+            int elementSize = GetElementSize(dtype);
+            if (elementSize == 0)
+                return SqlGeometry.Null;
+
+            long elementCount = byteLength / elementSize;
+            if (elementCount < 2)
+                return SqlGeometry.Null;
+
+            // Calculate stride for downsampling if needed
+            long stride = Math.Max(1, elementCount / pointLimit);
+            int actualPoints = (int)Math.Min(pointLimit, elementCount);
+
+            var builder = new SqlGeometryBuilder();
+            builder.SetSrid(0);
+            builder.BeginGeometry(OpenGisGeometryType.LineString);
+
+            bool firstPoint = true;
+            for (long i = 0; i < elementCount; i += stride)
             {
-                int pointLimit = maxPoints.IsNull || maxPoints.Value <= 0 ? 4096 : maxPoints.Value;
-                string dtype = dataType.Value.ToLowerInvariant();
-
-                var buffer = SqlBytesInterop.GetBuffer(rawWeights, out var byteLength);
+                double value = ReadElement(buffer, (int)i, elementSize, dtype);
                 
-                // Determine element size based on data type
-                int elementSize = GetElementSize(dtype);
-                if (elementSize == 0)
-                    return SqlBytes.Null;
-
-                long elementCount = byteLength / elementSize;
-                if (elementCount < 2)
-                    return SqlBytes.Null;
-
-                // Calculate stride for downsampling if needed
-                long stride = Math.Max(1, elementCount / pointLimit);
-                int actualPoints = (int)Math.Min(pointLimit, (elementCount + stride - 1) / stride);
-
-                var coordinates = new Coordinate[actualPoints];
-                int coordIndex = 0;
-
-                for (long i = 0; i < elementCount && coordIndex < actualPoints; i += stride)
+                if (firstPoint)
                 {
-                    double value = ReadElement(buffer, (int)i, elementSize, dtype);
-                    coordinates[coordIndex++] = new Coordinate(i, value);
+                    builder.BeginFigure(i, value);
+                    firstPoint = false;
                 }
-
-                // Ensure the last element is always included if not already
-                long lastIndex = elementCount - 1;
-                if (lastIndex % stride != 0 && coordIndex < actualPoints)
+                else
                 {
-                    double lastValue = ReadElement(buffer, (int)lastIndex, elementSize, dtype);
-                    coordinates[coordIndex++] = new Coordinate(lastIndex, lastValue);
+                    builder.AddLine(i, value);
                 }
-
-                // Trim array if needed
-                if (coordIndex < coordinates.Length)
-                {
-                    Array.Resize(ref coordinates, coordIndex);
-                }
-
-                // Create LineString using NetTopologySuite
-                var lineString = _geometryFactory.CreateLineString(coordinates);
-                var geometryBytes = _geometryWriter.Write(lineString);
-
-                return new SqlBytes(geometryBytes);
             }
-            catch
+
+            // Ensure the last element is always included
+            if ((elementCount - 1) % stride != 0)
             {
-                return SqlBytes.Null;
+                double lastValue = ReadElement(buffer, (int)(elementCount - 1), elementSize, dtype);
+                builder.AddLine(elementCount - 1, lastValue);
             }
+
+            builder.EndFigure();
+            builder.EndGeometry();
+
+            return builder.ConstructedGeometry;
         }
 
         #region Helper Methods

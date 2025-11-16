@@ -2,71 +2,69 @@ using System;
 using System.Data.SqlTypes;
 using System.Text;
 using Microsoft.SqlServer.Server;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.IO;
-using System.Collections.Generic;
+using Microsoft.SqlServer.Types;
 
 namespace Hartonomous.Clr
 {
     /// <summary>
-    /// Image processing using NetTopologySuite for spatial representations.
+    /// Image processing helpers executed inside SQL CLR.
     /// </summary>
     public static class ImageProcessing
     {
-        private static readonly GeometryFactory _geometryFactory = new GeometryFactory(new PrecisionModel(), 0);
-        private static readonly SqlServerBytesWriter _geometryWriter = new SqlServerBytesWriter();
-
         /// <summary>
         /// Convert raw pixel data into a 3D point cloud (x, y, brightness).
+        /// The input buffer must be tightly packed in RGB or RGBA order.
         /// </summary>
         [SqlFunction(IsDeterministic = true, IsPrecise = false)]
-        public static SqlBytes ImageToPointCloud(SqlBytes imageData, SqlInt32 width, SqlInt32 height, SqlInt32 sampleStep)
+        public static SqlGeometry ImageToPointCloud(SqlBytes imageData, SqlInt32 width, SqlInt32 height, SqlInt32 sampleStep)
         {
             if (imageData.IsNull || width.IsNull || height.IsNull)
-                return SqlBytes.Null;
-
-            try
             {
-                int w = Math.Max(1, width.Value);
-                int h = Math.Max(1, height.Value);
-                var pixels = SqlBytesInterop.GetBuffer(imageData, out var bufferLength);
+                return SqlGeometry.Null;
+            }
 
-                int channels = InferChannelCount(bufferLength, w, h);
-                if (channels == 0)
-                    return SqlBytes.Null;
+            int w = Math.Max(1, width.Value);
+            int h = Math.Max(1, height.Value);
+            var pixels = SqlBytesInterop.GetBuffer(imageData, out var bufferLength);
 
-                int step = sampleStep.IsNull || sampleStep.Value <= 0
-                    ? Math.Max(1, (int)Math.Sqrt((w * h) / 4096.0))
-                    : sampleStep.Value;
+            int channels = InferChannelCount(bufferLength, w, h);
+            if (channels == 0)
+            {
+                return SqlGeometry.Null;
+            }
 
-                var points = new List<Point>();
+            int step = sampleStep.IsNull || sampleStep.Value <= 0
+                ? Math.Max(1, (int)Math.Sqrt((w * h) / 4096.0))
+                : sampleStep.Value;
 
-                for (int y = 0; y < h; y += step)
+            var builder = new SqlGeometryBuilder();
+            builder.SetSrid(0);
+            builder.BeginGeometry(OpenGisGeometryType.MultiPoint);
+
+            for (int y = 0; y < h; y += step)
+            {
+                for (int x = 0; x < w; x += step)
                 {
-                    for (int x = 0; x < w; x += step)
+                    int pixelIndex = y * w + x;
+                    if (!TryReadPixel(pixels, bufferLength, pixelIndex, channels, out byte r, out byte g, out byte b, out byte a))
                     {
-                        int pixelIndex = y * w + x;
-                        if (!TryReadPixel(pixels, bufferLength, pixelIndex, channels, out byte r, out byte g, out byte b, out byte a))
-                            continue;
-
-                        double brightness = ComputeLuminance(r, g, b);
-                        double alpha = a / 255.0;
-                        double xNorm = (x + 0.5) / w;
-                        double yNorm = (y + 0.5) / h;
-
-                        points.Add(_geometryFactory.CreatePoint(new CoordinateZM(xNorm, yNorm, brightness, alpha)));
+                        continue;
                     }
+
+                    double brightness = ComputeLuminance(r, g, b);
+                    double alpha = a / 255.0;
+                    double xNorm = (x + 0.5) / w;
+                    double yNorm = (y + 0.5) / h;
+
+                    builder.BeginGeometry(OpenGisGeometryType.Point);
+                    builder.BeginFigure(xNorm, yNorm, brightness, alpha);
+                    builder.EndFigure();
+                    builder.EndGeometry();
                 }
-
-                var multiPoint = _geometryFactory.CreateMultiPoint(points.ToArray());
-                var geometryBytes = _geometryWriter.Write(multiPoint);
-
-                return new SqlBytes(geometryBytes);
             }
-            catch
-            {
-                return SqlBytes.Null;
-            }
+
+            builder.EndGeometry();
+            return builder.ConstructedGeometry;
         }
 
         /// <summary>
@@ -178,310 +176,29 @@ namespace Hartonomous.Clr
             return new SqlString(builder.ToString());
         }
 
-        /// <summary>
-        /// Generate spatial image patches for diffusion-guided image synthesis.
-        /// </summary>
-        [SqlFunction(FillRowMethodName = "FillImagePatchRow", TableDefinition = "patch_x INT, patch_y INT, spatial_x FLOAT, spatial_y FLOAT, spatial_z FLOAT, patch VARBINARY(MAX)")]
-        public static System.Collections.IEnumerable GenerateImagePatches(
-            SqlInt32 width,
-            SqlInt32 height,
-            SqlInt32 patchSize,
-            SqlInt32 steps,
-            SqlDouble guidanceScale,
-            SqlDouble guideX,
-            SqlDouble guideY,
-            SqlDouble guideZ,
-            SqlInt32 seed)
-        {
-            if (width.IsNull || height.IsNull || patchSize.IsNull)
-                yield break;
-
-            int w = Math.Max(1, width.Value);
-            int h = Math.Max(1, height.Value);
-            int pSize = Math.Max(1, patchSize.Value);
-            int diffusionSteps = steps.IsNull ? 32 : Math.Max(1, steps.Value);
-            double guidance = guidanceScale.IsNull ? 6.5 : guidanceScale.Value;
-            double gx = guideX.IsNull ? 0.0 : guideX.Value;
-            double gy = guideY.IsNull ? 0.0 : guideY.Value;
-            double gz = guideZ.IsNull ? 0.0 : guideZ.Value;
-            int rngSeed = seed.IsNull ? 42 : seed.Value;
-
-            var random = new Random(rngSeed);
-            int patchesX = (w + pSize - 1) / pSize;
-            int patchesY = (h + pSize - 1) / pSize;
-
-            for (int py = 0; py < patchesY; py++)
-            {
-                for (int px = 0; px < patchesX; px++)
-                {
-                    double noiseX = random.NextDouble() * 2.0 - 1.0;
-                    double noiseY = random.NextDouble() * 2.0 - 1.0;
-                    double noiseZ = random.NextDouble() * 2.0 - 1.0;
-
-                    double spatialX = noiseX;
-                    double spatialY = noiseY;
-                    double spatialZ = noiseZ;
-
-                    for (int step = 0; step < diffusionSteps; step++)
-                    {
-                        double alpha = (step + 1.0) / diffusionSteps;
-                        spatialX = noiseX * (1.0 - alpha) + gx * alpha * guidance;
-                        spatialY = noiseY * (1.0 - alpha) + gy * alpha * guidance;
-                        spatialZ = noiseZ * (1.0 - alpha) + gz * alpha * guidance;
-                    }
-
-                    int x1 = px * pSize;
-                    int y1 = py * pSize;
-                    int x2 = Math.Min((px + 1) * pSize, w);
-                    int y2 = Math.Min((py + 1) * pSize, h);
-
-                    var coords = new[]
-                    {
-                        new CoordinateZ(x1, y1, spatialZ),
-                        new CoordinateZ(x2, y1, spatialZ),
-                        new CoordinateZ(x2, y2, spatialZ),
-                        new CoordinateZ(x1, y2, spatialZ),
-                        new CoordinateZ(x1, y1, spatialZ)
-                    };
-
-                    var polygon = _geometryFactory.CreatePolygon(coords);
-                    var patchBytes = _geometryWriter.Write(polygon);
-
-                    yield return new ImagePatchRow
-                    {
-                        PatchX = px,
-                        PatchY = py,
-                        SpatialX = spatialX,
-                        SpatialY = spatialY,
-                        SpatialZ = spatialZ,
-                        Patch = patchBytes
-                    };
-                }
-            }
-        }
-
-        /// <summary>
-        /// Generate full image GEOMETRY as MultiPolygon.
-        /// </summary>
-        [SqlFunction(IsDeterministic = false, IsPrecise = false)]
-        public static SqlBytes GenerateImageGeometry(
-            SqlInt32 width,
-            SqlInt32 height,
-            SqlInt32 patchSize,
-            SqlInt32 steps,
-            SqlDouble guidanceScale,
-            SqlDouble guideX,
-            SqlDouble guideY,
-            SqlDouble guideZ,
-            SqlInt32 seed)
-        {
-            if (width.IsNull || height.IsNull)
-                return SqlBytes.Null;
-
-            try
-            {
-                int pSize = patchSize.IsNull ? 32 : Math.Max(1, patchSize.Value);
-                var polygons = new List<Polygon>();
-
-                foreach (ImagePatchRow patch in GenerateImagePatches(width, height, patchSize, steps, guidanceScale, guideX, guideY, guideZ, seed))
-                {
-                    var polygon = _geometryReader.Read(patch.Patch) as Polygon;
-                    if (polygon != null)
-                        polygons.Add(polygon);
-                }
-
-                var multiPolygon = _geometryFactory.CreateMultiPolygon(polygons.ToArray());
-                var geometryBytes = _geometryWriter.Write(multiPolygon);
-
-                return new SqlBytes(geometryBytes);
-            }
-            catch
-            {
-                return SqlBytes.Null;
-            }
-        }
-
-        public static void FillImagePatchRow(object obj, out SqlInt32 patchX, out SqlInt32 patchY, out SqlDouble spatialX, out SqlDouble spatialY, out SqlDouble spatialZ, out SqlBytes patch)
-        {
-            var row = (ImagePatchRow)obj;
-            patchX = row.PatchX;
-            patchY = row.PatchY;
-            spatialX = row.SpatialX;
-            spatialY = row.SpatialY;
-            spatialZ = row.SpatialZ;
-            patch = new SqlBytes(row.Patch);
-        }
-
-        private class ImagePatchRow
-        {
-            public int PatchX { get; set; }
-            public int PatchY { get; set; }
-            public double SpatialX { get; set; }
-            public double SpatialY { get; set; }
-            public double SpatialZ { get; set; }
-            public byte[] Patch { get; set; }
-        }
-
-        /// <summary>
-        /// Deconstructs image into grid of patches with statistical features.
-        /// </summary>
-        [SqlFunction(
-            FillRowMethodName = "FillDeconstructedImagePatchRow",
-            TableDefinition = "PatchIndex INT, RowIndex INT, ColIndex INT, PatchX INT, PatchY INT, PatchWidth INT, PatchHeight INT, PatchGeometry VARBINARY(MAX), MeanR FLOAT, MeanG FLOAT, MeanB FLOAT, Variance FLOAT"
-        )]
-        public static System.Collections.IEnumerable DeconstructImageToPatches(
-            SqlBytes rawImage,
-            SqlInt32 imageWidth,
-            SqlInt32 imageHeight,
-            SqlInt32 patchSize,
-            SqlInt32 strideSize)
-        {
-            if (rawImage.IsNull || imageWidth.IsNull || imageHeight.IsNull || patchSize.IsNull || strideSize.IsNull)
-                yield break;
-
-            int imgW = imageWidth.Value;
-            int imgH = imageHeight.Value;
-            int pSize = patchSize.Value;
-            int sSize = strideSize.Value;
-
-            var pixels = SqlBytesInterop.GetBuffer(rawImage, out var bufferLength);
-            int channels = InferChannelCount(bufferLength, imgW, imgH);
-            if (channels == 0) yield break;
-
-            int patchesX = (imgW - pSize + sSize) / sSize;
-            int patchesY = (imgH - pSize + sSize) / sSize;
-            int patchIndex = 0;
-
-            for (int y = 0; y < patchesY; y++)
-            {
-                for (int x = 0; x < patchesX; x++)
-                {
-                    int pixelX = x * sSize;
-                    int pixelY = y * sSize;
-                    int actualPatchWidth = Math.Min(pSize, imgW - pixelX);
-                    int actualPatchHeight = Math.Min(pSize, imgH - pixelY);
-
-                    if (actualPatchWidth <= 0 || actualPatchHeight <= 0) continue;
-
-                    long sumR = 0, sumG = 0, sumB = 0;
-                    double sumLuminance = 0;
-                    double sumLuminanceSq = 0;
-                    int patchPixelCount = 0;
-
-                    for (int py_local = 0; py_local < actualPatchHeight; py_local++)
-                    {
-                        for (int px_local = 0; px_local < actualPatchWidth; px_local++)
-                        {
-                            int globalPixelIndex = (pixelY + py_local) * imgW + (pixelX + px_local);
-                            if (TryReadPixel(pixels, bufferLength, globalPixelIndex, channels, out byte r, out byte g, out byte b, out byte a))
-                            {
-                                sumR += r;
-                                sumG += g;
-                                sumB += b;
-                                double luminance = ComputeLuminance(r, g, b);
-                                sumLuminance += luminance;
-                                sumLuminanceSq += luminance * luminance;
-                                patchPixelCount++;
-                            }
-                        }
-                    }
-
-                    if (patchPixelCount == 0) continue;
-
-                    double meanR = (double)sumR / patchPixelCount;
-                    double meanG = (double)sumG / patchPixelCount;
-                    double meanB = (double)sumB / patchPixelCount;
-                    double meanLuminance = sumLuminance / patchPixelCount;
-                    double variance = (sumLuminanceSq / patchPixelCount) - (meanLuminance * meanLuminance);
-
-                    var coords = new[]
-                    {
-                        new Coordinate(pixelX, pixelY),
-                        new Coordinate(pixelX + actualPatchWidth, pixelY),
-                        new Coordinate(pixelX + actualPatchWidth, pixelY + actualPatchHeight),
-                        new Coordinate(pixelX, pixelY + actualPatchHeight),
-                        new Coordinate(pixelX, pixelY)
-                    };
-
-                    var polygon = _geometryFactory.CreatePolygon(coords);
-                    var geometryBytes = _geometryWriter.Write(polygon);
-
-                    yield return new ImageDeconstructionPatchRow
-                    {
-                        PatchIndex = patchIndex,
-                        RowIndex = y,
-                        ColIndex = x,
-                        PatchX = pixelX,
-                        PatchY = pixelY,
-                        PatchWidth = actualPatchWidth,
-                        PatchHeight = actualPatchHeight,
-                        PatchGeometry = geometryBytes,
-                        MeanR = meanR,
-                        MeanG = meanG,
-                        MeanB = meanB,
-                        Variance = variance
-                    };
-
-                    patchIndex++;
-                }
-            }
-        }
-
-        public static void FillDeconstructedImagePatchRow(
-            object obj,
-            out SqlInt32 patchIndex,
-            out SqlInt32 rowIndex,
-            out SqlInt32 colIndex,
-            out SqlInt32 patchX,
-            out SqlInt32 patchY,
-            out SqlInt32 patchWidth,
-            out SqlInt32 patchHeight,
-            out SqlBytes patchGeometry,
-            out SqlDouble meanR,
-            out SqlDouble meanG,
-            out SqlDouble meanB,
-            out SqlDouble variance)
-        {
-            var row = (ImageDeconstructionPatchRow)obj;
-            patchIndex = row.PatchIndex;
-            rowIndex = row.RowIndex;
-            colIndex = row.ColIndex;
-            patchX = row.PatchX;
-            patchY = row.PatchY;
-            patchWidth = row.PatchWidth;
-            patchHeight = row.PatchHeight;
-            patchGeometry = new SqlBytes(row.PatchGeometry);
-            meanR = row.MeanR;
-            meanG = row.MeanG;
-            meanB = row.MeanB;
-            variance = row.Variance;
-        }
-
-        private static readonly SqlServerBytesReader _geometryReader = new SqlServerBytesReader();
-
-        private class ImageDeconstructionPatchRow
-        {
-            public int PatchIndex { get; set; }
-            public int RowIndex { get; set; }
-            public int ColIndex { get; set; }
-            public int PatchX { get; set; }
-            public int PatchY { get; set; }
-            public int PatchWidth { get; set; }
-            public int PatchHeight { get; set; }
-            public byte[] PatchGeometry { get; set; }
-            public double MeanR { get; set; }
-            public double MeanG { get; set; }
-            public double MeanB { get; set; }
-            public double Variance { get; set; }
-        }
-
         private static int InferChannelCount(int byteLength, int width, int height)
         {
             int totalPixels = width * height;
-            if (totalPixels <= 0) return 0;
-            if (byteLength == totalPixels * 4) return 4;
-            if (byteLength == totalPixels * 3) return 3;
-            if (byteLength % totalPixels == 0) return byteLength / totalPixels;
+            if (totalPixels <= 0)
+            {
+                return 0;
+            }
+
+            if (byteLength == totalPixels * 4)
+            {
+                return 4;
+            }
+
+            if (byteLength == totalPixels * 3)
+            {
+                return 3;
+            }
+
+            if (byteLength % totalPixels == 0)
+            {
+                return byteLength / totalPixels;
+            }
+
             return 0;
         }
 
@@ -523,6 +240,320 @@ namespace Hartonomous.Clr
         private static double ComputeLuminance(byte r, byte g, byte b)
         {
             return (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+        }
+
+        /// <summary>
+        /// Generate spatial image patches for diffusion-guided image synthesis.
+        /// Returns table of patches with spatial coordinates (x, y, z) and GEOMETRY regions.
+        /// </summary>
+        [SqlFunction(FillRowMethodName = "FillImagePatchRow", TableDefinition = "patch_x INT, patch_y INT, spatial_x FLOAT, spatial_y FLOAT, spatial_z FLOAT, patch GEOMETRY")]
+        public static System.Collections.IEnumerable GenerateImagePatches(
+            SqlInt32 width,
+            SqlInt32 height,
+            SqlInt32 patchSize,
+            SqlInt32 steps,
+            SqlDouble guidanceScale,
+            SqlDouble guideX,
+            SqlDouble guideY,
+            SqlDouble guideZ,
+            SqlInt32 seed)
+        {
+            if (width.IsNull || height.IsNull || patchSize.IsNull)
+            {
+                yield break;
+            }
+
+            int w = Math.Max(1, width.Value);
+            int h = Math.Max(1, height.Value);
+            int pSize = Math.Max(1, patchSize.Value);
+            int diffusionSteps = steps.IsNull ? 32 : Math.Max(1, steps.Value);
+            double guidance = guidanceScale.IsNull ? 6.5 : guidanceScale.Value;
+            double gx = guideX.IsNull ? 0.0 : guideX.Value;
+            double gy = guideY.IsNull ? 0.0 : guideY.Value;
+            double gz = guideZ.IsNull ? 0.0 : guideZ.Value;
+            int rngSeed = seed.IsNull ? 42 : seed.Value;
+
+            var random = new Random(rngSeed);
+
+            int patchesX = (w + pSize - 1) / pSize;
+            int patchesY = (h + pSize - 1) / pSize;
+
+            for (int py = 0; py < patchesY; py++)
+            {
+                for (int px = 0; px < patchesX; px++)
+                {
+                    // Diffusion process: start with noise, iteratively denoise towards guide
+                    double noiseX = random.NextDouble() * 2.0 - 1.0;
+                    double noiseY = random.NextDouble() * 2.0 - 1.0;
+                    double noiseZ = random.NextDouble() * 2.0 - 1.0;
+
+                    double spatialX = noiseX;
+                    double spatialY = noiseY;
+                    double spatialZ = noiseZ;
+
+                    // Diffusion process: linear interpolation from noise towards guide point
+                    // LERP is appropriate for spatial placement in GEOMETRY context
+                    for (int step = 0; step < diffusionSteps; step++)
+                    {
+                        double alpha = (step + 1.0) / diffusionSteps; // Interpolation factor
+                        spatialX = noiseX * (1.0 - alpha) + gx * alpha * guidance;
+                        spatialY = noiseY * (1.0 - alpha) + gy * alpha * guidance;
+                        spatialZ = noiseZ * (1.0 - alpha) + gz * alpha * guidance;
+                    }
+
+                    // Create GEOMETRY patch region (rectangular polygon)
+                    int x1 = px * pSize;
+                    int y1 = py * pSize;
+                    int x2 = Math.Min((px + 1) * pSize, w);
+                    int y2 = Math.Min((py + 1) * pSize, h);
+
+                    var builder = new SqlGeometryBuilder();
+                    builder.SetSrid(0);
+                    builder.BeginGeometry(OpenGisGeometryType.Polygon);
+                    builder.BeginFigure(x1, y1, spatialZ, null);
+                    builder.AddLine(x2, y1, spatialZ, null);
+                    builder.AddLine(x2, y2, spatialZ, null);
+                    builder.AddLine(x1, y2, spatialZ, null);
+                    builder.AddLine(x1, y1, spatialZ, null); // Close polygon
+                    builder.EndFigure();
+                    builder.EndGeometry();
+
+                    yield return new ImagePatchRow
+                    {
+                        PatchX = px,
+                        PatchY = py,
+                        SpatialX = spatialX,
+                        SpatialY = spatialY,
+                        SpatialZ = spatialZ,
+                        Patch = builder.ConstructedGeometry
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// Generate full image GEOMETRY representing synthesized image structure.
+        /// Returns single GEOMETRY (MULTIPOLYGON) representing entire generated image.
+        /// </summary>
+        [SqlFunction(IsDeterministic = false, IsPrecise = false)]
+        public static SqlGeometry GenerateImageGeometry(
+            SqlInt32 width,
+            SqlInt32 height,
+            SqlInt32 patchSize,
+            SqlInt32 steps,
+            SqlDouble guidanceScale,
+            SqlDouble guideX,
+            SqlDouble guideY,
+            SqlDouble guideZ,
+            SqlInt32 seed)
+        {
+            if (width.IsNull || height.IsNull)
+            {
+                return SqlGeometry.Null;
+            }
+
+            int w = Math.Max(1, width.Value);
+            int h = Math.Max(1, height.Value);
+            int pSize = patchSize.IsNull ? 32 : Math.Max(1, patchSize.Value);
+
+            var builder = new SqlGeometryBuilder();
+            builder.SetSrid(0);
+            builder.BeginGeometry(OpenGisGeometryType.MultiPolygon);
+
+            // Generate patches and combine into MultiPolygon
+            var patches = GenerateImagePatches(width, height, patchSize, steps, guidanceScale, guideX, guideY, guideZ, seed);
+            foreach (ImagePatchRow patch in patches)
+            {
+                builder.BeginGeometry(OpenGisGeometryType.Polygon);
+                builder.BeginFigure(patch.PatchX * pSize, patch.PatchY * pSize, patch.SpatialZ, null);
+                builder.AddLine((patch.PatchX + 1) * pSize, patch.PatchY * pSize, patch.SpatialZ, null);
+                builder.AddLine((patch.PatchX + 1) * pSize, (patch.PatchY + 1) * pSize, patch.SpatialZ, null);
+                builder.AddLine(patch.PatchX * pSize, (patch.PatchY + 1) * pSize, patch.SpatialZ, null);
+                builder.AddLine(patch.PatchX * pSize, patch.PatchY * pSize, patch.SpatialZ, null);
+                builder.EndFigure();
+                builder.EndGeometry();
+            }
+
+            builder.EndGeometry();
+            return builder.ConstructedGeometry;
+        }
+
+        public static void FillImagePatchRow(object obj, out SqlInt32 patchX, out SqlInt32 patchY, out SqlDouble spatialX, out SqlDouble spatialY, out SqlDouble spatialZ, out SqlGeometry patch)
+        {
+            var row = (ImagePatchRow)obj;
+            patchX = row.PatchX;
+            patchY = row.PatchY;
+            spatialX = row.SpatialX;
+            spatialY = row.SpatialY;
+            spatialZ = row.SpatialZ;
+            patch = row.Patch;
+        }
+
+        private class ImagePatchRow
+        {
+            public int PatchX { get; set; }
+            public int PatchY { get; set; }
+            public double SpatialX { get; set; }
+            public double SpatialY { get; set; }
+            public double SpatialZ { get; set; }
+            public SqlGeometry Patch { get; set; }
+        }
+
+        /// <summary>
+        /// Deconstructs an image into a grid of patches, returning a table of patch metadata including statistical features.
+        /// This is a high-performance replacement for the T-SQL WHILE loops in sp_AtomizeImage.
+        /// </summary>
+        [SqlFunction(
+            FillRowMethodName = "FillDeconstructedImagePatchRow",
+            TableDefinition = "PatchIndex INT, RowIndex INT, ColIndex INT, PatchX INT, PatchY INT, PatchWidth INT, PatchHeight INT, PatchGeometry GEOMETRY, MeanR FLOAT, MeanG FLOAT, MeanB FLOAT, Variance FLOAT"
+        )]
+        public static System.Collections.IEnumerable DeconstructImageToPatches(
+            SqlBytes rawImage,
+            SqlInt32 imageWidth,
+            SqlInt32 imageHeight,
+            SqlInt32 patchSize,
+            SqlInt32 strideSize)
+        {
+            if (rawImage.IsNull || imageWidth.IsNull || imageHeight.IsNull || patchSize.IsNull || strideSize.IsNull)
+            {
+                yield break;
+            }
+
+            int imgW = imageWidth.Value;
+            int imgH = imageHeight.Value;
+            int pSize = patchSize.Value;
+            int sSize = strideSize.Value;
+
+            var pixels = SqlBytesInterop.GetBuffer(rawImage, out var bufferLength);
+            int channels = InferChannelCount(bufferLength, imgW, imgH);
+            if (channels == 0) yield break;
+
+            int patchesX = (imgW - pSize + sSize) / sSize;
+            int patchesY = (imgH - pSize + sSize) / sSize;
+            int patchIndex = 0;
+
+            for (int y = 0; y < patchesY; y++)
+            {
+                for (int x = 0; x < patchesX; x++)
+                {
+                    int pixelX = x * sSize;
+                    int pixelY = y * sSize;
+
+                    int actualPatchWidth = Math.Min(pSize, imgW - pixelX);
+                    int actualPatchHeight = Math.Min(pSize, imgH - pixelY);
+
+                    if (actualPatchWidth <= 0 || actualPatchHeight <= 0) continue;
+
+                    // --- Feature Extraction Logic ---
+                    long sumR = 0, sumG = 0, sumB = 0;
+                    double sumLuminance = 0;
+                    double sumLuminanceSq = 0;
+                    int patchPixelCount = 0;
+
+                    for (int py_local = 0; py_local < actualPatchHeight; py_local++)
+                    {
+                        for (int px_local = 0; px_local < actualPatchWidth; px_local++)
+                        {
+                            int globalPixelIndex = (pixelY + py_local) * imgW + (pixelX + px_local);
+                            if (TryReadPixel(pixels, bufferLength, globalPixelIndex, channels, out byte r, out byte g, out byte b, out byte a))
+                            {
+                                sumR += r;
+                                sumG += g;
+                                sumB += b;
+                                double luminance = ComputeLuminance(r, g, b);
+                                sumLuminance += luminance;
+                                sumLuminanceSq += luminance * luminance;
+                                patchPixelCount++;
+                            }
+                        }
+                    }
+
+                    if (patchPixelCount == 0) continue;
+
+                    double meanR = (double)sumR / patchPixelCount;
+                    double meanG = (double)sumG / patchPixelCount;
+                    double meanB = (double)sumB / patchPixelCount;
+                    double meanLuminance = sumLuminance / patchPixelCount;
+                    double variance = (sumLuminanceSq / patchPixelCount) - (meanLuminance * meanLuminance);
+                    // --- End Feature Extraction ---
+
+
+                    var builder = new SqlGeometryBuilder();
+                    builder.SetSrid(0);
+                    builder.BeginGeometry(OpenGisGeometryType.Polygon);
+                    builder.BeginFigure(pixelX, pixelY);
+                    builder.AddLine(pixelX + actualPatchWidth, pixelY);
+                    builder.AddLine(pixelX + actualPatchWidth, pixelY + actualPatchHeight);
+                    builder.AddLine(pixelX, pixelY + actualPatchHeight);
+                    builder.AddLine(pixelX, pixelY);
+                    builder.EndFigure();
+                    builder.EndGeometry();
+
+                    yield return new ImageDeconstructionPatchRow
+                    {
+                        PatchIndex = patchIndex,
+                        RowIndex = y,
+                        ColIndex = x,
+                        PatchX = pixelX,
+                        PatchY = pixelY,
+                        PatchWidth = actualPatchWidth,
+                        PatchHeight = actualPatchHeight,
+                        PatchGeometry = builder.ConstructedGeometry,
+                        MeanR = meanR,
+                        MeanG = meanG,
+                        MeanB = meanB,
+                        Variance = variance
+                    };
+
+                    patchIndex++;
+                }
+            }
+        }
+
+        public static void FillDeconstructedImagePatchRow(
+            object obj,
+            out SqlInt32 patchIndex,
+            out SqlInt32 rowIndex,
+            out SqlInt32 colIndex,
+            out SqlInt32 patchX,
+            out SqlInt32 patchY,
+            out SqlInt32 patchWidth,
+            out SqlInt32 patchHeight,
+            out SqlGeometry patchGeometry,
+            out SqlDouble meanR,
+            out SqlDouble meanG,
+            out SqlDouble meanB,
+            out SqlDouble variance)
+        {
+            var row = (ImageDeconstructionPatchRow)obj;
+            patchIndex = row.PatchIndex;
+            rowIndex = row.RowIndex;
+            colIndex = row.ColIndex;
+            patchX = row.PatchX;
+            patchY = row.PatchY;
+            patchWidth = row.PatchWidth;
+            patchHeight = row.PatchHeight;
+            patchGeometry = row.PatchGeometry;
+            meanR = row.MeanR;
+            meanG = row.MeanG;
+            meanB = row.MeanB;
+            variance = row.Variance;
+        }
+
+        private class ImageDeconstructionPatchRow
+        {
+            public int PatchIndex { get; set; }
+            public int RowIndex { get; set; }
+            public int ColIndex { get; set; }
+            public int PatchX { get; set; }
+            public int PatchY { get; set; }
+            public int PatchWidth { get; set; }
+            public int PatchHeight { get; set; }
+            public SqlGeometry PatchGeometry { get; set; }
+            public double MeanR { get; set; }
+            public double MeanG { get; set; }
+            public double MeanB { get; set; }
+            public double Variance { get; set; }
         }
     }
 }

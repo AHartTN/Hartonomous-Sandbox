@@ -3,22 +3,23 @@ using System.Collections.Generic;
 using System.Data;
 using System.Data.SqlClient;
 using Hartonomous.Clr.Contracts;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.IO;
+using Microsoft.SqlServer.Types;
 
 namespace Hartonomous.Clr.Core
 {
     /// <summary>
-    /// SQL CLR implementation of ITensorProvider using NetTopologySuite.
+    /// SQL CLR implementation of ITensorProvider.
+    /// Uses context connection to query TensorAtoms.WeightsGeometry.
+    /// FOLLOWS: AttentionGeneration.cs:363-490 pattern (proven working implementation).
     /// </summary>
     public class SqlTensorProvider : ITensorProvider
     {
-        private static readonly SqlServerBytesReader _geometryReader = new SqlServerBytesReader();
         private readonly SqlConnection _connection;
         private readonly bool _ownsConnection;
 
         public SqlTensorProvider()
         {
+            // Context connection for SQL CLR functions
             _connection = new SqlConnection("context connection=true");
             _connection.Open();
             _ownsConnection = true;
@@ -39,6 +40,7 @@ namespace Hartonomous.Clr.Core
 
             using (var command = _connection.CreateCommand())
             {
+                // Query pattern from AttentionGeneration.cs:373-380
                 command.CommandText = @"
                     SELECT TOP 1 ta.WeightsGeometry, ta.ElementCount
                     FROM dbo.TensorAtoms ta
@@ -51,48 +53,33 @@ namespace Hartonomous.Clr.Core
                 {
                     if (reader.Read())
                     {
+                        // Extract GEOMETRY using pattern from AttentionGeneration.cs:383-397
                         var geometryObj = reader.GetValue(0);
                         var elementCount = reader.GetInt64(1);
 
                         if (geometryObj != null && geometryObj != DBNull.Value)
                         {
-                            try
+                            var geometry = geometryObj as SqlGeometry;
+                            if (geometry != null && !geometry.IsNull)
                             {
-                                byte[] geometryBytes = null;
-                                
-                                if (geometryObj is byte[] bytes)
-                                {
-                                    geometryBytes = bytes;
-                                }
-                                else if (geometryObj is System.Data.SqlTypes.SqlBytes sqlBytes && !sqlBytes.IsNull)
-                                {
-                                    geometryBytes = sqlBytes.Value;
-                                }
+                                int pointCount = Math.Min((int)elementCount, maxElements);
+                                if (geometry.STNumPoints().IsNull)
+                                    return weights.ToArray();
 
-                                if (geometryBytes != null)
+                                int actualPoints = geometry.STNumPoints().Value;
+                                pointCount = Math.Min(pointCount, actualPoints);
+
+                                // Extract weights from GEOMETRY.STPointN(i).STY.Value
+                                // Pattern from AttentionGeneration.cs:388-397
+                                for (int i = 1; i <= pointCount; i++)
                                 {
-                                    var geometry = _geometryReader.Read(geometryBytes);
-                                    
-                                    if (geometry != null && !geometry.IsEmpty && geometry is LineString lineString)
+                                    var point = geometry.STPointN(i);
+                                    if (!point.IsNull && !point.STY.IsNull)
                                     {
-                                        int pointCount = Math.Min((int)elementCount, maxElements);
-                                        pointCount = Math.Min(pointCount, lineString.NumPoints);
-
-                                        // Extract weights from LineString coordinates (Y values)
-                                        for (int i = 0; i < pointCount; i++)
-                                        {
-                                            var coord = lineString.GetCoordinateN(i);
-                                            if (coord != null && !double.IsNaN(coord.Y))
-                                            {
-                                                weights.Add((float)coord.Y);
-                                            }
-                                        }
+                                        var value = point.STY.Value;
+                                        weights.Add((float)value);
                                     }
                                 }
-                            }
-                            catch
-                            {
-                                // Skip invalid geometries
                             }
                         }
                     }

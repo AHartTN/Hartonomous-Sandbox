@@ -4,13 +4,13 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.IO;
 using System.Collections.Generic;
-using NetTopologySuite.Geometries;
-using NetTopologySuite.IO;
+using Microsoft.SqlServer.Types;
 
 namespace Hartonomous.Clr
 {
     /// <summary>
     /// Represents a 3D point with a timestamp, used for building trajectories.
+    /// The timestamp is stored to ensure correct ordering before creating the LineString.
     /// </summary>
     [Serializable]
     public struct PointWithTimestamp
@@ -23,128 +23,123 @@ namespace Hartonomous.Clr
 
     /// <summary>
     /// A SQL CLR user-defined aggregate to construct a geometric path (LineString)
-    /// from a sequence of atoms, ordered by timestamp using NetTopologySuite.
+    /// from a sequence of atoms, ordered by timestamp. This is the core of
+    /// trajectory and user session analysis.
+    ///
+    /// T-SQL Usage:
+    /// SELECT
+    ///     SessionId,
+    ///     dbo.agg_BuildPathFromAtoms(AtomId, Timestamp) AS SessionPath
+    /// FROM
+    ///     dbo.UserInteractions
+    /// GROUP BY
+    ///     SessionId;
     /// </summary>
     [Serializable]
     [SqlUserDefinedAggregate(
         Format.UserDefined,
         IsInvariantToNulls = true,
         IsInvariantToDuplicates = false,
-        IsInvariantToOrder = false,
-        MaxByteSize = -1)
+        IsInvariantToOrder = false, // Order is handled explicitly by sorting timestamps.
+        MaxByteSize = -1)          // MaxByteSize = -1 for large objects.
     ]
     public struct BuildPathFromAtoms : IBinarySerialize
     {
-        private static readonly SqlServerBytesReader _geometryReader = new SqlServerBytesReader();
-        private static readonly SqlServerBytesWriter _geometryWriter = new SqlServerBytesWriter();
-        private static readonly GeometryFactory _geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
-        
         private List<PointWithTimestamp> _points;
 
+        /// <summary>
+        /// Initializes the aggregate state.
+        /// </summary>
         public void Init()
         {
             _points = new List<PointWithTimestamp>();
         }
 
         /// <summary>
-        /// Accumulates data for each row - fetches spatial location from database.
+        /// Accumulates data for each row in the group.
+        /// Connects back to the database to fetch the spatial location for the given AtomId.
         /// </summary>
         public void Accumulate(SqlInt64 atomId, SqlDateTime timestamp)
         {
             if (atomId.IsNull || timestamp.IsNull)
+            {
                 return;
+            }
 
+            SqlGeometry point = SqlGeometry.Null;
+
+            // Use the context connection to execute a query and retrieve the atom's spatial location.
+            // This requires the assembly to be deployed with PERMISSION_SET = EXTERNAL_ACCESS or UNSAFE.
             using (SqlConnection conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
+                // Note: Using AtomEmbeddings as the source of truth for spatial location.
                 string query = "SELECT TOP 1 SpatialGeometry FROM dbo.AtomEmbeddings WHERE AtomId = @id ORDER BY CreatedAt DESC";
                 using (SqlCommand cmd = new SqlCommand(query, conn))
                 {
                     cmd.Parameters.AddWithValue("@id", atomId.Value);
                     object result = cmd.ExecuteScalar();
-                    
                     if (result != null && result != DBNull.Value)
                     {
-                        try
-                        {
-                            // SpatialGeometry column stores geometry as SqlBytes (binary format)
-                            byte[] geometryBytes = null;
-                            
-                            if (result is SqlBytes sqlBytes && !sqlBytes.IsNull)
-                            {
-                                geometryBytes = sqlBytes.Value;
-                            }
-                            else if (result is byte[] bytes)
-                            {
-                                geometryBytes = bytes;
-                            }
-                            
-                            if (geometryBytes != null)
-                            {
-                                var geometry = _geometryReader.Read(geometryBytes);
-                                
-                                if (geometry != null && !geometry.IsEmpty && geometry is Point point)
-                                {
-                                    _points.Add(new PointWithTimestamp
-                                    {
-                                        X = point.X,
-                                        Y = point.Y,
-                                        Z = double.IsNaN(point.Z) ? 0.0 : point.Z,
-                                        Timestamp = timestamp.Value
-                                    });
-                                }
-                            }
-                        }
-                        catch
-                        {
-                            // Skip invalid geometries
-                        }
+                        point = (SqlGeometry)result;
                     }
                 }
             }
+
+            if (!point.IsNull && point.STGeometryType().Value == "Point")
+            {
+                _points.Add(new PointWithTimestamp
+                {
+                    X = point.STX.Value,
+                    Y = point.STY.Value,
+                    Z = point.Z.IsNull ? 0.0 : point.Z.Value,
+                    Timestamp = timestamp.Value
+                });
+            }
         }
 
+        /// <summary>
+        /// Merges the state of another instance of the aggregate.
+        /// </summary>
         public void Merge(BuildPathFromAtoms other)
         {
             _points.AddRange(other._points);
         }
 
         /// <summary>
-        /// Returns LineString with Z and M coordinates (M = timestamp as OADate).
+        /// Terminates the aggregation and returns the final result.
+        /// Constructs a LineStringZM geometry from the collected points.
         /// </summary>
-        public SqlBytes Terminate()
+        public SqlGeometry Terminate()
         {
             if (_points.Count < 2)
-                return SqlBytes.Null;
-
-            try
             {
-                // Sort by timestamp
-                _points.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
-
-                // Build coordinates with Z and M values
-                var coordinates = new CoordinateM[_points.Count];
-                for (int i = 0; i < _points.Count; i++)
-                {
-                    coordinates[i] = new CoordinateZM(
-                        _points[i].X,
-                        _points[i].Y,
-                        _points[i].Z,
-                        _points[i].Timestamp.ToOADate()
-                    );
-                }
-
-                var lineString = _geometryFactory.CreateLineString(coordinates);
-                var geometryBytes = _geometryWriter.Write(lineString);
-
-                return new SqlBytes(geometryBytes);
+                return SqlGeometry.Null; // A path requires at least two points.
             }
-            catch
+
+            // Sort the points by timestamp to ensure the path is in chronological order.
+            _points.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
+
+            // Use SqlGeometryBuilder to construct the LineString.
+            SqlGeometryBuilder builder = new SqlGeometryBuilder();
+            builder.SetSrid(4326); // Assuming WGS 84, should match source data.
+            builder.BeginGeometry(OpenGisGeometryType.LineString);
+            
+            // The M value must be a double. Using ToOADate for conversion.
+            builder.BeginFigure(_points[0].X, _points[0].Y, _points[0].Z, _points[0].Timestamp.ToOADate());
+
+            for (int i = 1; i < _points.Count; i++)
             {
-                return SqlBytes.Null;
+                builder.AddLine(_points[i].X, _points[i].Y, _points[i].Z, _points[i].Timestamp.ToOADate());
             }
+
+            builder.EndFigure();
+            builder.EndGeometry();
+
+            return builder.ConstructedGeometry;
         }
 
+        // IBinarySerialize implementation for persistence.
         public void Read(BinaryReader r)
         {
             int count = r.ReadInt32();
