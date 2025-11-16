@@ -3,26 +3,52 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
   </PropertyGroup>
   <ItemGroup>
-    <!-- .NET 8 Core Libraries -->
+    <!-- .NET Testing -->
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageVersion Include="xunit" Version="2.9.2" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="FluentAssertions" Version="7.0.0" />
+    <PackageVersion Include="Moq" Version="4.20.72" />
+    <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
+    
+    <!-- Core Libraries -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="8.0.0" />
-    <PackageVersion Include="Swashbuckle.AspNetCore" Version="6.4.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Data.SqlClient" Version="5.2.0" />
+    <PackageVersion Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+    <PackageVersion Include="Microsoft.SqlServer.Types" Version="160.1000.6" />
+    <PackageVersion Include="NetTopologySuite" Version="2.6.0" />
     <PackageVersion Include="Dapper" Version="2.1.28" />
-
-    <!-- Build Tools for .NET Framework (for Hartonomous.Database.sqlproj) -->
+    
+    <!-- ASP.NET Core & Web -->
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
+    
+    <!-- Entity Framework Core (NET 10 RC) -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="10.0.0-rc.2.25502.107" />
+    
+    <!-- Microsoft Extensions (NET 10 RC) -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0-rc.2.25502.107" />
+    
+    <!-- Resilience -->
+    <PackageVersion Include="Polly" Version="8.4.2" />
+    
+    <!-- Code Analysis -->
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    
+    <!-- Image Processing -->
+    <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
+    
+    <!-- Build Tools for SQL Database Project -->
     <PackageVersion Include="Microsoft.Data.Tools.MSBuild" Version="10.0.61804.210" />
-
-    <!-- These versions are from AUDIT-REPORT.md, noted as having vulnerabilities. -->
-    <!-- The audit report states these are for non-blocking build issues & to be updated in Week 2. -->
-    <!-- For now, we use the versions from the audit report to maintain the audited state. -->
+    
+    <!-- Build Tools (Have known vulnerabilities - to be updated Week 2) -->
     <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="17.14.8" />
     <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.8" />
   </ItemGroup>
