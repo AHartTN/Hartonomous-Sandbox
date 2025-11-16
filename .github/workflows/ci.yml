@@ -1,0 +1,64 @@
+name: Hartonomous CI/CD
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore NuGet packages
+        run: dotnet restore Hartonomous.sln
+
+      - name: Build C# projects
+        run: dotnet build Hartonomous.sln -c Release --no-restore
+
+      - name: Build DACPAC with MSBuild
+        run: |
+          $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\amd64\MSBuild.exe"
+          & $msbuild src\Hartonomous.Database\Hartonomous.Database.sqlproj /t:Build /p:Configuration=Release /v:minimal
+
+      - name: Verify DACPAC exists
+        run: |
+          if (!(Test-Path "src\Hartonomous.Database\bin\Output\Hartonomous.Database.dacpac")) {
+            throw "DACPAC not generated"
+          }
+          Write-Host "DACPAC verified"
+
+      - name: Verify CLR dependencies
+        run: |
+          $dll = "src\Hartonomous.Database\bin\Output\Hartonomous.Database.dll"
+          $asm = [System.Reflection.Assembly]::LoadFile((Resolve-Path $dll))
+          $deps = $asm.GetReferencedAssemblies()
+          
+          $bad = $deps | Where-Object {
+            $_.Name -in @('System.Collections.Immutable','System.Reflection.Metadata','System.Memory','netstandard')
+          }
+          
+          if ($bad) {
+            throw "Incompatible dependencies found: $($bad.Name -join ', ')"
+          }
+          Write-Host "CLR dependencies verified"
+
+      - name: Run unit tests
+        run: dotnet test Hartonomous.sln -c Release --no-build --verbosity minimal
+
+      - name: Upload DACPAC artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-package
+          path: |
+            src/Hartonomous.Database/bin/Output/*.dacpac
+            src/Hartonomous.Database/bin/Output/*.dll
