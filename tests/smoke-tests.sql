@@ -60,7 +60,7 @@ END CATCH;
 PRINT '';
 PRINT 'Test 3: Hilbert Curve Computation...';
 BEGIN TRY
-    DECLARE @point GEOMETRY = geometry::Point(0.5, 0.5, 0.5, 0);
+    DECLARE @point GEOMETRY = geometry::STGeomFromText('POINT(0.5 0.5 0.5)', 0);
     DECLARE @hilbert BIGINT = dbo.clr_ComputeHilbertValue(@point, 21);
     
     IF @hilbert IS NULL OR @hilbert <= 0
