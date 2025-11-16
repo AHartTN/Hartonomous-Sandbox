@@ -9,31 +9,31 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Messaging.ServiceBus" Version="7.20.1" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.26.0" />
-    <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0-rc.2.25502.107" />
-    <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" Version="9.10.0" />
-    <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="9.10.0" />
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="10.0.0-rc.2.25502.107" />
-    <PackageReference Include="Microsoft.Extensions.Resilience" Version="9.10.0" />
-    <PackageReference Include="Microsoft.Extensions.Telemetry" Version="9.10.0" />
-    <PackageReference Include="Neo4j.Driver" Version="5.28.3" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.12" />
-    <PackageReference Include="Google.Protobuf" Version="3.29.3" />
+    <PackageReference Include="Azure.Messaging.ServiceBus" />
+    <PackageReference Include="Azure.Storage.Blobs" />
+    <PackageReference Include="MathNet.Numerics" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Microsoft.Extensions.Compliance.Redaction" />
+    <PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" />
+    <PackageReference Include="Microsoft.Extensions.Resilience" />
+    <PackageReference Include="Microsoft.Extensions.Telemetry" />
+    <PackageReference Include="Neo4j.Driver" />
+    <PackageReference Include="SixLabors.ImageSharp" />
+    <PackageReference Include="Google.Protobuf" />
     <!-- ONNX Runtime used ONLY for model ingestion (reading .onnx files), NOT for inference -->
     <!-- Inference uses TensorAtoms + sp_GenerateWithAttention + AttentionGeneration.cs CLR -->
-    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.0" />
-    <PackageReference Include="TorchSharp" Version="0.105.0" />
-    <PackageReference Include="AngleSharp" Version="1.2.0" />
-    <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
-    <PackageReference Include="PdfPig" Version="0.1.11" />
-    <PackageReference Include="FFMpegCore" Version="5.1.0" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
-    <PackageReference Include="MySqlConnector" Version="2.4.0" />
-    <PackageReference Include="Npgsql" Version="9.0.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" />
+    <PackageReference Include="TorchSharp" />
+    <PackageReference Include="AngleSharp" />
+    <PackageReference Include="DocumentFormat.OpenXml" />
+    <PackageReference Include="PdfPig" />
+    <PackageReference Include="FFMpegCore" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
+    <PackageReference Include="MySqlConnector" />
+    <PackageReference Include="Npgsql" />
   </ItemGroup>
 
   <ItemGroup>

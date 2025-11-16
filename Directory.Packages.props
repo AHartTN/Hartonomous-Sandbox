@@ -19,7 +19,7 @@
     <PackageVersion Include="Dapper" Version="2.1.28" />
     
     <!-- Azure -->
-    <PackageVersion Include="Azure.Identity" Version="1.13.1" />
+    <PackageVersion Include="Azure.Identity" Version="1.14.2" />
     <PackageVersion Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.2.0" />
     <PackageVersion Include="Azure.Storage.Blobs" Version="12.23.0" />
     <PackageVersion Include="Azure.Storage.Queues" Version="12.20.1" />
@@ -62,6 +62,8 @@
     
     <!-- Resilience -->
     <PackageVersion Include="Polly" Version="8.4.2" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.0.0-rc.2.25502.107" />
     
     <!-- Code Analysis -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
@@ -69,11 +71,31 @@
     <!-- Image Processing -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
     
-    <!-- Build Tools for SQL Database Project -->
-    <PackageVersion Include="Microsoft.Data.Tools.MSBuild" Version="10.0.61804.210" />
+    <!-- Azure Messaging -->
+    <PackageVersion Include="Azure.Messaging.ServiceBus" Version="7.18.2" />
+    
+    <!-- Machine Learning -->
+    <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
+    <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
+    <PackageVersion Include="TorchSharp" Version="0.103.4" />
+    <PackageVersion Include="Google.Protobuf" Version="3.28.3" />
+    
+    <!-- Document Processing -->
+    <PackageVersion Include="AngleSharp" Version="1.1.2" />
+    <PackageVersion Include="DocumentFormat.OpenXml" Version="3.2.0" />
+    <PackageVersion Include="PdfPig" Version="0.1.9" />
+    <PackageVersion Include="FFMpegCore" Version="5.1.0" />
+    
+    <!-- Database Drivers -->
+    <PackageVersion Include="MySqlConnector" Version="2.4.0" />
+    <PackageVersion Include="Npgsql" Version="9.0.2" />
+    
+    <!-- Compliance -->
+    <PackageVersion Include="Microsoft.Extensions.Compliance.Redaction" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
     
     <!-- Build Tools (Have known vulnerabilities - to be updated Week 2) -->
-    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="17.14.8" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.8" />
+    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="17.14.29" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.29" />
   </ItemGroup>
 </Project>

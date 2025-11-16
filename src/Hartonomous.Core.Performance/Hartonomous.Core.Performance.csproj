@@ -21,11 +21,11 @@
 
   <ItemGroup>
     <!-- Benchmarking -->
-    <PackageReference Include="BenchmarkDotNet" Version="0.14.0" />
+    <PackageReference Include="BenchmarkDotNet" />
     
     <!-- GPU Compute - COMMENTED OUT: CLR verifier incompatibility with unmanaged GPU pointers -->
-    <!-- <PackageReference Include="ILGPU" Version="1.5.1" /> -->
-    <!-- <PackageReference Include="ILGPU.Algorithms" Version="1.5.1" /> -->
+    <!-- <PackageReference Include="ILGPU" /> -->
+    <!-- <PackageReference Include="ILGPU.Algorithms" /> -->
   </ItemGroup>
 
   <ItemGroup>
