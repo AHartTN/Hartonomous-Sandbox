@@ -94,47 +94,40 @@ jobs:
           retention-days: 7
 
   deploy-database:
-    name: Deploy Database
-    runs-on: [self-hosted, windows, sql-server]
-    needs: build-dacpac
+    needs: build-database-dacpac
+    runs-on: windows-latest
     environment: production
-    
-    env:
-      SQL_SERVER: ${{ secrets.SQL_SERVER }}
-      SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
-    
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
-      
-      - name: Download DACPAC
-        uses: actions/download-artifact@v4
+        uses: actions/checkout@v3
+
+      - name: Download DACPAC Artifact
+        uses: actions/download-artifact@v3
         with:
           name: database-dacpac
           path: ./artifacts/database
-      
-      - name: Download CLR dependencies
-        uses: actions/download-artifact@v4
+
+      - name: Download CLR Dependencies
+        uses: actions/download-artifact@v3
         with:
           name: clr-dependencies
           path: ./dependencies
-      
-      - name: Download deployment scripts
-        uses: actions/download-artifact@v4
+
+      - name: Download Deployment Scripts
+        uses: actions/download-artifact@v3
         with:
           name: deployment-scripts
           path: ./scripts
 
-      - name: 'Login to Azure with OIDC'
-        uses: azure/login@v2
+      - name: Azure Login
+        uses: azure/login@v1
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      - name: 'Get Azure AD Access Token for SQL'
+      - name: Get Azure AD Access Token for SQL
         id: get_token
-        shell: pwsh
         run: |
           $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
           if (-not $token) {
@@ -142,23 +135,18 @@ jobs:
           }
           echo "::add-mask::$token"
           echo "token=$token" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-
-      - name: 'Execute Unified Database Deployment'
         shell: pwsh
+
+      - name: Execute Unified Database Deployment
         run: |
-          ./scripts/Deploy-Database-All.ps1 `
-            -Server "${{ env.SQL_SERVER }}" `
-            -Database "${{ env.SQL_DATABASE }}" `
+          ./scripts/Deploy-Database.ps1 `
+            -Server "${{ secrets.SQL_SERVER_NAME }}" `
+            -Database "${{ secrets.SQL_DATABASE_NAME }}" `
             -AccessToken "${{ steps.get_token.outputs.token }}" `
             -DacpacPath "./artifacts/database/Hartonomous.Database.dacpac" `
-            -DependenciesPath "./dependencies"
-      
-      - name: Upload scaffolded entities artifact marker
-        uses: actions/upload-artifact@v4
-        with:
-          name: database-deployed
-          path: scripts/
-          retention-days: 1
+            -DependenciesPath "./dependencies" `
+            -ScriptsPath "./scripts/sql"
+        shell: pwsh
 
   scaffold-entities:
     name: Scaffold EF Core Entities
