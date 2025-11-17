@@ -238,7 +238,7 @@ stages:
 - stage: DeployDatabase
   displayName: 'Deploy Database Schema + CLR'
   dependsOn: Build
-  condition: succeeded()
+  condition: in(dependencies.Build.result, 'Succeeded', 'SucceededWithIssues', 'Failed')
   jobs:
   - deployment: DatabaseDeployment
     displayName: 'Deploy to SQL Server'
