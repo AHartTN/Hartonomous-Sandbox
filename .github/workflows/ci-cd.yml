@@ -23,7 +23,7 @@ on:
         default: false
 
 permissions:
-  id-token: write  # Required for OIDC authentication
+  id-token: write
   contents: read
   pull-requests: write
   checks: write
@@ -35,19 +35,14 @@ env:
   DOTNET_NOLOGO: 'true'
 
 jobs:
-  # ============================================================================
-  # STEP 1: Build DACPAC
-  # ============================================================================
   build-dacpac:
     name: Build Database DACPAC
-    runs-on: [self-hosted, windows, sql-server]  # Requires Windows for .NET Framework 4.8.1 CLR
+    runs-on: [self-hosted, windows, sql-server]
     if: github.event_name != 'pull_request'
     
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      # MSBuild is already installed with Visual Studio - no need for .NET SDK
       
       - name: Build DACPACwith MSBuild
         shell: pwsh
@@ -98,14 +93,11 @@ jobs:
           path: scripts/
           retention-days: 7
 
-  # ============================================================================
-  # STEP 2: Deploy Database (creates schema for scaffolding)
-  # ============================================================================
   deploy-database:
-    name: Deploy to ${{ inputs.environment || 'production' }}
+    name: Deploy Database
     runs-on: [self-hosted, windows, sql-server]
     needs: build-dacpac
-    environment: ${{ inputs.environment || 'production' }}
+    environment: production
     
     env:
       SQL_SERVER: ${{ secrets.SQL_SERVER }}
@@ -151,115 +143,15 @@ jobs:
           echo "::add-mask::$token"
           echo "token=$token" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
-      - name: 'Step 2.1: Enable CLR & Configure Asymmetric Key Security'
+      - name: 'Execute Unified Database Deployment'
         shell: pwsh
         run: |
-          ./scripts/enable-clr.ps1 -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken "${{ steps.get_token.outputs.token }}"
-
-      - name: Step 2.2: Pre-DACPAC Cleanup (Idempotency)
-        id: pre_dacpac_cleanup
-        run: |
-          $sqlScript = @"
-          -- This script ensures idempotency by dropping all CLR-dependent objects
-          -- before the DACPAC deployment. This prevents "object already exists" errors
-          -- and handles dependency chains correctly.
-
-          USE [${{ env.SQL_DATABASE }}];
-
-          -- Drop all functions that depend on the main CLR assembly
-          DECLARE @sql NVARCHAR(MAX) = N'';
-          SELECT @sql += 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
-          FROM sys.assembly_modules am
-          JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-          JOIN sys.objects o ON am.object_id = o.object_id
-          JOIN sys.schemas s ON o.schema_id = s.schema_id
-          WHERE a.name = 'Hartonomous.Clr';
-          EXEC sp_executesql @sql;
-          PRINT 'Dropped all CLR-dependent functions.';
-
-          -- Drop all aggregates that depend on the main CLR assembly
-          SET @sql = N'';
-          SELECT @sql += 'DROP AGGREGATE ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
-          FROM sys.assembly_modules am
-          JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-          JOIN sys.objects o ON am.object_id = o.object_id
-          JOIN sys.schemas s ON o.schema_id = s.schema_id
-          WHERE a.name = 'Hartonomous.Clr' AND o.type = 'AF';
-          EXEC sp_executesql @sql;
-          PRINT 'Dropped all CLR-dependent aggregates.';
-
-          -- Drop all types that depend on the main CLR assembly
-          SET @sql = N'';
-          SELECT @sql += 'DROP TYPE ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
-          FROM sys.assembly_types at
-          JOIN sys.assemblies a ON at.assembly_id = a.assembly_id
-          JOIN sys.types t ON at.user_type_id = t.user_type_id
-          JOIN sys.schemas s ON t.schema_id = s.schema_id
-          WHERE a.name = 'Hartonomous.Clr';
-          EXEC sp_executesql @sql;
-          PRINT 'Dropped all CLR-dependent types.';
-
-          -- Finally, drop the main CLR assembly itself
-          IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Hartonomous.Clr')
-          BEGIN
-              DROP ASSEMBLY [Hartonomous.Clr];
-              PRINT 'Dropped Hartonomous.Clr assembly.';
-          END
-          "@
-          Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query $sqlScript -AccessToken "${{ steps.get_sql_token.outputs.token }}" -TrustServerCertificate
-        shell: pwsh
-
-      - name: Step 2.3: Deploy External (Unsigned) CLR Assemblies
-        id: deploy_external_assemblies
-        run: ./scripts/deploy-clr-assemblies.ps1 -Server "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -UseAzureAD -AccessToken "${{ steps.get_sql_token.outputs.token }}" -DependenciesPath ./dependencies
-        shell: pwsh
-
-      - name: 'Step 2.4: Deploy DACPAC (Hartonomous.Clr + T-SQL Objects)'
-        shell: pwsh
-        run: |
-          $dacpacPath = "./artifacts/database/Hartonomous.Database.dacpac"
-          $connectionString = "Server=${{ env.SQL_SERVER }};Database=${{ env.SQL_DATABASE }};Encrypt=True;TrustServerCertificate=True;"
-          
-          Write-Host "Deploying DACPAC: $dacpacPath"
-          
-          sqlpackage.exe /Action:Publish `
-            /SourceFile:"$dacpacPath" `
-            /TargetConnectionString:"$connectionString" `
-            /AccessToken:"${{ steps.get_token.outputs.token }}" `
-            /p:BlockOnPossibleDataLoss=False `
-            /p:DropObjectsNotInSource=False
-          
-          if ($LASTEXITCODE -ne 0) {
-            throw "DACPAC deployment failed with exit code $LASTEXITCODE"
-          }
-          Write-Host "✓ DACPAC deployed successfully."
-
-      - name: 'Step 2.5: Set TRUSTWORTHY ON (Required for Unsigned Assemblies)'
-        shell: pwsh
-        run: |
-          ./scripts/set-trustworthy.ps1 -Server "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -UseAzureAD -AccessToken "${{ steps.get_token.outputs.token }}"
-      
-      - name: Validate Deployment
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get_token.outputs.token }}"
-          
-          Write-Host "`n=== Deployment Validation ==="
-          
-          # Count assemblies
-          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.assemblies WHERE is_user_defined = 1" -AccessToken $token -TrustServerCertificate
-          Write-Host "External Assemblies: $($count.cnt)"
-          
-          # Count functions
-          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT', 'AF', 'PC') AND is_ms_shipped = 0" -AccessToken $token -TrustServerCertificate
-          Write-Host "User-Defined Functions/Procs/Aggregates: $($count.cnt)"
-          
-          # Count UDTs
-          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.types WHERE is_user_defined = 1 AND is_assembly_type = 1" -AccessToken $token -TrustServerCertificate
-          Write-Host "CLR User-Defined Types: $($count.cnt)"
-          
-          Write-Host "`n✓ Deployment validation complete"
+          ./scripts/Deploy-Database-All.ps1 `
+            -Server "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -AccessToken "${{ steps.get_token.outputs.token }}" `
+            -DacpacPath "./artifacts/database/Hartonomous.Database.dacpac" `
+            -DependenciesPath "./dependencies"
       
       - name: Upload scaffolded entities artifact marker
         uses: actions/upload-artifact@v4
@@ -268,14 +160,11 @@ jobs:
           path: scripts/
           retention-days: 1
 
-  # ============================================================================
-  # STEP 3: Scaffold EF Core Entities (depends on deployed database)
-  # ============================================================================
   scaffold-entities:
     name: Scaffold EF Core Entities
-    runs-on: [self-hosted, windows, sql-server]  # Requires Windows for SQL Server access
+    runs-on: [self-hosted, windows, sql-server]
     needs: deploy-database
-    environment: ${{ inputs.environment || 'production' }}
+    environment: production
     
     env:
       SQL_SERVER: ${{ secrets.SQL_SERVER }}
@@ -349,12 +238,9 @@ jobs:
           path: src/Hartonomous.Data.Entities/
           retention-days: 1
 
-  # ============================================================================
-  # STEP 4: Build and Test .NET Solution (uses scaffolded entities)
-  # ============================================================================
   build-and-test:
     name: Build and Test .NET Solution
-    runs-on: [self-hosted, linux]  # .NET 10 is cross-platform, use Linux for speed
+    runs-on: [self-hosted, linux]
     needs: scaffold-entities
     
     steps:
@@ -438,12 +324,9 @@ jobs:
             Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
           }
 
-  # ============================================================================
-  # STEP 5: Build Applications (uses scaffolded entities)
-  # ============================================================================
   build-applications:
     name: Build Applications
-    runs-on: [self-hosted, linux]  # .NET 10 is cross-platform, use Linux for speed
+    runs-on: [self-hosted, linux]
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
