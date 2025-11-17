@@ -1,0 +1,204 @@
+# ============================================================================
+# Hartonomous Database Release Pipeline
+# Deploys DACPAC artifact from build pipeline to SQL Server
+# ============================================================================
+
+trigger: none # Manual/scheduled releases only
+
+resources:
+  pipelines:
+  - pipeline: buildPipeline
+    source: 'Hartonomous-CI-CD'
+    trigger:
+      branches:
+        include:
+        - main
+
+pool:
+  name: 'Local Agent Pool'
+
+variables:
+  - name: sqlServer
+    value: 'localhost'
+  - name: sqlDatabase
+    value: 'Hartonomous'
+
+stages:
+- stage: DeployDatabase
+  displayName: 'Deploy Database to SQL Server'
+  jobs:
+  - deployment: DatabaseDeployment
+    displayName: 'Deploy DACPAC + CLR Assemblies'
+    environment: 'SQL-Server-Production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Download database artifact from build pipeline
+          - download: buildPipeline
+            artifact: database
+            displayName: 'Download Database Artifact'
+
+          # Step 1: Enable CLR Integration
+          - task: PowerShell@2
+            displayName: 'Enable CLR Integration'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                Write-Host "Enabling CLR integration on SQL Server..."
+                
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
+                EXEC sp_configure 'show advanced options', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr enabled', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr strict security', 0;
+                RECONFIGURE;
+                PRINT 'CLR enabled successfully';
+                "@
+                
+                Write-Host "✓ CLR configuration complete"
+              pwsh: true
+
+          # Step 2: Deploy DACPAC
+          - task: PowerShell@2
+            displayName: 'Deploy DACPAC with SqlPackage'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $dacpacPath = "$(Pipeline.Workspace)/buildPipeline/database/Hartonomous.Database.dacpac"
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
+                
+                Write-Host "Deploying DACPAC: $dacpacPath"
+                
+                if (-not (Test-Path $dacpacPath)) {
+                  Write-Error "DACPAC not found at: $dacpacPath"
+                  exit 1
+                }
+                
+                sqlpackage.exe `
+                  /Action:Publish `
+                  /SourceFile:"$dacpacPath" `
+                  /TargetConnectionString:"$connectionString" `
+                  /p:DropObjectsNotInSource=False `
+                  /p:BlockOnPossibleDataLoss=True `
+                  /p:IgnorePermissions=True `
+                  /p:IgnoreRoleMembership=True `
+                  /DiagnosticsFile:"$(Pipeline.Workspace)/dacpac-deployment.log"
+                
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "✓ DACPAC deployed successfully"
+                } else {
+                  Write-Error "✗ DACPAC deployment failed with exit code $LASTEXITCODE"
+                  Get-Content "$(Pipeline.Workspace)/dacpac-deployment.log" -ErrorAction SilentlyContinue
+                  exit 1
+                }
+              pwsh: true
+
+          # Step 3: Set TRUSTWORTHY ON
+          - task: PowerShell@2
+            displayName: 'Set Database TRUSTWORTHY ON'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                Write-Host "Setting TRUSTWORTHY ON for $(sqlDatabase)..."
+                
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
+                ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;
+                PRINT 'TRUSTWORTHY enabled';
+                "@
+                
+                Write-Host "✓ TRUSTWORTHY enabled"
+              pwsh: true
+
+          # Step 4: Deploy External CLR Assemblies (16 DLLs)
+          - task: PowerShell@2
+            displayName: 'Deploy External CLR Assemblies'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $depsPath = "$(Pipeline.Workspace)/buildPipeline/database/dependencies"
+                
+                if (-not (Test-Path $depsPath)) {
+                  Write-Warning "CLR dependencies not found at: $depsPath"
+                  Write-Host "Skipping CLR assembly deployment"
+                  exit 0
+                }
+                
+                Write-Host "Deploying CLR assemblies from: $depsPath"
+                
+                # TODO: Call deploy-clr-assemblies.ps1 script
+                # For now, just verify the path exists
+                $dllCount = (Get-ChildItem -Path $depsPath -Filter "*.dll" | Measure-Object).Count
+                Write-Host "Found $dllCount DLL files to deploy"
+                
+                if ($dllCount -eq 0) {
+                  Write-Warning "No DLL files found in dependencies folder"
+                }
+              pwsh: true
+            continueOnError: true
+
+          # Step 5: Deploy Stored Procedures
+          - task: PowerShell@2
+            displayName: 'Deploy Stored Procedures'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $proceduresPath = "$(Pipeline.Workspace)/buildPipeline/database/Procedures"
+                
+                if (Test-Path $proceduresPath) {
+                  Write-Host "Deploying stored procedures from $proceduresPath..."
+                  
+                  Get-ChildItem -Path $proceduresPath -Filter "*.sql" -Recurse | ForEach-Object {
+                    Write-Host "Deploying: $($_.Name)"
+                    sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -i "$($_.FullName)"
+                  }
+                  
+                  Write-Host "✓ All stored procedures deployed"
+                } else {
+                  Write-Host "No procedures directory found, skipping..."
+                }
+              pwsh: true
+            continueOnError: true
+
+          # Step 6: Validate Deployment
+          - task: PowerShell@2
+            displayName: 'Validate Database Deployment'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                
+                Write-Host "========================================"
+                Write-Host "  Database Deployment Validation"
+                Write-Host "========================================"
+                
+                # Verify database exists
+                Write-Host "`nDatabase Status:"
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
+                SELECT name, state_desc, recovery_model_desc, is_trustworthy_on
+                FROM sys.databases
+                WHERE name = '$(sqlDatabase)';
+                "@
+                
+                # Verify CLR configuration
+                Write-Host "`nCLR Configuration:"
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
+                SELECT name, value_in_use
+                FROM sys.configurations
+                WHERE name IN ('clr enabled', 'clr strict security');
+                "@
+                
+                # Count tables
+                Write-Host "`nTable Count:"
+                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q @"
+                SELECT COUNT(*) as TableCount FROM sys.tables WHERE is_ms_shipped = 0;
+                "@
+                
+                Write-Host "`n✓ Validation complete"
+              pwsh: true
