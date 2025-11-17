@@ -161,6 +161,8 @@ function Deploy-Assembly {
         [switch]$Critical
     )
 
+    $tempSqlFile = $null
+    
     Write-Host "`n[$AssemblyName]" -ForegroundColor White
 
     if (-not (Test-Path $FilePath)) {
@@ -253,7 +255,9 @@ WITH PERMISSION_SET = UNSAFE;
         }
     }
     finally {
-        Remove-Item $tempSqlFile -ErrorAction SilentlyContinue
+        if ($tempSqlFile) {
+            Remove-Item $tempSqlFile -ErrorAction SilentlyContinue
+        }
     }
 }
 
