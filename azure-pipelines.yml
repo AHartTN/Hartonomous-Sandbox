@@ -156,7 +156,7 @@ stages:
       displayName: 'Publish CesConsumer'
       inputs:
         command: 'publish'
-        projects: 'src/CesConsumer/CesConsumer.csproj'
+        projects: 'src/Hartonomous.Workers.CesConsumer/Hartonomous.Workers.CesConsumer.csproj'
         publishWebProjects: false
         arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/ces-consumer'
         zipAfterPublish: false
@@ -165,18 +165,9 @@ stages:
       displayName: 'Publish Neo4jSync'
       inputs:
         command: 'publish'
-        projects: 'src/Neo4jSync/Neo4jSync.csproj'
+        projects: 'src/Hartonomous.Workers.Neo4jSync/Hartonomous.Workers.Neo4jSync.csproj'
         publishWebProjects: false
         arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/neo4j-sync'
-        zipAfterPublish: false
-
-    - task: DotNetCoreCLI@2
-      displayName: 'Publish ModelIngestion'
-      inputs:
-        command: 'publish'
-        projects: 'src/ModelIngestion/ModelIngestion.csproj'
-        publishWebProjects: false
-        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/model-ingestion'
         zipAfterPublish: false
 
     # Copy deployment scripts
@@ -215,7 +206,7 @@ stages:
     displayName: 'Deploy to SQL Server'
     environment: 'SQL-Server-Production'
     pool:
-      vmImage: 'windows-latest'
+      name: 'Local Agent Pool'
     strategy:
       runOnce:
         deploy:
@@ -342,36 +333,8 @@ stages:
               pwsh: true
 
           # Step 6: Scaffold EF Core entities (Database-First)
-          - task: DotNetCoreCLI@2
-            displayName: 'Step 6a: Install dotnet-ef Tool'
-            inputs:
-              command: 'custom'
-              custom: 'tool'
-              arguments: 'install --global dotnet-ef --version 10.*'
-
-          - task: PowerShell@2
-            displayName: 'Step 6b: Scaffold EF Core Entities (Database-First)'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                
-                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
-                
-                Write-Host "Scaffolding EF Core entities from database..."
-                
-                dotnet ef dbcontext scaffold "$connectionString" `
-                  Microsoft.EntityFrameworkCore.SqlServer `
-                  --project "$(Pipeline.Workspace)/dotnet/src/Hartonomous.Data/Hartonomous.Data.csproj" `
-                  --context HartonomousDbContext `
-                  --context-dir . `
-                  --output-dir Entities `
-                  --force `
-                  --no-onconfiguring
-                
-                Write-Host "✓ Entity scaffolding complete"
-              pwsh: true
-            continueOnError: true
+          # Note: Scaffolding skipped in pipeline - run locally during development
+          # Command: dotnet ef dbcontext scaffold "connection-string" Microsoft.EntityFrameworkCore.SqlServer
 
           # Step 7: Deploy stored procedures
           - task: PowerShell@2
@@ -487,7 +450,6 @@ stages:
                 Write-Host "  - API: $(Pipeline.Workspace)/dotnet/api"
                 Write-Host "  - CesConsumer: $(Pipeline.Workspace)/dotnet/ces-consumer"
                 Write-Host "  - Neo4jSync: $(Pipeline.Workspace)/dotnet/neo4j-sync"
-                Write-Host "  - ModelIngestion: $(Pipeline.Workspace)/dotnet/model-ingestion"
                 Write-Host ""
                 Write-Host "Next Steps:"
                 Write-Host "  1. Configure service connections"
