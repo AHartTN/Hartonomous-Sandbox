@@ -146,152 +146,9 @@ stages:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
-                Write-Host "Ensuring pipeline agent has required SQL Server permissions..."
-                
-                $grantScript = @'
-                USE [master];
-                GO
-                SET NOCOUNT ON;
-                GO
-                
-                -- Auto-detect Azure DevOps agent service account
-                DECLARE @AgentLogin NVARCHAR(256);
-                DECLARE @DetectionLog TABLE (LoginName NVARCHAR(256));
-                
-                -- Try common agent service accounts
-                INSERT INTO @DetectionLog (LoginName)
-                SELECT name 
-                FROM sys.server_principals
-                WHERE name IN (
-                    N'NT AUTHORITY\NETWORK SERVICE',
-                    N'NT AUTHORITY\SYSTEM',
-                    N'NT SERVICE\vstsagent',
-                    N'NT SERVICE\AzureDevOpsAgent'
-                )
-                AND type_desc = 'WINDOWS_LOGIN';
-                
-                -- If multiple found, prefer NETWORK SERVICE (most common for Local Agent Pool)
-                IF EXISTS (SELECT 1 FROM @DetectionLog WHERE LoginName = N'NT AUTHORITY\NETWORK SERVICE')
-                    SET @AgentLogin = N'NT AUTHORITY\NETWORK SERVICE';
-                ELSE IF EXISTS (SELECT 1 FROM @DetectionLog WHERE LoginName = N'NT AUTHORITY\SYSTEM')
-                    SET @AgentLogin = N'NT AUTHORITY\SYSTEM';
-                ELSE
-                    SELECT TOP 1 @AgentLogin = LoginName FROM @DetectionLog;
-                
-                -- Fallback if no agent detected: default to NETWORK SERVICE and create it
-                IF @AgentLogin IS NULL
-                BEGIN
-                    SET @AgentLogin = N'NT AUTHORITY\NETWORK SERVICE';
-                    PRINT 'No existing agent login detected. Defaulting to: ' + @AgentLogin;
-                    
-                    IF NOT EXISTS (SELECT 1 FROM sys.server_principals WHERE name = @AgentLogin)
-                    BEGIN
-                        PRINT 'Creating login: ' + @AgentLogin;
-                        DECLARE @CreateLoginSql NVARCHAR(MAX) = 'CREATE LOGIN ' + QUOTENAME(@AgentLogin) + ' FROM WINDOWS;';
-                        EXEC sp_executesql @CreateLoginSql;
-                    END
-                END
-                ELSE
-                BEGIN
-                    PRINT 'Detected agent login: ' + @AgentLogin;
-                END
-                GO
-                
-                -- Grant ALTER SETTINGS permission (idempotent)
-                DECLARE @AgentLogin NVARCHAR(256);
-                SELECT TOP 1 @AgentLogin = name 
-                FROM sys.server_principals
-                WHERE name IN (
-                    N'NT AUTHORITY\NETWORK SERVICE',
-                    N'NT AUTHORITY\SYSTEM',
-                    N'NT SERVICE\vstsagent',
-                    N'NT SERVICE\AzureDevOpsAgent'
-                )
-                AND type_desc = 'WINDOWS_LOGIN'
-                ORDER BY 
-                    CASE name 
-                        WHEN N'NT AUTHORITY\NETWORK SERVICE' THEN 1
-                        WHEN N'NT AUTHORITY\SYSTEM' THEN 2
-                        ELSE 3
-                    END;
-                
-                IF @AgentLogin IS NULL
-                    SET @AgentLogin = N'NT AUTHORITY\NETWORK SERVICE';
-                
-                -- Check if permission already granted
-                IF NOT EXISTS (
-                    SELECT 1 
-                    FROM sys.server_permissions perm
-                    INNER JOIN sys.server_principals sp ON perm.grantee_principal_id = sp.principal_id
-                    WHERE sp.name = @AgentLogin 
-                    AND perm.permission_name = 'ALTER SETTINGS'
-                    AND perm.state_desc = 'GRANT'
-                )
-                BEGIN
-                    PRINT 'Granting ALTER SETTINGS to: ' + @AgentLogin;
-                    DECLARE @GrantAlterSettingsSql NVARCHAR(MAX) = 'GRANT ALTER SETTINGS TO ' + QUOTENAME(@AgentLogin) + ';';
-                    EXEC sp_executesql @GrantAlterSettingsSql;
-                END
-                ELSE
-                BEGIN
-                    PRINT 'ALTER SETTINGS already granted to: ' + @AgentLogin;
-                END
-                GO
-                
-                -- Grant CONTROL SERVER permission (idempotent)
-                DECLARE @AgentLogin NVARCHAR(256);
-                SELECT TOP 1 @AgentLogin = name 
-                FROM sys.server_principals
-                WHERE name IN (
-                    N'NT AUTHORITY\NETWORK SERVICE',
-                    N'NT AUTHORITY\SYSTEM',
-                    N'NT SERVICE\vstsagent',
-                    N'NT SERVICE\AzureDevOpsAgent'
-                )
-                AND type_desc = 'WINDOWS_LOGIN'
-                ORDER BY 
-                    CASE name 
-                        WHEN N'NT AUTHORITY\NETWORK SERVICE' THEN 1
-                        WHEN N'NT AUTHORITY\SYSTEM' THEN 2
-                        ELSE 3
-                    END;
-                
-                IF @AgentLogin IS NULL
-                    SET @AgentLogin = N'NT AUTHORITY\NETWORK SERVICE';
-                
-                -- Check if permission already granted
-                IF NOT EXISTS (
-                    SELECT 1 
-                    FROM sys.server_permissions perm
-                    INNER JOIN sys.server_principals sp ON perm.grantee_principal_id = sp.principal_id
-                    WHERE sp.name = @AgentLogin 
-                    AND perm.permission_name = 'CONTROL SERVER'
-                    AND perm.state_desc = 'GRANT'
-                )
-                BEGIN
-                    PRINT 'Granting CONTROL SERVER to: ' + @AgentLogin;
-                    DECLARE @GrantControlServerSql NVARCHAR(MAX) = 'GRANT CONTROL SERVER TO ' + QUOTENAME(@AgentLogin) + ';';
-                    EXEC sp_executesql @GrantControlServerSql;
-                END
-                ELSE
-                BEGIN
-                    PRINT 'CONTROL SERVER already granted to: ' + @AgentLogin;
-                END
-                GO
-                
-                PRINT 'Agent permissions validated and granted as needed.';
-                GO
-'@
-                
-                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                try {
-                  $grantScript | Out-File -FilePath $tempFile -Encoding utf8
-                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
-                  if ($LASTEXITCODE -ne 0) { throw "Failed to grant permissions" }
-                  Write-Host "✓ Agent permissions validated"
-                } finally {
-                  Remove-Item $tempFile -ErrorAction SilentlyContinue
-                }
+                sqlcmd -S "$(sqlServer)" -d "master" -E -C -i "$(Pipeline.Workspace)/database/../../../scripts/sql/grant-pipeline-permissions.sql" -b
+                if ($LASTEXITCODE -ne 0) { throw "Failed to grant permissions" }
+                Write-Host "✓ Agent permissions validated"
               pwsh: true
 
           # Step 1: Enable CLR Integration (Idempotent)
@@ -301,62 +158,9 @@ stages:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
-                Write-Host "Enabling CLR integration (idempotent)..."
-                
-                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                $sql = @"
-                -- Check current CLR settings
-                DECLARE @showAdvanced INT, @clrEnabled INT, @clrStrictSecurity INT;
-                
-                SELECT @showAdvanced = CAST(value_in_use AS INT) FROM sys.configurations WHERE name = 'show advanced options';
-                SELECT @clrEnabled = CAST(value_in_use AS INT) FROM sys.configurations WHERE name = 'clr enabled';
-                SELECT @clrStrictSecurity = CAST(value_in_use AS INT) FROM sys.configurations WHERE name = 'clr strict security';
-                
-                -- Only configure if needed
-                IF @showAdvanced = 0
-                BEGIN
-                    PRINT 'Enabling show advanced options...';
-                    EXEC sp_configure 'show advanced options', 1;
-                    RECONFIGURE;
-                END
-                ELSE
-                BEGIN
-                    PRINT 'show advanced options already enabled';
-                END
-                
-                IF @clrEnabled = 0
-                BEGIN
-                    PRINT 'Enabling CLR...';
-                    EXEC sp_configure 'clr enabled', 1;
-                    RECONFIGURE;
-                END
-                ELSE
-                BEGIN
-                    PRINT 'CLR already enabled';
-                END
-                
-                IF @clrStrictSecurity = 1
-                BEGIN
-                    PRINT 'Disabling CLR strict security...';
-                    EXEC sp_configure 'clr strict security', 0;
-                    RECONFIGURE;
-                END
-                ELSE
-                BEGIN
-                    PRINT 'CLR strict security already disabled';
-                END
-                
-                PRINT 'CLR configuration verified.';
-                "@
-                $sql | Out-File -FilePath $tempFile -Encoding utf8
-                
-                try {
-                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
-                  if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
-                  Write-Host "✓ CLR enabled"
-                } finally {
-                  Remove-Item $tempFile -ErrorAction SilentlyContinue
-                }
+                sqlcmd -S "$(sqlServer)" -d "master" -E -C -i "scripts/sql/enable-clr.sql" -b
+                if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
+                Write-Host "✓ CLR enabled"
               pwsh: true
 
           # Step 2: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
@@ -492,29 +296,11 @@ stages:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
-                
+                $script = Get-Content "scripts/sql/set-trustworthy.sql" -Raw
+                $script = $script -replace '\$\(sqlDatabase\)', '$(sqlDatabase)'
                 $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                $sql = @"
-                -- Check if TRUSTWORTHY is already enabled
-                DECLARE @isTrustworthy BIT;
-                SELECT @isTrustworthy = is_trustworthy_on 
-                FROM sys.databases 
-                WHERE name = '$(sqlDatabase)';
-                
-                IF @isTrustworthy = 0
-                BEGIN
-                    PRINT 'Setting TRUSTWORTHY ON for $(sqlDatabase)...';
-                    ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;
-                    PRINT '✓ TRUSTWORTHY enabled';
-                END
-                ELSE
-                BEGIN
-                    PRINT 'TRUSTWORTHY already enabled for $(sqlDatabase)';
-                END
-                "@
-                $sql | Out-File -FilePath $tempFile -Encoding utf8
-                
                 try {
+                  $script | Out-File -FilePath $tempFile -Encoding utf8
                   sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
                   if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
                   Write-Host "✓ TRUSTWORTHY validated"
