@@ -40,7 +40,7 @@ jobs:
   # ============================================================================
   build-dacpac:
     name: Build Database DACPAC
-    runs-on: self-hosted
+    runs-on: [self-hosted, windows, sql-server]  # Requires Windows for .NET Framework 4.8.1 CLR
     if: github.event_name != 'pull_request'
     
     steps:
@@ -106,7 +106,7 @@ jobs:
   # ============================================================================
   deploy-database:
     name: Deploy to ${{ inputs.environment || 'production' }}
-    runs-on: self-hosted
+    runs-on: [self-hosted, windows, sql-server]  # Requires Windows for SQL Server access and SqlPackage
     needs: build-dacpac
     environment: ${{ inputs.environment || 'production' }}
     
@@ -342,7 +342,7 @@ jobs:
   # ============================================================================
   scaffold-entities:
     name: Scaffold EF Core Entities
-    runs-on: self-hosted
+    runs-on: [self-hosted, windows, sql-server]  # Requires Windows for SQL Server access
     needs: deploy-database
     environment: ${{ inputs.environment || 'production' }}
     
@@ -423,7 +423,7 @@ jobs:
   # ============================================================================
   build-and-test:
     name: Build and Test .NET Solution
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]  # .NET 10 is cross-platform, use Linux for speed
     needs: scaffold-entities
     
     steps:
@@ -512,7 +512,7 @@ jobs:
   # ============================================================================
   build-applications:
     name: Build Applications
-    runs-on: self-hosted
+    runs-on: [self-hosted, linux]  # .NET 10 is cross-platform, use Linux for speed
     needs: build-and-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
