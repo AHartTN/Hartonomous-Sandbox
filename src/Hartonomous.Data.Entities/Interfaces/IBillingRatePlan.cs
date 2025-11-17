@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IBillingRatePlan
 {
@@ -21,6 +21,6 @@ public interface IBillingRatePlan
     bool IsActive { get; set; }
     DateTime CreatedUtc { get; set; }
     DateTime UpdatedUtc { get; set; }
-    ICollection<BillingMultiplier> BillingMultiplier { get; set; }
-    ICollection<BillingOperationRate> BillingOperationRate { get; set; }
+    ICollection<BillingMultiplier> BillingMultipliers { get; set; }
+    ICollection<BillingOperationRate> BillingOperationRates { get; set; }
 }

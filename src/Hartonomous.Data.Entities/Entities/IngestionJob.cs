@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class IngestionJob : IIngestionJob
 {
@@ -29,7 +29,7 @@ public partial class IngestionJob : IIngestionJob
 
     public DateTime LastUpdatedAt { get; set; }
 
-    public virtual ICollection<IngestionJobAtom> IngestionJobAtom { get; set; } = new List<IngestionJobAtom>();
+    public virtual ICollection<IngestionJobAtom> IngestionJobAtoms { get; set; } = new List<IngestionJobAtom>();
 
     public virtual Atom ParentAtom { get; set; } = null!;
 }

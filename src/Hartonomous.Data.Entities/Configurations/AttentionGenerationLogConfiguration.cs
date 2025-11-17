@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class AttentionGenerationLogConfiguration : IEntityTypeConfiguration<AttentionGenerationLog>
 {
@@ -69,7 +69,7 @@ public class AttentionGenerationLogConfiguration : IEntityTypeConfiguration<Atte
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.AttentionGenerationLog)
+            .WithMany(p => p.AttentionGenerationLogs)
             .HasForeignKey(d => new { d.ModelId })
             ;
 

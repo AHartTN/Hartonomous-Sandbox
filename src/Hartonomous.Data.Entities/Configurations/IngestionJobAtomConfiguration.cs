@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class IngestionJobAtomConfiguration : IEntityTypeConfiguration<IngestionJobAtom>
 {
@@ -33,12 +33,12 @@ public class IngestionJobAtomConfiguration : IEntityTypeConfiguration<IngestionJ
             ;
 
         builder.HasOne(d => d.Atom)
-            .WithMany(p => p.IngestionJobAtom)
+            .WithMany(p => p.IngestionJobAtoms)
             .HasForeignKey(d => new { d.AtomId })
             ;
 
         builder.HasOne(d => d.IngestionJob)
-            .WithMany(p => p.IngestionJobAtom)
+            .WithMany(p => p.IngestionJobAtoms)
             .HasForeignKey(d => new { d.IngestionJobId })
             ;
     }

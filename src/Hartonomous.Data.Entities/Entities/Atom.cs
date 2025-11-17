@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class Atom : IAtom
 {
@@ -29,29 +29,29 @@ public partial class Atom : IAtom
 
     public long ReferenceCount { get; set; }
 
-    public virtual ICollection<AtomComposition> AtomCompositionComponentAtom { get; set; } = new List<AtomComposition>();
+    public virtual ICollection<AtomComposition> AtomCompositionComponentAtoms { get; set; } = new List<AtomComposition>();
 
-    public virtual ICollection<AtomComposition> AtomCompositionParentAtom { get; set; } = new List<AtomComposition>();
+    public virtual ICollection<AtomComposition> AtomCompositionParentAtoms { get; set; } = new List<AtomComposition>();
 
-    public virtual ICollection<AtomConcepts> AtomConcepts { get; set; } = new List<AtomConcepts>();
+    public virtual ICollection<AtomConcept> AtomConcepts { get; set; } = new List<AtomConcept>();
 
-    public virtual ICollection<AtomEmbedding> AtomEmbedding { get; set; } = new List<AtomEmbedding>();
+    public virtual ICollection<AtomEmbedding> AtomEmbeddings { get; set; } = new List<AtomEmbedding>();
 
-    public virtual ICollection<AtomRelation> AtomRelationSourceAtom { get; set; } = new List<AtomRelation>();
+    public virtual ICollection<AtomRelation> AtomRelationSourceAtoms { get; set; } = new List<AtomRelation>();
 
-    public virtual ICollection<AtomRelation> AtomRelationTargetAtom { get; set; } = new List<AtomRelation>();
+    public virtual ICollection<AtomRelation> AtomRelationTargetAtoms { get; set; } = new List<AtomRelation>();
 
-    public virtual ICollection<EventAtoms> EventAtoms { get; set; } = new List<EventAtoms>();
+    public virtual ICollection<EventAtom> EventAtoms { get; set; } = new List<EventAtom>();
 
-    public virtual ICollection<IngestionJob> IngestionJob { get; set; } = new List<IngestionJob>();
+    public virtual ICollection<IngestionJobAtom> IngestionJobAtoms { get; set; } = new List<IngestionJobAtom>();
 
-    public virtual ICollection<IngestionJobAtom> IngestionJobAtom { get; set; } = new List<IngestionJobAtom>();
+    public virtual ICollection<IngestionJob> IngestionJobs { get; set; } = new List<IngestionJob>();
 
-    public virtual ICollection<ModelLayer> ModelLayer { get; set; } = new List<ModelLayer>();
+    public virtual ICollection<ModelLayer> ModelLayers { get; set; } = new List<ModelLayer>();
 
-    public virtual ICollection<TenantAtom> TenantAtom { get; set; } = new List<TenantAtom>();
+    public virtual ICollection<TenantAtom> TenantAtoms { get; set; } = new List<TenantAtom>();
 
-    public virtual ICollection<TensorAtom> TensorAtom { get; set; } = new List<TensorAtom>();
+    public virtual ICollection<TensorAtomCoefficient> TensorAtomCoefficients { get; set; } = new List<TensorAtomCoefficient>();
 
-    public virtual ICollection<TensorAtomCoefficient> TensorAtomCoefficient { get; set; } = new List<TensorAtomCoefficient>();
+    public virtual ICollection<TensorAtom> TensorAtoms { get; set; } = new List<TensorAtom>();
 }

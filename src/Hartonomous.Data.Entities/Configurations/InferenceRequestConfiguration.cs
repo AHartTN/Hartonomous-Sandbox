@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class InferenceRequestConfiguration : IEntityTypeConfiguration<InferenceRequest>
 {
@@ -100,7 +100,7 @@ public class InferenceRequestConfiguration : IEntityTypeConfiguration<InferenceR
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.InferenceRequest)
+            .WithMany(p => p.InferenceRequests)
             .HasForeignKey(d => new { d.ModelId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;

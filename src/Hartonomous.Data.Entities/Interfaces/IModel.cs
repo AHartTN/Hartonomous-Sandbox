@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IModel
 {
@@ -21,21 +21,21 @@ public interface IModel
     bool IsActive { get; set; }
     string? MetadataJson { get; set; }
     byte[]? SerializedModel { get; set; }
-    ICollection<AtomEmbedding> AtomEmbedding { get; set; }
-    ICollection<AttentionGenerationLog> AttentionGenerationLog { get; set; }
-    ICollection<AttentionInferenceResults> AttentionInferenceResults { get; set; }
-    ICollection<CachedActivation> CachedActivation { get; set; }
-    ICollection<Concepts> Concepts { get; set; }
-    ICollection<GenerationStreams> GenerationStreams { get; set; }
-    ICollection<InferenceCache> InferenceCache { get; set; }
-    ICollection<InferenceRequest> InferenceRequest { get; set; }
-    ICollection<InferenceStep> InferenceStep { get; set; }
-    ICollection<ModelLayer> ModelLayer { get; set; }
-    ICollection<ModelMetadata> ModelMetadata { get; set; }
-    ICollection<ModelVersionHistory> ModelVersionHistory { get; set; }
-    ICollection<TensorAtom> TensorAtom { get; set; }
-    ICollection<TensorAtomCoefficient> TensorAtomCoefficient { get; set; }
-    ICollection<TokenVocabulary> TokenVocabulary { get; set; }
-    ICollection<TransformerInferenceResults> TransformerInferenceResults { get; set; }
-    ICollection<WeightSnapshot> WeightSnapshot { get; set; }
+    ICollection<AtomEmbedding> AtomEmbeddings { get; set; }
+    ICollection<AttentionGenerationLog> AttentionGenerationLogs { get; set; }
+    ICollection<AttentionInferenceResult> AttentionInferenceResults { get; set; }
+    ICollection<CachedActivation> CachedActivations { get; set; }
+    ICollection<Concept> Concepts { get; set; }
+    ICollection<GenerationStream> GenerationStreams { get; set; }
+    ICollection<InferenceCache> InferenceCaches { get; set; }
+    ICollection<InferenceRequest> InferenceRequests { get; set; }
+    ICollection<InferenceStep> InferenceSteps { get; set; }
+    ICollection<ModelLayer> ModelLayers { get; set; }
+    ICollection<ModelMetadatum> ModelMetadata { get; set; }
+    ICollection<ModelVersionHistory> ModelVersionHistories { get; set; }
+    ICollection<TensorAtomCoefficient> TensorAtomCoefficients { get; set; }
+    ICollection<TensorAtom> TensorAtoms { get; set; }
+    ICollection<TokenVocabulary> TokenVocabularies { get; set; }
+    ICollection<TransformerInferenceResult> TransformerInferenceResults { get; set; }
+    ICollection<WeightSnapshot> WeightSnapshots { get; set; }
 }

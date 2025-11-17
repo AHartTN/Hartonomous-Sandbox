@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IIngestionJob
 {
@@ -17,6 +17,6 @@ public interface IIngestionJob
     string? ErrorMessage { get; set; }
     DateTime CreatedAt { get; set; }
     DateTime LastUpdatedAt { get; set; }
-    ICollection<IngestionJobAtom> IngestionJobAtom { get; set; }
+    ICollection<IngestionJobAtom> IngestionJobAtoms { get; set; }
     Atom ParentAtom { get; set; }
 }

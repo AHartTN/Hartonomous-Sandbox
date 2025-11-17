@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class AtomRelationConfiguration : IEntityTypeConfiguration<AtomRelation>
 {
@@ -98,12 +98,12 @@ public class AtomRelationConfiguration : IEntityTypeConfiguration<AtomRelation>
             ;
 
         builder.HasOne(d => d.SourceAtom)
-            .WithMany(p => p.AtomRelationSourceAtom)
+            .WithMany(p => p.AtomRelationSourceAtoms)
             .HasForeignKey(d => new { d.SourceAtomId })
             ;
 
         builder.HasOne(d => d.TargetAtom)
-            .WithMany(p => p.AtomRelationTargetAtom)
+            .WithMany(p => p.AtomRelationTargetAtoms)
             .HasForeignKey(d => new { d.TargetAtomId })
             ;
 

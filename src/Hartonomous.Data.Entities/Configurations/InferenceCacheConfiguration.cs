@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class InferenceCacheConfiguration : IEntityTypeConfiguration<InferenceCache>
 {
@@ -66,7 +66,7 @@ public class InferenceCacheConfiguration : IEntityTypeConfiguration<InferenceCac
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.InferenceCache)
+            .WithMany(p => p.InferenceCaches)
             .HasForeignKey(d => new { d.ModelId })
             ;
     }

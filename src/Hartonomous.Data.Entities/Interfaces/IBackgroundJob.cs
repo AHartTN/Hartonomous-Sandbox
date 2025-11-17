@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 /// <summary>
 /// Background job queue for asynchronous task processing with priority-based execution and retry logic.

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class ConceptEvolution : IConceptEvolution
 {
@@ -31,5 +31,5 @@ public partial class ConceptEvolution : IConceptEvolution
 
     public int TenantId { get; set; }
 
-    public virtual Concepts Concept { get; set; } = null!;
+    public virtual Concept Concept { get; set; } = null!;
 }

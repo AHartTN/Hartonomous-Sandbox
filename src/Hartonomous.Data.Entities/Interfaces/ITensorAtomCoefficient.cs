@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using NetTopologySuite.Geometries;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface ITensorAtomCoefficient
 {

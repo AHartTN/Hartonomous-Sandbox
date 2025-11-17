@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class ModelVersionHistoryConfiguration : IEntityTypeConfiguration<ModelVersionHistory>
 {
@@ -56,7 +56,7 @@ public class ModelVersionHistoryConfiguration : IEntityTypeConfiguration<ModelVe
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.ModelVersionHistory)
+            .WithMany(p => p.ModelVersionHistories)
             .HasForeignKey(d => new { d.ModelId })
             ;
 

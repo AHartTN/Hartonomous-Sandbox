@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using NetTopologySuite.Geometries;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IModelLayer
 {
@@ -28,8 +28,8 @@ public interface IModelLayer
     double? CacheHitRate { get; set; }
     double? AvgComputeTimeMs { get; set; }
     long? LayerAtomId { get; set; }
-    ICollection<CachedActivation> CachedActivation { get; set; }
+    ICollection<CachedActivation> CachedActivations { get; set; }
     Atom? LayerAtom { get; set; }
     Model Model { get; set; }
-    ICollection<TensorAtom> TensorAtom { get; set; }
+    ICollection<TensorAtom> TensorAtoms { get; set; }
 }

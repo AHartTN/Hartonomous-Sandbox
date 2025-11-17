@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class CachedActivationConfiguration : IEntityTypeConfiguration<CachedActivation>
 {
@@ -55,12 +55,12 @@ public class CachedActivationConfiguration : IEntityTypeConfiguration<CachedActi
             ;
 
         builder.HasOne(d => d.Layer)
-            .WithMany(p => p.CachedActivation)
+            .WithMany(p => p.CachedActivations)
             .HasForeignKey(d => new { d.LayerId })
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.CachedActivation)
+            .WithMany(p => p.CachedActivations)
             .HasForeignKey(d => new { d.ModelId })
             ;
     }

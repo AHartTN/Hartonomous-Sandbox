@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using NetTopologySuite.Geometries;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class ModelLayer : IModelLayer
 {
@@ -50,11 +50,11 @@ public partial class ModelLayer : IModelLayer
 
     public long? LayerAtomId { get; set; }
 
-    public virtual ICollection<CachedActivation> CachedActivation { get; set; } = new List<CachedActivation>();
+    public virtual ICollection<CachedActivation> CachedActivations { get; set; } = new List<CachedActivation>();
 
     public virtual Atom? LayerAtom { get; set; }
 
     public virtual Model Model { get; set; } = null!;
 
-    public virtual ICollection<TensorAtom> TensorAtom { get; set; } = new List<TensorAtom>();
+    public virtual ICollection<TensorAtom> TensorAtoms { get; set; } = new List<TensorAtom>();
 }

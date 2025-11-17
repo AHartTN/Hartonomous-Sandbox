@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.Data.SqlTypes;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class TokenVocabulary : ITokenVocabulary
 {

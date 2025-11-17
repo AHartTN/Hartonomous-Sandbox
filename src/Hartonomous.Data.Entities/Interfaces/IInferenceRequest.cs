@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IInferenceRequest
 {
@@ -26,6 +26,6 @@ public interface IInferenceRequest
     string? SlaTier { get; set; }
     int? EstimatedResponseTimeMs { get; set; }
     int? ModelId { get; set; }
-    ICollection<InferenceStep> InferenceStep { get; set; }
+    ICollection<InferenceStep> InferenceSteps { get; set; }
     Model? Model { get; set; }
 }

@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Data.SqlTypes;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IGenerationStreamSegment
 {
@@ -16,5 +16,5 @@ public interface IGenerationStreamSegment
     SqlVector<float>? EmbeddingVector { get; set; }
     DateTime CreatedAt { get; set; }
     int TenantId { get; set; }
-    GenerationStreams GenerationStream { get; set; }
+    GenerationStream GenerationStream { get; set; }
 }

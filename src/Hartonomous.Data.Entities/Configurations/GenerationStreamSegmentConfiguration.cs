@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class GenerationStreamSegmentConfiguration : IEntityTypeConfiguration<GenerationStreamSegment>
 {
@@ -56,7 +56,7 @@ public class GenerationStreamSegmentConfiguration : IEntityTypeConfiguration<Gen
             ;
 
         builder.HasOne(d => d.GenerationStream)
-            .WithMany(p => p.GenerationStreamSegment)
+            .WithMany(p => p.GenerationStreamSegments)
             .HasForeignKey(d => new { d.GenerationStreamId })
             ;
 

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Data.SqlTypes;
 using NetTopologySuite.Geometries;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IAtomEmbedding
 {
@@ -21,7 +21,7 @@ public interface IAtomEmbedding
     long? HilbertValue { get; set; }
     DateTime CreatedAt { get; set; }
     Atom Atom { get; set; }
-    ICollection<AtomEmbeddingComponent> AtomEmbeddingComponent { get; set; }
+    ICollection<AtomEmbeddingComponent> AtomEmbeddingComponents { get; set; }
     Model Model { get; set; }
-    SemanticFeatures? SemanticFeatures { get; set; }
+    SemanticFeature? SemanticFeature { get; set; }
 }

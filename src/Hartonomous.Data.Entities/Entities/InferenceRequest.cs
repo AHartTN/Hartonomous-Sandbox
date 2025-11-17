@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class InferenceRequest : IInferenceRequest
 {
@@ -47,7 +47,7 @@ public partial class InferenceRequest : IInferenceRequest
 
     public int? ModelId { get; set; }
 
-    public virtual ICollection<InferenceStep> InferenceStep { get; set; } = new List<InferenceStep>();
+    public virtual ICollection<InferenceStep> InferenceSteps { get; set; } = new List<InferenceStep>();
 
     public virtual Model? Model { get; set; }
 }

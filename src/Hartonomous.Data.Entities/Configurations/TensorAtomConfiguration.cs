@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class TensorAtomConfiguration : IEntityTypeConfiguration<TensorAtom>
 {
@@ -54,18 +54,18 @@ public class TensorAtomConfiguration : IEntityTypeConfiguration<TensorAtom>
             ;
 
         builder.HasOne(d => d.Atom)
-            .WithMany(p => p.TensorAtom)
+            .WithMany(p => p.TensorAtoms)
             .HasForeignKey(d => new { d.AtomId })
             ;
 
         builder.HasOne(d => d.Layer)
-            .WithMany(p => p.TensorAtom)
+            .WithMany(p => p.TensorAtoms)
             .HasForeignKey(d => new { d.LayerId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.TensorAtom)
+            .WithMany(p => p.TensorAtoms)
             .HasForeignKey(d => new { d.ModelId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;

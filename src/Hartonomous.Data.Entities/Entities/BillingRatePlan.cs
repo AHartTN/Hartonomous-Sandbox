@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class BillingRatePlan : IBillingRatePlan
 {
@@ -37,7 +37,7 @@ public partial class BillingRatePlan : IBillingRatePlan
 
     public DateTime UpdatedUtc { get; set; }
 
-    public virtual ICollection<BillingMultiplier> BillingMultiplier { get; set; } = new List<BillingMultiplier>();
+    public virtual ICollection<BillingMultiplier> BillingMultipliers { get; set; } = new List<BillingMultiplier>();
 
-    public virtual ICollection<BillingOperationRate> BillingOperationRate { get; set; } = new List<BillingOperationRate>();
+    public virtual ICollection<BillingOperationRate> BillingOperationRates { get; set; } = new List<BillingOperationRate>();
 }

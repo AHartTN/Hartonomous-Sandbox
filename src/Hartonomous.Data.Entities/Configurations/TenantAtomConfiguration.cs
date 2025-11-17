@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class TenantAtomConfiguration : IEntityTypeConfiguration<TenantAtom>
 {
@@ -23,7 +23,7 @@ public class TenantAtomConfiguration : IEntityTypeConfiguration<TenantAtom>
             ;
 
         builder.HasOne(d => d.Atom)
-            .WithMany(p => p.TenantAtom)
+            .WithMany(p => p.TenantAtoms)
             .HasForeignKey(d => new { d.AtomId })
             ;
     }

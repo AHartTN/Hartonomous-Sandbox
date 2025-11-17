@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class WeightSnapshotConfiguration : IEntityTypeConfiguration<WeightSnapshot>
 {
@@ -42,13 +42,13 @@ public class WeightSnapshotConfiguration : IEntityTypeConfiguration<WeightSnapsh
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.WeightSnapshot)
+            .WithMany(p => p.WeightSnapshots)
             .HasForeignKey(d => new { d.ModelId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;
 
         builder.HasIndex(e => new { e.SnapshotName })
-            .HasDatabaseName("UQ__WeightSn__FAC0EC4A338BFCE3")
+            .HasDatabaseName("UQ__WeightSn__FAC0EC4A209B715F")
             .IsUnique()
             ;
     }

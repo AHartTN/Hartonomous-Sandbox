@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using Microsoft.Data.SqlTypes;
 using NetTopologySuite.Geometries;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class AtomEmbedding : IAtomEmbedding
 {
@@ -35,9 +35,9 @@ public partial class AtomEmbedding : IAtomEmbedding
 
     public virtual Atom Atom { get; set; } = null!;
 
-    public virtual ICollection<AtomEmbeddingComponent> AtomEmbeddingComponent { get; set; } = new List<AtomEmbeddingComponent>();
+    public virtual ICollection<AtomEmbeddingComponent> AtomEmbeddingComponents { get; set; } = new List<AtomEmbeddingComponent>();
 
     public virtual Model Model { get; set; } = null!;
 
-    public virtual SemanticFeatures? SemanticFeatures { get; set; }
+    public virtual SemanticFeature? SemanticFeature { get; set; }
 }

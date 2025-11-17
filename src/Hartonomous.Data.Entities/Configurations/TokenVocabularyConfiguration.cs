@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class TokenVocabularyConfiguration : IEntityTypeConfiguration<TokenVocabulary>
 {
@@ -48,7 +48,7 @@ public class TokenVocabularyConfiguration : IEntityTypeConfiguration<TokenVocabu
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.TokenVocabulary)
+            .WithMany(p => p.TokenVocabularies)
             .HasForeignKey(d => new { d.ModelId })
             ;
     }

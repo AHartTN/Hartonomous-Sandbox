@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
 {
@@ -109,13 +109,13 @@ public class ModelLayerConfiguration : IEntityTypeConfiguration<ModelLayer>
             ;
 
         builder.HasOne(d => d.LayerAtom)
-            .WithMany(p => p.ModelLayer)
+            .WithMany(p => p.ModelLayers)
             .HasForeignKey(d => new { d.LayerAtomId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.ModelLayer)
+            .WithMany(p => p.ModelLayers)
             .HasForeignKey(d => new { d.ModelId })
             ;
     }

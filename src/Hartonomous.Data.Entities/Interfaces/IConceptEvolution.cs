@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IConceptEvolution
 {
@@ -18,5 +18,5 @@ public interface IConceptEvolution
     string? EvolutionReason { get; set; }
     DateTime RecordedAt { get; set; }
     int TenantId { get; set; }
-    Concepts Concept { get; set; }
+    Concept Concept { get; set; }
 }

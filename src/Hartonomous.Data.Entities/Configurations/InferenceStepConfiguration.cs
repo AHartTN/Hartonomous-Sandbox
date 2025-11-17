@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class InferenceStepConfiguration : IEntityTypeConfiguration<InferenceStep>
 {
@@ -62,12 +62,12 @@ public class InferenceStepConfiguration : IEntityTypeConfiguration<InferenceStep
             ;
 
         builder.HasOne(d => d.Inference)
-            .WithMany(p => p.InferenceStep)
+            .WithMany(p => p.InferenceSteps)
             .HasForeignKey(d => new { d.InferenceId })
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.InferenceStep)
+            .WithMany(p => p.InferenceSteps)
             .HasForeignKey(d => new { d.ModelId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;

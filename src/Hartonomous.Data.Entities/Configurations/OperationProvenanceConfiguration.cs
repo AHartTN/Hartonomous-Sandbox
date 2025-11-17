@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class OperationProvenanceConfiguration : IEntityTypeConfiguration<OperationProvenance>
 {
@@ -32,7 +32,7 @@ public class OperationProvenanceConfiguration : IEntityTypeConfiguration<Operati
             ;
 
         builder.HasIndex(e => new { e.OperationId })
-            .HasDatabaseName("UQ__tmp_ms_x__A4F5FC45773C82AC")
+            .HasDatabaseName("UQ__Operatio__A4F5FC45A4EF3184")
             .IsUnique()
             ;
     }

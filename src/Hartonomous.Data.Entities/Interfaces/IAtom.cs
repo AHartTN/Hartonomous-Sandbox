@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public interface IAtom
 {
@@ -17,17 +17,17 @@ public interface IAtom
     string? Metadata { get; set; }
     byte[]? AtomicValue { get; set; }
     long ReferenceCount { get; set; }
-    ICollection<AtomComposition> AtomCompositionComponentAtom { get; set; }
-    ICollection<AtomComposition> AtomCompositionParentAtom { get; set; }
-    ICollection<AtomConcepts> AtomConcepts { get; set; }
-    ICollection<AtomEmbedding> AtomEmbedding { get; set; }
-    ICollection<AtomRelation> AtomRelationSourceAtom { get; set; }
-    ICollection<AtomRelation> AtomRelationTargetAtom { get; set; }
-    ICollection<EventAtoms> EventAtoms { get; set; }
-    ICollection<IngestionJob> IngestionJob { get; set; }
-    ICollection<IngestionJobAtom> IngestionJobAtom { get; set; }
-    ICollection<ModelLayer> ModelLayer { get; set; }
-    ICollection<TenantAtom> TenantAtom { get; set; }
-    ICollection<TensorAtom> TensorAtom { get; set; }
-    ICollection<TensorAtomCoefficient> TensorAtomCoefficient { get; set; }
+    ICollection<AtomComposition> AtomCompositionComponentAtoms { get; set; }
+    ICollection<AtomComposition> AtomCompositionParentAtoms { get; set; }
+    ICollection<AtomConcept> AtomConcepts { get; set; }
+    ICollection<AtomEmbedding> AtomEmbeddings { get; set; }
+    ICollection<AtomRelation> AtomRelationSourceAtoms { get; set; }
+    ICollection<AtomRelation> AtomRelationTargetAtoms { get; set; }
+    ICollection<EventAtom> EventAtoms { get; set; }
+    ICollection<IngestionJobAtom> IngestionJobAtoms { get; set; }
+    ICollection<IngestionJob> IngestionJobs { get; set; }
+    ICollection<ModelLayer> ModelLayers { get; set; }
+    ICollection<TenantAtom> TenantAtoms { get; set; }
+    ICollection<TensorAtomCoefficient> TensorAtomCoefficients { get; set; }
+    ICollection<TensorAtom> TensorAtoms { get; set; }
 }

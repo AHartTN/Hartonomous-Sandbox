@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class Model : IModel
 {
@@ -37,37 +37,37 @@ public partial class Model : IModel
 
     public byte[]? SerializedModel { get; set; }
 
-    public virtual ICollection<AtomEmbedding> AtomEmbedding { get; set; } = new List<AtomEmbedding>();
+    public virtual ICollection<AtomEmbedding> AtomEmbeddings { get; set; } = new List<AtomEmbedding>();
 
-    public virtual ICollection<AttentionGenerationLog> AttentionGenerationLog { get; set; } = new List<AttentionGenerationLog>();
+    public virtual ICollection<AttentionGenerationLog> AttentionGenerationLogs { get; set; } = new List<AttentionGenerationLog>();
 
-    public virtual ICollection<AttentionInferenceResults> AttentionInferenceResults { get; set; } = new List<AttentionInferenceResults>();
+    public virtual ICollection<AttentionInferenceResult> AttentionInferenceResults { get; set; } = new List<AttentionInferenceResult>();
 
-    public virtual ICollection<CachedActivation> CachedActivation { get; set; } = new List<CachedActivation>();
+    public virtual ICollection<CachedActivation> CachedActivations { get; set; } = new List<CachedActivation>();
 
-    public virtual ICollection<Concepts> Concepts { get; set; } = new List<Concepts>();
+    public virtual ICollection<Concept> Concepts { get; set; } = new List<Concept>();
 
-    public virtual ICollection<GenerationStreams> GenerationStreams { get; set; } = new List<GenerationStreams>();
+    public virtual ICollection<GenerationStream> GenerationStreams { get; set; } = new List<GenerationStream>();
 
-    public virtual ICollection<InferenceCache> InferenceCache { get; set; } = new List<InferenceCache>();
+    public virtual ICollection<InferenceCache> InferenceCaches { get; set; } = new List<InferenceCache>();
 
-    public virtual ICollection<InferenceRequest> InferenceRequest { get; set; } = new List<InferenceRequest>();
+    public virtual ICollection<InferenceRequest> InferenceRequests { get; set; } = new List<InferenceRequest>();
 
-    public virtual ICollection<InferenceStep> InferenceStep { get; set; } = new List<InferenceStep>();
+    public virtual ICollection<InferenceStep> InferenceSteps { get; set; } = new List<InferenceStep>();
 
-    public virtual ICollection<ModelLayer> ModelLayer { get; set; } = new List<ModelLayer>();
+    public virtual ICollection<ModelLayer> ModelLayers { get; set; } = new List<ModelLayer>();
 
-    public virtual ICollection<ModelMetadata> ModelMetadata { get; set; } = new List<ModelMetadata>();
+    public virtual ICollection<ModelMetadatum> ModelMetadata { get; set; } = new List<ModelMetadatum>();
 
-    public virtual ICollection<ModelVersionHistory> ModelVersionHistory { get; set; } = new List<ModelVersionHistory>();
+    public virtual ICollection<ModelVersionHistory> ModelVersionHistories { get; set; } = new List<ModelVersionHistory>();
 
-    public virtual ICollection<TensorAtom> TensorAtom { get; set; } = new List<TensorAtom>();
+    public virtual ICollection<TensorAtomCoefficient> TensorAtomCoefficients { get; set; } = new List<TensorAtomCoefficient>();
 
-    public virtual ICollection<TensorAtomCoefficient> TensorAtomCoefficient { get; set; } = new List<TensorAtomCoefficient>();
+    public virtual ICollection<TensorAtom> TensorAtoms { get; set; } = new List<TensorAtom>();
 
-    public virtual ICollection<TokenVocabulary> TokenVocabulary { get; set; } = new List<TokenVocabulary>();
+    public virtual ICollection<TokenVocabulary> TokenVocabularies { get; set; } = new List<TokenVocabulary>();
 
-    public virtual ICollection<TransformerInferenceResults> TransformerInferenceResults { get; set; } = new List<TransformerInferenceResults>();
+    public virtual ICollection<TransformerInferenceResult> TransformerInferenceResults { get; set; } = new List<TransformerInferenceResult>();
 
-    public virtual ICollection<WeightSnapshot> WeightSnapshot { get; set; } = new List<WeightSnapshot>();
+    public virtual ICollection<WeightSnapshot> WeightSnapshots { get; set; } = new List<WeightSnapshot>();
 }

@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class OperationProvenance : IOperationProvenance
 {
@@ -11,5 +11,5 @@ public partial class OperationProvenance : IOperationProvenance
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual ICollection<ProvenanceValidationResults> ProvenanceValidationResults { get; set; } = new List<ProvenanceValidationResults>();
+    public virtual ICollection<ProvenanceValidationResult> ProvenanceValidationResults { get; set; } = new List<ProvenanceValidationResult>();
 }

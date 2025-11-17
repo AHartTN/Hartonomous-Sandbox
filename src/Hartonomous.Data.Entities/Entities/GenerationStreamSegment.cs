@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using Microsoft.Data.SqlTypes;
 
-namespace Hartonomous.Data.Entities;
+namespace Hartonomous.Data.Entities.Entities;
 
 public partial class GenerationStreamSegment : IGenerationStreamSegment
 {
@@ -26,5 +26,5 @@ public partial class GenerationStreamSegment : IGenerationStreamSegment
 
     public int TenantId { get; set; }
 
-    public virtual GenerationStreams GenerationStream { get; set; } = null!;
+    public virtual GenerationStream GenerationStream { get; set; } = null!;
 }

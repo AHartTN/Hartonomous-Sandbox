@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class AtomEmbeddingConfiguration : IEntityTypeConfiguration<AtomEmbedding>
 {
@@ -68,12 +68,12 @@ public class AtomEmbeddingConfiguration : IEntityTypeConfiguration<AtomEmbedding
             ;
 
         builder.HasOne(d => d.Atom)
-            .WithMany(p => p.AtomEmbedding)
+            .WithMany(p => p.AtomEmbeddings)
             .HasForeignKey(d => new { d.AtomId })
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.AtomEmbedding)
+            .WithMany(p => p.AtomEmbeddings)
             .HasForeignKey(d => new { d.ModelId })
             ;
 

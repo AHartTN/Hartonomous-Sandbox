@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class ConceptEvolutionConfiguration : IEntityTypeConfiguration<ConceptEvolution>
 {
@@ -68,7 +68,7 @@ public class ConceptEvolutionConfiguration : IEntityTypeConfiguration<ConceptEvo
             ;
 
         builder.HasOne(d => d.Concept)
-            .WithMany(p => p.ConceptEvolution)
+            .WithMany(p => p.ConceptEvolutions)
             .HasForeignKey(d => new { d.ConceptId })
             ;
 

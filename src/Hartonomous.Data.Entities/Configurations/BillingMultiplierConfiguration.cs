@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Hartonomous.Data.Entities.Configurations;
+namespace Hartonomous.Data.Entities.Entities.Configurations;
 
 public class BillingMultiplierConfiguration : IEntityTypeConfiguration<BillingMultiplier>
 {
@@ -47,7 +47,7 @@ public class BillingMultiplierConfiguration : IEntityTypeConfiguration<BillingMu
             ;
 
         builder.HasOne(d => d.RatePlan)
-            .WithMany(p => p.BillingMultiplier)
+            .WithMany(p => p.BillingMultipliers)
             .HasForeignKey(d => new { d.RatePlanId })
             ;
     }
