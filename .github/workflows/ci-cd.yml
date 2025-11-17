@@ -44,25 +44,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Build DACPACwith MSBuild
+      - name: Build DACPAC with MSBuild
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           
           Write-Host "Building SQL Database Project..."
-          $artifactDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\database"
-          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
-          
-          $msbuildPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
-          if (-not (Test-Path $msbuildPath)) {
-            $msbuildPath = "C:\Program Files\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\MSBuild.exe"
-          }
           
           $projectPath = Join-Path $env:GITHUB_WORKSPACE "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
           
+          # Use vswhere to locate MSBuild dynamically
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vswhere) {
+            $msbuildPath = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
+          }
+          
+          if (-not $msbuildPath -or -not (Test-Path $msbuildPath)) {
+            throw "MSBuild not found. Install Visual Studio with MSBuild component."
+          }
+          
+          Write-Host "Using MSBuild: $msbuildPath"
+          
           & $msbuildPath $projectPath `
             /p:Configuration=Release `
-            /p:OutputPath=$artifactDir `
             /t:Build `
             /v:minimal
           
@@ -70,7 +74,21 @@ jobs:
             throw "DACPAC build failed with exit code $LASTEXITCODE"
           }
           
-          Write-Host "✓ DACPAC built successfully"
+          # Find the built DACPAC
+          $dacpacPath = Get-ChildItem -Path (Join-Path $env:GITHUB_WORKSPACE "src\Hartonomous.Database") -Recurse -Filter "Hartonomous.Database.dacpac" | Select-Object -First 1
+          
+          if (-not $dacpacPath) {
+            throw "DACPAC file not found after build"
+          }
+          
+          Write-Host "✓ DACPAC built: $($dacpacPath.FullName)"
+          
+          # Copy to artifacts directory for upload
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\database"
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          Copy-Item -Path $dacpacPath.FullName -Destination $artifactDir -Force
+          
+          Write-Host "✓ DACPAC copied to artifacts"
       
       - name: Upload DACPAC artifact
         uses: actions/upload-artifact@v4
@@ -139,11 +157,22 @@ jobs:
 
       - name: Execute Unified Database Deployment
         run: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Dynamically locate the DACPAC
+          $dacpacPath = Get-ChildItem -Path "./artifacts/database" -Filter "*.dacpac" -File | Select-Object -First 1
+          
+          if (-not $dacpacPath) {
+            throw "DACPAC file not found in artifacts/database"
+          }
+          
+          Write-Host "Deploying DACPAC: $($dacpacPath.FullName)"
+          
           ./scripts/Deploy-Database.ps1 `
             -Server "${{ secrets.SQL_SERVER }}" `
             -Database "${{ secrets.SQL_DATABASE }}" `
             -AccessToken "${{ steps.get_token.outputs.token }}" `
-            -DacpacPath "./artifacts/database/Hartonomous.Database.dacpac" `
+            -DacpacPath $dacpacPath.FullName `
             -DependenciesPath "./dependencies" `
             -ScriptsPath "./scripts/sql"
         shell: pwsh
