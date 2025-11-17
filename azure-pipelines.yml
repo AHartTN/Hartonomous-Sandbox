@@ -160,9 +160,28 @@ stages:
                 Write-Host "✓ CLR enabled"
               pwsh: true
 
-          # Step 2: Deploy DACPAC
+          # Step 2: Deploy External CLR Dependencies FIRST
           - task: PowerShell@2
-            displayName: 'Deploy DACPAC'
+            displayName: 'Deploy External CLR Assemblies'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
+                
+                Write-Host "Deploying 16 external CLR assemblies from: $dependenciesPath"
+                
+                & "$(Build.SourcesDirectory)/scripts/deploy-clr-assemblies.ps1" `
+                  -Server "$(sqlServer)" `
+                  -Database "$(sqlDatabase)" `
+                  -DependenciesPath "$dependenciesPath"
+                
+                Write-Host "✓ External CLR assemblies deployed"
+              pwsh: true
+
+          # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
+          - task: PowerShell@2
+            displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
               targetType: 'inline'
               script: |
@@ -170,7 +189,8 @@ stages:
                 $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
                 $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
                 
-                Write-Host "Deploying: $dacpacPath"
+                Write-Host "Deploying DACPAC: $dacpacPath"
+                Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
                 
                 sqlpackage.exe `
                   /Action:Publish `
@@ -179,10 +199,10 @@ stages:
                   /p:DropObjectsNotInSource=False `
                   /p:BlockOnPossibleDataLoss=True
                 
-                Write-Host "✓ DACPAC deployed"
+                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
               pwsh: true
 
-          # Step 3: Set TRUSTWORTHY ON
+          # Step 4: Set TRUSTWORTHY ON
           - task: PowerShell@2
             displayName: 'Set TRUSTWORTHY ON'
             inputs:
@@ -359,68 +379,11 @@ stages:
         publishLocation: 'pipeline'
 
 # ============================================================================
-# STAGE 5: DEPLOY HARTONOMOUS.CLR ASSEMBLY
-# ============================================================================
-- stage: DeployCLR
-  displayName: 'Deploy Hartonomous.Clr Assembly'
-  dependsOn: BuildDotNet
-  condition: succeeded()
-  jobs:
-  - deployment: DeployCLRAssembly
-    displayName: 'Deploy CLR to SQL Server'
-    environment: 'SQL-Server-Production'
-    pool:
-      name: 'Local Agent Pool'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          # Download dotnet artifact
-          - download: current
-            artifact: 'dotnet'
-          
-          # Deploy Hartonomous.Clr assembly
-          - task: PowerShell@2
-            displayName: 'Deploy Hartonomous.Clr Assembly'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                
-                $dllPath = "$(Pipeline.Workspace)/dotnet/Hartonomous.Clr.dll"
-                if (-not (Test-Path $dllPath)) {
-                  Write-Error "CLR assembly not found: $dllPath"
-                  exit 1
-                }
-                
-                Write-Host "Deploying Hartonomous.Clr from $dllPath..."
-                
-                # Read DLL as hex string
-                $bytes = [System.IO.File]::ReadAllBytes($dllPath)
-                $hexString = ($bytes | ForEach-Object { $_.ToString("X2") }) -join ''
-                
-                # Deploy assembly
-                $sql = @"
-                IF EXISTS (SELECT * FROM sys.assemblies WHERE name = 'Hartonomous.Clr')
-                  DROP ASSEMBLY [Hartonomous.Clr];
-                
-                CREATE ASSEMBLY [Hartonomous.Clr]
-                FROM 0x$hexString
-                WITH PERMISSION_SET = UNSAFE;
-                
-                PRINT 'Hartonomous.Clr deployed successfully';
-                "@
-                
-                $sql | sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E
-                Write-Host "\u2713 Hartonomous.Clr assembly deployed"
-              pwsh: true
-
-# ============================================================================
-# STAGE 6: DEPLOY APPLICATIONS (Optional)
+# STAGE 5: DEPLOY APPLICATIONS (Optional)
 # ============================================================================
 - stage: DeployApplications
   displayName: 'Deploy .NET Applications'
-  dependsOn: Deploy CLR
+  dependsOn: BuildDotNet
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
   - deployment: AppDeployment
