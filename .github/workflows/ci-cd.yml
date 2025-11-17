@@ -146,9 +146,9 @@ jobs:
             Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{Metadata='true'} -UseBasicParsing | Out-Null
           }
           catch {
-            $wwwAuthHeader = $_.Exception.Response.Headers["WWW-Authenticate"]
-            if ($wwwAuthHeader -match "Basic realm=(.+)") {
-              $secretFile = ($wwwAuthHeader -split "Basic realm=")[1]
+            $wwwAuth = $_.Exception.Response.Headers.GetEnumerator() | Where-Object { $_.Key -eq 'WWW-Authenticate' } | Select-Object -First 1
+            if ($wwwAuth.Value[0] -match 'Basic realm=(.+)') {
+              $secretFile = $matches[1]
             }
           }
           
