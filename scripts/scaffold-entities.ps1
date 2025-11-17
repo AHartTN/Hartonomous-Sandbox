@@ -30,6 +30,13 @@ if (-not $ProjectPath) { $ProjectPath = Join-Path (Split-Path $scriptRoot -Paren
 Write-Host "Scaffolding entities from database..."
 Set-Location $ProjectPath
 
+# Restore NuGet packages first
+Write-Host "Restoring NuGet packages..."
+dotnet restore
+if ($LASTEXITCODE -ne 0) {
+    throw "NuGet restore failed with exit code $LASTEXITCODE"
+}
+
 if ($UseAzureAD -and $AccessToken) {
     # Azure AD with access token - build connection string with token
     Write-Host "Using Azure AD service principal authentication"
