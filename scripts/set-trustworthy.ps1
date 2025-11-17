@@ -31,11 +31,7 @@ try {
   
   if ($UseAzureAD -and $AccessToken) {
       Write-Host "Using Azure AD service principal authentication"
-      # sqlcmd doesn't support access tokens, use Invoke-Sqlcmd instead
-      if (-not (Get-Module -ListAvailable -Name SqlServer)) {
-        Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
-      }
-      Invoke-Sqlcmd -InputFile $tempFile -ServerInstance $Server -Database "master" -AccessToken $AccessToken -TrustServerCertificate
+      sqlcmd -S $Server -d master -G -P $AccessToken -i $tempFile -C
   } else {
       Write-Host "Using Windows integrated authentication"
       sqlcmd -S $Server -d "master" -E -C -i $tempFile -b

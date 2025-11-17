@@ -20,10 +20,6 @@ $localConfig = & (Join-Path $scriptRoot "local-dev-config.ps1")
 if (-not $Server) { $Server = $localConfig.SqlServer }
 if (-not $Database) { $Database = $localConfig.Database }
 
-if (-not (Get-Module -ListAvailable -Name SqlServer)) {
-  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
-}
-
 $sql = @"
 USE [master];
 EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
@@ -32,12 +28,16 @@ EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
 PRINT 'CLR integration enabled';
 "@
 
+$tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+$sql | Out-File -FilePath $tempFile -Encoding utf8
+
 if ($UseAzureAD -and $AccessToken) {
     Write-Host "Using Azure AD service principal authentication"
-    Invoke-Sqlcmd -Query $sql -ServerInstance $Server -AccessToken $AccessToken -TrustServerCertificate
+    sqlcmd -S $Server -d master -G -P $AccessToken -i $tempFile -C
 } else {
     Write-Host "Using Windows integrated authentication"
-    Invoke-Sqlcmd -Query $sql -ServerInstance $Server -TrustServerCertificate
+    sqlcmd -S $Server -d master -E -C -i $tempFile
 }
 
+Remove-Item $tempFile -ErrorAction SilentlyContinue
 Write-Host "✓ Agent permissions granted"

@@ -169,20 +169,10 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $token = "${{ steps.get-token.outputs.token }}"
           
-          Write-Host "Checking CLR integration status..."
-          
-          $checkClrSql = "SELECT CAST(value AS int) AS ClrEnabled FROM sys.configurations WHERE name = 'clr enabled'"
-          $clrEnabled = Invoke-Sqlcmd -Query $checkClrSql -ServerInstance "tcp:${{ env.SQL_SERVER }}" `
-            -Database "master" -AccessToken $token -TrustServerCertificate
-          
-          if ($clrEnabled.ClrEnabled -eq 0) {
-            Write-Host "CLR is disabled, enabling..."
-            $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\enable-clr.ps1"
-            & $scriptPath -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken $token
-            Write-Host "✓ CLR enabled"
-          } else {
-            Write-Host "✓ CLR already enabled, skipping"
-          }
+          Write-Host "Enabling CLR integration..."
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\enable-clr.ps1"
+          & $scriptPath -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken $token
+          Write-Host "✓ CLR enabled"
       
       - name: Deploy External CLR Assemblies
         shell: pwsh
@@ -234,8 +224,10 @@ jobs:
           DROP ASSEMBLY IF EXISTS [Hartonomous.Shared.Contracts];
           "@
           
-          Invoke-Sqlcmd -Query $dropAssemblySql -ServerInstance "${{ env.SQL_SERVER }}" `
-            -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -TrustServerCertificate
+          $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+          $dropAssemblySql | Out-File -FilePath $tempFile -Encoding utf8
+          sqlcmd -S "${{ env.SQL_SERVER }}" -d "${{ env.SQL_DATABASE }}" -G -P $token -i $tempFile -C
+          Remove-Item $tempFile -ErrorAction SilentlyContinue
           
           Write-Host "✓ Hartonomous assemblies and dependent objects dropped"
       
@@ -272,26 +264,16 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $token = "${{ steps.get-token.outputs.token }}"
           
-          Write-Host "Checking TRUSTWORTHY status..."
+          Write-Host "Setting TRUSTWORTHY..."
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\set-trustworthy.ps1"
           
-          $checkTrustworthySql = "SELECT CAST(is_trustworthy_on AS bit) AS IsTrustworthy FROM sys.databases WHERE name = '${{ env.SQL_DATABASE }}'"
-          $trustworthyStatus = Invoke-Sqlcmd -Query $checkTrustworthySql -ServerInstance "${{ env.SQL_SERVER }}" `
-            -Database "master" -AccessToken $token -TrustServerCertificate
-          
-          if ($trustworthyStatus.IsTrustworthy -eq $false) {
-            Write-Host "TRUSTWORTHY is OFF, enabling..."
-            $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\set-trustworthy.ps1"
-            
-            if (Test-Path $scriptPath) {
-              & $scriptPath `
-                -Server "${{ env.SQL_SERVER }}" `
-                -Database "${{ env.SQL_DATABASE }}" `
-                -UseAzureAD `
-                -AccessToken $token
-              Write-Host "✓ TRUSTWORTHY enabled"
-            }
-          } else {
-            Write-Host "✓ TRUSTWORTHY already enabled, skipping"
+          if (Test-Path $scriptPath) {
+            & $scriptPath `
+              -Server "${{ env.SQL_SERVER }}" `
+              -Database "${{ env.SQL_DATABASE }}" `
+              -UseAzureAD `
+              -AccessToken $token
+            Write-Host "✓ TRUSTWORTHY set"
           }
       
       - name: Validate Deployment
@@ -303,24 +285,20 @@ jobs:
           Write-Host "`n=== Deployment Validation ==="
           
           # Count assemblies
-          $query = "SELECT COUNT(*) AS AssemblyCount FROM sys.assemblies WHERE is_user_defined = 1"
-          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -AccessToken $token -Query $query -TrustServerCertificate
-          Write-Host "External Assemblies: $($result.AssemblyCount)"
+          $count = sqlcmd -S "${{ env.SQL_SERVER }}" -d "master" -G -P $token -Q "SELECT COUNT(*) FROM sys.assemblies WHERE is_user_defined = 1" -h -1 -C
+          Write-Host "External Assemblies: $($count.Trim())"
           
           # Count functions
-          $query = "SELECT COUNT(*) AS FunctionCount FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT') AND is_ms_shipped = 0"
-          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
-          Write-Host "User-Defined Functions: $($result.FunctionCount)"
+          $count = sqlcmd -S "${{ env.SQL_SERVER }}" -d "${{ env.SQL_DATABASE }}" -G -P $token -Q "SELECT COUNT(*) FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT') AND is_ms_shipped = 0" -h -1 -C
+          Write-Host "User-Defined Functions: $($count.Trim())"
           
           # Count CLR aggregates
-          $query = "SELECT COUNT(*) AS AggregateCount FROM sys.objects WHERE type = 'AF'"
-          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
-          Write-Host "CLR Aggregates: $($result.AggregateCount)"
+          $count = sqlcmd -S "${{ env.SQL_SERVER }}" -d "${{ env.SQL_DATABASE }}" -G -P $token -Q "SELECT COUNT(*) FROM sys.objects WHERE type = 'AF'" -h -1 -C
+          Write-Host "CLR Aggregates: $($count.Trim())"
           
           # Count UDTs
-          $query = "SELECT COUNT(*) AS UdtCount FROM sys.types WHERE is_user_defined = 1 AND is_assembly_type = 1"
-          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
-          Write-Host "CLR User-Defined Types: $($result.UdtCount)"
+          $count = sqlcmd -S "${{ env.SQL_SERVER }}" -d "${{ env.SQL_DATABASE }}" -G -P $token -Q "SELECT COUNT(*) FROM sys.types WHERE is_user_defined = 1 AND is_assembly_type = 1" -h -1 -C
+          Write-Host "CLR User-Defined Types: $($count.Trim())"
           
           Write-Host "`n✓ Deployment validation complete"
       
