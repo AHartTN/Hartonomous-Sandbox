@@ -28,32 +28,40 @@
     <PackageVersion Include="Microsoft.Extensions.Azure" Version="1.7.6" />
     
     <!-- ASP.NET Core & Web -->
-    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.0" />
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="7.2.0" />
     
     <!-- Microsoft Identity -->
-    <PackageVersion Include="Microsoft.Identity.Web" Version="3.3.0" />
+    <PackageVersion Include="Microsoft.Identity.Web" Version="4.0.1" />
     
-    <!-- Entity Framework Core (NET 10 RC) -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="10.0.0-rc.2.25502.107" />
+    <!-- Entity Framework Core (NET 10) -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite" Version="10.0.0" />
     
-    <!-- Microsoft Extensions (NET 10 RC) -->
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.0.0-rc.2.25502.107" />
+    <!-- Microsoft Extensions (NET 10) -->
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Caching.Memory" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Telemetry" Version="10.0.0" />
     
     <!-- OpenTelemetry -->
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.14.0" />
     <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.14.0-beta.1" />
     <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.10.0" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.14.0-beta.2" />
     <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.10.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.10.0" />
     
     <!-- Feature Management -->
     <PackageVersion Include="Microsoft.FeatureManagement.AspNetCore" Version="4.1.0" />
@@ -63,11 +71,12 @@
     
     <!-- Resilience -->
     <PackageVersion Include="Polly" Version="8.4.2" />
-    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="10.0.0" />
     
     <!-- Code Analysis -->
     <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.0-beta4.22272.1" />
     
     <!-- Image Processing -->
     <PackageVersion Include="SixLabors.ImageSharp" Version="3.1.12" />
@@ -78,7 +87,7 @@
     <!-- Machine Learning -->
     <PackageVersion Include="MathNet.Numerics" Version="5.0.0" />
     <PackageVersion Include="Microsoft.ML.OnnxRuntime" Version="1.20.1" />
-    <PackageVersion Include="TorchSharp" Version="0.103.4" />
+    <PackageVersion Include="TorchSharp" Version="0.104.0" />
     <PackageVersion Include="Google.Protobuf" Version="3.28.3" />
     
     <!-- Document Processing -->
@@ -92,11 +101,11 @@
     <PackageVersion Include="Npgsql" Version="9.0.2" />
     
     <!-- Compliance -->
-    <PackageVersion Include="Microsoft.Extensions.Compliance.Redaction" Version="10.0.0-rc.2.25502.107" />
-    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.0-rc.2.25502.107" />
+    <PackageVersion Include="Microsoft.Extensions.Compliance.Redaction" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore" Version="10.0.0" />
     
-    <!-- Build Tools (Have known vulnerabilities - to be updated Week 2) -->
-    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="17.14.29" />
-    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="17.14.29" />
+    <!-- Build Tools -->
+    <PackageVersion Include="Microsoft.Build.Tasks.Core" Version="18.0.2" />
+    <PackageVersion Include="Microsoft.Build.Utilities.Core" Version="18.0.2" />
   </ItemGroup>
 </Project>

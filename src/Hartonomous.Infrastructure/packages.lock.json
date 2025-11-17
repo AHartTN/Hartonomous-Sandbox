@@ -79,39 +79,39 @@
       },
       "Microsoft.EntityFrameworkCore": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "Zx81hY7e1SBSTFV7u/UmDRSemfTN3jTj2mtdGrKealCMLCdR5qIarPx3OX8eXK6cr+QVoB0e+ygoIq2aMMrJAQ==",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "hHa2amRjMyBLUH/KTML6FgIAhZ0VFYkhCKwWEax0rO6iNeM1P5MflyeQLE5dniSIOZHc3Oqyv5UIyTFO4e1Auw==",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore.Abstractions": "10.0.0-rc.2.25502.107",
-          "Microsoft.EntityFrameworkCore.Analyzers": "10.0.0-rc.2.25502.107"
+          "Microsoft.EntityFrameworkCore.Abstractions": "10.0.0",
+          "Microsoft.EntityFrameworkCore.Analyzers": "10.0.0"
         }
       },
       "Microsoft.EntityFrameworkCore.SqlServer": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "xBkGROSOj5WPXytrCmf2VGdx0Nw8ERNRQYgzKNiKRjloZ+rUcw0KD7TFeHEiqMbKGtaNb5fXtcsEhcaVJFCNAQ==",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "9ip+r8Wtu0qNtFLYnQC3bkhQAsINIyo8XWYJHCVY22BFLxIT4rPxZPkbto56SjCnkwxS6nnbFZTU6KuAO2Nu1g==",
         "dependencies": {
           "Microsoft.Data.SqlClient": "6.1.1",
-          "Microsoft.EntityFrameworkCore.Relational": "10.0.0-rc.2.25502.107"
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.0"
         }
       },
       "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "MZPpa5A+FUnrDcceSd4yH1SxeY+cMr5BPd9EYEJ+2jiQMMIPZI2EKQBvYDDPKQd8+l/kjkmD8YWytRxwQ4XVhw==",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "jjucp5KjVgmdwthC5BRBmqrggwy1aKaAM8sRPeiHmfpT1+OvampGd6IahZgW93xdXC3Bc+3hF7slzJpmt53aGg==",
         "dependencies": {
           "Microsoft.Data.SqlClient": "6.1.1",
-          "Microsoft.EntityFrameworkCore.SqlServer": "10.0.0-rc.2.25502.107",
+          "Microsoft.EntityFrameworkCore.SqlServer": "10.0.0",
           "NetTopologySuite": "2.6.0",
           "NetTopologySuite.IO.SqlServerBytes": "2.1.0"
         }
       },
       "Microsoft.Extensions.Compliance.Redaction": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
+        "requested": "[10.0.0, )",
         "resolved": "10.0.0",
         "contentHash": "xdB9M1QxDiGIZ3reBcitg/+AfFuYj9qm9WY3zYDNnsAnrVZFoYX7hMxFVcpRJE2XuxcMFUmuC1A7iymEpwyw9g==",
         "dependencies": {
@@ -120,16 +120,16 @@
       },
       "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "JqAgNiPgmNP3yREf6fGyN3+w6/fCeHLmfFGwJYBwgMQQiAIhd4ExR23C4XM33NICWxlmg+23lOm6kYaPneXDwA==",
+        "requested": "[10.0.0, )",
+        "resolved": "10.0.0",
+        "contentHash": "ND74bTLuvcrhpEPQU8QZwOrq08zPPj76Ev/60SX1juVKLSSnbknXNoOzNYMPJn3xvhyDHmqU3Hvb/aYV3uvvhQ==",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore.Relational": "10.0.0-rc.2.25502.107"
+          "Microsoft.EntityFrameworkCore.Relational": "10.0.0"
         }
       },
       "Microsoft.Extensions.Http.Resilience": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
+        "requested": "[10.0.0, )",
         "resolved": "10.0.0",
         "contentHash": "Mn/diApGtdtz83Mi+XO57WhO+FsiSScfjUsIU/h8nryh3pkUNZGhpUx22NtuOxgYSsrYfODgOa2QMtIQAOv/dA==",
         "dependencies": {
@@ -139,7 +139,7 @@
       },
       "Microsoft.Extensions.Resilience": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
+        "requested": "[10.0.0, )",
         "resolved": "10.0.0",
         "contentHash": "EPW15dqrBiqkD6YE4XVWivGMXTTPE3YAmXJ32wr1k8E1l7veEYUHwzetOonV76GTe4oJl1np3AXYFnCRpBYU+w==",
         "dependencies": {
@@ -151,7 +151,7 @@
       },
       "Microsoft.Extensions.Telemetry": {
         "type": "Direct",
-        "requested": "[10.0.0-rc.2.25502.107, )",
+        "requested": "[10.0.0, )",
         "resolved": "10.0.0",
         "contentHash": "dII0Kuh699xBMBmK7oLJNNXmJ+kMRcpabil/VbAtO08zjSNQPb/dk/kBI6sVfWw20po1J/up03SAYeLKPc3LEg==",
         "dependencies": {
@@ -204,7 +204,7 @@
       },
       "TorchSharp": {
         "type": "Direct",
-        "requested": "[0.103.4, )",
+        "requested": "[0.104.0, )",
         "resolved": "0.104.0",
         "contentHash": "4T1NTsO/TlB6lJXIxxoqLM0obf+QuMq7p6d0GdJ3+dVCQLpWxOJh/1WT36rH6dJ5NOtwEcc7ZG5eospsjTBd4w==",
         "dependencies": {
@@ -340,20 +340,20 @@
       },
       "Microsoft.EntityFrameworkCore.Abstractions": {
         "type": "Transitive",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "TbkTMhQxPoHahVFb83i+3+ZnJJKnzp4qdhLblXl1VnLX7A695aUTY+sAY05Rn052PAXA61MpqY3DXmdRWGdYQQ=="
+        "resolved": "10.0.0",
+        "contentHash": "C+TT9k7f1GQ8agOfV512K9iwrzi76RXVSDiLx+iWC9pz3QhEpSF1Dyk+FpVvd8ULQ+rqymfM8KQ7g48ttQVyMg=="
       },
       "Microsoft.EntityFrameworkCore.Analyzers": {
         "type": "Transitive",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "wWHWVZXIq+4YtO8fd6qlwtyr0CN0vpHAW3PoabbncAvNUwJoPIZ1EDrdsb9n9e13a6X5b1rsv1YSaJez6KzL1A=="
+        "resolved": "10.0.0",
+        "contentHash": "TxHQq0kn0tpYs2ljeRl8jtmWk720B0nteqI6mAZM77HWJpYT9Zj8SkkBBlj8K3Yeq18a6NBjz6YutE+shEk4Ag=="
       },
       "Microsoft.EntityFrameworkCore.Relational": {
         "type": "Transitive",
-        "resolved": "10.0.0-rc.2.25502.107",
-        "contentHash": "s4zFt5n0xVCPdE4gR1QKi4tyr5VFHg/ZTEBrLu6n9epZrkDLmTj+q/enmxc9JyQ6y7cUUTPmG+qknBebTLGDUg==",
+        "resolved": "10.0.0",
+        "contentHash": "A3MX1ee7RDxWCUdx/KqP+74fbksz0UIhkVZh56YHvbPkEKsffCXgHU3LGkRDwqR/MrBNWLCWC/IVX79tzM30ZA==",
         "dependencies": {
-          "Microsoft.EntityFrameworkCore": "10.0.0-rc.2.25502.107"
+          "Microsoft.EntityFrameworkCore": "10.0.0"
         }
       },
       "Microsoft.Extensions.AmbientMetadata.Application": {
@@ -608,9 +608,9 @@
           "Hartonomous.Data.Entities": "[1.0.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.14.0, )",
           "Microsoft.Data.SqlClient": "[6.1.2, )",
-          "Microsoft.EntityFrameworkCore": "[10.0.0-rc.2.25502.107, )",
-          "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.0-rc.2.25502.107, )",
-          "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": "[10.0.0-rc.2.25502.107, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.0, )",
+          "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.0, )",
+          "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": "[10.0.0, )",
           "Microsoft.SqlServer.Types": "[160.1000.6, )",
           "NetTopologySuite": "[2.6.0, )",
           "Polly": "[8.4.2, )",
@@ -629,12 +629,12 @@
         "dependencies": {
           "Hartonomous.Core": "[1.0.0, )",
           "Hartonomous.Data.Entities": "[1.0.0, )",
-          "Microsoft.Build.Tasks.Core": "[17.14.29, )",
-          "Microsoft.Build.Utilities.Core": "[17.14.29, )",
+          "Microsoft.Build.Tasks.Core": "[18.0.2, )",
+          "Microsoft.Build.Utilities.Core": "[18.0.2, )",
           "Microsoft.Data.SqlClient": "[6.1.2, )",
-          "Microsoft.EntityFrameworkCore": "[10.0.0-rc.2.25502.107, )",
-          "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.0-rc.2.25502.107, )",
-          "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": "[10.0.0-rc.2.25502.107, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.0, )",
+          "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.0, )",
+          "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": "[10.0.0, )",
           "Microsoft.SqlServer.Types": "[160.1000.6, )",
           "NetTopologySuite": "[2.6.0, )"
         }
@@ -644,9 +644,9 @@
         "dependencies": {
           "Hartonomous.Shared.Contracts": "[1.0.0, )",
           "Microsoft.Data.SqlClient": "[6.1.2, )",
-          "Microsoft.EntityFrameworkCore": "[10.0.0-rc.2.25502.107, )",
-          "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.0-rc.2.25502.107, )",
-          "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": "[10.0.0-rc.2.25502.107, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.0, )",
+          "Microsoft.EntityFrameworkCore.SqlServer": "[10.0.0, )",
+          "Microsoft.EntityFrameworkCore.SqlServer.NetTopologySuite": "[10.0.0, )",
           "Microsoft.SqlServer.Types": "[160.1000.6, )",
           "NetTopologySuite": "[2.6.0, )"
         }
@@ -685,7 +685,7 @@
       },
       "Microsoft.Build.Tasks.Core": {
         "type": "CentralTransitive",
-        "requested": "[17.14.29, )",
+        "requested": "[18.0.2, )",
         "resolved": "18.0.2",
         "contentHash": "ff9DeP4WUVxk6Ojm7qcK4HC+zXaKl0IJYXhS+lC51Sx76QtaQfPGZDJz9Go5ERQecmPV/HZ5brZAa9U36l2laA==",
         "dependencies": {
@@ -702,7 +702,7 @@
       },
       "Microsoft.Build.Utilities.Core": {
         "type": "CentralTransitive",
-        "requested": "[17.14.29, )",
+        "requested": "[18.0.2, )",
         "resolved": "18.0.2",
         "contentHash": "qsI2Mc8tbJEyg5m4oTvxlu5wY8te0TIVxObxILvrrPdeFUwH5V5UXUT2RV054b3S9msIR+7zViTWp4nRp0YGbQ==",
         "dependencies": {

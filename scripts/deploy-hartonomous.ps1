@@ -239,8 +239,10 @@ Write-Section "Pre-Flight Checks" 0 8
 
 # Check SQL Server connectivity
 Write-Host "Testing SQL Server connection..." -ForegroundColor Cyan
-$connectionString = Get-ConnectionString
-if (Test-SqlConnection $connectionString) {
+# Test connection to master database instead of target database (which may not exist yet)
+$testConnectionString = Get-ConnectionString
+$testConnectionString = $testConnectionString -replace "Database=$Database", "Database=master"
+if (Test-SqlConnection $testConnectionString) {
     Write-Success "SQL Server connection successful"
 } else {
     Write-Error "Cannot connect to SQL Server: $Server"
@@ -302,21 +304,28 @@ if (-not $SkipBuild) {
     }
     
     try {
-        Write-Host "Restoring NuGet packages..." -ForegroundColor Cyan
-        dotnet restore $solutionFile --verbosity minimal
+        # Get all .csproj files (exclude .sqlproj as it requires MSBuild)
+        $projects = Get-ChildItem -Path (Join-Path $repoRoot "src") -Filter "*.csproj" -Recurse
         
-        if ($LASTEXITCODE -ne 0) {
-            throw "NuGet restore failed"
+        Write-Host "Restoring NuGet packages for .NET projects..." -ForegroundColor Cyan
+        foreach ($proj in $projects) {
+            Write-Host "  Restoring $($proj.BaseName)..." -ForegroundColor Gray
+            dotnet restore $proj.FullName --verbosity quiet
+            if ($LASTEXITCODE -ne 0) {
+                throw "NuGet restore failed for $($proj.Name)"
+            }
         }
         
-        Write-Host "Building solution (Release configuration)..." -ForegroundColor Cyan
-        dotnet build $solutionFile -c Release --no-restore --verbosity minimal
-        
-        if ($LASTEXITCODE -ne 0) {
-            throw "Solution build failed"
+        Write-Host "Building .NET projects (Release configuration)..." -ForegroundColor Cyan
+        foreach ($proj in $projects) {
+            Write-Host "  Building $($proj.BaseName)..." -ForegroundColor Gray
+            dotnet build $proj.FullName -c Release --no-restore --verbosity quiet
+            if ($LASTEXITCODE -ne 0) {
+                throw "Build failed for $($proj.Name)"
+            }
         }
         
-        Write-Success "Solution built successfully"
+        Write-Success ".NET projects built successfully"
     }
     catch {
         Write-Error "Build failed: $($_.Exception.Message)"
@@ -344,14 +353,43 @@ if (-not $SkipDacpac) {
         try {
             $dbProjPath = Join-Path $repoRoot "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
             
-            Write-Host "Building database project..." -ForegroundColor Cyan
-            dotnet build $dbProjPath -c Release --verbosity minimal
+            Write-Host "Building database project with MSBuild..." -ForegroundColor Cyan
+            
+            # Find MSBuild (check all common Visual Studio 2022 locations)
+            $msbuildPath = $null
+            $msbuildPaths = @(
+                "${env:ProgramFiles}\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\MSBuild.exe",
+                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+            )
+            
+            foreach ($path in $msbuildPaths) {
+                if (Test-Path $path) {
+                    $msbuildPath = $path
+                    break
+                }
+            }
+            
+            if (-not $msbuildPath) {
+                throw "MSBuild not found. Install Visual Studio 2022 with SQL Server Data Tools (SSDT)."
+            }
+            
+            Write-Host "  MSBuild: $msbuildPath" -ForegroundColor Gray
+            Write-Host "  Project: $dbProjPath" -ForegroundColor Gray
+            
+            # Build the database project
+            & $msbuildPath $dbProjPath `
+                /t:Build `
+                /p:Configuration=Release `
+                /v:minimal `
+                /nologo
             
             if ($LASTEXITCODE -ne 0) {
                 throw "Database project build failed"
             }
             
-            Write-Success "Database project built successfully"
+            Write-Success "Database project (DACPAC) built successfully"
         }
         catch {
             Write-Error "DACPAC build failed: $($_.Exception.Message)"
