@@ -341,19 +341,22 @@ jobs:
       
       - name: Scaffold EF Core Entities
         shell: pwsh
+        env:
+          AZURE_SQL_ACCESS_TOKEN: ${{ steps.get-token.outputs.token }}
+          SQL_SERVER: ${{ env.SQL_SERVER }}
+          SQL_DATABASE: ${{ env.SQL_DATABASE }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
           
           Write-Host "Scaffolding EF Core entities from database schema..."
+          Write-Host "Access token length: $($env:AZURE_SQL_ACCESS_TOKEN.Length) characters"
           
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\scaffold-entities.ps1"
           
           & $scriptPath `
             -Server "${{ env.SQL_SERVER }}" `
             -Database "${{ env.SQL_DATABASE }}" `
-            -UseAzureAD `
-            -AccessToken $token
+            -UseAzureAD
           
           Write-Host "✓ EF Core entities scaffolded"
       
