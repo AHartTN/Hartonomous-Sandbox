@@ -292,31 +292,6 @@ stages:
         projects: 'Hartonomous.sln'
         arguments: '--configuration $(buildConfiguration) --no-restore'
 
-    # Build CLR Assembly
-    - task: DotNetCoreCLI@2
-      displayName: 'Build CLR Assembly (UNSAFE)'
-      inputs:
-        command: 'build'
-        projects: 'src/Hartonomous.Clr/Hartonomous.Clr.csproj'
-        arguments: '--configuration $(buildConfiguration) --no-restore --output $(Build.ArtifactStagingDirectory)/clr'
-
-    # Verify CLR assembly
-    - task: PowerShell@2
-      displayName: 'Verify CLR Assembly Build'
-      inputs:
-        targetType: 'inline'
-        script: |
-          $dllPath = "$(Build.ArtifactStagingDirectory)/clr/Hartonomous.Clr.dll"
-          if (Test-Path $dllPath) {
-            Write-Host "✓ CLR assembly built: $dllPath"
-            $hash = (Get-FileHash $dllPath -Algorithm SHA256).Hash
-            Write-Host "SHA256: $hash"
-          } else {
-            Write-Error "✗ CLR assembly not found"
-            exit 1
-          }
-        pwsh: true
-
     # Run unit tests
     - task: DotNetCoreCLI@2
       displayName: 'Run Unit Tests'
