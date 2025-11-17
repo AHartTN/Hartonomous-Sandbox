@@ -371,8 +371,8 @@ jobs:
           if (git diff --cached --quiet) {
             Write-Host "No changes to scaffolded entities"
           } else {
-            git commit -m "chore: Update scaffolded EF Core entities from database schema"
-            git push
+            git commit -m "chore: Update scaffolded EF Core entities from database schema [skip ci]"
+            git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git HEAD:main
             Write-Host "✓ Scaffolded entities committed and pushed"
           }
       
