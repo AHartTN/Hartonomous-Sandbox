@@ -350,7 +350,7 @@ jobs:
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\scaffold-entities.ps1"
           
           & $scriptPath `
-            -SqlServer "${{ env.SQL_SERVER }}" `
+            -Server "${{ env.SQL_SERVER }}" `
             -Database "${{ env.SQL_DATABASE }}" `
             -UseAzureAD `
             -AccessToken $token
