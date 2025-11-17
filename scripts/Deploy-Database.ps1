@@ -212,35 +212,80 @@ function Deploy-ExternalAssemblies {
         return
     }
 
+    # CRITICAL: Hartonomous.Database.dll and SqlClrFunctions.dll are NOT external dependencies
+    # They are deployed BY the DACPAC, not before it
+    $excludedAssemblies = @('Hartonomous.Database', 'SqlClrFunctions', 'Hartonomous.Clr')
+    $dependencyDlls = $dependencyDlls | Where-Object { $excludedAssemblies -notcontains $_.BaseName }
+    
+    if ($dependencyDlls.Count -eq 0) {
+        Write-Log "No external dependencies to deploy (all DLLs are DACPAC-managed)" -Level Info
+        return
+    }
+    
+    # Define strict dependency order for assemblies
+    # System assemblies first, then third-party libraries
+    $orderedAssemblies = @(
+        # .NET Framework base assemblies (lowest level dependencies)
+        'System.Runtime.CompilerServices.Unsafe'
+        'System.Buffers'
+        'System.Memory'
+        'System.Numerics.Vectors'
+        'System.ValueTuple'
+        'System.Collections.Immutable'
+        'System.Reflection.Metadata'
+        
+        # Third-party numerical library (depends on System assemblies)
+        'MathNet.Numerics'
+        
+        # Other third-party libraries
+        'Newtonsoft.Json'
+        
+        # System framework assemblies (higher level)
+        'System.Drawing'
+        'System.Runtime.Serialization'
+        'System.ServiceModel.Internals'
+        'SMDiagnostics'
+        
+        # SQL Server types
+        'Microsoft.SqlServer.Types'
+    )
+    
+    # Sort DLLs by defined order, unknown assemblies go last alphabetically
+    $sortedDlls = $dependencyDlls | Sort-Object {
+        $index = $orderedAssemblies.IndexOf($_.BaseName)
+        if ($index -ge 0) { $index } else { 1000 + $_.Name }
+    }
+
     $deployedCount = 0
     $skippedCount = 0
 
-    foreach ($dll in $dependencyDlls) {
+    foreach ($dll in $sortedDlls) {
         $assemblyName = $dll.BaseName
         
-        # Check if assembly already exists
+        # Check if assembly already exists in master database
         $checkQuery = "SELECT COUNT(*) AS AssemblyCount FROM sys.assemblies WHERE name = '$assemblyName'"
         $existingResult = Invoke-SqlCmdSafe -Query $checkQuery -DatabaseName 'master'
         
         if ($existingResult.AssemblyCount -gt 0) {
-            Write-Log "  ⊙ Assembly '$assemblyName' already exists, skipping" -Level Debug
+            Write-Log "  ⊙ Assembly '$assemblyName' already exists in master, skipping" -Level Debug
             $skippedCount++
             continue
         }
 
-        Write-Log "  → Deploying assembly: $assemblyName" -Level Info
+        Write-Log "  → Deploying assembly to master: $assemblyName" -Level Info
         
         try {
             $bytes = [System.IO.File]::ReadAllBytes($dll.FullName)
             $hexString = '0x' + [System.BitConverter]::ToString($bytes).Replace('-', '')
             
+            # Deploy to master database with UNSAFE permission
             $createAssemblySql = @"
 CREATE ASSEMBLY [$assemblyName] 
 FROM $hexString 
 WITH PERMISSION_SET = UNSAFE;
 "@
             Invoke-SqlCmdSafe -Query $createAssemblySql -DatabaseName 'master' -QueryTimeout 600
-            Write-Log "  ✓ Deployed: $assemblyName" -Level Success
+            Write-Log "  ✓ Deployed to master: $assemblyName" -Level Success
             $deployedCount++
         }
         catch {
@@ -250,7 +295,7 @@ WITH PERMISSION_SET = UNSAFE;
         }
     }
     
-    Write-Log "External assemblies deployed: $deployedCount new, $skippedCount existing" -Level Success
+    Write-Log "External assemblies: $deployedCount deployed to master, $skippedCount already existed" -Level Success
 }
 
 function Deploy-Dacpac {
