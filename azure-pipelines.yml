@@ -148,7 +148,7 @@ stages:
                 $ErrorActionPreference = 'Stop'
                 Write-Host "Enabling CLR integration..."
                 
-                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
+                sqlcmd -S "$(sqlServer)" -d "master" -E -C -Q @"
                 EXEC sp_configure 'show advanced options', 1;
                 RECONFIGURE;
                 EXEC sp_configure 'clr enabled', 1;
@@ -157,10 +157,11 @@ stages:
                 RECONFIGURE;
                 "@
                 
+                if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
                 Write-Host "✓ CLR enabled"
               pwsh: true
 
-          # Step 2: Deploy External CLR Dependencies FIRST
+          # Step 2: Deploy External CLR Dependencies (16 assemblies in dependency order)
           - task: PowerShell@2
             displayName: 'Deploy External CLR Assemblies'
             inputs:
@@ -168,15 +169,51 @@ stages:
               script: |
                 $ErrorActionPreference = 'Stop'
                 $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
+                $server = "$(sqlServer)"
+                $database = "$(sqlDatabase)"
                 
-                Write-Host "Deploying 16 external CLR assemblies from: $dependenciesPath"
+                Write-Host "Deploying 16 external CLR assemblies in dependency order..."
                 
-                & "$(Build.SourcesDirectory)/scripts/deploy-clr-assemblies.ps1" `
-                  -Server "$(sqlServer)" `
-                  -Database "$(sqlDatabase)" `
-                  -DependenciesPath "$dependenciesPath"
+                # Function to deploy assembly from DLL file
+                function Deploy-ClrAssembly {
+                    param([string]$Name, [string]$FilePath)
+                    Write-Host "  Deploying: $Name"
+                    $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+                    $hex = ($bytes | ForEach-Object { '{0:X2}' -f $_ }) -join ''
+                    $sql = "IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name') DROP ASSEMBLY [$Name]; CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;"
+                    sqlcmd -S $server -d $database -E -C -Q $sql
+                    if ($LASTEXITCODE -ne 0) { throw "Failed to deploy $Name" }
+                }
                 
-                Write-Host "✓ External CLR assemblies deployed"
+                # Tier 1: Base runtime dependencies
+                Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll"
+                Deploy-ClrAssembly 'System.ValueTuple' "$dependenciesPath/System.ValueTuple.dll"
+                
+                # Tier 2: Memory management
+                Deploy-ClrAssembly 'System.Memory' "$dependenciesPath/System.Memory.dll"
+                Deploy-ClrAssembly 'System.Buffers' "$dependenciesPath/System.Buffers.dll"
+                Deploy-ClrAssembly 'System.Runtime.CompilerServices.Unsafe' "$dependenciesPath/System.Runtime.CompilerServices.Unsafe.dll"
+                
+                # Tier 3: Collections and reflection
+                Deploy-ClrAssembly 'System.Collections.Immutable' "$dependenciesPath/System.Collections.Immutable.dll"
+                Deploy-ClrAssembly 'System.Reflection.Metadata' "$dependenciesPath/System.Reflection.Metadata.dll"
+                
+                # Tier 4: Serialization
+                Deploy-ClrAssembly 'System.Runtime.Serialization' "$dependenciesPath/System.Runtime.Serialization.dll"
+                Deploy-ClrAssembly 'System.ServiceModel.Internals' "$dependenciesPath/System.ServiceModel.Internals.dll"
+                Deploy-ClrAssembly 'SMDiagnostics' "$dependenciesPath/SMDiagnostics.dll"
+                
+                # Tier 5: Third-party libraries
+                Deploy-ClrAssembly 'MathNet.Numerics' "$dependenciesPath/MathNet.Numerics.dll"
+                Deploy-ClrAssembly 'Newtonsoft.Json' "$dependenciesPath/Newtonsoft.Json.dll"
+                Deploy-ClrAssembly 'Microsoft.SqlServer.Types' "$dependenciesPath/Microsoft.SqlServer.Types.dll"
+                
+                # Tier 6: Application assemblies
+                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
+                Deploy-ClrAssembly 'SqlClrFunctions' "$dependenciesPath/SqlClrFunctions.dll"
+                Deploy-ClrAssembly 'Hartonomous.Database' "$dependenciesPath/Hartonomous.Database.dll"
+                
+                Write-Host "✓ All 16 external CLR assemblies deployed successfully"
               pwsh: true
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
@@ -191,14 +228,18 @@ stages:
                 
                 Write-Host "Deploying DACPAC: $dacpacPath"
                 Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
+                Write-Host "Pre/post deployment scripts ignored for idempotent schema deployment"
                 
                 sqlpackage.exe `
                   /Action:Publish `
                   /SourceFile:"$dacpacPath" `
                   /TargetConnectionString:"$connectionString" `
                   /p:DropObjectsNotInSource=False `
-                  /p:BlockOnPossibleDataLoss=True
+                  /p:BlockOnPossibleDataLoss=True `
+                  /p:IgnorePreDeployScript=True `
+                  /p:IgnorePostDeployScript=True
                 
+                if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
                 Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
               pwsh: true
 
@@ -208,7 +249,9 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                sqlcmd -S "$(sqlServer)" -d "master" -E -Q "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;"
+                $ErrorActionPreference = 'Stop'
+                sqlcmd -S "$(sqlServer)" -d "master" -E -C -Q "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;"
+                if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
                 Write-Host "✓ TRUSTWORTHY enabled"
               pwsh: true
 
