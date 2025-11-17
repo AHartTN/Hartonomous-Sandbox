@@ -141,28 +141,16 @@ stages:
             artifact: database
 
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
-          - task: PowerShell@2
+          - script: sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/grant-pipeline-permissions.sql" -b
             displayName: 'Grant Agent Permissions'
-            inputs:
-              targetType: 'inline'
-              script: Invoke-Sqlcmd -ServerInstance "$(sqlServer)" -Database "master" -InputFile "scripts/sql/grant-pipeline-permissions.sql" -TrustServerCertificate
-              pwsh: true
 
           # Step 1: Enable CLR Integration (Idempotent)
-          - task: PowerShell@2
+          - script: sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/enable-clr.sql" -b
             displayName: 'Enable CLR Integration'
-            inputs:
-              targetType: 'inline'
-              script: Invoke-Sqlcmd -ServerInstance "$(sqlServer)" -Database "master" -InputFile "scripts/sql/enable-clr.sql" -TrustServerCertificate
-              pwsh: true
 
           # Step 2: Set TRUSTWORTHY ON (Required BEFORE deploying UNSAFE assemblies)
-          - task: PowerShell@2
+          - script: sqlcmd -S "$(sqlServer)" -d master -E -C -Q "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON" -b
             displayName: 'Set TRUSTWORTHY ON'
-            inputs:
-              targetType: 'inline'
-              script: Invoke-Sqlcmd -ServerInstance "$(sqlServer)" -Database "master" -Query "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON" -TrustServerCertificate
-              pwsh: true
 
           # Step 3: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
           - task: PowerShell@2
