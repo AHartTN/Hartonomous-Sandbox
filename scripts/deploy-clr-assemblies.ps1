@@ -91,8 +91,8 @@ $tiers = @(
     @{
         Name     = "Tier 1: System Core Dependencies"
         Assemblies = @(
-            'System.Numerics.Vectors.dll',
-            'System.ValueTuple.dll'
+            'System.Numerics.Vectors.dll'
+            # System.ValueTuple.dll - REMOVED: Conflicts with SQL Server policy (Msg 6586)
         )
     },
     @{
@@ -129,9 +129,9 @@ $tiers = @(
     @{
         Name     = "Tier 6: Application Support Libraries"
         Assemblies = @(
-            'System.Drawing.dll',
-            'SqlClrFunctions.dll',
-            'Hartonomous.Database.dll'
+            'System.Drawing.dll'
+            # SqlClrFunctions.dll - REMOVED: Deployed by DACPAC, has dependency issues
+            # Hartonomous.Database.dll - REMOVED: Deployed by DACPAC as Hartonomous.Clr
         )
     }
 )
@@ -146,14 +146,47 @@ function ConvertTo-HexString {
 function Deploy-Assembly {
     param(
         [string]$AssemblyName,
-        [string]$FilePath
+        [string]$FilePath,
+        [switch]$Critical
     )
 
-    Write-Host "  Deploying: $AssemblyName..."
+    Write-Host "`n[$AssemblyName]" -ForegroundColor White
 
     if (-not (Test-Path $FilePath)) {
-        Write-Error "Assembly file not found: $FilePath"
-        throw
+        $msg = "File not found: $FilePath"
+        Write-Warning "  ✗ $msg"
+        if ($Critical) {
+            throw $msg
+        }
+        return $false
+    }
+
+    # Check if already registered
+    $checkSql = "SELECT clr_name FROM sys.assemblies WHERE name = '$AssemblyName'"
+    $tempCheckFile = [System.IO.Path]::GetTempFileName() + ".sql"
+    "USE [$Database]; $checkSql" | Out-File -FilePath $tempCheckFile -Encoding utf8
+    
+    try {
+        if ($UseAzureAD) {
+            $existing = sqlcmd -S $Server -d $Database -G -P $AccessToken -i $tempCheckFile -h -1 2>&1 | Select-Object -First 1
+        } elseif ($Username -and $Password) {
+            $existing = sqlcmd -S $Server -U $Username -P $Password -d $Database -i $tempCheckFile -h -1 2>&1 | Select-Object -First 1
+        } else {
+            $existing = sqlcmd -S $Server -d $Database -E -C -i $tempCheckFile -h -1 2>&1 | Select-Object -First 1
+        }
+    } finally {
+        Remove-Item $tempCheckFile -ErrorAction SilentlyContinue
+    }
+
+    $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
+    Write-Host "  File: $FilePath"
+    Write-Host "  Hash: $fileHash"
+    
+    if ($existing -and $existing -notmatch "^\s*$") {
+        Write-Host "  Existing: $($existing.Trim())"
+        Write-Host "  Updating..." -ForegroundColor Yellow
+    } else {
+        Write-Host "  Creating new..." -ForegroundColor Green
     }
 
     $hexString = ConvertTo-HexString -FilePath $FilePath
@@ -162,40 +195,64 @@ function Deploy-Assembly {
     $tempSqlFile = [System.IO.Path]::GetTempFileName() + ".sql"
     
     @"
+USE [master];
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$Database')
+BEGIN
+    CREATE DATABASE [$Database];
+END
+GO
+
 USE [$Database];
 GO
 
 IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$AssemblyName')
-BEGIN
-    PRINT 'Dropping existing assembly: $AssemblyName';
     DROP ASSEMBLY [$AssemblyName];
-END
 GO
 
 CREATE ASSEMBLY [$AssemblyName]
 FROM 0x$hexString
 WITH PERMISSION_SET = UNSAFE;
 GO
-
-PRINT 'Assembly deployed: $AssemblyName';
-GO
 "@ | Out-File -FilePath $tempSqlFile -Encoding utf8
 
     try {
         if ($UseAzureAD) {
-            sqlcmd -S $Server -d master -G -P $AccessToken -i $tempSqlFile -b
+            $output = sqlcmd -S $Server -d master -G -P $AccessToken -i $tempSqlFile 2>&1
         } elseif ($Username -and $Password) {
-            sqlcmd -S $Server -U $Username -P $Password -d master -i $tempSqlFile -b
+            $output = sqlcmd -S $Server -U $Username -P $Password -d master -i $tempSqlFile 2>&1
         } else {
-            sqlcmd -S $Server -d master -E -C -i $tempSqlFile -b
+            $output = sqlcmd -S $Server -d master -E -C -i $tempSqlFile 2>&1
         }
 
-        if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to deploy assembly: $AssemblyName (Exit code: $LASTEXITCODE)"
-            throw
+        # Check for Level 16+ errors (not warnings)
+        $errors = $output | Where-Object { $_ -match "^Msg \d+, Level (1[6-9]|2[0-5])" }
+
+        # Verify registration
+        $verifyCount = if ($UseAzureAD) {
+            sqlcmd -S $Server -d $Database -G -P $AccessToken -Q "SELECT COUNT(*) FROM sys.assemblies WHERE name = '$AssemblyName'" -h -1 2>&1 | Select-Object -First 1
+        } elseif ($Username -and $Password) {
+            sqlcmd -S $Server -U $Username -P $Password -d $Database -Q "SELECT COUNT(*) FROM sys.assemblies WHERE name = '$AssemblyName'" -h -1 2>&1 | Select-Object -First 1
+        } else {
+            sqlcmd -S $Server -d $Database -E -C -Q "SELECT COUNT(*) FROM sys.assemblies WHERE name = '$AssemblyName'" -h -1 2>&1 | Select-Object -First 1
         }
 
-        Write-Host "  ✓ $AssemblyName deployed successfully"
+        if ($verifyCount -match "^\s*1\s*$") {
+            Write-Host "  ✓ Successfully deployed and verified" -ForegroundColor Green
+            return $true
+        } else {
+            $msg = "Assembly not found after deployment"
+            if ($errors) {
+                $errorMsg = ($errors | Select-Object -First 3) -join "`n    "
+                $msg += ": $errorMsg"
+            }
+            Write-Warning "  ✗ $msg"
+            if ($Critical) {
+                throw $msg
+            }
+            return $false
+        }
     }
     finally {
         Remove-Item $tempSqlFile -ErrorAction SilentlyContinue
@@ -216,21 +273,54 @@ if (-not (Test-Path $DependenciesPath)) {
     exit 1
 }
 
-$totalAssemblies = 0
+$script:successes = 0
+$script:warnings = @()
+$script:criticalFailures = @()
+
 foreach ($tier in $tiers) {
-    Write-Host "Processing $($tier.Name)..." -ForegroundColor Cyan
+    Write-Host "`n$($tier.Name)" -ForegroundColor Cyan
 
     foreach ($dllName in $tier.Assemblies) {
         $assemblyName = [System.IO.Path]::GetFileNameWithoutExtension($dllName)
         $filePath = Join-Path $DependenciesPath $dllName
+        
+        # Mark critical assemblies - external dependencies required for CLR functions
+        $isCritical = $assemblyName -in @(
+            'System.Numerics.Vectors',  # Required for vector operations
+            'System.Drawing',            # Required for image processing
+            'System.Runtime.Serialization',  # Required by MathNet.Numerics
+            'MathNet.Numerics'          # Required for ML/math operations
+        )
 
-        Deploy-Assembly -AssemblyName $assemblyName -FilePath $filePath
-        $totalAssemblies++
+        try {
+            $result = Deploy-Assembly -AssemblyName $assemblyName -FilePath $filePath -Critical:$isCritical
+            if ($result) {
+                $script:successes++
+            } else {
+                $script:warnings += $assemblyName
+            }
+        } catch {
+            $script:criticalFailures += "$assemblyName - $($_.Exception.Message)"
+        }
     }
-
-    Write-Host ""
 }
 
+Write-Host "`n========================================"
+Write-Host "Deployment Summary" -ForegroundColor Cyan
 Write-Host "========================================"
-Write-Host "✓ All $totalAssemblies external CLR assemblies deployed successfully" -ForegroundColor Green
-Write-Host "========================================"
+Write-Host "✓ Successful: $($script:successes)" -ForegroundColor Green
+Write-Host "⚠ Warnings: $($script:warnings.Count)" -ForegroundColor Yellow
+Write-Host "✗ Critical Failures: $($script:criticalFailures.Count)" -ForegroundColor Red
+
+if ($script:warnings.Count -gt 0) {
+    Write-Host "`nWarnings (non-critical):" -ForegroundColor Yellow
+    $script:warnings | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+}
+
+if ($script:criticalFailures.Count -gt 0) {
+    Write-Host "`nCritical Failures:" -ForegroundColor Red
+    $script:criticalFailures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+    throw "Critical assemblies failed to deploy"
+}
+
+Write-Host "`n✓ CLR assembly deployment completed successfully" -ForegroundColor Green

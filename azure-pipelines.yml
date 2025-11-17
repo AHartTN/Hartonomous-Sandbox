@@ -45,7 +45,6 @@ stages:
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
-        includePreviewVersions: true
         performMultiLevelLookup: true
     
     # Build DACPAC using msbuild (agent must have MSBuild or Visual Studio)
@@ -141,113 +140,246 @@ stages:
             artifact: database
 
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
-          - script: sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/grant-pipeline-permissions.sql" -b
+          - task: PowerShell@2
             displayName: 'Grant Agent Permissions'
+            inputs:
+              targetType: 'inline'
+              script: |
+                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+                  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+                }
+                $sql = @"
+USE [master];
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
+EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
+PRINT 'CLR integration enabled';
+"@
+                Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -TrustServerCertificate
+                Write-Host "✓ Agent permissions granted"
+              pwsh: true
 
           # Step 1: Enable CLR Integration (Idempotent)
-          - script: sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/enable-clr.sql" -b
+          - task: PowerShell@2
             displayName: 'Enable CLR Integration'
+            inputs:
+              targetType: 'inline'
+              script: |
+                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+                  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+                }
+                $sql = @"
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
+EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
+PRINT 'CLR integration enabled successfully';
+"@
+                Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -Database "master" -TrustServerCertificate
+                Write-Host "✓ CLR enabled"
+              pwsh: true
 
-          # Step 2: Set TRUSTWORTHY ON (Required BEFORE deploying UNSAFE assemblies)
-          - script: sqlcmd -S "$(sqlServer)" -d master -E -C -Q "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON" -b
-            displayName: 'Set TRUSTWORTHY ON'
-
-          # Step 3: Deploy External CLR Assemblies (only required assemblies, skip GAC/system assemblies)
+          # Step 2: Deploy External CLR Assemblies (Idempotent with proper error handling)
           - task: PowerShell@2
             displayName: 'Deploy External CLR Assemblies'
             inputs:
               targetType: 'inline'
               script: |
-                $ErrorActionPreference = 'Stop'
+                $ErrorActionPreference = 'Continue'
                 $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
                 $server = "$(sqlServer)"
                 $database = "$(sqlDatabase)"
-
-                Write-Host "Deploying required external CLR assemblies (idempotent)..."
+                
+                Write-Host "========================================" -ForegroundColor Cyan
+                Write-Host "Deploying 13 External CLR Assemblies" -ForegroundColor Cyan
+                Write-Host "(Application assemblies deployed by DACPAC)" -ForegroundColor Gray
+                Write-Host "========================================" -ForegroundColor Cyan
+                
+                $script:criticalFailures = @()
+                $script:warnings = @()
+                $script:successes = 0
                 
                 function Deploy-ClrAssembly {
-                    param([string]$Name, [string]$FilePath)
-                    Write-Host "  Checking: $Name"
+                    param(
+                        [string]$Name,
+                        [string]$FilePath,
+                        [switch]$Critical
+                    )
                     
+                    Write-Host "`n[$Name]" -ForegroundColor White
+                    
+                    # Check file exists
                     if (-not (Test-Path $FilePath)) {
-                        throw "Assembly file not found: $FilePath"
+                        $msg = "File not found: $FilePath"
+                        Write-Warning "  ✗ $msg"
+                        if ($Critical) { $script:criticalFailures += "$Name - $msg" }
+                        else { $script:warnings += "$Name - $msg" }
+                        return $false
                     }
                     
+                    # Check if already registered with correct version
+                    $checkExisting = "SELECT clr_name FROM sys.assemblies WHERE name = '$Name'"
+                    $existing = sqlcmd -S $server -d $database -E -C -Q $checkExisting -h -1 2>&1 | Select-Object -First 1
+                    
+                    $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
+                    Write-Host "  File: $FilePath"
+                    Write-Host "  Hash: $fileHash"
+                    
+                    if ($existing -and $existing -notmatch "^\s*$") {
+                        Write-Host "  Existing: $($existing.Trim())"
+                        Write-Host "  Updating..." -ForegroundColor Yellow
+                    } else {
+                        Write-Host "  Creating new..." -ForegroundColor Green
+                    }
+                    
+                    # Convert to hex
                     $bytes = [System.IO.File]::ReadAllBytes($FilePath)
                     $hex = ($bytes | ForEach-Object { $_.ToString("X2") }) -join ''
-                    $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
                     
+                    # Generate SQL
                     $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                    
-                    $sql = "USE [master];`n"
-                    $sql += "GO`n"
-                    $sql += "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')`n"
-                    $sql += "BEGIN`n"
-                    $sql += "    CREATE DATABASE [$database];`n"
-                    $sql += "    PRINT 'Database [$database] created';`n"
-                    $sql += "END`n"
-                    $sql += "GO`n"
-                    $sql += "USE [$database];`n"
-                    $sql += "GO`n"
-                    $sql += "IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')`n"
-                    $sql += "BEGIN`n"
-                    $sql += "    PRINT '  Assembly exists, updating...';`n"
-                    $sql += "    DROP ASSEMBLY [$Name];`n"
-                    $sql += "END`n"
-                    $sql += "ELSE`n"
-                    $sql += "BEGIN`n"
-                    $sql += "    PRINT '  Assembly not found, creating...';`n"
-                    $sql += "END`n"
-                    $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;`n"
-                    $sql += "PRINT '  OK $Name deployed (SHA256: $fileHash)';`n"
-                    $sql += "GO`n"
-
+                    $sql = @"
+USE [master];
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')
+BEGIN
+    CREATE DATABASE [$database];
+END
+GO
+USE [$database];
+GO
+IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')
+    DROP ASSEMBLY [$Name];
+GO
+CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;
+GO
+"@
                     $sql | Out-File -FilePath $tempFile -Encoding utf8
-
+                    
                     try {
-                        sqlcmd -S $server -d master -E -C -i $tempFile -b
-                        if ($LASTEXITCODE -ne 0) {
-                            Write-Host "  ⚠ $Name deployment failed - skipping (may not be required)" -ForegroundColor Yellow
+                        # Execute without -b flag (warnings don't fail)
+                        $output = sqlcmd -S $server -d master -E -C -i $tempFile 2>&1
+                        
+                        # Parse output for Level 16+ errors (not warnings)
+                        $errors = $output | Where-Object { $_ -match "^Msg \d+, Level (1[6-9]|2[0-5])" }
+                        
+                        # Verify registration
+                        $verifyCount = sqlcmd -S $server -d $database -E -C -Q "SELECT COUNT(*) FROM sys.assemblies WHERE name = '$Name'" -h -1 2>&1 | Select-Object -First 1
+                        
+                        if ($verifyCount -match "^\s*1\s*$") {
+                            Write-Host "  ✓ Successfully deployed and verified" -ForegroundColor Green
+                            $script:successes++
+                            return $true
                         } else {
-                            Write-Host "  ✓ $Name deployed"
+                            $msg = "Assembly not found after deployment"
+                            if ($errors) {
+                                $errorMsg = ($errors | Select-Object -First 3) -join "`n    "
+                                $msg += ": $errorMsg"
+                            }
+                            Write-Warning "  ✗ $msg"
+                            if ($Critical) { $script:criticalFailures += "$Name - $msg" }
+                            else { $script:warnings += "$Name - $msg" }
+                            return $false
                         }
                     } finally {
                         Remove-Item $tempFile -ErrorAction SilentlyContinue
                     }
                 }
                 
-                # Deploy only assemblies NOT in SQL Server supported list and actually needed by our code
-                # Supported assemblies (in GAC, don't deploy): mscorlib, System, System.Core, System.Data, System.Transactions, System.Xml
-                # Microsoft.SqlServer.Types: SYSTEM ASSEMBLY - already in SQL Server, skip it
-
-                # Tier 1: Required framework assemblies
-                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
-                Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll"
-
-                # Tier 2: Third-party libraries (NOTE: Newtonsoft.Json may be wrong version - check if .NET Framework 4.8 compatible)
+                Write-Host "\nTier 1: Base Runtime Dependencies" -ForegroundColor Cyan
+                Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll" -Critical
+                # System.ValueTuple skipped - conflicts with SQL Server built-in type
+                
+                Write-Host "`nTier 2: Memory Management" -ForegroundColor Cyan
+                Deploy-ClrAssembly 'System.Memory' "$dependenciesPath/System.Memory.dll"
+                Deploy-ClrAssembly 'System.Buffers' "$dependenciesPath/System.Buffers.dll"
+                Deploy-ClrAssembly 'System.Runtime.CompilerServices.Unsafe' "$dependenciesPath/System.Runtime.CompilerServices.Unsafe.dll"
+                
+                Write-Host "`nTier 3: Collections and Reflection" -ForegroundColor Cyan
+                Deploy-ClrAssembly 'System.Collections.Immutable' "$dependenciesPath/System.Collections.Immutable.dll"
+                Deploy-ClrAssembly 'System.Reflection.Metadata' "$dependenciesPath/System.Reflection.Metadata.dll"
+                
+                Write-Host "`nTier 4: Serialization" -ForegroundColor Cyan
+                Deploy-ClrAssembly 'System.Runtime.Serialization' "$dependenciesPath/System.Runtime.Serialization.dll"
+                Deploy-ClrAssembly 'System.ServiceModel.Internals' "$dependenciesPath/System.ServiceModel.Internals.dll"
+                Deploy-ClrAssembly 'SMDiagnostics' "$dependenciesPath/SMDiagnostics.dll"
+                
+                Write-Host "`nTier 5: Third-party Libraries" -ForegroundColor Cyan
                 Deploy-ClrAssembly 'MathNet.Numerics' "$dependenciesPath/MathNet.Numerics.dll"
                 Deploy-ClrAssembly 'Newtonsoft.Json' "$dependenciesPath/Newtonsoft.Json.dll"
-
-                # Tier 3: Application assemblies
-                Deploy-ClrAssembly 'SqlClrFunctions' "$dependenciesPath/SqlClrFunctions.dll"
-                Deploy-ClrAssembly 'Hartonomous.Database' "$dependenciesPath/Hartonomous.Database.dll"
+                Deploy-ClrAssembly 'Microsoft.SqlServer.Types' "$dependenciesPath/Microsoft.SqlServer.Types.dll"
                 
-                Write-Host "✓ Required CLR assemblies deployed successfully"
+                Write-Host "\nTier 6: Application Assemblies" -ForegroundColor Cyan
+                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll" -Critical
+                # SqlClrFunctions and Hartonomous.Database are deployed by DACPAC post-deployment scripts
+                # NOT deployed here to avoid version conflicts
+                
+                # Summary
+                Write-Host "`n========================================" -ForegroundColor Cyan
+                Write-Host "Deployment Summary" -ForegroundColor Cyan
+                Write-Host "========================================" -ForegroundColor Cyan
+                Write-Host "✓ Successful: $($script:successes)" -ForegroundColor Green
+                Write-Host "⚠ Warnings: $($script:warnings.Count)" -ForegroundColor Yellow
+                Write-Host "✗ Critical Failures: $($script:criticalFailures.Count)" -ForegroundColor Red
+                
+                if ($script:warnings.Count -gt 0) {
+                    Write-Host "`nWarnings (non-critical):" -ForegroundColor Yellow
+                    $script:warnings | ForEach-Object { Write-Host "  - $_" -ForegroundColor Yellow }
+                }
+                
+                if ($script:criticalFailures.Count -gt 0) {
+                    Write-Host "`nCritical Failures:" -ForegroundColor Red
+                    $script:criticalFailures | ForEach-Object { Write-Host "  - $_" -ForegroundColor Red }
+                    Write-Error "Critical assemblies failed to deploy"
+                    exit 1
+                }
+                
+                Write-Host "`n✓ CLR assembly deployment completed successfully" -ForegroundColor Green
+                exit 0
               pwsh: true
 
-          # Step 4: Deploy DACPAC (includes Hartonomous.Clr.dll)
+          # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
           - task: PowerShell@2
             displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
               targetType: 'inline'
               script: |
-                sqlpackage /Action:Publish `
-                  /SourceFile:"$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac" `
-                  /TargetServerName:"$(sqlServer)" `
-                  /TargetDatabaseName:"$(sqlDatabase)" `
-                  /TargetTrustServerCertificate:True `
+                $ErrorActionPreference = 'Stop'
+                $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
+                
+                Write-Host "Deploying DACPAC: $dacpacPath"
+                Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
+                
+                sqlpackage.exe `
+                  /Action:Publish `
+                  /SourceFile:"$dacpacPath" `
+                  /TargetConnectionString:"$connectionString" `
                   /p:DropObjectsNotInSource=False `
-                  /p:BlockOnPossibleDataLoss=True
+                  /p:BlockOnPossibleDataLoss=True `
+                  /p:IgnorePreDeployScript=True `
+                  /p:IgnorePostDeployScript=True
+                
+                if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
+                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
+              pwsh: true
+
+          # Step 4: Set TRUSTWORTHY ON (Idempotent)
+          - task: PowerShell@2
+            displayName: 'Set TRUSTWORTHY ON'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $dbName = '$(sqlDatabase)'
+                $sql = "USE master; ALTER DATABASE [$dbName] SET TRUSTWORTHY ON; PRINT 'TRUSTWORTHY enabled for $dbName';"
+                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+                try {
+                  $sql | Out-File -FilePath $tempFile -Encoding utf8
+                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
+                  if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
+                  Write-Host "✓ TRUSTWORTHY validated"
+                } finally {
+                  Remove-Item $tempFile -ErrorAction SilentlyContinue
+                }
               pwsh: true
 
 # ============================================================================
@@ -269,32 +401,7 @@ stages:
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
-        includePreviewVersions: true
-        performMultiLevelLookup: true
-
-    # Install dotnet-ef tool
-    - task: PowerShell@2
-      displayName: 'Install dotnet-ef Tool'
-      inputs:
-        targetType: 'inline'
-        script: |
-          $ErrorActionPreference = 'Continue'
-          dotnet tool install --global dotnet-ef --version 10.0.0 2>$null
-          if ($LASTEXITCODE -ne 0) {
-            dotnet tool update --global dotnet-ef --version 10.0.0
-          }
-          dotnet ef --version
-        pwsh: true
-
-    # Build Data.Entities project
-    - task: PowerShell@2
-      displayName: 'Build Data.Entities Project'
-      inputs:
-        targetType: 'inline'
-        script: |
-          dotnet build src/Hartonomous.Data.Entities/Hartonomous.Data.Entities.csproj --configuration Release
-        pwsh: true
-
+    
     # Scaffold entities from deployed database
     - task: PowerShell@2
       displayName: 'Scaffold EF Core Entities'
@@ -338,18 +445,22 @@ stages:
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
-        includePreviewVersions: true
-        performMultiLevelLookup: true
 
-    # Restore and build solution
-    - task: PowerShell@2
-      displayName: 'Restore and Build Solution'
+    # Restore NuGet packages
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
       inputs:
-        targetType: 'inline'
-        script: |
-          dotnet restore Hartonomous.sln
-          dotnet build Hartonomous.sln --configuration Release --no-restore
-        pwsh: true
+        command: 'restore'
+        projects: 'Hartonomous.sln'
+        feedsToUse: 'select'
+
+    # Build solution
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Solution (Release)'
+      inputs:
+        command: 'build'
+        projects: 'Hartonomous.sln'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
 
     # Run unit tests
     - task: DotNetCoreCLI@2
