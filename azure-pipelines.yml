@@ -141,34 +141,28 @@ stages:
             artifact: database
 
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
             displayName: 'Grant Agent Permissions'
             inputs:
-              authenticationType: 'integrated'
-              serverName: '$(sqlServer)'
-              databaseName: 'master'
-              deployType: 'SqlTask'
-              sqlFile: 'scripts/sql/grant-pipeline-permissions.sql'
+              targetType: 'inline'
+              script: Invoke-Sqlcmd -ServerInstance "$(sqlServer)" -Database "master" -InputFile "scripts/sql/grant-pipeline-permissions.sql" -TrustServerCertificate
+              pwsh: true
 
           # Step 1: Enable CLR Integration (Idempotent)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
             displayName: 'Enable CLR Integration'
             inputs:
-              authenticationType: 'integrated'
-              serverName: '$(sqlServer)'
-              databaseName: 'master'
-              deployType: 'SqlTask'
-              sqlFile: 'scripts/sql/enable-clr.sql'
+              targetType: 'inline'
+              script: Invoke-Sqlcmd -ServerInstance "$(sqlServer)" -Database "master" -InputFile "scripts/sql/enable-clr.sql" -TrustServerCertificate
+              pwsh: true
 
           # Step 2: Set TRUSTWORTHY ON (Required BEFORE deploying UNSAFE assemblies)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
             displayName: 'Set TRUSTWORTHY ON'
             inputs:
-              authenticationType: 'integrated'
-              serverName: '$(sqlServer)'
-              databaseName: 'master'
-              deployType: 'InlineSqlTask'
-              sqlInline: 'ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON'
+              targetType: 'inline'
+              script: Invoke-Sqlcmd -ServerInstance "$(sqlServer)" -Database "master" -Query "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON" -TrustServerCertificate
+              pwsh: true
 
           # Step 3: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
           - task: PowerShell@2
@@ -263,15 +257,19 @@ stages:
               pwsh: true
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
             displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
-              authenticationType: 'integrated'
-              serverName: '$(sqlServer)'
-              databaseName: '$(sqlDatabase)'
-              deployType: 'DacpacTask'
-              dacpacFile: '$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac'
-              additionalArguments: '/p:DropObjectsNotInSource=False /p:BlockOnPossibleDataLoss=True'
+              targetType: 'inline'
+              script: |
+                sqlpackage /Action:Publish `
+                  /SourceFile:"$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac" `
+                  /TargetServerName:"$(sqlServer)" `
+                  /TargetDatabaseName:"$(sqlDatabase)" `
+                  /TargetTrustServerCertificate:True `
+                  /p:DropObjectsNotInSource=False `
+                  /p:BlockOnPossibleDataLoss=True
+              pwsh: true
 
 # ============================================================================
 # STAGE 3: SCAFFOLD EF CORE ENTITIES
