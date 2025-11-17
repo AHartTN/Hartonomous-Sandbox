@@ -237,22 +237,23 @@ PRINT 'CLR integration enabled successfully';
                     
                     # Generate SQL
                     $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                    $sql = @"
-USE [master];
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')
-BEGIN
-    CREATE DATABASE [$database];
-END
-GO
-USE [$database];
-GO
-IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')
-    DROP ASSEMBLY [$Name];
-GO
-CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;
-GO
-"@
-                    $sql | Out-File -FilePath $tempFile -Encoding utf8
+                    
+                    # Build SQL script
+                    $sqlScript = "USE [master];`n"
+                    $sqlScript += "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')`n"
+                    $sqlScript += "BEGIN`n"
+                    $sqlScript += "    CREATE DATABASE [$database];`n"
+                    $sqlScript += "END`n"
+                    $sqlScript += "GO`n"
+                    $sqlScript += "USE [$database];`n"
+                    $sqlScript += "GO`n"
+                    $sqlScript += "IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')`n"
+                    $sqlScript += "    DROP ASSEMBLY [$Name];`n"
+                    $sqlScript += "GO`n"
+                    $sqlScript += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;`n"
+                    $sqlScript += "GO`n"
+                    
+                    $sqlScript | Out-File -FilePath $tempFile -Encoding utf8
                     
                     try {
                         # Execute without -b flag (warnings don't fail)
