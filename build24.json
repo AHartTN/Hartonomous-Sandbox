@@ -1,0 +1,154 @@
+{
+  "appendCommitMessageToRunName": true,
+  "buildNumber": "Hartonomous-20251117.18",
+  "buildNumberRevision": 18,
+  "controller": null,
+  "definition": {
+    "createdDate": null,
+    "drafts": [],
+    "id": 1,
+    "name": "Hartonomous-CI-CD",
+    "path": "\\",
+    "project": {
+      "abbreviation": null,
+      "defaultTeamImageUrl": null,
+      "description": "This is the Hartonomous project which is an empire management game primarily driven by on-chain solidity smart contracts.",
+      "id": "6ff97bf9-34cf-4512-b432-1bef851b40bb",
+      "lastUpdateTime": "2025-06-22T10:07:08.147Z",
+      "name": "Hartonomous",
+      "revision": 43,
+      "state": "wellFormed",
+      "url": "https://dev.azure.com/aharttn/_apis/projects/6ff97bf9-34cf-4512-b432-1bef851b40bb",
+      "visibility": "private"
+    },
+    "queueStatus": "enabled",
+    "revision": 1,
+    "type": "build",
+    "uri": "vstfs:///Build/Definition/1",
+    "url": "https://dev.azure.com/aharttn/6ff97bf9-34cf-4512-b432-1bef851b40bb/_apis/build/Definitions/1?revision=1"
+  },
+  "deleted": null,
+  "deletedBy": null,
+  "deletedDate": null,
+  "deletedReason": null,
+  "demands": null,
+  "finishTime": "2025-11-17T06:43:26.064273+00:00",
+  "id": 24,
+  "keepForever": false,
+  "lastChangedBy": {
+    "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+    "directoryAlias": null,
+    "displayName": "Microsoft.VisualStudio.Services.TFS",
+    "id": "00000002-0000-8888-8000-000000000000",
+    "imageUrl": "https://dev.azure.com/aharttn/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+    "inactive": null,
+    "isAadIdentity": null,
+    "isContainer": null,
+    "isDeletedInOrigin": null,
+    "profileUrl": null,
+    "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+    "url": "https://spsprodcus4.vssps.visualstudio.com/A0a259af9-adec-4c06-b8a1-bd55f76cb37a/_apis/Identities/00000002-0000-8888-8000-000000000000"
+  },
+  "lastChangedDate": "2025-11-17T06:43:26.187000+00:00",
+  "logs": {
+    "id": 0,
+    "type": "Container",
+    "url": "https://dev.azure.com/aharttn/6ff97bf9-34cf-4512-b432-1bef851b40bb/_apis/build/builds/24/logs"
+  },
+  "orchestrationPlan": {
+    "orchestrationType": null,
+    "planId": "be7f494a-5e12-4600-a437-e4bdecc8cd8a"
+  },
+  "parameters": null,
+  "plans": [
+    {
+      "orchestrationType": null,
+      "planId": "be7f494a-5e12-4600-a437-e4bdecc8cd8a"
+    }
+  ],
+  "priority": "normal",
+  "project": {
+    "abbreviation": null,
+    "defaultTeamImageUrl": null,
+    "description": "This is the Hartonomous project which is an empire management game primarily driven by on-chain solidity smart contracts.",
+    "id": "6ff97bf9-34cf-4512-b432-1bef851b40bb",
+    "lastUpdateTime": "2025-06-22T10:07:08.147Z",
+    "name": "Hartonomous",
+    "revision": 43,
+    "state": "wellFormed",
+    "url": "https://dev.azure.com/aharttn/_apis/projects/6ff97bf9-34cf-4512-b432-1bef851b40bb",
+    "visibility": "private"
+  },
+  "properties": {},
+  "quality": null,
+  "queue": {
+    "id": 44,
+    "name": "Hosted Ubuntu 1604",
+    "pool": {
+      "id": 8,
+      "isHosted": true,
+      "name": "Hosted Ubuntu 1604"
+    },
+    "url": null
+  },
+  "queueOptions": null,
+  "queuePosition": null,
+  "queueTime": "2025-11-17T06:42:16.863832+00:00",
+  "reason": "individualCI",
+  "repository": {
+    "checkoutSubmodules": false,
+    "clean": null,
+    "defaultBranch": null,
+    "id": "9e3539d7-9ea3-4ceb-841b-56ba3fa49077",
+    "name": "Hartonomous",
+    "properties": null,
+    "rootFolder": null,
+    "type": "TfsGit",
+    "url": "https://dev.azure.com/aharttn/Hartonomous/_git/Hartonomous"
+  },
+  "requestedBy": {
+    "descriptor": "s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+    "directoryAlias": null,
+    "displayName": "Microsoft.VisualStudio.Services.TFS",
+    "id": "00000002-0000-8888-8000-000000000000",
+    "imageUrl": "https://dev.azure.com/aharttn/_apis/GraphProfile/MemberAvatars/s2s.MDAwMDAwMDItMDAwMC04ODg4LTgwMDAtMDAwMDAwMDAwMDAwQDJjODk1OTA4LTA0ZTAtNDk1Mi04OWZkLTU0YjAwNDZkNjI4OA",
+    "inactive": null,
+    "isAadIdentity": null,
+    "isContainer": null,
+    "isDeletedInOrigin": null,
+    "profileUrl": null,
+    "uniqueName": "00000002-0000-8888-8000-000000000000@2c895908-04e0-4952-89fd-54b0046d6288",
+    "url": "https://spsprodcus4.vssps.visualstudio.com/A0a259af9-adec-4c06-b8a1-bd55f76cb37a/_apis/Identities/00000002-0000-8888-8000-000000000000"
+  },
+  "requestedFor": {
+    "descriptor": "aad.MzZiMjQ1ZTAtYzYxOC03MGJiLWE0ODctMTAyMDE1ZTQ4MzMz",
+    "directoryAlias": null,
+    "displayName": "Anthony Hart",
+    "id": "a0cef2c8-9fb8-6881-9b74-6e164ef62cbe",
+    "imageUrl": "https://dev.azure.com/aharttn/_apis/GraphProfile/MemberAvatars/aad.MzZiMjQ1ZTAtYzYxOC03MGJiLWE0ODctMTAyMDE1ZTQ4MzMz",
+    "inactive": null,
+    "isAadIdentity": null,
+    "isContainer": null,
+    "isDeletedInOrigin": null,
+    "profileUrl": null,
+    "uniqueName": "aharttn@gmail.com",
+    "url": "https://spsprodcus4.vssps.visualstudio.com/A0a259af9-adec-4c06-b8a1-bd55f76cb37a/_apis/Identities/a0cef2c8-9fb8-6881-9b74-6e164ef62cbe"
+  },
+  "result": "failed",
+  "retainedByRelease": false,
+  "sourceBranch": "refs/heads/main",
+  "sourceVersion": "a7218a501b64c5f9510c943c81b7dd8c2ded5eda",
+  "startTime": "2025-11-17T06:42:19.916676+00:00",
+  "status": "completed",
+  "tags": [],
+  "triggerInfo": {
+    "ci.message": "Fix SQL tasks to use PowerShell+sqlcmd for local SQL Server, fix dependencies path",
+    "ci.sourceBranch": "refs/heads/main",
+    "ci.sourceSha": "a7218a501b64c5f9510c943c81b7dd8c2ded5eda",
+    "ci.triggerRepository": "9e3539d7-9ea3-4ceb-841b-56ba3fa49077"
+  },
+  "triggeredByBuild": null,
+  "uri": "vstfs:///Build/Build/24",
+  "url": "https://dev.azure.com/aharttn/6ff97bf9-34cf-4512-b432-1bef851b40bb/_apis/build/Builds/24",
+  "validationResults": []
+}

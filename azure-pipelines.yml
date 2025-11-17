@@ -190,6 +190,17 @@ stages:
                     
                     $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
                     $sql = @"
+                USE [master];
+                GO
+                
+                -- Create database if it doesn't exist
+                IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')
+                BEGIN
+                    CREATE DATABASE [$database];
+                    PRINT 'Database [$database] created';
+                END
+                GO
+                
                 USE [$database];
                 GO
                 
@@ -220,10 +231,8 @@ stages:
                 
                 PRINT '  ✓ $Name deployed (SHA256: $fileHash)';
                 GO
-                "@
-                $sql | Out-File -FilePath $tempFile -Encoding utf8
-                    
-                    try {
+"@
+                $sql | Out-File -FilePath $tempFile -Encoding utf8                    try {
                         sqlcmd -S $server -d master -E -C -i $tempFile -b
                         if ($LASTEXITCODE -ne 0) { throw "Failed to deploy $Name" }
                         Write-Host "  ✓ $Name deployed"
