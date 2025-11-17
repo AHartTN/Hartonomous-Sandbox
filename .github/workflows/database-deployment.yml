@@ -31,13 +31,12 @@ permissions:
 env:
   DOTNET_VERSION: '10.x'
   BUILD_CONFIGURATION: 'Release'
-  SQL_SERVER: ${{ secrets.SQL_SERVER }}
-  SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
 
 jobs:
   build-dacpac:
     name: Build Database DACPAC
     runs-on: self-hosted
+    environment: ${{ inputs.environment || 'production' }}
     
     steps:
       - name: Checkout code
@@ -121,6 +120,10 @@ jobs:
     runs-on: self-hosted
     needs: build-dacpac
     environment: ${{ inputs.environment || 'production' }}
+    
+    env:
+      SQL_SERVER: ${{ secrets.SQL_SERVER }}
+      SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
     
     steps:
       - name: Download DACPAC
