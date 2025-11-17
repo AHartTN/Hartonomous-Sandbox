@@ -1,8 +1,16 @@
 -- This script ensures idempotency by dropping all CLR-dependent objects
 -- before the DACPAC deployment. This prevents "object already exists" errors
--- and handles dependency chains correctly.
+-- and handles dependency chains correctly by dropping them in the reverse order of creation.
 
 USE [$(DatabaseName)];
+GO
+
+-- Drop T-SQL objects that depend on other T-SQL objects, which in turn depend on CLR User-Defined Types
+IF EXISTS (SELECT 1 FROM sys.objects WHERE name = 'ProvenanceValidationResults' AND type = 'U')
+BEGIN
+    DROP TABLE [dbo].[ProvenanceValidationResults];
+    PRINT 'Dropped dependent table [dbo].[ProvenanceValidationResults].';
+END
 GO
 
 -- Drop T-SQL objects that depend on CLR User-Defined Types
