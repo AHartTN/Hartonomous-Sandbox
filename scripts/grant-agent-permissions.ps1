@@ -28,16 +28,12 @@ EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
 PRINT 'CLR integration enabled';
 "@
 
-$tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-$sql | Out-File -FilePath $tempFile -Encoding utf8
-
 if ($UseAzureAD -and $AccessToken) {
-    Write-Host "Using Azure AD service principal authentication"
-    sqlcmd -S $Server -d master -G -P $AccessToken -i $tempFile -C
+    Write-Host "Using Azure AD authentication"
+    Invoke-Sqlcmd -ServerInstance $Server -Database master -Query $sql -AccessToken $AccessToken -TrustServerCertificate
 } else {
     Write-Host "Using Windows integrated authentication"
-    sqlcmd -S $Server -d master -E -C -i $tempFile
+    Invoke-Sqlcmd -ServerInstance $Server -Database master -Query $sql -TrustServerCertificate
 }
 
-Remove-Item $tempFile -ErrorAction SilentlyContinue
 Write-Host "✓ Agent permissions granted"

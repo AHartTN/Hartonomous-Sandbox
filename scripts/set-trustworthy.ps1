@@ -24,23 +24,13 @@ if (-not $Server) { $Server = $localConfig.SqlServer }
 if (-not $Database) { $Database = $localConfig.Database }
 
 $sql = "USE master; ALTER DATABASE [$Database] SET TRUSTWORTHY ON; PRINT 'TRUSTWORTHY enabled for $Database';"
-$tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
 
-try {
-  $sql | Out-File -FilePath $tempFile -Encoding utf8
-  
-  if ($UseAzureAD -and $AccessToken) {
-      Write-Host "Using Azure AD service principal authentication"
-      sqlcmd -S $Server -d master -G -P $AccessToken -i $tempFile -C
-  } else {
-      Write-Host "Using Windows integrated authentication"
-      sqlcmd -S $Server -d "master" -E -C -i $tempFile -b
-      if ($LASTEXITCODE -ne 0) { 
-        throw "Failed to set TRUSTWORTHY" 
-      }
-  }
-  
-  Write-Host "✓ TRUSTWORTHY validated"
-} finally {
-  Remove-Item $tempFile -ErrorAction SilentlyContinue
+if ($UseAzureAD -and $AccessToken) {
+    Write-Host "Using Azure AD authentication"
+    Invoke-Sqlcmd -ServerInstance $Server -Database master -Query $sql -AccessToken $AccessToken -TrustServerCertificate
+} else {
+    Write-Host "Using Windows integrated authentication"
+    Invoke-Sqlcmd -ServerInstance $Server -Database master -Query $sql -TrustServerCertificate
 }
+
+Write-Host "✓ TRUSTWORTHY enabled"

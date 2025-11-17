@@ -1,29 +1,39 @@
 -- ============================================================================
 -- Tier 1: Base Runtime Dependencies
 -- ============================================================================
+-- Purpose: Foundation assemblies required by higher-tier dependencies
+-- Dependencies: None (base layer)
+-- Count: 2 assemblies
+-- ============================================================================
 
--- System.Numerics.Vectors
+PRINT 'Tier 1: Base Runtime Dependencies (2 assemblies)';
+
+-- System.Numerics.Vectors (Required by MathNet.Numerics)
 IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.Numerics.Vectors')
 BEGIN
-    PRINT '  Deploying: System.Numerics.Vectors';
+    PRINT '  [1/2] Deploying: System.Numerics.Vectors';
     CREATE ASSEMBLY [System.Numerics.Vectors]
     FROM '$(DependenciesPath)\System.Numerics.Vectors.dll'
     WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.Numerics.Vectors deployed';
+    PRINT '        ✓ Deployed';
 END
 ELSE
-    PRINT '  ✓ System.Numerics.Vectors already exists';
+    PRINT '  [1/2] ○ System.Numerics.Vectors already exists';
 GO
 
--- System.ValueTuple
+-- System.ValueTuple (Required by System.Memory)
 IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'System.ValueTuple')
 BEGIN
-    PRINT '  Deploying: System.ValueTuple';
+    PRINT '  [2/2] Deploying: System.ValueTuple';
     CREATE ASSEMBLY [System.ValueTuple]
     FROM '$(DependenciesPath)\System.ValueTuple.dll'
     WITH PERMISSION_SET = UNSAFE;
-    PRINT '  ✓ System.ValueTuple deployed';
+    PRINT '        ✓ Deployed';
 END
 ELSE
-    PRINT '  ✓ System.ValueTuple already exists';
+    PRINT '  [2/2] ○ System.ValueTuple already exists';
+GO
+
+PRINT '  ✓ Tier 1 complete';
+PRINT '';
 GO
