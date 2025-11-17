@@ -31,12 +31,12 @@ variables:
 
 stages:
 # ============================================================================
-# STAGE 1: BUILD ALL COMPONENTS
+# STAGE 1: BUILD DATABASE DACPAC ONLY
 # ============================================================================
-- stage: Build
-  displayName: 'Build All Components'
+- stage: BuildDatabase
+  displayName: 'Build Database DACPAC'
   jobs:
-  - job: BuildDatabase
+  - job: BuildDACPAC
     displayName: 'Build Database DACPAC'
     steps:
     # Install .NET 10 SDK
@@ -118,9 +118,92 @@ stages:
         artifact: 'database'
         publishLocation: 'pipeline'
 
-  - job: BuildDotNetSolution
-    displayName: 'Build .NET 10 Solution'
-    dependsOn: BuildDatabase
+# ============================================================================
+# STAGE 2: DEPLOY DATABASE (DACPAC + EXTERNAL CLR)
+# ============================================================================
+- stage: DeployDatabase
+  displayName: 'Deploy Database Schema'
+  dependsOn: BuildDatabase
+  condition: succeeded()
+  jobs:
+  - deployment: DatabaseDeployment
+    displayName: 'Deploy to SQL Server'
+    environment: 'SQL-Server-Production'
+    pool:
+      name: 'Local Agent Pool'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Download database artifact
+          - download: current
+            artifact: database
+
+          # Step 1: Enable CLR Integration
+          - task: PowerShell@2
+            displayName: 'Enable CLR Integration'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                Write-Host "Enabling CLR integration..."
+                
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
+                EXEC sp_configure 'show advanced options', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr enabled', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr strict security', 0;
+                RECONFIGURE;
+                "@
+                
+                Write-Host "✓ CLR enabled"
+              pwsh: true
+
+          # Step 2: Deploy DACPAC
+          - task: PowerShell@2
+            displayName: 'Deploy DACPAC'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
+                
+                Write-Host "Deploying: $dacpacPath"
+                
+                sqlpackage.exe `
+                  /Action:Publish `
+                  /SourceFile:"$dacpacPath" `
+                  /TargetConnectionString:"$connectionString" `
+                  /p:DropObjectsNotInSource=False `
+                  /p:BlockOnPossibleDataLoss=True
+                
+                Write-Host "✓ DACPAC deployed"
+              pwsh: true
+
+          # Step 3: Set TRUSTWORTHY ON
+          - task: PowerShell@2
+            displayName: 'Set TRUSTWORTHY ON'
+            inputs:
+              targetType: 'inline'
+              script: |
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;"
+                Write-Host "✓ TRUSTWORTHY enabled"
+              pwsh: true
+
+# ============================================================================
+# STAGE 3: SCAFFOLD EF CORE ENTITIES
+# ============================================================================
+- stage: ScaffoldEntities
+  displayName: 'Scaffold EF Core Entities'
+  dependsOn: DeployDatabase
+  condition: succeeded()
+  jobs:
+  - job: Scaffold
+    displayName: 'Generate Entity Classes from DB'
+    pool:
+      name: 'Local Agent Pool'
     steps:
     # Install .NET 10 SDK
     - task: UseDotNet@2
@@ -233,12 +316,12 @@ stages:
         publishLocation: 'pipeline'
 
 # ============================================================================
-# STAGE 2: DEPLOY DATABASE
+# STAGE 4: BUILD .NET SOLUTION
 # ============================================================================
-- stage: DeployDatabase
-  displayName: 'Deploy Database Schema + CLR'
-  dependsOn: Build
-  condition: in(dependencies.Build.result, 'Succeeded', 'SucceededWithIssues', 'Failed')
+- stage: BuildDotNet
+  displayName: 'Build .NET Solution'
+  dependsOn: ScaffoldEntities
+  condition: succeeded()
   jobs:
   - deployment: DatabaseDeployment
     displayName: 'Deploy to SQL Server'
