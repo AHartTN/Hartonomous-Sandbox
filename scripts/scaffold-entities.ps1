@@ -27,7 +27,28 @@ if (-not $ProjectPath) { $ProjectPath = Join-Path (Split-Path $scriptRoot -Paren
 Write-Host "Scaffolding entities from database..."
 Set-Location $ProjectPath
 
-# Build project first (required for --no-build in dotnet ef)
+# IDEMPOTENCY: Remove old generated files before scaffolding (prevents stale navigation properties)
+Write-Host "Cleaning old generated files..."
+$entitiesToClean = @("Entities", "Configurations", "Interfaces")
+foreach ($dir in $entitiesToClean) {
+    $fullPath = Join-Path $ProjectPath $dir
+    if (Test-Path $fullPath) {
+        Write-Host "  Removing $dir/"
+        Remove-Item -Recurse -Force $fullPath
+    }
+}
+
+# Remove old DbContext files
+$dbContextFiles = @("HartonomousDbContext.cs", "HartonomousDbContextFactory.cs")
+foreach ($file in $dbContextFiles) {
+    $fullPath = Join-Path $ProjectPath $file
+    if (Test-Path $fullPath) {
+        Write-Host "  Removing $file"
+        Remove-Item -Force $fullPath
+    }
+}
+
+# Build project (empty, just Abstracts) - creates deps.json for dotnet ef
 Write-Host "Building project for scaffolding..."
 dotnet build --configuration Debug
 if ($LASTEXITCODE -ne 0) {
