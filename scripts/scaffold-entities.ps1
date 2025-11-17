@@ -37,12 +37,8 @@ if ($LASTEXITCODE -ne 0) {
     throw "NuGet restore failed with exit code $LASTEXITCODE"
 }
 
-# Build the project to generate deps.json
-Write-Host "Building project..."
-dotnet build --no-restore
-if ($LASTEXITCODE -ne 0) {
-    throw "Build failed with exit code $LASTEXITCODE"
-}
+# Note: We skip build here because existing scaffolded entities may have compile errors
+# if the database schema has changed. The scaffolding process will regenerate them correctly.
 
 if ($UseAzureAD -and $AccessToken) {
     # Azure AD with access token - build connection string with token
