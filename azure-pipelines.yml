@@ -210,6 +210,14 @@ stages:
         filePath: 'scripts/scaffold-entities.ps1'
         arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)"'
         pwsh: true
+    
+    # Publish scaffolded entities as pipeline artifact
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Scaffolded Entities'
+      inputs:
+        targetPath: 'src/Hartonomous.Data.Entities'
+        artifact: 'entities'
+        publishLocation: 'pipeline'
 
 # ============================================================================
 # STAGE 4: BUILD .NET SOLUTION
@@ -224,6 +232,28 @@ stages:
     pool:
       name: 'Local Agent Pool'
     steps:
+    # Download scaffolded entities from previous stage
+    - download: current
+      artifact: entities
+      displayName: 'Download Scaffolded Entities'
+    
+    # Copy scaffolded entities to source directory
+    - task: PowerShell@2
+      displayName: 'Copy Scaffolded Entities to Source'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $source = "$(Pipeline.Workspace)/entities"
+          $dest = "src/Hartonomous.Data.Entities"
+          
+          if (Test-Path $dest) {
+            Remove-Item -Recurse -Force $dest
+          }
+          
+          Copy-Item -Recurse -Force $source $dest
+          Write-Host "✓ Scaffolded entities copied to $dest"
+        pwsh: true
+    
     # Install .NET 10 SDK
     - task: UseDotNet@2
       displayName: 'Install .NET 10 SDK'
