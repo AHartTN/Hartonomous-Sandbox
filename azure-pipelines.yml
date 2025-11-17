@@ -39,14 +39,51 @@ stages:
   - job: BuildDatabase
     displayName: 'Build Database DACPAC'
     steps:
-    # Build SQL Database Project with MSBuild (required for .sqlproj)
-    - task: VSBuild@1
-      displayName: 'Build SQL Database Project (MSBuild)'
+    # Install .NET 10 SDK
+    - task: UseDotNet@2
+      displayName: 'Install .NET 10 SDK'
       inputs:
-        solution: 'src/Hartonomous.Database/Hartonomous.Database.sqlproj'
-        platform: 'Any CPU'
-        configuration: '$(buildConfiguration)'
-        msbuildArgs: '/p:OutDir=$(Build.ArtifactStagingDirectory)/database/ /v:minimal'
+        packageType: 'sdk'
+        version: '$(dotnetSdkVersion)'
+        performMultiLevelLookup: true
+    
+    # Build DACPAC using msbuild (agent must have MSBuild or Visual Studio)
+    - task: PowerShell@2
+      displayName: 'Build SQL Database Project with MSBuild'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Find MSBuild
+          $msbuild = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" `
+            -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe `
+            -prerelease | Select-Object -First 1
+          
+          if (-not $msbuild) {
+            $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+          }
+          
+          if (-not (Test-Path $msbuild)) {
+            Write-Error "MSBuild not found. Agent needs Visual Studio or MSBuild installed."
+            exit 1
+          }
+          
+          Write-Host "Using MSBuild: $msbuild"
+          
+          # Build DACPAC
+          & $msbuild src/Hartonomous.Database/Hartonomous.Database.sqlproj `
+            /p:Configuration=$(buildConfiguration) `
+            /p:OutDir="$(Build.ArtifactStagingDirectory)/database/" `
+            /v:minimal
+          
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "MSBuild failed with exit code $LASTEXITCODE"
+            exit $LASTEXITCODE
+          }
+          
+          Write-Host "✓ DACPAC built successfully"
+        pwsh: true
         
     # Verify DACPAC
     - task: PowerShell@2
@@ -83,6 +120,7 @@ stages:
 
   - job: BuildDotNetSolution
     displayName: 'Build .NET 10 Solution'
+    dependsOn: BuildDatabase
     steps:
     # Install .NET 10 SDK
     - task: UseDotNet@2
