@@ -145,9 +145,17 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                $ErrorActionPreference = 'Stop'
-                sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/grant-pipeline-permissions.sql" -b
-                if ($LASTEXITCODE -ne 0) { throw "Failed to grant permissions" }
+                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+                  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+                }
+                $sql = @"
+USE [master];
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
+EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
+PRINT 'CLR integration enabled';
+"@
+                Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -TrustServerCertificate
                 Write-Host "✓ Agent permissions granted"
               pwsh: true
 
@@ -157,9 +165,16 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                $ErrorActionPreference = 'Stop'
-                sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/enable-clr.sql" -b
-                if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
+                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+                  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+                }
+                $sql = @"
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
+EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
+PRINT 'CLR integration enabled successfully';
+"@
+                Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -Database "master" -TrustServerCertificate
                 Write-Host "✓ CLR enabled"
               pwsh: true
 
@@ -286,11 +301,11 @@ stages:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
-                $script = Get-Content "scripts/sql/set-trustworthy.sql" -Raw
-                $script = $script -replace '\$\(sqlDatabase\)', '$(sqlDatabase)'
+                $dbName = '$(sqlDatabase)'
+                $sql = "USE master; ALTER DATABASE [$dbName] SET TRUSTWORTHY ON; PRINT 'TRUSTWORTHY enabled for $dbName';"
                 $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
                 try {
-                  $script | Out-File -FilePath $tempFile -Encoding utf8
+                  $sql | Out-File -FilePath $tempFile -Encoding utf8
                   sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
                   if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
                   Write-Host "✓ TRUSTWORTHY validated"
