@@ -53,14 +53,41 @@ jobs:
           
           $projectPath = Join-Path $env:GITHUB_WORKSPACE "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
           
-          # Use vswhere to locate MSBuild dynamically
+          # Try multiple MSBuild discovery methods
+          $msbuildPath = $null
+          
+          # Method 1: vswhere (most reliable for installed VS)
           $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
           if (Test-Path $vswhere) {
             $msbuildPath = & $vswhere -latest -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe | Select-Object -First 1
           }
           
-          if (-not $msbuildPath -or -not (Test-Path $msbuildPath)) {
-            throw "MSBuild not found. Install Visual Studio with MSBuild component."
+          # Method 2: Direct VS 2022 paths
+          if (-not $msbuildPath) {
+            $vsPaths = @(
+              "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+              "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe"
+              "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
+              "${env:ProgramFiles}\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\MSBuild.exe"
+            )
+            foreach ($path in $vsPaths) {
+              if (Test-Path $path) {
+                $msbuildPath = $path
+                break
+              }
+            }
+          }
+          
+          # Method 3: Build Tools standalone installation
+          if (-not $msbuildPath) {
+            $buildToolsPath = "${env:ProgramFiles}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+            if (Test-Path $buildToolsPath) {
+              $msbuildPath = $buildToolsPath
+            }
+          }
+          
+          if (-not $msbuildPath) {
+            throw "MSBuild not found. Install Visual Studio 2022 or VS Build Tools with MSBuild component."
           }
           
           Write-Host "Using MSBuild: $msbuildPath"
