@@ -110,6 +110,14 @@ stages:
         Contents: '*.dll'
         TargetFolder: '$(Build.ArtifactStagingDirectory)/database/dependencies'
 
+    # Copy deployment scripts
+    - task: CopyFiles@2
+      displayName: 'Copy Deployment Scripts'
+      inputs:
+        SourceFolder: 'scripts'
+        Contents: '*.ps1'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/database/scripts'
+
     # Publish database artifacts
     - task: PublishPipelineArtifact@1
       displayName: 'Publish Database Artifacts'
