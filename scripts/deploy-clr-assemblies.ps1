@@ -158,46 +158,48 @@ function Deploy-Assembly {
 
     $hexString = ConvertTo-HexString -FilePath $FilePath
 
-    # Drop existing assembly if present
-    $dropSql = @"
+    # Write DROP + CREATE to temp file to avoid command-line length limits
+    $tempSqlFile = [System.IO.Path]::GetTempFileName() + ".sql"
+    
+    @"
+USE [$Database];
+GO
+
 IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$AssemblyName')
 BEGIN
     PRINT 'Dropping existing assembly: $AssemblyName';
     DROP ASSEMBLY [$AssemblyName];
 END
-"@
+GO
 
-    if ($UseAzureAD) {
-        $dropSql | sqlcmd -S $Server -d $Database -G -P $AccessToken -b
-    } elseif ($Username -and $Password) {
-        $dropSql | sqlcmd -S $Server -U $Username -P $Password -d $Database -b
-    } else {
-        $dropSql | sqlcmd -S $Server -d $Database -E -b
-    }
-
-    # Create assembly with UNSAFE permission set
-    $createSql = @"
 CREATE ASSEMBLY [$AssemblyName]
 FROM 0x$hexString
 WITH PERMISSION_SET = UNSAFE;
+GO
 
 PRINT 'Assembly deployed: $AssemblyName';
-"@
+GO
+"@ | Out-File -FilePath $tempSqlFile -Encoding utf8
 
-    if ($UseAzureAD) {
-        $createSql | sqlcmd -S $Server -d $Database -G -P $AccessToken -b
-    } elseif ($Username -and $Password) {
-        $createSql | sqlcmd -S $Server -U $Username -P $Password -d $Database -b
-    } else {
-        $createSql | sqlcmd -S $Server -d $Database -E -b
+    try {
+        if ($UseAzureAD) {
+            sqlcmd -S $Server -d master -G -P $AccessToken -i $tempSqlFile -b
+        } elseif ($Username -and $Password) {
+            sqlcmd -S $Server -U $Username -P $Password -d master -i $tempSqlFile -b
+        } else {
+            sqlcmd -S $Server -d master -E -C -i $tempSqlFile -b
+        }
+
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to deploy assembly: $AssemblyName (Exit code: $LASTEXITCODE)"
+            throw
+        }
+
+        Write-Host "  ✓ $AssemblyName deployed successfully"
     }
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to deploy assembly: $AssemblyName (Exit code: $LASTEXITCODE)"
-        throw
+    finally {
+        Remove-Item $tempSqlFile -ErrorAction SilentlyContinue
     }
-
-    Write-Host "  \u2713 $AssemblyName deployed successfully"
 }
 
 # Main deployment logic
