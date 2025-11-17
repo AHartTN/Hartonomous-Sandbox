@@ -181,25 +181,6 @@ jobs:
           Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -Query $sql -AccessToken $token -TrustServerCertificate
           Write-Host "✓ CLR enabled"
       
-      - name: Deploy External CLR Assemblies
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
-          Write-Host "Deploying external CLR assemblies..."
-          
-          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\deploy-clr-assemblies.ps1"
-          
-          & $scriptPath `
-            -Server "${{ env.SQL_SERVER }}" `
-            -Database "${{ env.SQL_DATABASE }}" `
-            -DependenciesPath (Join-Path $env:GITHUB_WORKSPACE "dependencies") `
-            -UseAzureAD `
-            -AccessToken $token
-          
-          Write-Host "✓ External assemblies deployed"
-      
       - name: Drop Hartonomous Assemblies (Idempotent - Prepare for DACPAC)
         shell: pwsh
         run: |
@@ -234,6 +215,25 @@ jobs:
           Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query $dropAssemblySql -AccessToken $token -TrustServerCertificate
           
           Write-Host "✓ Hartonomous assemblies and dependent objects dropped"
+      
+      - name: Deploy External CLR Assemblies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Deploying external CLR assemblies..."
+          
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\deploy-clr-assemblies.ps1"
+          
+          & $scriptPath `
+            -Server "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -DependenciesPath (Join-Path $env:GITHUB_WORKSPACE "dependencies") `
+            -UseAzureAD `
+            -AccessToken $token
+          
+          Write-Host "✓ External assemblies deployed"
       
       - name: Deploy DACPAC
         shell: pwsh
