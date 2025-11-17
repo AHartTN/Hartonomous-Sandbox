@@ -152,7 +152,7 @@ stages:
           - script: sqlcmd -S "$(sqlServer)" -d master -E -C -Q "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON" -b
             displayName: 'Set TRUSTWORTHY ON'
 
-          # Step 3: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
+          # Step 3: Deploy External CLR Assemblies (only required assemblies, skip GAC/system assemblies)
           - task: PowerShell@2
             displayName: 'Deploy External CLR Assemblies'
             inputs:
@@ -162,8 +162,8 @@ stages:
                 $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
                 $server = "$(sqlServer)"
                 $database = "$(sqlDatabase)"
-                
-                Write-Host "Deploying 16 external CLR assemblies (idempotent)..."
+
+                Write-Host "Deploying required external CLR assemblies (idempotent)..."
                 
                 function Deploy-ClrAssembly {
                     param([string]$Name, [string]$FilePath)
@@ -198,9 +198,7 @@ stages:
                     $sql += "BEGIN`n"
                     $sql += "    PRINT '  Assembly not found, creating...';`n"
                     $sql += "END`n"
-                    # Most system assemblies should use SAFE permission set, not UNSAFE
-                    $permissionSet = if ($Name -in @('System.Numerics.Vectors', 'System.ValueTuple', 'System.Memory', 'System.Buffers', 'System.Runtime.CompilerServices.Unsafe', 'System.Collections.Immutable', 'System.Reflection.Metadata')) { 'SAFE' } else { 'UNSAFE' }
-                    $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = $permissionSet;`n"
+                    $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;`n"
                     $sql += "PRINT '  OK $Name deployed (SHA256: $fileHash)';`n"
                     $sql += "GO`n"
 
@@ -218,38 +216,26 @@ stages:
                     }
                 }
                 
-                # Tier 1: Base runtime dependencies
+                # Deploy only assemblies NOT in SQL Server supported list and actually needed by our code
+                # Supported assemblies (in GAC, don't deploy): mscorlib, System, System.Core, System.Data, System.Transactions, System.Xml
+                # Microsoft.SqlServer.Types: SYSTEM ASSEMBLY - already in SQL Server, skip it
+
+                # Tier 1: Required framework assemblies
+                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
                 Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll"
-                Deploy-ClrAssembly 'System.ValueTuple' "$dependenciesPath/System.ValueTuple.dll"
-                
-                # Tier 2: Memory management
-                Deploy-ClrAssembly 'System.Memory' "$dependenciesPath/System.Memory.dll"
-                Deploy-ClrAssembly 'System.Buffers' "$dependenciesPath/System.Buffers.dll"
-                Deploy-ClrAssembly 'System.Runtime.CompilerServices.Unsafe' "$dependenciesPath/System.Runtime.CompilerServices.Unsafe.dll"
-                
-                # Tier 3: Collections and reflection
-                Deploy-ClrAssembly 'System.Collections.Immutable' "$dependenciesPath/System.Collections.Immutable.dll"
-                Deploy-ClrAssembly 'System.Reflection.Metadata' "$dependenciesPath/System.Reflection.Metadata.dll"
-                
-                # Tier 4: Serialization
-                Deploy-ClrAssembly 'System.Runtime.Serialization' "$dependenciesPath/System.Runtime.Serialization.dll"
-                Deploy-ClrAssembly 'System.ServiceModel.Internals' "$dependenciesPath/System.ServiceModel.Internals.dll"
-                Deploy-ClrAssembly 'SMDiagnostics' "$dependenciesPath/SMDiagnostics.dll"
-                
-                # Tier 5: Third-party libraries
+
+                # Tier 2: Third-party libraries (NOTE: Newtonsoft.Json may be wrong version - check if .NET Framework 4.8 compatible)
                 Deploy-ClrAssembly 'MathNet.Numerics' "$dependenciesPath/MathNet.Numerics.dll"
                 Deploy-ClrAssembly 'Newtonsoft.Json' "$dependenciesPath/Newtonsoft.Json.dll"
-                Deploy-ClrAssembly 'Microsoft.SqlServer.Types' "$dependenciesPath/Microsoft.SqlServer.Types.dll"
-                
-                # Tier 6: Application assemblies
-                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
+
+                # Tier 3: Application assemblies
                 Deploy-ClrAssembly 'SqlClrFunctions' "$dependenciesPath/SqlClrFunctions.dll"
                 Deploy-ClrAssembly 'Hartonomous.Database' "$dependenciesPath/Hartonomous.Database.dll"
                 
-                Write-Host "✓ All 16 external CLR assemblies deployed successfully"
+                Write-Host "✓ Required CLR assemblies deployed successfully"
               pwsh: true
 
-          # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
+          # Step 4: Deploy DACPAC (includes Hartonomous.Clr.dll)
           - task: PowerShell@2
             displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
