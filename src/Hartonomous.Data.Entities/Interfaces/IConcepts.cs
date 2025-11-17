@@ -29,5 +29,5 @@ public interface IConcepts
     bool IsActive { get; set; }
     ICollection<AtomConcepts> AtomConcepts { get; set; }
     ICollection<ConceptEvolution> ConceptEvolution { get; set; }
-    Models Model { get; set; }
+    Model Model { get; set; }
 }

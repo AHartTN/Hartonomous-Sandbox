@@ -33,5 +33,5 @@ public partial class AttentionGenerationLog : IAttentionGenerationLog
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual Models Model { get; set; } = null!;
+    public virtual Model Model { get; set; } = null!;
 }

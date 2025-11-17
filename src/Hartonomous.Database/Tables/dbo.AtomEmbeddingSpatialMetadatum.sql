@@ -12,10 +12,10 @@ CREATE TABLE [dbo].[AtomEmbeddingSpatialMetadatum] (
     [MinProjZ]        FLOAT (53)    NULL,
     [MaxProjZ]        FLOAT (53)    NULL,
     [UpdatedAt]       DATETIME2 (7) NOT NULL DEFAULT (SYSUTCDATETIME()),
-    CONSTRAINT [PK_AtomEmbeddingSpatialMetadata] PRIMARY KEY CLUSTERED ([MetadataId] ASC)
+    CONSTRAINT [PK_AtomEmbeddingSpatialMetadatum] PRIMARY KEY CLUSTERED ([MetadataId] ASC)
 );
 GO
 
-CREATE UNIQUE NONCLUSTERED INDEX [UX_AtomEmbeddingSpatialMetadata_BucketXYZ] 
+CREATE UNIQUE NONCLUSTERED INDEX [UX_AtomEmbeddingSpatialMetadatum_BucketXYZ] 
     ON [dbo].[AtomEmbeddingSpatialMetadatum] ([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ], [HasZ]);
 GO

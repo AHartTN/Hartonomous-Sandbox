@@ -83,9 +83,11 @@ if ($LASTEXITCODE -ne 0) {
     throw "DACPAC build failed with exit code $LASTEXITCODE"
 }
 
-# Verify DACPAC exists
-if (-not (Test-Path $DacpacPath)) {
-    throw "DACPAC not found at expected path: $DacpacPath"
+# Verify DACPAC exists (check both locations)
+if (Test-Path $AltDacpacPath) {
+    $DacpacPath = $AltDacpacPath
+} elseif (-not (Test-Path $DacpacPath)) {
+    throw "DACPAC not found at expected paths"
 }
 
 $dacpac = Get-Item $DacpacPath

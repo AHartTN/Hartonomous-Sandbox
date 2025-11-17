@@ -29,5 +29,5 @@ public partial class ModelMetadata : IModelMetadata
 
     public string? SourceUrl { get; set; }
 
-    public virtual Models Model { get; set; } = null!;
+    public virtual Model Model { get; set; } = null!;
 }

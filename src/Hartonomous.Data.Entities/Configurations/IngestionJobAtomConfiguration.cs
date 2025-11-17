@@ -1,0 +1,45 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Hartonomous.Data.Entities.Configurations;
+
+public class IngestionJobAtomConfiguration : IEntityTypeConfiguration<IngestionJobAtom>
+{
+    public void Configure(EntityTypeBuilder<IngestionJobAtom> builder)
+    {
+        builder.ToTable("IngestionJobAtom", "dbo");
+        builder.HasKey(e => new { e.IngestionJobAtomId });
+
+        builder.Property(e => e.IngestionJobAtomId)
+            .HasColumnType("bigint")
+            .ValueGeneratedOnAdd()
+            ;
+
+        builder.Property(e => e.AtomId)
+            .HasColumnType("bigint")
+            ;
+
+        builder.Property(e => e.IngestionJobId)
+            .HasColumnType("bigint")
+            ;
+
+        builder.Property(e => e.Notes)
+            .HasColumnType("nvarchar(1024)")
+            .HasMaxLength(1024)
+            ;
+
+        builder.Property(e => e.WasDuplicate)
+            .HasColumnType("bit")
+            ;
+
+        builder.HasOne(d => d.Atom)
+            .WithMany(p => p.IngestionJobAtom)
+            .HasForeignKey(d => new { d.AtomId })
+            ;
+
+        builder.HasOne(d => d.IngestionJob)
+            .WithMany(p => p.IngestionJobAtom)
+            .HasForeignKey(d => new { d.IngestionJobId })
+            ;
+    }
+}

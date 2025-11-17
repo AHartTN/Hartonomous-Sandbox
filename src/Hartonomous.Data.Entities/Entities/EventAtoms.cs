@@ -21,7 +21,7 @@ public partial class EventAtoms : IEventAtoms
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual Atoms CentroidAtom { get; set; } = null!;
+    public virtual Atom CentroidAtom { get; set; } = null!;
 
     public virtual StreamOrchestrationResults Stream { get; set; } = null!;
 }

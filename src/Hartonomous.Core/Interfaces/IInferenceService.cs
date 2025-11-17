@@ -88,7 +88,7 @@ public interface IInferenceService
     /// <param name="embeddingIds">List of embedding IDs to analyze</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Semantic features with confidence scores</returns>
-    Task<SemanticFeatures> ComputeSemanticFeaturesAsync(
+    Task<ValueObjects.SemanticFeatures> ComputeSemanticFeaturesAsync(
         IReadOnlyList<long> atomEmbeddingIds,
         CancellationToken cancellationToken = default);
 

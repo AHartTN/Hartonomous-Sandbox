@@ -23,10 +23,13 @@ param(
 $ErrorActionPreference = "Stop"
 
 $DacpacPath = "src\Hartonomous.Database\bin\Output\Hartonomous.Database.dacpac"
+$AltDacpacPath = "src\Hartonomous.Database\src\Hartonomous.Database\bin\Output\Hartonomous.Database.dacpac"
 
-# Verify DACPAC exists
-if (-not (Test-Path $DacpacPath)) {
-    throw "DACPAC not found at: $DacpacPath`nRun build-dacpac.ps1 first or run Deploy.ps1 without -SkipBuild"
+# Verify DACPAC exists (check both possible paths)
+if (Test-Path $AltDacpacPath) {
+    $DacpacPath = $AltDacpacPath
+} elseif (-not (Test-Path $DacpacPath)) {
+    throw "DACPAC not found at: $DacpacPath or $AltDacpacPath`nRun build-dacpac.ps1 first"
 }
 
 # Build connection string
@@ -79,8 +82,12 @@ Write-Host "  DACPAC: $DacpacPath" -ForegroundColor Gray
     /TargetConnectionString:$connectionString `
     /p:IncludeCompositeObjects=True `
     /p:BlockOnPossibleDataLoss=False `
-    /p:DropObjectsNotInSource=False `
-    /p:VerifyDeployment=True
+    /p:DropObjectsNotInSource=True `
+    /p:DropConstraintsNotInSource=True `
+    /p:DropIndexesNotInSource=True `
+    /p:DoNotDropObjectTypes=Assemblies `
+    /p:VerifyDeployment=True `
+    /p:AllowIncompatiblePlatform=True
 
 if ($LASTEXITCODE -ne 0) {
     throw "DACPAC deployment failed with exit code $LASTEXITCODE"

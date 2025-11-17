@@ -13,6 +13,6 @@ public interface IEventAtoms
     int ClusterSize { get; set; }
     int ClusterId { get; set; }
     DateTime CreatedAt { get; set; }
-    Atoms CentroidAtom { get; set; }
+    Atom CentroidAtom { get; set; }
     StreamOrchestrationResults Stream { get; set; }
 }

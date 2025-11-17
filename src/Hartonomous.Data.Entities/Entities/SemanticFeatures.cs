@@ -35,5 +35,5 @@ public partial class SemanticFeatures : ISemanticFeatures
 
     public DateTime? ComputedAt { get; set; }
 
-    public virtual AtomEmbeddings AtomEmbedding { get; set; } = null!;
+    public virtual AtomEmbedding AtomEmbedding { get; set; } = null!;
 }

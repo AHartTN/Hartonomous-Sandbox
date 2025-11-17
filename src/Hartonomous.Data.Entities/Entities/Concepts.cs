@@ -52,5 +52,5 @@ public partial class Concepts : IConcepts
 
     public virtual ICollection<ConceptEvolution> ConceptEvolution { get; set; } = new List<ConceptEvolution>();
 
-    public virtual Models Model { get; set; } = null!;
+    public virtual Model Model { get; set; } = null!;
 }

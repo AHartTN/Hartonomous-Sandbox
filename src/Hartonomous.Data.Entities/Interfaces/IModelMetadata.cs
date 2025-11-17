@@ -17,5 +17,5 @@ public interface IModelMetadata
     DateOnly? TrainingDate { get; set; }
     string? License { get; set; }
     string? SourceUrl { get; set; }
-    Models Model { get; set; }
+    Model Model { get; set; }
 }

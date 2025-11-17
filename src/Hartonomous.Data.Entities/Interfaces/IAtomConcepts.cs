@@ -14,6 +14,6 @@ public interface IAtomConcepts
     double? DistanceToCentroid { get; set; }
     DateTime AssignedAt { get; set; }
     int TenantId { get; set; }
-    Atoms Atom { get; set; }
+    Atom Atom { get; set; }
     Concepts Concept { get; set; }
 }

@@ -15,6 +15,6 @@ public interface IGenerationStreams
     string? ContextMetadata { get; set; }
     int TenantId { get; set; }
     DateTime CreatedUtc { get; set; }
-    ICollection<GenerationStreamSegments> GenerationStreamSegments { get; set; }
-    Models? ModelNavigation { get; set; }
+    ICollection<GenerationStreamSegment> GenerationStreamSegment { get; set; }
+    Model? ModelNavigation { get; set; }
 }

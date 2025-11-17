@@ -12,5 +12,5 @@ CREATE TABLE [dbo].[ModelMetadata] (
     [License]            NVARCHAR (100) NULL,
     [SourceUrl]          NVARCHAR (500) NULL,
     CONSTRAINT [PK_ModelMetadata] PRIMARY KEY CLUSTERED ([MetadataId] ASC),
-    CONSTRAINT [FK_ModelMetadata_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Model] ([ModelId]) ON DELETE CASCADE
+    CONSTRAINT [FK_ModelMetadata_Model_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Model] ([ModelId]) ON DELETE CASCADE
 );

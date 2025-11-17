@@ -27,7 +27,7 @@ public partial class ModelVersionHistory : IModelVersionHistory
 
     public virtual ICollection<ModelVersionHistory> InverseParentVersion { get; set; } = new List<ModelVersionHistory>();
 
-    public virtual Models Model { get; set; } = null!;
+    public virtual Model Model { get; set; } = null!;
 
     public virtual ModelVersionHistory? ParentVersion { get; set; }
 }

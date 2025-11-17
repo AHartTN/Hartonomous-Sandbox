@@ -15,5 +15,5 @@ public interface ITransformerInferenceResults
     string? LayerResults { get; set; }
     int DurationMs { get; set; }
     DateTime CreatedAt { get; set; }
-    Models Model { get; set; }
+    Model Model { get; set; }
 }

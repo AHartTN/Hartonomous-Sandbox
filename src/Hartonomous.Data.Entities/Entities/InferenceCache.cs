@@ -29,5 +29,5 @@ public partial class InferenceCache : IInferenceCache
 
     public double? ComputeTimeMs { get; set; }
 
-    public virtual Models Model { get; set; } = null!;
+    public virtual Model Model { get; set; } = null!;
 }

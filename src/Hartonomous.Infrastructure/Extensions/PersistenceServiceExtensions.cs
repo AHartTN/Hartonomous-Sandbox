@@ -84,7 +84,6 @@ public static class PersistenceServiceExtensions
         services.AddScoped<IIngestionJobRepository, IngestionJobRepository>();
         services.AddScoped<IDeduplicationPolicyRepository, DeduplicationPolicyRepository>();
         services.AddScoped<IModelLayerRepository, ModelLayerRepository>();
-        services.AddScoped<ILayerTensorSegmentRepository, LayerTensorSegmentRepository>();
         services.AddScoped<IModelRepository, ModelRepository>();
         services.AddScoped<ICdcRepository, CdcRepository>();
 
@@ -96,11 +95,6 @@ public static class PersistenceServiceExtensions
 
         services.AddScoped<IInferenceRequestRepository, InferenceRequestRepository>();
         services.AddScoped<IInferenceRepository, InferenceRepository>();
-
-        // Atomic component repositories (deduplicated storage)
-        services.AddScoped<Core.Interfaces.IAtomicTextTokenRepository, Repositories.AtomicTextTokenRepository>();
-        services.AddScoped<Core.Interfaces.IAtomicPixelRepository, Repositories.AtomicPixelRepository>();
-        services.AddScoped<Core.Interfaces.IAtomicAudioSampleRepository, Repositories.AtomicAudioSampleRepository>();
 
         // CDC checkpoint management
         services.AddScoped<ICdcCheckpointManager, Services.CDC.SqlCdcCheckpointManager>();

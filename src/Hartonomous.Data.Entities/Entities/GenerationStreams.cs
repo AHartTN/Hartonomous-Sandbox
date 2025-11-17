@@ -25,7 +25,7 @@ public partial class GenerationStreams : IGenerationStreams
 
     public DateTime CreatedUtc { get; set; }
 
-    public virtual ICollection<GenerationStreamSegments> GenerationStreamSegments { get; set; } = new List<GenerationStreamSegments>();
+    public virtual ICollection<GenerationStreamSegment> GenerationStreamSegment { get; set; } = new List<GenerationStreamSegment>();
 
-    public virtual Models? ModelNavigation { get; set; }
+    public virtual Model? ModelNavigation { get; set; }
 }

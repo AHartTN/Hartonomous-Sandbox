@@ -20,5 +20,5 @@ public interface ISemanticFeatures
     double? UniqueWordRatio { get; set; }
     double? AvgWordLength { get; set; }
     DateTime? ComputedAt { get; set; }
-    AtomEmbeddings AtomEmbedding { get; set; }
+    AtomEmbedding AtomEmbedding { get; set; }
 }

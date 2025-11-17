@@ -14,5 +14,5 @@ public interface ITokenVocabulary
     SqlVector<float>? Embedding { get; set; }
     long Frequency { get; set; }
     DateTime? LastUsed { get; set; }
-    Models Model { get; set; }
+    Model Model { get; set; }
 }

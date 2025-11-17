@@ -13,15 +13,17 @@ public partial class HartonomousDbContext : DbContext
 
     public virtual DbSet<AgentTools> AgentTools { get; set; }
 
-    public virtual DbSet<AtomCompositions> AtomCompositions { get; set; }
+    public virtual DbSet<Atom> Atom { get; set; }
+
+    public virtual DbSet<AtomComposition> AtomComposition { get; set; }
 
     public virtual DbSet<AtomConcepts> AtomConcepts { get; set; }
 
-    public virtual DbSet<AtomEmbeddingComponents> AtomEmbeddingComponents { get; set; }
+    public virtual DbSet<AtomEmbedding> AtomEmbedding { get; set; }
 
-    public virtual DbSet<AtomEmbeddingSpatialMetadata> AtomEmbeddingSpatialMetadata { get; set; }
+    public virtual DbSet<AtomEmbeddingComponent> AtomEmbeddingComponent { get; set; }
 
-    public virtual DbSet<AtomEmbeddings> AtomEmbeddings { get; set; }
+    public virtual DbSet<AtomEmbeddingSpatialMetadatum> AtomEmbeddingSpatialMetadatum { get; set; }
 
     public virtual DbSet<AtomGraphEdges> AtomGraphEdges { get; set; }
 
@@ -29,9 +31,7 @@ public partial class HartonomousDbContext : DbContext
 
     public virtual DbSet<AtomGraphNodes> AtomGraphNodes { get; set; }
 
-    public virtual DbSet<AtomRelations> AtomRelations { get; set; }
-
-    public virtual DbSet<Atoms> Atoms { get; set; }
+    public virtual DbSet<AtomRelation> AtomRelation { get; set; }
 
     public virtual DbSet<AttentionGenerationLog> AttentionGenerationLog { get; set; }
 
@@ -41,37 +41,37 @@ public partial class HartonomousDbContext : DbContext
 
     public virtual DbSet<AutonomousImprovementHistory> AutonomousImprovementHistory { get; set; }
 
-    public virtual DbSet<BackgroundJobs> BackgroundJobs { get; set; }
+    public virtual DbSet<BackgroundJob> BackgroundJob { get; set; }
 
-    public virtual DbSet<BillingInvoices> BillingInvoices { get; set; }
+    public virtual DbSet<BillingInvoice> BillingInvoice { get; set; }
 
-    public virtual DbSet<BillingMultipliers> BillingMultipliers { get; set; }
+    public virtual DbSet<BillingMultiplier> BillingMultiplier { get; set; }
 
-    public virtual DbSet<BillingOperationRates> BillingOperationRates { get; set; }
+    public virtual DbSet<BillingOperationRate> BillingOperationRate { get; set; }
 
-    public virtual DbSet<BillingPricingTiers> BillingPricingTiers { get; set; }
+    public virtual DbSet<BillingPricingTier> BillingPricingTier { get; set; }
 
-    public virtual DbSet<BillingQuotaViolations> BillingQuotaViolations { get; set; }
+    public virtual DbSet<BillingQuotaViolation> BillingQuotaViolation { get; set; }
 
-    public virtual DbSet<BillingRatePlans> BillingRatePlans { get; set; }
+    public virtual DbSet<BillingRatePlan> BillingRatePlan { get; set; }
 
-    public virtual DbSet<BillingTenantQuotas> BillingTenantQuotas { get; set; }
+    public virtual DbSet<BillingTenantQuota> BillingTenantQuota { get; set; }
 
     public virtual DbSet<BillingUsageLedger> BillingUsageLedger { get; set; }
 
-    public virtual DbSet<CachedActivations> CachedActivations { get; set; }
+    public virtual DbSet<CachedActivation> CachedActivation { get; set; }
 
-    public virtual DbSet<CdcCheckpoints> CdcCheckpoints { get; set; }
+    public virtual DbSet<CdcCheckpoint> CdcCheckpoint { get; set; }
 
-    public virtual DbSet<Cicdbuilds> Cicdbuilds { get; set; }
+    public virtual DbSet<Cicdbuild> Cicdbuild { get; set; }
 
-    public virtual DbSet<CodeAtoms> CodeAtoms { get; set; }
+    public virtual DbSet<CodeAtom> CodeAtom { get; set; }
 
     public virtual DbSet<ConceptEvolution> ConceptEvolution { get; set; }
 
     public virtual DbSet<Concepts> Concepts { get; set; }
 
-    public virtual DbSet<DeduplicationPolicies> DeduplicationPolicies { get; set; }
+    public virtual DbSet<DeduplicationPolicy> DeduplicationPolicy { get; set; }
 
     public virtual DbSet<EmbeddingMigrationProgress> EmbeddingMigrationProgress { get; set; }
 
@@ -81,27 +81,27 @@ public partial class HartonomousDbContext : DbContext
 
     public virtual DbSet<EventHubCheckpoints> EventHubCheckpoints { get; set; }
 
-    public virtual DbSet<GenerationStreamSegments> GenerationStreamSegments { get; set; }
+    public virtual DbSet<GenerationStreamSegment> GenerationStreamSegment { get; set; }
 
     public virtual DbSet<GenerationStreams> GenerationStreams { get; set; }
 
     public virtual DbSet<InferenceCache> InferenceCache { get; set; }
 
-    public virtual DbSet<InferenceRequests> InferenceRequests { get; set; }
+    public virtual DbSet<InferenceRequest> InferenceRequest { get; set; }
 
-    public virtual DbSet<InferenceSteps> InferenceSteps { get; set; }
+    public virtual DbSet<InferenceStep> InferenceStep { get; set; }
 
-    public virtual DbSet<IngestionJobAtoms> IngestionJobAtoms { get; set; }
+    public virtual DbSet<IngestionJob> IngestionJob { get; set; }
 
-    public virtual DbSet<IngestionJobs> IngestionJobs { get; set; }
+    public virtual DbSet<IngestionJobAtom> IngestionJobAtom { get; set; }
 
-    public virtual DbSet<ModelLayers> ModelLayers { get; set; }
+    public virtual DbSet<Model> Model { get; set; }
+
+    public virtual DbSet<ModelLayer> ModelLayer { get; set; }
 
     public virtual DbSet<ModelMetadata> ModelMetadata { get; set; }
 
     public virtual DbSet<ModelVersionHistory> ModelVersionHistory { get; set; }
-
-    public virtual DbSet<Models> Models { get; set; }
 
     public virtual DbSet<MultiPathReasoning> MultiPathReasoning { get; set; }
 
@@ -131,19 +131,17 @@ public partial class HartonomousDbContext : DbContext
 
     public virtual DbSet<StreamOrchestrationResults> StreamOrchestrationResults { get; set; }
 
-    public virtual DbSet<TenantAtoms> TenantAtoms { get; set; }
+    public virtual DbSet<TenantAtom> TenantAtom { get; set; }
 
     public virtual DbSet<TenantGuidMapping> TenantGuidMapping { get; set; }
 
     public virtual DbSet<TenantSecurityPolicy> TenantSecurityPolicy { get; set; }
 
-    public virtual DbSet<TensorAtomCoefficients> TensorAtomCoefficients { get; set; }
+    public virtual DbSet<TensorAtom> TensorAtom { get; set; }
 
-    public virtual DbSet<TensorAtoms> TensorAtoms { get; set; }
+    public virtual DbSet<TensorAtomCoefficient> TensorAtomCoefficient { get; set; }
 
-    public virtual DbSet<TestResults> TestResults { get; set; }
-
-    public virtual DbSet<TestRunResults> TestRunResults { get; set; }
+    public virtual DbSet<TestResult> TestResult { get; set; }
 
     public virtual DbSet<TokenVocabulary> TokenVocabulary { get; set; }
 
@@ -153,7 +151,7 @@ public partial class HartonomousDbContext : DbContext
 
     public virtual DbSet<VwReconstructModelLayerWeights> VwReconstructModelLayerWeights { get; set; }
 
-    public virtual DbSet<WeightSnapshots> WeightSnapshots { get; set; }
+    public virtual DbSet<WeightSnapshot> WeightSnapshot { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -173,18 +171,57 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.ToolName).HasMaxLength(200);
         });
 
-        modelBuilder.Entity<AtomCompositions>(entity =>
+        modelBuilder.Entity<Atom>(entity =>
+        {
+            entity.ToTable(tb => tb.IsTemporal(ttb =>
+                    {
+                        ttb.UseHistoryTable("AtomHistory", "dbo");
+                        ttb
+                            .HasPeriodStart("CreatedAt")
+                            .HasColumnName("CreatedAt");
+                        ttb
+                            .HasPeriodEnd("ModifiedAt")
+                            .HasColumnName("ModifiedAt");
+                    }));
+
+            entity.HasIndex(e => e.ContentType, "IX_Atom_ContentType").HasFilter("([ContentType] IS NOT NULL)");
+
+            entity.HasIndex(e => new { e.Modality, e.Subtype }, "IX_Atom_Modality");
+
+            entity.HasIndex(e => e.ReferenceCount, "IX_Atom_ReferenceCount").IsDescending();
+
+            entity.HasIndex(e => new { e.TenantId, e.Modality }, "IX_Atom_TenantId");
+
+            entity.HasIndex(e => e.ContentHash, "UX_Atom_ContentHash").IsUnique();
+
+            entity.Property(e => e.AtomicValue).HasMaxLength(64);
+            entity.Property(e => e.ContentHash)
+                .HasMaxLength(32)
+                .IsFixedLength();
+            entity.Property(e => e.ContentType).HasMaxLength(100);
+            entity.Property(e => e.Modality)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+            entity.Property(e => e.ReferenceCount).HasDefaultValue(1L);
+            entity.Property(e => e.SourceType).HasMaxLength(100);
+            entity.Property(e => e.SourceUri).HasMaxLength(2048);
+            entity.Property(e => e.Subtype)
+                .HasMaxLength(50)
+                .IsUnicode(false);
+        });
+
+        modelBuilder.Entity<AtomComposition>(entity =>
         {
             entity.HasKey(e => e.CompositionId);
 
             entity.Property(e => e.SpatialKey).HasColumnType("geometry");
 
-            entity.HasOne(d => d.ComponentAtom).WithMany(p => p.AtomCompositionsComponentAtom)
+            entity.HasOne(d => d.ComponentAtom).WithMany(p => p.AtomCompositionComponentAtom)
                 .HasForeignKey(d => d.ComponentAtomId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AtomCompositions_Component");
 
-            entity.HasOne(d => d.ParentAtom).WithMany(p => p.AtomCompositionsParentAtom)
+            entity.HasOne(d => d.ParentAtom).WithMany(p => p.AtomCompositionParentAtom)
                 .HasForeignKey(d => d.ParentAtomId)
                 .HasConstraintName("FK_AtomCompositions_Parent");
         });
@@ -210,41 +247,21 @@ public partial class HartonomousDbContext : DbContext
                 .HasConstraintName("FK_AtomConcepts_Concepts");
         });
 
-        modelBuilder.Entity<AtomEmbeddingComponents>(entity =>
+        modelBuilder.Entity<AtomEmbedding>(entity =>
         {
-            entity.HasKey(e => e.AtomEmbeddingComponentId);
+            entity.HasIndex(e => e.AtomId, "IX_AtomEmbedding_Atom");
 
-            entity.HasOne(d => d.AtomEmbedding).WithMany(p => p.AtomEmbeddingComponents).HasForeignKey(d => d.AtomEmbeddingId);
-        });
+            entity.HasIndex(e => e.AtomId, "IX_AtomEmbedding_AtomId");
 
-        modelBuilder.Entity<AtomEmbeddingSpatialMetadata>(entity =>
-        {
-            entity.HasKey(e => e.MetadataId);
+            entity.HasIndex(e => new { e.Dimension, e.EmbeddingType }, "IX_AtomEmbedding_Dimension");
 
-            entity.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ }, "IX_AtomEmbeddingSpatialMetadata_BucketXYZ").HasFilter("([SpatialBucketX] IS NOT NULL)");
+            entity.HasIndex(e => e.HilbertValue, "IX_AtomEmbedding_Hilbert").HasFilter("([HilbertValue] IS NOT NULL)");
 
-            entity.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ, e.HasZ }, "UX_AtomEmbeddingSpatialMetadata_BucketXYZ").IsUnique();
+            entity.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ }, "IX_AtomEmbedding_SpatialBuckets").HasFilter("([SpatialBucketX] IS NOT NULL)");
 
-            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
-        });
+            entity.HasIndex(e => new { e.TenantId, e.ModelId, e.EmbeddingType }, "IX_AtomEmbedding_TenantId_ModelId");
 
-        modelBuilder.Entity<AtomEmbeddings>(entity =>
-        {
-            entity.HasKey(e => e.AtomEmbeddingId);
-
-            entity.HasIndex(e => e.AtomId, "IX_AtomEmbeddings_Atom");
-
-            entity.HasIndex(e => e.AtomId, "IX_AtomEmbeddings_AtomId");
-
-            entity.HasIndex(e => new { e.Dimension, e.EmbeddingType }, "IX_AtomEmbeddings_Dimension");
-
-            entity.HasIndex(e => e.HilbertValue, "IX_AtomEmbeddings_Hilbert").HasFilter("([HilbertValue] IS NOT NULL)");
-
-            entity.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ }, "IX_AtomEmbeddings_SpatialBuckets").HasFilter("([SpatialBucketX] IS NOT NULL)");
-
-            entity.HasIndex(e => new { e.TenantId, e.ModelId, e.EmbeddingType }, "IX_AtomEmbeddings_TenantId_ModelId");
-
-            entity.HasIndex(e => e.SpatialKey, "SIX_AtomEmbeddings_SpatialKey");
+            entity.HasIndex(e => e.SpatialKey, "SIX_AtomEmbedding_SpatialKey");
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.EmbeddingType)
@@ -253,14 +270,32 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.EmbeddingVector).HasMaxLength(1998);
             entity.Property(e => e.SpatialKey).HasColumnType("geometry");
 
-            entity.HasOne(d => d.Atom).WithMany(p => p.AtomEmbeddings)
+            entity.HasOne(d => d.Atom).WithMany(p => p.AtomEmbedding)
                 .HasForeignKey(d => d.AtomId)
                 .HasConstraintName("FK_AtomEmbeddings_Atom");
 
-            entity.HasOne(d => d.Model).WithMany(p => p.AtomEmbeddings)
+            entity.HasOne(d => d.Model).WithMany(p => p.AtomEmbedding)
                 .HasForeignKey(d => d.ModelId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_AtomEmbeddings_Model");
+        });
+
+        modelBuilder.Entity<AtomEmbeddingComponent>(entity =>
+        {
+            entity.HasOne(d => d.AtomEmbedding).WithMany(p => p.AtomEmbeddingComponent)
+                .HasForeignKey(d => d.AtomEmbeddingId)
+                .HasConstraintName("FK_AtomEmbeddingComponents_AtomEmbeddings_AtomEmbeddingId");
+        });
+
+        modelBuilder.Entity<AtomEmbeddingSpatialMetadatum>(entity =>
+        {
+            entity.HasKey(e => e.MetadataId);
+
+            entity.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ }, "IX_AtomEmbeddingSpatialMetadata_BucketXYZ").HasFilter("([SpatialBucketX] IS NOT NULL)");
+
+            entity.HasIndex(e => new { e.SpatialBucketX, e.SpatialBucketY, e.SpatialBucketZ, e.HasZ }, "UX_AtomEmbeddingSpatialMetadatum_BucketXYZ").IsUnique();
+
+            entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
         });
 
         modelBuilder.Entity<AtomGraphEdges>(entity =>
@@ -335,10 +370,8 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.UpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
         });
 
-        modelBuilder.Entity<AtomRelations>(entity =>
+        modelBuilder.Entity<AtomRelation>(entity =>
         {
-            entity.HasKey(e => e.AtomRelationId);
-
             entity.ToTable(tb => tb.IsTemporal(ttb =>
                     {
                         ttb.UseHistoryTable("AtomRelations_History", "dbo");
@@ -350,71 +383,32 @@ public partial class HartonomousDbContext : DbContext
                             .HasColumnName("ValidTo");
                     }));
 
-            entity.HasIndex(e => e.RelationType, "IX_AtomRelations_RelationType");
+            entity.HasIndex(e => e.RelationType, "IX_AtomRelation_RelationType");
 
-            entity.HasIndex(e => new { e.SourceAtomId, e.SequenceIndex }, "IX_AtomRelations_SequenceIndex");
+            entity.HasIndex(e => new { e.SourceAtomId, e.SequenceIndex }, "IX_AtomRelation_SequenceIndex");
 
-            entity.HasIndex(e => new { e.SourceAtomId, e.TargetAtomId }, "IX_AtomRelations_SourceTarget");
+            entity.HasIndex(e => new { e.SourceAtomId, e.TargetAtomId }, "IX_AtomRelation_SourceTarget");
 
-            entity.HasIndex(e => e.SpatialBucket, "IX_AtomRelations_SpatialBucket");
+            entity.HasIndex(e => e.SpatialBucket, "IX_AtomRelation_SpatialBucket");
 
-            entity.HasIndex(e => new { e.TargetAtomId, e.SourceAtomId }, "IX_AtomRelations_TargetSource");
+            entity.HasIndex(e => new { e.TargetAtomId, e.SourceAtomId }, "IX_AtomRelation_TargetSource");
 
-            entity.HasIndex(e => new { e.TenantId, e.RelationType }, "IX_AtomRelations_Tenant");
+            entity.HasIndex(e => new { e.TenantId, e.RelationType }, "IX_AtomRelation_Tenant");
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.Metadata).HasColumnType("json");
             entity.Property(e => e.RelationType).HasMaxLength(128);
             entity.Property(e => e.SpatialExpression).HasColumnType("geometry");
 
-            entity.HasOne(d => d.SourceAtom).WithMany(p => p.AtomRelationsSourceAtom)
+            entity.HasOne(d => d.SourceAtom).WithMany(p => p.AtomRelationSourceAtom)
                 .HasForeignKey(d => d.SourceAtomId)
-                .OnDelete(DeleteBehavior.ClientSetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AtomRelations_Atoms_SourceAtomId");
 
-            entity.HasOne(d => d.TargetAtom).WithMany(p => p.AtomRelationsTargetAtom)
+            entity.HasOne(d => d.TargetAtom).WithMany(p => p.AtomRelationTargetAtom)
                 .HasForeignKey(d => d.TargetAtomId)
-                .OnDelete(DeleteBehavior.ClientSetNull);
-        });
-
-        modelBuilder.Entity<Atoms>(entity =>
-        {
-            entity.HasKey(e => e.AtomId);
-
-            entity.ToTable(tb => tb.IsTemporal(ttb =>
-                    {
-                        ttb.UseHistoryTable("AtomsHistory", "dbo");
-                        ttb
-                            .HasPeriodStart("CreatedAt")
-                            .HasColumnName("CreatedAt");
-                        ttb
-                            .HasPeriodEnd("ModifiedAt")
-                            .HasColumnName("ModifiedAt");
-                    }));
-
-            entity.HasIndex(e => e.ContentType, "IX_Atoms_ContentType").HasFilter("([ContentType] IS NOT NULL)");
-
-            entity.HasIndex(e => new { e.Modality, e.Subtype }, "IX_Atoms_Modality");
-
-            entity.HasIndex(e => e.ReferenceCount, "IX_Atoms_ReferenceCount").IsDescending();
-
-            entity.HasIndex(e => new { e.TenantId, e.Modality }, "IX_Atoms_TenantId");
-
-            entity.HasIndex(e => e.ContentHash, "UX_Atoms_ContentHash").IsUnique();
-
-            entity.Property(e => e.AtomicValue).HasMaxLength(64);
-            entity.Property(e => e.ContentHash)
-                .HasMaxLength(32)
-                .IsFixedLength();
-            entity.Property(e => e.ContentType).HasMaxLength(100);
-            entity.Property(e => e.Modality)
-                .HasMaxLength(50)
-                .IsUnicode(false);
-            entity.Property(e => e.ReferenceCount).HasDefaultValue(1L);
-            entity.Property(e => e.SourceType).HasMaxLength(100);
-            entity.Property(e => e.SourceUri).HasMaxLength(2048);
-            entity.Property(e => e.Subtype)
-                .HasMaxLength(50)
-                .IsUnicode(false);
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_AtomRelations_Atoms_TargetAtomId");
         });
 
         modelBuilder.Entity<AttentionGenerationLog>(entity =>
@@ -435,7 +429,7 @@ public partial class HartonomousDbContext : DbContext
             entity.HasOne(d => d.Model).WithMany(p => p.AttentionGenerationLog)
                 .HasForeignKey(d => d.ModelId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_AttentionGenerationLog_Models");
+                .HasConstraintName("FK_AttentionGenerationLog_Model");
         });
 
         modelBuilder.Entity<AttentionInferenceResults>(entity =>
@@ -452,7 +446,7 @@ public partial class HartonomousDbContext : DbContext
             entity.HasOne(d => d.Model).WithMany(p => p.AttentionInferenceResults)
                 .HasForeignKey(d => d.ModelId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_AttentionInferenceResults_Models");
+                .HasConstraintName("FK_AttentionInferenceResult_Model");
         });
 
         modelBuilder.Entity<AutonomousComputeJobs>(entity =>
@@ -489,21 +483,21 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.TargetFile).HasMaxLength(512);
         });
 
-        modelBuilder.Entity<BackgroundJobs>(entity =>
+        modelBuilder.Entity<BackgroundJob>(entity =>
         {
             entity.HasKey(e => e.JobId);
 
             entity.ToTable(tb => tb.HasComment("Background job queue for asynchronous task processing with priority-based execution and retry logic."));
 
-            entity.HasIndex(e => e.CorrelationId, "IX_BackgroundJobs_CorrelationId").HasFilter("([CorrelationId] IS NOT NULL)");
+            entity.HasIndex(e => e.CorrelationId, "IX_BackgroundJob_CorrelationId").HasFilter("([CorrelationId] IS NOT NULL)");
 
-            entity.HasIndex(e => new { e.JobType, e.Status }, "IX_BackgroundJobs_JobType_Status");
+            entity.HasIndex(e => new { e.JobType, e.Status }, "IX_BackgroundJob_JobType_Status");
 
-            entity.HasIndex(e => e.ScheduledAtUtc, "IX_BackgroundJobs_ScheduledAtUtc").HasFilter("([ScheduledAtUtc] IS NOT NULL)");
+            entity.HasIndex(e => e.ScheduledAtUtc, "IX_BackgroundJob_ScheduledAtUtc").HasFilter("([ScheduledAtUtc] IS NOT NULL)");
 
-            entity.HasIndex(e => new { e.Status, e.Priority, e.CreatedAtUtc }, "IX_BackgroundJobs_Status_Priority").IsDescending(false, true, false);
+            entity.HasIndex(e => new { e.Status, e.Priority, e.CreatedAtUtc }, "IX_BackgroundJob_Status_Priority").IsDescending(false, true, false);
 
-            entity.HasIndex(e => e.TenantId, "IX_BackgroundJobs_TenantId").HasFilter("([TenantId] IS NOT NULL)");
+            entity.HasIndex(e => e.TenantId, "IX_BackgroundJob_TenantId").HasFilter("([TenantId] IS NOT NULL)");
 
             entity.Property(e => e.CompletedAtUtc).HasPrecision(3);
             entity.Property(e => e.CorrelationId).HasMaxLength(128);
@@ -517,9 +511,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.StartedAtUtc).HasPrecision(3);
         });
 
-        modelBuilder.Entity<BillingInvoices>(entity =>
+        modelBuilder.Entity<BillingInvoice>(entity =>
         {
-            entity.HasKey(e => e.InvoiceId);
+            entity.HasKey(e => e.InvoiceId).HasName("PK_BillingInvoices");
 
             entity.HasIndex(e => new { e.Status, e.GeneratedUtc }, "IX_BillingInvoices_Status").IsDescending(false, true);
 
@@ -536,9 +530,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.Total).HasColumnType("decimal(18, 2)");
         });
 
-        modelBuilder.Entity<BillingMultipliers>(entity =>
+        modelBuilder.Entity<BillingMultiplier>(entity =>
         {
-            entity.HasKey(e => e.MultiplierId);
+            entity.HasKey(e => e.MultiplierId).HasName("PK_BillingMultipliers");
 
             entity.Property(e => e.MultiplierId).HasDefaultValueSql("(newsequentialid())");
             entity.Property(e => e.CreatedUtc).HasDefaultValueSql("(sysutcdatetime())");
@@ -552,12 +546,14 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.Multiplier).HasColumnType("decimal(18, 6)");
             entity.Property(e => e.UpdatedUtc).HasDefaultValueSql("(sysutcdatetime())");
 
-            entity.HasOne(d => d.RatePlan).WithMany(p => p.BillingMultipliers).HasForeignKey(d => d.RatePlanId);
+            entity.HasOne(d => d.RatePlan).WithMany(p => p.BillingMultiplier)
+                .HasForeignKey(d => d.RatePlanId)
+                .HasConstraintName("FK_BillingMultipliers_BillingRatePlans_RatePlanId");
         });
 
-        modelBuilder.Entity<BillingOperationRates>(entity =>
+        modelBuilder.Entity<BillingOperationRate>(entity =>
         {
-            entity.HasKey(e => e.OperationRateId);
+            entity.HasKey(e => e.OperationRateId).HasName("PK_BillingOperationRates");
 
             entity.Property(e => e.OperationRateId).HasDefaultValueSql("(newsequentialid())");
             entity.Property(e => e.Category).HasMaxLength(64);
@@ -573,12 +569,14 @@ public partial class HartonomousDbContext : DbContext
                 .HasDefaultValue("");
             entity.Property(e => e.UpdatedUtc).HasDefaultValueSql("(sysutcdatetime())");
 
-            entity.HasOne(d => d.RatePlan).WithMany(p => p.BillingOperationRates).HasForeignKey(d => d.RatePlanId);
+            entity.HasOne(d => d.RatePlan).WithMany(p => p.BillingOperationRate)
+                .HasForeignKey(d => d.RatePlanId)
+                .HasConstraintName("FK_BillingOperationRates_BillingRatePlans_RatePlanId");
         });
 
-        modelBuilder.Entity<BillingPricingTiers>(entity =>
+        modelBuilder.Entity<BillingPricingTier>(entity =>
         {
-            entity.HasKey(e => e.TierId);
+            entity.HasKey(e => e.TierId).HasName("PK_BillingPricingTiers");
 
             entity.HasIndex(e => new { e.UsageType, e.UnitType, e.EffectiveFrom }, "IX_BillingPricingTiers_UsageType").IsDescending(false, false, true);
 
@@ -589,9 +587,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.UsageType).HasMaxLength(50);
         });
 
-        modelBuilder.Entity<BillingQuotaViolations>(entity =>
+        modelBuilder.Entity<BillingQuotaViolation>(entity =>
         {
-            entity.HasKey(e => e.ViolationId);
+            entity.HasKey(e => e.ViolationId).HasName("PK_BillingQuotaViolations");
 
             entity.HasIndex(e => new { e.TenantId, e.ViolatedUtc }, "IX_BillingQuotaViolations_Tenant").IsDescending(false, true);
 
@@ -601,9 +599,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.ViolatedUtc).HasDefaultValueSql("(sysutcdatetime())");
         });
 
-        modelBuilder.Entity<BillingRatePlans>(entity =>
+        modelBuilder.Entity<BillingRatePlan>(entity =>
         {
-            entity.HasKey(e => e.RatePlanId);
+            entity.HasKey(e => e.RatePlanId).HasName("PK_BillingRatePlans");
 
             entity.Property(e => e.RatePlanId).HasDefaultValueSql("(newsequentialid())");
             entity.Property(e => e.CreatedUtc).HasDefaultValueSql("(sysutcdatetime())");
@@ -629,9 +627,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.UpdatedUtc).HasDefaultValueSql("(sysutcdatetime())");
         });
 
-        modelBuilder.Entity<BillingTenantQuotas>(entity =>
+        modelBuilder.Entity<BillingTenantQuota>(entity =>
         {
-            entity.HasKey(e => e.QuotaId);
+            entity.HasKey(e => e.QuotaId).HasName("PK_BillingTenantQuotas");
 
             entity.HasIndex(e => new { e.TenantId, e.UsageType, e.IsActive }, "IX_BillingTenantQuotas_Tenant");
 
@@ -668,9 +666,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.UsageType).HasMaxLength(50);
         });
 
-        modelBuilder.Entity<CachedActivations>(entity =>
+        modelBuilder.Entity<CachedActivation>(entity =>
         {
-            entity.HasKey(e => e.CacheId);
+            entity.HasKey(e => e.CacheId).HasName("PK_CachedActivations");
 
             entity.Property(e => e.CreatedDate).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.InputHash)
@@ -679,27 +677,30 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.LastAccessed).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.OutputShape).HasMaxLength(100);
 
-            entity.HasOne(d => d.Layer).WithMany(p => p.CachedActivations).HasForeignKey(d => d.LayerId);
+            entity.HasOne(d => d.Layer).WithMany(p => p.CachedActivation)
+                .HasForeignKey(d => d.LayerId)
+                .HasConstraintName("FK_CachedActivations_ModelLayers_LayerId");
 
-            entity.HasOne(d => d.Model).WithMany(p => p.CachedActivations)
+            entity.HasOne(d => d.Model).WithMany(p => p.CachedActivation)
                 .HasForeignKey(d => d.ModelId)
-                .OnDelete(DeleteBehavior.ClientSetNull);
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_CachedActivations_Models_ModelId");
         });
 
-        modelBuilder.Entity<CdcCheckpoints>(entity =>
+        modelBuilder.Entity<CdcCheckpoint>(entity =>
         {
-            entity.HasKey(e => new { e.ConsumerGroup, e.PartitionId });
+            entity.HasKey(e => new { e.ConsumerGroup, e.PartitionId }).HasName("PK_CdcCheckpoints");
 
             entity.Property(e => e.ConsumerGroup).HasMaxLength(100);
             entity.Property(e => e.PartitionId).HasMaxLength(50);
             entity.Property(e => e.LastModified).HasDefaultValueSql("(sysutcdatetime())", "DF_CdcCheckpoints_LastModified");
         });
 
-        modelBuilder.Entity<Cicdbuilds>(entity =>
+        modelBuilder.Entity<Cicdbuild>(entity =>
         {
-            entity.HasKey(e => e.BuildId);
+            entity.HasKey(e => e.BuildId).HasName("PK_CICDBuilds");
 
-            entity.ToTable("CICDBuilds");
+            entity.ToTable("CICDBuild");
 
             entity.HasIndex(e => e.CommitHash, "IX_CICDBuilds_CommitHash");
 
@@ -719,9 +720,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.TriggerType).HasMaxLength(50);
         });
 
-        modelBuilder.Entity<CodeAtoms>(entity =>
+        modelBuilder.Entity<CodeAtom>(entity =>
         {
-            entity.HasKey(e => e.CodeAtomId);
+            entity.HasKey(e => e.CodeAtomId).HasName("PK_CodeAtoms");
 
             entity.Property(e => e.Code).HasColumnType("text");
             entity.Property(e => e.CodeHash).HasMaxLength(32);
@@ -771,12 +772,14 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.DiscoveryMethod).HasMaxLength(100);
             entity.Property(e => e.IsActive).HasDefaultValue(true);
 
-            entity.HasOne(d => d.Model).WithMany(p => p.Concepts).HasForeignKey(d => d.ModelId);
+            entity.HasOne(d => d.Model).WithMany(p => p.Concepts)
+                .HasForeignKey(d => d.ModelId)
+                .HasConstraintName("FK_Concepts_Models_ModelId");
         });
 
-        modelBuilder.Entity<DeduplicationPolicies>(entity =>
+        modelBuilder.Entity<DeduplicationPolicy>(entity =>
         {
-            entity.HasKey(e => e.DeduplicationPolicyId);
+            entity.HasKey(e => e.DeduplicationPolicyId).HasName("PK_DeduplicationPolicies");
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.IsActive).HasDefaultValue(true);
@@ -810,7 +813,7 @@ public partial class HartonomousDbContext : DbContext
             entity.HasOne(d => d.CentroidAtom).WithMany(p => p.EventAtoms)
                 .HasForeignKey(d => d.CentroidAtomId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_EventAtoms_Atoms");
+                .HasConstraintName("FK_EventAtom_Atom");
 
             entity.HasOne(d => d.Stream).WithMany(p => p.EventAtoms)
                 .HasForeignKey(d => d.StreamId)
@@ -862,9 +865,9 @@ public partial class HartonomousDbContext : DbContext
                 .HasComputedColumnSql("(CONVERT([varbinary](32),hashbytes('SHA2_256',concat([FullyQualifiedNamespace],N'|',[EventHubName],N'|',[ConsumerGroup],N'|',[PartitionId]))))", true);
         });
 
-        modelBuilder.Entity<GenerationStreamSegments>(entity =>
+        modelBuilder.Entity<GenerationStreamSegment>(entity =>
         {
-            entity.HasKey(e => e.SegmentId);
+            entity.HasKey(e => e.SegmentId).HasName("PK_GenerationStreamSegments");
 
             entity.HasIndex(e => e.CreatedAt, "IX_GenerationStreamSegments_CreatedAt").IsDescending();
 
@@ -877,7 +880,7 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.EmbeddingVector).HasMaxLength(1998);
             entity.Property(e => e.SegmentKind).HasMaxLength(50);
 
-            entity.HasOne(d => d.GenerationStream).WithMany(p => p.GenerationStreamSegments)
+            entity.HasOne(d => d.GenerationStream).WithMany(p => p.GenerationStreamSegment)
                 .HasPrincipalKey(p => p.GenerationStreamId)
                 .HasForeignKey(d => d.GenerationStreamId)
                 .HasConstraintName("FK_GenerationStreamSegments_GenerationStreams");
@@ -912,10 +915,12 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.CreatedUtc).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.InferenceType).HasMaxLength(100);
 
-            entity.HasOne(d => d.Model).WithMany(p => p.InferenceCache).HasForeignKey(d => d.ModelId);
+            entity.HasOne(d => d.Model).WithMany(p => p.InferenceCache)
+                .HasForeignKey(d => d.ModelId)
+                .HasConstraintName("FK_InferenceCache_Models_ModelId");
         });
 
-        modelBuilder.Entity<InferenceRequests>(entity =>
+        modelBuilder.Entity<InferenceRequest>(entity =>
         {
             entity.HasKey(e => e.InferenceId);
 
@@ -931,39 +936,31 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.SlaTier).HasMaxLength(50);
             entity.Property(e => e.TaskType).HasMaxLength(50);
 
-            entity.HasOne(d => d.Model).WithMany(p => p.InferenceRequests).HasForeignKey(d => d.ModelId);
+            entity.HasOne(d => d.Model).WithMany(p => p.InferenceRequest)
+                .HasForeignKey(d => d.ModelId)
+                .HasConstraintName("FK_InferenceRequests_Models_ModelId");
         });
 
-        modelBuilder.Entity<InferenceSteps>(entity =>
+        modelBuilder.Entity<InferenceStep>(entity =>
         {
-            entity.HasKey(e => e.StepId);
+            entity.HasKey(e => e.StepId).HasName("PK_InferenceSteps");
 
             entity.Property(e => e.IndexUsed).HasMaxLength(200);
             entity.Property(e => e.OperationType).HasMaxLength(50);
 
-            entity.HasOne(d => d.Inference).WithMany(p => p.InferenceSteps).HasForeignKey(d => d.InferenceId);
+            entity.HasOne(d => d.Inference).WithMany(p => p.InferenceStep)
+                .HasForeignKey(d => d.InferenceId)
+                .HasConstraintName("FK_InferenceSteps_InferenceRequests_InferenceId");
 
-            entity.HasOne(d => d.Model).WithMany(p => p.InferenceSteps)
+            entity.HasOne(d => d.Model).WithMany(p => p.InferenceStep)
                 .HasForeignKey(d => d.ModelId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_InferenceSteps_Models_ModelId");
         });
 
-        modelBuilder.Entity<IngestionJobAtoms>(entity =>
+        modelBuilder.Entity<IngestionJob>(entity =>
         {
-            entity.HasKey(e => e.IngestionJobAtomId);
-
-            entity.Property(e => e.Notes).HasMaxLength(1024);
-
-            entity.HasOne(d => d.Atom).WithMany(p => p.IngestionJobAtoms)
-                .HasForeignKey(d => d.AtomId)
-                .OnDelete(DeleteBehavior.ClientSetNull);
-
-            entity.HasOne(d => d.IngestionJob).WithMany(p => p.IngestionJobAtoms).HasForeignKey(d => d.IngestionJobId);
-        });
-
-        modelBuilder.Entity<IngestionJobs>(entity =>
-        {
-            entity.HasKey(e => e.IngestionJobId);
+            entity.HasKey(e => e.IngestionJobId).HasName("PK_IngestionJobs");
 
             entity.HasIndex(e => new { e.JobStatus, e.TenantId }, "IX_IngestionJobs_Status");
 
@@ -978,12 +975,45 @@ public partial class HartonomousDbContext : DbContext
                 .HasDefaultValue("Pending");
             entity.Property(e => e.LastUpdatedAt).HasDefaultValueSql("(sysutcdatetime())");
 
-            entity.HasOne(d => d.ParentAtom).WithMany(p => p.IngestionJobs)
+            entity.HasOne(d => d.ParentAtom).WithMany(p => p.IngestionJob)
                 .HasForeignKey(d => d.ParentAtomId)
                 .HasConstraintName("FK_IngestionJobs_ParentAtom");
         });
 
-        modelBuilder.Entity<ModelLayers>(entity =>
+        modelBuilder.Entity<IngestionJobAtom>(entity =>
+        {
+            entity.HasKey(e => e.IngestionJobAtomId).HasName("PK_IngestionJobAtoms");
+
+            entity.Property(e => e.Notes).HasMaxLength(1024);
+
+            entity.HasOne(d => d.Atom).WithMany(p => p.IngestionJobAtom)
+                .HasForeignKey(d => d.AtomId)
+                .OnDelete(DeleteBehavior.ClientSetNull)
+                .HasConstraintName("FK_IngestionJobAtoms_Atoms_AtomId");
+
+            entity.HasOne(d => d.IngestionJob).WithMany(p => p.IngestionJobAtom)
+                .HasForeignKey(d => d.IngestionJobId)
+                .HasConstraintName("FK_IngestionJobAtoms_IngestionJobs_IngestionJobId");
+        });
+
+        modelBuilder.Entity<Model>(entity =>
+        {
+            entity.HasIndex(e => e.ModelName, "IX_Model_ModelName");
+
+            entity.HasIndex(e => e.ModelType, "IX_Model_ModelType");
+
+            entity.Property(e => e.Architecture).HasMaxLength(100);
+            entity.Property(e => e.Config).HasColumnType("json");
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())", "DF_Models_CreatedAt");
+            entity.Property(e => e.IngestionDate).HasDefaultValueSql("(sysutcdatetime())", "DF_Models_IngestionDate");
+            entity.Property(e => e.IsActive).HasDefaultValue(true, "DF_Models_IsActive");
+            entity.Property(e => e.MetadataJson).HasColumnType("json");
+            entity.Property(e => e.ModelName).HasMaxLength(200);
+            entity.Property(e => e.ModelType).HasMaxLength(100);
+            entity.Property(e => e.ModelVersion).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<ModelLayer>(entity =>
         {
             entity.HasKey(e => e.LayerId);
 
@@ -1002,11 +1032,14 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.Zmax).HasColumnName("ZMax");
             entity.Property(e => e.Zmin).HasColumnName("ZMin");
 
-            entity.HasOne(d => d.LayerAtom).WithMany(p => p.ModelLayers)
+            entity.HasOne(d => d.LayerAtom).WithMany(p => p.ModelLayer)
                 .HasForeignKey(d => d.LayerAtomId)
-                .OnDelete(DeleteBehavior.SetNull);
+                .OnDelete(DeleteBehavior.SetNull)
+                .HasConstraintName("FK_ModelLayers_Atoms_LayerAtomId");
 
-            entity.HasOne(d => d.Model).WithMany(p => p.ModelLayers).HasForeignKey(d => d.ModelId);
+            entity.HasOne(d => d.Model).WithMany(p => p.ModelLayer)
+                .HasForeignKey(d => d.ModelId)
+                .HasConstraintName("FK_ModelLayers_Models_ModelId");
         });
 
         modelBuilder.Entity<ModelMetadata>(entity =>
@@ -1047,25 +1080,6 @@ public partial class HartonomousDbContext : DbContext
                 .HasConstraintName("FK_ModelVersionHistory_ParentVersion");
         });
 
-        modelBuilder.Entity<Models>(entity =>
-        {
-            entity.HasKey(e => e.ModelId);
-
-            entity.HasIndex(e => e.ModelName, "IX_Models_ModelName");
-
-            entity.HasIndex(e => e.ModelType, "IX_Models_ModelType");
-
-            entity.Property(e => e.Architecture).HasMaxLength(100);
-            entity.Property(e => e.Config).HasColumnType("json");
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())", "DF_Models_CreatedAt");
-            entity.Property(e => e.IngestionDate).HasDefaultValueSql("(sysutcdatetime())", "DF_Models_IngestionDate");
-            entity.Property(e => e.IsActive).HasDefaultValue(true, "DF_Models_IsActive");
-            entity.Property(e => e.MetadataJson).HasColumnType("json");
-            entity.Property(e => e.ModelName).HasMaxLength(200);
-            entity.Property(e => e.ModelType).HasMaxLength(100);
-            entity.Property(e => e.ModelVersion).HasMaxLength(50);
-        });
-
         modelBuilder.Entity<MultiPathReasoning>(entity =>
         {
             entity.HasKey(e => e.Id).HasName("PK__MultiPat__3214EC07E099CA48");
@@ -1096,13 +1110,13 @@ public partial class HartonomousDbContext : DbContext
 
         modelBuilder.Entity<OperationProvenance>(entity =>
         {
-            entity.HasKey(e => e.Id).HasName("PK__tmp_ms_x__3214EC07774F448B");
+            entity.HasKey(e => e.Id).HasName("PK__tmp_ms_x__3214EC072FDB1F48");
 
             entity.HasIndex(e => e.CreatedAt, "IX_OperationProvenance_CreatedAt").IsDescending();
 
             entity.HasIndex(e => e.OperationId, "IX_OperationProvenance_OperationId");
 
-            entity.HasIndex(e => e.OperationId, "UQ__tmp_ms_x__A4F5FC4537660757").IsUnique();
+            entity.HasIndex(e => e.OperationId, "UQ__tmp_ms_x__A4F5FC45773C82AC").IsUnique();
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
         });
@@ -1224,7 +1238,7 @@ public partial class HartonomousDbContext : DbContext
 
             entity.HasOne(d => d.AtomEmbedding).WithOne(p => p.SemanticFeatures)
                 .HasForeignKey<SemanticFeatures>(d => d.AtomEmbeddingId)
-                .HasConstraintName("FK_SemanticFeatures_AtomEmbeddings");
+                .HasConstraintName("FK_SemanticFeature_AtomEmbedding");
         });
 
         modelBuilder.Entity<SessionPaths>(entity =>
@@ -1309,13 +1323,13 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.SensorType).HasMaxLength(100);
         });
 
-        modelBuilder.Entity<TenantAtoms>(entity =>
+        modelBuilder.Entity<TenantAtom>(entity =>
         {
-            entity.HasKey(e => new { e.TenantId, e.AtomId });
+            entity.HasKey(e => new { e.TenantId, e.AtomId }).HasName("PK_TenantAtoms");
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())", "DF_TenantAtoms_CreatedAt");
 
-            entity.HasOne(d => d.Atom).WithMany(p => p.TenantAtoms)
+            entity.HasOne(d => d.Atom).WithMany(p => p.TenantAtom)
                 .HasForeignKey(d => d.AtomId)
                 .HasConstraintName("FK_TenantAtoms_Atoms");
         });
@@ -1350,9 +1364,30 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.UpdatedBy).HasMaxLength(256);
         });
 
-        modelBuilder.Entity<TensorAtomCoefficients>(entity =>
+        modelBuilder.Entity<TensorAtom>(entity =>
         {
-            entity.HasKey(e => new { e.TensorAtomId, e.ModelId, e.LayerIdx, e.PositionX, e.PositionY, e.PositionZ });
+            entity.Property(e => e.AtomType).HasMaxLength(128);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
+            entity.Property(e => e.GeometryFootprint).HasColumnType("geometry");
+            entity.Property(e => e.Metadata).HasColumnType("json");
+            entity.Property(e => e.SpatialSignature).HasColumnType("geometry");
+
+            entity.HasOne(d => d.Atom).WithMany(p => p.TensorAtom)
+                .HasForeignKey(d => d.AtomId)
+                .HasConstraintName("FK_TensorAtoms_Atoms_AtomId");
+
+            entity.HasOne(d => d.Layer).WithMany(p => p.TensorAtom)
+                .HasForeignKey(d => d.LayerId)
+                .HasConstraintName("FK_TensorAtoms_ModelLayers_LayerId");
+
+            entity.HasOne(d => d.Model).WithMany(p => p.TensorAtom)
+                .HasForeignKey(d => d.ModelId)
+                .HasConstraintName("FK_TensorAtoms_Models_ModelId");
+        });
+
+        modelBuilder.Entity<TensorAtomCoefficient>(entity =>
+        {
+            entity.HasKey(e => new { e.TensorAtomId, e.ModelId, e.LayerIdx, e.PositionX, e.PositionY, e.PositionZ }).HasName("PK_TensorAtomCoefficients");
 
             entity.ToTable(tb => tb.IsTemporal(ttb =>
                     {
@@ -1372,36 +1407,19 @@ public partial class HartonomousDbContext : DbContext
                 .HasColumnType("geometry");
             entity.Property(e => e.TensorRole).HasMaxLength(128);
 
-            entity.HasOne(d => d.Model).WithMany(p => p.TensorAtomCoefficients)
+            entity.HasOne(d => d.Model).WithMany(p => p.TensorAtomCoefficient)
                 .HasForeignKey(d => d.ModelId)
                 .HasConstraintName("FK_TensorAtomCoefficients_Model");
 
-            entity.HasOne(d => d.TensorAtom).WithMany(p => p.TensorAtomCoefficients)
+            entity.HasOne(d => d.TensorAtom).WithMany(p => p.TensorAtomCoefficient)
                 .HasForeignKey(d => d.TensorAtomId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
                 .HasConstraintName("FK_TensorAtomCoefficients_Atom");
         });
 
-        modelBuilder.Entity<TensorAtoms>(entity =>
+        modelBuilder.Entity<TestResult>(entity =>
         {
-            entity.HasKey(e => e.TensorAtomId);
-
-            entity.Property(e => e.AtomType).HasMaxLength(128);
-            entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
-            entity.Property(e => e.GeometryFootprint).HasColumnType("geometry");
-            entity.Property(e => e.Metadata).HasColumnType("json");
-            entity.Property(e => e.SpatialSignature).HasColumnType("geometry");
-
-            entity.HasOne(d => d.Atom).WithMany(p => p.TensorAtoms).HasForeignKey(d => d.AtomId);
-
-            entity.HasOne(d => d.Layer).WithMany(p => p.TensorAtoms).HasForeignKey(d => d.LayerId);
-
-            entity.HasOne(d => d.Model).WithMany(p => p.TensorAtoms).HasForeignKey(d => d.ModelId);
-        });
-
-        modelBuilder.Entity<TestResults>(entity =>
-        {
-            entity.HasKey(e => e.TestResultId);
+            entity.HasKey(e => e.TestResultId).HasName("PK_TestResults");
 
             entity.Property(e => e.Environment).HasMaxLength(100);
             entity.Property(e => e.ExecutedAt).HasDefaultValueSql("(sysutcdatetime())");
@@ -1412,14 +1430,6 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.TestSuite).HasMaxLength(100);
         });
 
-        modelBuilder.Entity<TestRunResults>(entity =>
-        {
-            entity.HasNoKey();
-
-            entity.Property(e => e.Duration).HasColumnType("decimal(10, 3)");
-            entity.Property(e => e.ExecutedAt).HasColumnType("datetime");
-        });
-
         modelBuilder.Entity<TokenVocabulary>(entity =>
         {
             entity.HasKey(e => e.VocabId);
@@ -1428,7 +1438,9 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.Token).HasMaxLength(100);
             entity.Property(e => e.TokenType).HasMaxLength(20);
 
-            entity.HasOne(d => d.Model).WithMany(p => p.TokenVocabulary).HasForeignKey(d => d.ModelId);
+            entity.HasOne(d => d.Model).WithMany(p => p.TokenVocabulary)
+                .HasForeignKey(d => d.ModelId)
+                .HasConstraintName("FK_TokenVocabulary_Models_ModelId");
         });
 
         modelBuilder.Entity<TopicKeywords>(entity =>
@@ -1461,7 +1473,7 @@ public partial class HartonomousDbContext : DbContext
             entity.HasOne(d => d.Model).WithMany(p => p.TransformerInferenceResults)
                 .HasForeignKey(d => d.ModelId)
                 .OnDelete(DeleteBehavior.ClientSetNull)
-                .HasConstraintName("FK_TransformerInferenceResults_Models");
+                .HasConstraintName("FK_TransformerInferenceResult_Model");
         });
 
         modelBuilder.Entity<VwReconstructModelLayerWeights>(entity =>
@@ -1475,20 +1487,20 @@ public partial class HartonomousDbContext : DbContext
             entity.Property(e => e.WeightValueBinary).HasMaxLength(64);
         });
 
-        modelBuilder.Entity<WeightSnapshots>(entity =>
+        modelBuilder.Entity<WeightSnapshot>(entity =>
         {
-            entity.HasKey(e => e.SnapshotId).HasName("PK__WeightSn__664F572B6D68772E");
+            entity.HasKey(e => e.SnapshotId).HasName("PK__WeightSn__664F572BBCAA26A2");
 
-            entity.HasIndex(e => e.SnapshotName, "UQ__WeightSn__FAC0EC4AED1BB930").IsUnique();
+            entity.HasIndex(e => e.SnapshotName, "UQ__WeightSn__FAC0EC4A338BFCE3").IsUnique();
 
             entity.Property(e => e.CreatedAt).HasDefaultValueSql("(sysutcdatetime())");
             entity.Property(e => e.SnapshotName).HasMaxLength(255);
             entity.Property(e => e.SnapshotTime).HasDefaultValueSql("(sysutcdatetime())");
 
-            entity.HasOne(d => d.Model).WithMany(p => p.WeightSnapshots)
+            entity.HasOne(d => d.Model).WithMany(p => p.WeightSnapshot)
                 .HasForeignKey(d => d.ModelId)
                 .OnDelete(DeleteBehavior.SetNull)
-                .HasConstraintName("FK_WeightSnapshots_Models");
+                .HasConstraintName("FK_WeightSnapshot_Model");
         });
 
         OnModelCreatingPartial(modelBuilder);

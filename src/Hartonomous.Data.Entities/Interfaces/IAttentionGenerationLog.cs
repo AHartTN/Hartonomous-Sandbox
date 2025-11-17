@@ -19,5 +19,5 @@ public interface IAttentionGenerationLog
     int DurationMs { get; set; }
     int TenantId { get; set; }
     DateTime CreatedAt { get; set; }
-    Models Model { get; set; }
+    Model Model { get; set; }
 }
