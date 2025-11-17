@@ -304,7 +304,7 @@ stages:
                 Write-Host "Enabling CLR integration (idempotent)..."
                 
                 $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                @"
+                $sql = @"
                 -- Check current CLR settings
                 DECLARE @showAdvanced INT, @clrEnabled INT, @clrStrictSecurity INT;
                 
@@ -347,7 +347,8 @@ stages:
                 END
                 
                 PRINT 'CLR configuration verified.';
-                "@ | Out-File -FilePath $tempFile -Encoding utf8
+                "@
+                $sql | Out-File -FilePath $tempFile -Encoding utf8
                 
                 try {
                   sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
@@ -384,7 +385,7 @@ stages:
                     $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
                     
                     $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                    @"
+                    $sql = @"
                 USE [$database];
                 GO
                 
@@ -415,7 +416,8 @@ stages:
                 
                 PRINT '  ✓ $Name deployed (SHA256: $fileHash)';
                 GO
-"@ | Out-File -FilePath $tempFile -Encoding utf8
+                "@
+                $sql | Out-File -FilePath $tempFile -Encoding utf8
                     
                     try {
                         sqlcmd -S $server -d master -E -C -i $tempFile -b
@@ -492,7 +494,7 @@ stages:
                 $ErrorActionPreference = 'Stop'
                 
                 $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                @"
+                $sql = @"
                 -- Check if TRUSTWORTHY is already enabled
                 DECLARE @isTrustworthy BIT;
                 SELECT @isTrustworthy = is_trustworthy_on 
@@ -509,7 +511,8 @@ stages:
                 BEGIN
                     PRINT 'TRUSTWORTHY already enabled for $(sqlDatabase)';
                 END
-                "@ | Out-File -FilePath $tempFile -Encoding utf8
+                "@
+                $sql | Out-File -FilePath $tempFile -Encoding utf8
                 
                 try {
                   sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
