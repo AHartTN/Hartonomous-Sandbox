@@ -275,14 +275,37 @@ stages:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
     
-    # Scaffold entities from deployed database
-    - task: PowerShell@2
-      displayName: 'Scaffold EF Core Entities'
+    # Scaffold entities from deployed database using Azure AD auth
+    - task: AzureCLI@2
+      displayName: 'Scaffold EF Core Entities (Service Principal Auth)'
       inputs:
-        targetType: 'filePath'
-        filePath: 'scripts/scaffold-entities.ps1'
-        arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -ProjectPath "src/Hartonomous.Data.Entities"'
-        pwsh: true
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Get access token for SQL Server
+          Write-Host "Retrieving access token for SQL Server authentication..."
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          
+          if (-not $token) {
+            throw "Failed to retrieve access token"
+          }
+          
+          # Set access token as environment variable for scaffold script
+          $env:AZURE_SQL_ACCESS_TOKEN = $token
+          
+          Write-Host "Scaffolding EF Core entities from database schema..."
+          $scriptPath = "scripts/scaffold-entities.ps1"
+          
+          & $scriptPath `
+            -Server "$(sqlServer)" `
+            -Database "$(sqlDatabase)" `
+            -UseAzureAD
+          
+          if ($LASTEXITCODE -ne 0) { throw "Entity scaffolding failed" }
+          Write-Host "✓ EF Core entities scaffolded successfully"
 
 # ============================================================================
 # STAGE 4: BUILD .NET SOLUTION
