@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
@@ -27,7 +28,7 @@ namespace Hartonomous.Clr
 
             try
             {
-                using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+                using (var conn = new SqlConnection("context connection=true"))
                 {
                     conn.Open();
 
@@ -64,7 +65,7 @@ namespace Hartonomous.Clr
             }
         }
 
-        private static ModelArchitecture LoadModelArchitecture(System.Data.SqlClient.SqlConnection conn, int modelId)
+        private static ModelArchitecture LoadModelArchitecture(SqlConnection conn, int modelId)
         {
             var query = @"
                 SELECT 
@@ -81,7 +82,7 @@ namespace Hartonomous.Clr
 
             var architecture = new ModelArchitecture { Layers = new List<LayerDefinition>() };
 
-            using (var cmd = new System.Data.SqlClient.SqlCommand(query, conn))
+            using (var cmd = new SqlCommand(query, conn))
             {
                 cmd.Parameters.AddWithValue("@ModelId", modelId);
 
@@ -106,7 +107,7 @@ namespace Hartonomous.Clr
             return architecture.Layers.Count > 0 ? architecture : null;
         }
 
-        private static float[] ExecuteLayer(System.Data.SqlClient.SqlConnection conn, LayerDefinition layer, float[] input)
+        private static float[] ExecuteLayer(SqlConnection conn, LayerDefinition layer, float[] input)
         {
             switch (layer.LayerType.ToLower())
             {
@@ -133,7 +134,7 @@ namespace Hartonomous.Clr
             }
         }
 
-        private static float[] ExecuteLinearLayer(System.Data.SqlClient.SqlConnection conn, LayerDefinition layer, float[] input)
+        private static float[] ExecuteLinearLayer(SqlConnection conn, LayerDefinition layer, float[] input)
         {
             // Load weight matrix and bias vector from LayerTensorSegments
             var weights = LoadLayerWeights(conn, layer.LayerId, layer.InputDimension, layer.OutputDimension);
@@ -164,7 +165,7 @@ namespace Hartonomous.Clr
             return output;
         }
 
-        private static float[] ExecuteLayerNorm(System.Data.SqlClient.SqlConnection conn, LayerDefinition layer, float[] input)
+        private static float[] ExecuteLayerNorm(SqlConnection conn, LayerDefinition layer, float[] input)
         {
             // Load gamma (scale) and beta (shift) parameters
             var gamma = LoadLayerParameter(conn, layer.LayerId, "gamma", layer.InputDimension);
@@ -195,7 +196,7 @@ namespace Hartonomous.Clr
             return output;
         }
 
-        private static float[,] LoadLayerWeights(System.Data.SqlClient.SqlConnection conn, int layerId, int inputDim, int outputDim)
+        private static float[,] LoadLayerWeights(SqlConnection conn, int layerId, int inputDim, int outputDim)
         {
             // Query LayerTensorSegments for weight matrix
             var query = @"
@@ -210,7 +211,7 @@ namespace Hartonomous.Clr
 
             var segments = new List<(byte[] Data, int Ordinal, string QuantType)>();
 
-            using (var cmd = new System.Data.SqlClient.SqlCommand(query, conn))
+            using (var cmd = new SqlCommand(query, conn))
             {
                 cmd.Parameters.AddWithValue("@LayerId", layerId);
 
@@ -253,12 +254,12 @@ namespace Hartonomous.Clr
             return weights;
         }
 
-        private static float[] LoadLayerBias(System.Data.SqlClient.SqlConnection conn, int layerId, int outputDim)
+        private static float[] LoadLayerBias(SqlConnection conn, int layerId, int outputDim)
         {
             return LoadLayerParameter(conn, layerId, "bias", outputDim);
         }
 
-        private static float[] LoadLayerParameter(System.Data.SqlClient.SqlConnection conn, int layerId, string tensorName, int expectedDim)
+        private static float[] LoadLayerParameter(SqlConnection conn, int layerId, string tensorName, int expectedDim)
         {
             var query = @"
                 SELECT 
@@ -269,7 +270,7 @@ namespace Hartonomous.Clr
                   AND lts.TensorName = @TensorName
                 ORDER BY lts.SegmentOrdinal";
 
-            using (var cmd = new System.Data.SqlClient.SqlCommand(query, conn))
+            using (var cmd = new SqlCommand(query, conn))
             {
                 cmd.Parameters.AddWithValue("@LayerId", layerId);
                 cmd.Parameters.AddWithValue("@TensorName", tensorName);
@@ -519,3 +520,4 @@ namespace Hartonomous.Clr
         }
     }
 }
+

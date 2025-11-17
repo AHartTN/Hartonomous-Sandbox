@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -49,8 +50,8 @@ namespace Hartonomous.Core.Pipelines.Ingestion.Atomizers
         /// </summary>
         public HalsteadMetrics ComputeHalsteadMetrics(SyntaxNode node)
         {
-            var operators = new System.Collections.Generic.HashSet<string>();
-            var operands = new System.Collections.Generic.HashSet<string>();
+            var operators = new HashSet<string>();
+            var operands = new HashSet<string>();
             var totalOperators = 0;
             var totalOperands = 0;
 

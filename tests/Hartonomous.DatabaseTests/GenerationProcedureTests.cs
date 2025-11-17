@@ -1,3 +1,5 @@
+using System;
+using System.IO;
 using System.Threading.Tasks;
 using Hartonomous.DatabaseTests.Fixtures;
 using Microsoft.Data.SqlClient;
@@ -140,15 +142,15 @@ public sealed class GenerationProcedureTests : IClassFixture<SqlServerContainerF
 
     private static string ResolveRepositoryRoot()
     {
-        var current = new System.IO.DirectoryInfo(System.AppContext.BaseDirectory);
-        while (current != null && !System.IO.File.Exists(System.IO.Path.Combine(current.FullName, "Hartonomous.sln")))
+        var current = new DirectoryInfo(AppContext.BaseDirectory);
+        while (current != null && !File.Exists(Path.Combine(current.FullName, "Hartonomous.sln")))
         {
             current = current.Parent;
         }
 
         if (current is null)
         {
-            throw new System.InvalidOperationException("Unable to locate repository root (Hartonomous.sln not found).");
+            throw new InvalidOperationException("Unable to locate repository root (Hartonomous.sln not found).");
         }
 
         return current.FullName;

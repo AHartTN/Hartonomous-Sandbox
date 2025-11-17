@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Data;
 using System.Data.SqlClient;
+using System.Text;
 
 namespace Hartonomous.Clr.NaturalLanguage
 {
@@ -139,7 +140,7 @@ namespace Hartonomous.Clr.NaturalLanguage
         private List<string> PreTokenize(string text)
         {
             var words = new List<string>();
-            var currentWord = new System.Text.StringBuilder();
+            var currentWord = new StringBuilder();
 
             foreach (char c in text)
             {

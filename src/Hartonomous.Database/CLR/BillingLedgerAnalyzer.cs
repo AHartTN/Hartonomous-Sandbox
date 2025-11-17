@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using Microsoft.SqlServer.Server;
 
 namespace Hartonomous.Clr.Analysis
@@ -25,10 +26,10 @@ namespace Hartonomous.Clr.Analysis
                 ORDER BY SUM(TotalCost) DESC;
             ";
 
-            using (var connection = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var connection = new SqlConnection("context connection=true"))
             {
                 connection.Open();
-                using (var command = new System.Data.SqlClient.SqlCommand(query, connection))
+                using (var command = new SqlCommand(query, connection))
                 {
                     using (var reader = command.ExecuteReader())
                     {

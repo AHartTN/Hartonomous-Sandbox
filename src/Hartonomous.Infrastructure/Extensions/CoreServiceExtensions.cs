@@ -9,6 +9,7 @@ using Hartonomous.Core.Services;
 using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Compliance;
 using Hartonomous.Infrastructure.Data;
+using Microsoft.Extensions.Compliance.Classification;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Infrastructure.Services.Billing;
 using Hartonomous.Infrastructure.Services.Messaging;
@@ -114,19 +115,19 @@ public static class CoreServiceExtensions
             // Private, Personal, and Financial data - mask with asterisks
             // Using custom StarRedactor for visible but anonymized data
             redactionBuilder.SetRedactor<StarRedactor>(
-                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                new DataClassificationSet(
                     HartonomousDataClassifications.Private),
-                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                new DataClassificationSet(
                     HartonomousDataClassifications.Personal),
-                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                new DataClassificationSet(
                     HartonomousDataClassifications.Financial));
 
             // Sensitive and Health data - completely erase using ErasingRedactor
             // This is the fallback redactor, so any data without a specific redactor will be erased
             redactionBuilder.SetRedactor<ErasingRedactor>(
-                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                new DataClassificationSet(
                     HartonomousDataClassifications.Sensitive),
-                new Microsoft.Extensions.Compliance.Classification.DataClassificationSet(
+                new DataClassificationSet(
                     HartonomousDataClassifications.Health));
 
             // Set fallback redactor for any unclassified sensitive data

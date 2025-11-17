@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Threading;
@@ -238,7 +239,7 @@ Return only the URL(s), one per line.";
 
             // Use HtmlContentExtractor to parse HTML into atoms
             var htmlBytes = System.Text.Encoding.UTF8.GetBytes(html);
-            using var htmlStream = new System.IO.MemoryStream(htmlBytes);
+            using var htmlStream = new MemoryStream(htmlBytes);
 
             var context = new ContentExtractionContext(
                 ContentSourceType.Http,
@@ -270,7 +271,7 @@ Return only the URL(s), one per line.";
 
             // Use JsonApiContentExtractor to parse JSON into atoms
             var jsonBytes = System.Text.Encoding.UTF8.GetBytes(json);
-            using var jsonStream = new System.IO.MemoryStream(jsonBytes);
+            using var jsonStream = new MemoryStream(jsonBytes);
 
             var context = new ContentExtractionContext(
                 ContentSourceType.Http,

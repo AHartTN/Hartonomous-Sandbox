@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Linq;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
@@ -32,7 +34,7 @@ namespace Hartonomous.SqlClr
             int model = modelId.Value;
             int tenant = tenantId.IsNull ? 0 : tenantId.Value;
 
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
 
@@ -43,7 +45,7 @@ namespace Hartonomous.SqlClr
                     FROM dbo.Atoms
                     WHERE AtomId = @AtomId AND TenantId = @TenantId";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(contentQuery, conn))
+                using (var cmd = new SqlCommand(contentQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@AtomId", atom);
                     cmd.Parameters.AddWithValue("@TenantId", tenant);
@@ -64,7 +66,7 @@ namespace Hartonomous.SqlClr
                     FROM dbo.Models
                     WHERE ModelId = @ModelId";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(modelQuery, conn))
+                using (var cmd = new SqlCommand(modelQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@ModelId", model);
                     using (var reader = cmd.ExecuteReader())
@@ -118,7 +120,7 @@ namespace Hartonomous.SqlClr
             long atom2 = atomId2.Value;
             int tenant = tenantId.IsNull ? 0 : tenantId.Value;
 
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
 
@@ -132,7 +134,7 @@ namespace Hartonomous.SqlClr
                           AND e1.TenantId = @TenantId
                           AND e2.TenantId = @TenantId";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(compareQuery, conn))
+                using (var cmd = new SqlCommand(compareQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@AtomId1", atom1);
                     cmd.Parameters.AddWithValue("@AtomId2", atom2);
@@ -168,7 +170,7 @@ namespace Hartonomous.SqlClr
             long duplicate = duplicateAtomId.Value;
             int tenant = tenantId.IsNull ? 0 : tenantId.Value;
 
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
 
@@ -190,7 +192,7 @@ namespace Hartonomous.SqlClr
                     
                     SELECT @PrimaryAtomId;";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(mergeQuery, conn))
+                using (var cmd = new SqlCommand(mergeQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@PrimaryAtomId", primary);
                     cmd.Parameters.AddWithValue("@DuplicateAtomId", duplicate);
@@ -215,12 +217,12 @@ namespace Hartonomous.SqlClr
                 
             int embeddingDimension = 1536; // Will be read from model metadata
             
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
                 
                 // STEP 1: Load embedding model tensors from TensorAtoms
-                var modelTensors = new System.Collections.Generic.Dictionary<string, float[]>();
+                var modelTensors = new Dictionary<string, float[]>();
                 
                 var tensorQuery = @"
                     SELECT ta.TensorName, ta.WeightsRaw
@@ -230,7 +232,7 @@ namespace Hartonomous.SqlClr
                       AND m.JSON_VALUE(Config, '$.modelIdentifier') = @ModelIdentifier
                     ORDER BY ta.LayerIndex, ta.TensorName";
                 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(tensorQuery, conn))
+                using (var cmd = new SqlCommand(tensorQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@ModelIdentifier", modelIdentifier);
                     using (var reader = cmd.ExecuteReader())
@@ -293,7 +295,7 @@ namespace Hartonomous.SqlClr
         private static byte[] GenerateLocalEmbedding(string content)
         {
             // Use the locally ingested model (same as "OpenAI" but from Local model type)
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
                 
@@ -305,7 +307,7 @@ namespace Hartonomous.SqlClr
                     WHERE ModelType = 'Local' AND IsActive = 1
                     ORDER BY CreatedAt DESC";
                 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(configQuery, conn))
+                using (var cmd = new SqlCommand(configQuery, conn))
                 {
                     var result = cmd.ExecuteScalar();
                     if (result != null && result != DBNull.Value)
@@ -323,7 +325,7 @@ namespace Hartonomous.SqlClr
         /// Tokenize text using vocabulary stored in TensorAtoms (from ingested tokenizer).
         /// Queries the vocabulary GEOMETRY or binary data from your ingested model.
         /// </summary>
-        private static long[] TokenizeUsingVocabulary(System.Data.SqlClient.SqlConnection conn, string text, string modelIdentifier)
+        private static long[] TokenizeUsingVocabulary(SqlConnection conn, string text, string modelIdentifier)
         {
             // Query vocabulary JSON from TensorAtoms
             string vocabJson = null;

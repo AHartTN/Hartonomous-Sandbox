@@ -1,3 +1,4 @@
+using System;
 using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.IO;
@@ -9,7 +10,7 @@ public class Program
 {
     private static readonly HttpClient httpClient = new HttpClient
     {
-        BaseAddress = new System.Uri("http://localhost:5000") // Assuming the API runs locally
+        BaseAddress = new Uri("http://localhost:5000") // Assuming the API runs locally
     };
 
     public static async Task<int> Main(string[] args)

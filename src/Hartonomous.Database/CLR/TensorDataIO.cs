@@ -2,6 +2,7 @@ using Microsoft.SqlServer.Server;
 using System;
 using System.Data.SqlClient;
 using System.Data.SqlTypes;
+using System.IO;
 using System.Transactions;
 
 namespace Hartonomous.Clr
@@ -124,7 +125,7 @@ namespace Hartonomous.Clr
 
                     // Use the SqlFileStream API to read the data.
                     using (var fs = new SqlFileStream(filePath, txContext, System.IO.FileAccess.Read))
-                    using (var ms = new System.IO.MemoryStream())
+                    using (var ms = new MemoryStream())
                     {
                         fs.CopyTo(ms);
                         result = new SqlBytes(ms.ToArray());
@@ -163,8 +164,8 @@ namespace Hartonomous.Clr
                     return SqlBytes.Null;
                 }
 
-                using (var ms = new System.IO.MemoryStream())
-                using (var bw = new System.IO.BinaryWriter(ms))
+                using (var ms = new MemoryStream())
+                using (var bw = new BinaryWriter(ms))
                 {
                     foreach (var f in floats)
                     {
@@ -200,8 +201,8 @@ namespace Hartonomous.Clr
                 int floatCount = (int)(bytes.Length / 4);
                 float[] floats = new float[floatCount];
 
-                using (var ms = new System.IO.MemoryStream(bytes.Value))
-                using (var br = new System.IO.BinaryReader(ms))
+                using (var ms = new MemoryStream(bytes.Value))
+                using (var br = new BinaryReader(ms))
                 {
                     for (int i = 0; i < floatCount; i++)
                     {
@@ -220,3 +221,4 @@ namespace Hartonomous.Clr
         }
     }
 }
+

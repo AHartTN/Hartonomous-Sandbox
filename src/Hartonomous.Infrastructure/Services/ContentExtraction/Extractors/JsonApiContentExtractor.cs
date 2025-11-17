@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
@@ -94,7 +95,7 @@ public sealed class JsonApiContentExtractor : IContentExtractor
 
             // Fallback: treat as plain text
             context.ContentStream.Position = 0;
-            using var reader = new System.IO.StreamReader(context.ContentStream);
+            using var reader = new StreamReader(context.ContentStream);
             var content = await reader.ReadToEndAsync();
 
             var fallbackAtom = new AtomIngestionRequestBuilder()

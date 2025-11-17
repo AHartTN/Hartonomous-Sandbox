@@ -1,3 +1,4 @@
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data;
@@ -130,8 +131,8 @@ public class CleanupJobProcessor : IJobProcessor<CleanupJobPayload>
             deletedInBatch = await _context.Database.ExecuteSqlRawAsync(
                 sql,
                 new object[] {
-                    new Microsoft.Data.SqlClient.SqlParameter("@BatchSize", batchSize),
-                    new Microsoft.Data.SqlClient.SqlParameter("@CutoffDate", cutoffDate)
+                    new SqlParameter("@BatchSize", batchSize),
+                    new SqlParameter("@CutoffDate", cutoffDate)
                 },
                 cancellationToken);
 
@@ -162,8 +163,8 @@ public class CleanupJobProcessor : IJobProcessor<CleanupJobPayload>
             deletedInBatch = await _context.Database.ExecuteSqlRawAsync(
                 sql,
                 new object[] {
-                    new Microsoft.Data.SqlClient.SqlParameter("@BatchSize", batchSize),
-                    new Microsoft.Data.SqlClient.SqlParameter("@CutoffDate", cutoffDate)
+                    new SqlParameter("@BatchSize", batchSize),
+                    new SqlParameter("@CutoffDate", cutoffDate)
                 },
                 cancellationToken);
 

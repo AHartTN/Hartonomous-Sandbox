@@ -13,6 +13,7 @@ using SixLabors.ImageSharp.Processing;
 using MathNet.Numerics;
 using MathNet.Numerics.IntegralTransforms;
 using System.Data;
+using System.Numerics;
 using Hartonomous.Data.Entities;
 
 namespace Hartonomous.Infrastructure.Services;
@@ -815,10 +816,10 @@ public sealed class EmbeddingService : IEmbeddingService
             
             // Ensure power of 2 length for FFT
             int fftSize = 512;
-            var paddedSamples = new System.Numerics.Complex[fftSize];
+            var paddedSamples = new Complex[fftSize];
             for (int i = 0; i < Math.Min(samples.Length, fftSize); i++)
             {
-                paddedSamples[i] = new System.Numerics.Complex(samples[i], 0);
+                paddedSamples[i] = new Complex(samples[i], 0);
             }
             
             // Apply Hamming window
@@ -875,10 +876,10 @@ public sealed class EmbeddingService : IEmbeddingService
             // Get FFT spectrum first
             var samples = audioData.Select(b => (double)(b - 128) / 128.0).ToArray();
             int fftSize = 512;
-            var paddedSamples = new System.Numerics.Complex[fftSize];
+            var paddedSamples = new Complex[fftSize];
             for (int i = 0; i < Math.Min(samples.Length, fftSize); i++)
             {
-                paddedSamples[i] = new System.Numerics.Complex(samples[i], 0);
+                paddedSamples[i] = new Complex(samples[i], 0);
             }
             
             Fourier.Forward(paddedSamples, FourierOptions.Matlab);

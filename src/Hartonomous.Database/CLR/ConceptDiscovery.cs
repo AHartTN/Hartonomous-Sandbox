@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
@@ -37,7 +38,7 @@ namespace Hartonomous.Clr
 
             var concepts = new List<ConceptCandidate>();
 
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
 
@@ -53,7 +54,7 @@ namespace Hartonomous.Clr
                     HAVING COUNT(*) >= @MinClusterSize
                     ORDER BY COUNT(*) DESC";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(bucketQuery, conn))
+                using (var cmd = new SqlCommand(bucketQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@MinClusterSize", minSize);
                     cmd.Parameters.AddWithValue("@TenantId", tenant);
@@ -163,7 +164,7 @@ namespace Hartonomous.Clr
         /// Averages all embeddings in the cluster's spatial buckets
         /// </summary>
         private static byte[] ComputeClusterCentroid(
-            System.Data.SqlClient.SqlConnection conn,
+            SqlConnection conn,
             List<(int Bucket, int Count, double AvgMag)> cluster,
             int tenantId)
         {
@@ -176,7 +177,7 @@ namespace Hartonomous.Clr
                 WHERE ae.SpatialBucket IN ({bucketIds}) AND ta.TenantId = @TenantId
                 ORDER BY NEWID()"; // Random representative (could use actual centroid computation)
 
-            using (var cmd = new System.Data.SqlClient.SqlCommand(centroidQuery, conn))
+            using (var cmd = new SqlCommand(centroidQuery, conn))
             {
                 cmd.Parameters.AddWithValue("@TenantId", tenantId);
                 var result = cmd.ExecuteScalar();
@@ -189,7 +190,7 @@ namespace Hartonomous.Clr
         /// Higher coherence = tighter cluster = better concept
         /// </summary>
         private static double ComputeClusterCoherence(
-            System.Data.SqlClient.SqlConnection conn,
+            SqlConnection conn,
             List<(int Bucket, int Count, double AvgMag)> cluster,
             byte[] centroid,
             int tenantId)
@@ -211,7 +212,7 @@ namespace Hartonomous.Clr
                     ORDER BY NEWID()
                 ) AS Sample";
 
-            using (var cmd = new System.Data.SqlClient.SqlCommand(coherenceQuery, conn))
+            using (var cmd = new SqlCommand(coherenceQuery, conn))
             {
                 cmd.Parameters.Add("@Centroid", System.Data.SqlDbType.VarBinary).Value = centroid;
                 cmd.Parameters.AddWithValue("@TenantId", tenantId);
@@ -260,7 +261,7 @@ namespace Hartonomous.Clr
 
             var bindings = new List<BindingResult>();
 
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
 
@@ -271,7 +272,7 @@ namespace Hartonomous.Clr
                     FROM dbo.AtomEmbeddings
                     WHERE AtomId = @AtomId AND TenantId = @TenantId";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(getEmbeddingQuery, conn))
+                using (var cmd = new SqlCommand(getEmbeddingQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@AtomId", atom);
                     cmd.Parameters.AddWithValue("@TenantId", tenant);
@@ -291,7 +292,7 @@ namespace Hartonomous.Clr
                     WHERE TenantId = @TenantId
                     ORDER BY Similarity DESC";
 
-                using (var cmd = new System.Data.SqlClient.SqlCommand(findConceptsQuery, conn))
+                using (var cmd = new SqlCommand(findConceptsQuery, conn))
                 {
                     cmd.Parameters.AddWithValue("@MaxConcepts", maxConcepts);
                     cmd.Parameters.Add("@AtomEmbedding", System.Data.SqlDbType.VarBinary).Value = atomEmbedding;
@@ -363,7 +364,7 @@ namespace Hartonomous.Clr
 
             var bindings = new List<AtomBinding>();
 
-            using (var conn = new System.Data.SqlClient.SqlConnection("context connection=true"))
+            using (var conn = new SqlConnection("context connection=true"))
             {
                 conn.Open();
 
@@ -377,7 +378,7 @@ namespace Hartonomous.Clr
             INNER JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
             WHERE ta.TenantId = @TenantId
             HAVING (1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, CAST(@Centroid AS VECTOR(1998)))) >= @Threshold
-            ORDER BY Similarity DESC";                using (var cmd = new System.Data.SqlClient.SqlCommand(query, conn))
+            ORDER BY Similarity DESC";                using (var cmd = new SqlCommand(query, conn))
                 {
                     cmd.Parameters.Add("@Centroid", System.Data.SqlDbType.VarBinary, -1).Value = conceptCentroid.Value;
                     cmd.Parameters.AddWithValue("@TenantId", tenant);
@@ -425,3 +426,4 @@ namespace Hartonomous.Clr
         }
     }
 }
+

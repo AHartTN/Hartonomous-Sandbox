@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text.Json;
 using Hartonomous.Data;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data.Entities;
@@ -176,12 +177,12 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
         var connection = _context.Database.GetDbConnection();
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@StartDate", payload.StartDateUtc));
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@EndDate", payload.EndDateUtc));
+        command.Parameters.Add(new SqlParameter("@StartDate", payload.StartDateUtc));
+        command.Parameters.Add(new SqlParameter("@EndDate", payload.EndDateUtc));
 
         if (payload.TenantId.HasValue)
         {
-            command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@TenantId", payload.TenantId.Value));
+            command.Parameters.Add(new SqlParameter("@TenantId", payload.TenantId.Value));
         }
 
         if (connection.State != System.Data.ConnectionState.Open)
@@ -241,12 +242,12 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
         var connection = _context.Database.GetDbConnection();
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@StartDate", payload.StartDateUtc));
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@EndDate", payload.EndDateUtc));
+        command.Parameters.Add(new SqlParameter("@StartDate", payload.StartDateUtc));
+        command.Parameters.Add(new SqlParameter("@EndDate", payload.EndDateUtc));
 
         if (payload.TenantId.HasValue)
         {
-            command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@TenantId", payload.TenantId.Value));
+            command.Parameters.Add(new SqlParameter("@TenantId", payload.TenantId.Value));
         }
 
         if (connection.State != System.Data.ConnectionState.Open)
@@ -302,12 +303,12 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
         var connection = _context.Database.GetDbConnection();
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@StartDate", payload.StartDateUtc));
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@EndDate", payload.EndDateUtc));
+        command.Parameters.Add(new SqlParameter("@StartDate", payload.StartDateUtc));
+        command.Parameters.Add(new SqlParameter("@EndDate", payload.EndDateUtc));
 
         if (payload.TenantId.HasValue)
         {
-            command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@TenantId", payload.TenantId.Value));
+            command.Parameters.Add(new SqlParameter("@TenantId", payload.TenantId.Value));
         }
 
         if (connection.State != System.Data.ConnectionState.Open)
@@ -362,12 +363,12 @@ public class AnalyticsJobProcessor : IJobProcessor<AnalyticsJobPayload>
         var connection = _context.Database.GetDbConnection();
         await using var command = connection.CreateCommand();
         command.CommandText = sql;
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@StartDate", payload.StartDateUtc));
-        command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@EndDate", payload.EndDateUtc));
+        command.Parameters.Add(new SqlParameter("@StartDate", payload.StartDateUtc));
+        command.Parameters.Add(new SqlParameter("@EndDate", payload.EndDateUtc));
 
         if (payload.TenantId.HasValue)
         {
-            command.Parameters.Add(new Microsoft.Data.SqlClient.SqlParameter("@TenantId", payload.TenantId.Value));
+            command.Parameters.Add(new SqlParameter("@TenantId", payload.TenantId.Value));
         }
 
         if (connection.State != System.Data.ConnectionState.Open)

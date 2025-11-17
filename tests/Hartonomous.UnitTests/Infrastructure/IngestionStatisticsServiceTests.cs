@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -83,19 +84,20 @@ public sealed class IngestionStatisticsServiceTests
         public Task<IEnumerable<Model>> GetAllAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(_models.AsEnumerable());
 
-        public Task<Model?> GetByIdAsync(int modelId, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<Model?> GetByNameAsync(string modelName, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<IEnumerable<Model>> GetByTypeAsync(string modelType, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<Model> AddAsync(Model model, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task UpdateAsync(Model model, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task DeleteAsync(int modelId, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<bool> ExistsAsync(int modelId, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<ModelLayer> AddLayerAsync(int modelId, ModelLayer layer, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task UpdateLayerWeightsAsync(int layerId, Microsoft.Data.SqlTypes.SqlVector<float> weights, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<IEnumerable<Model>> GetModelsByCapabilityAsync(TaskType[] tasks, Modality requiredModalities = Modality.None, int minCount = 1, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<List<Model>> GetByIdsAsync(IReadOnlyList<int> modelIds, CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
-        public Task<List<Model>> GetActiveModelsAsync(CancellationToken cancellationToken = default) => throw new System.NotSupportedException();
+        public Task<Model?> GetByIdAsync(int modelId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Model?> GetByNameAsync(string modelName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IEnumerable<Model>> GetByTypeAsync(string modelType, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<Model> AddAsync(Model model, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UpdateAsync(Model model, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteAsync(int modelId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<bool> ExistsAsync(int modelId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<int> GetCountAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<ModelLayer> AddLayerAsync(int modelId, ModelLayer layer, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task UpdateLayerWeightsAsync(int layerId, Microsoft.Data.SqlTypes.SqlVector<float> weights, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IEnumerable<ModelLayer>> GetLayersByModelIdAsync(int modelId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<IEnumerable<Model>> GetModelsByCapabilityAsync(TaskType[] tasks, Modality requiredModalities = Modality.None, int minCount = 1, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<Model>> GetByIdsAsync(IReadOnlyList<int> modelIds, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<List<Model>> GetActiveModelsAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }
+

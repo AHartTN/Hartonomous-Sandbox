@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Data.SqlTypes;
+using System.Diagnostics;
 using System.IO;
 using System.Text;
 using Microsoft.SqlServer.Server;
@@ -169,7 +171,7 @@ namespace Hartonomous.Clr
             SqlString workingDirectory,
             SqlInt32 timeoutSeconds)
         {
-            var results = new System.Collections.Generic.List<ShellOutputRow>();
+            var results = new List<ShellOutputRow>();
 
             if (executable.IsNull)
             {
@@ -184,7 +186,7 @@ namespace Hartonomous.Clr
                 int timeout = timeoutSeconds.IsNull ? 30 : timeoutSeconds.Value;
 
                 // SECURITY FIX: Use ProcessStartInfo.ArgumentList to prevent injection
-                var processInfo = new System.Diagnostics.ProcessStartInfo
+                var processInfo = new ProcessStartInfo
                 {
                     FileName = exe,
                     WorkingDirectory = workDir,
