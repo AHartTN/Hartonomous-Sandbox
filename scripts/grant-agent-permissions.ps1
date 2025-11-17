@@ -3,14 +3,22 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$Server,
     
-    [Parameter(Mandatory=$false)]
+    [Parameter()]
     [switch]$UseAzureAD,
     
-    [Parameter(Mandatory=$false)]
+    [Parameter()]
     [string]$AccessToken
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Load local dev config
+$scriptRoot = $PSScriptRoot
+$localConfig = & (Join-Path $scriptRoot "local-dev-config.ps1")
+
+# Use config defaults if not specified
+if (-not $Server) { $Server = $localConfig.SqlServer }
+if (-not $Database) { $Database = $localConfig.Database }
 
 if (-not (Get-Module -ListAvailable -Name SqlServer)) {
   Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser

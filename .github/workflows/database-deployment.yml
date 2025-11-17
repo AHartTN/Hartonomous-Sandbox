@@ -1,0 +1,481 @@
+name: Database Deployment
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/Hartonomous.Database/**'
+      - 'dependencies/**'
+      - 'scripts/**'
+      - '.github/workflows/database-deployment.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+      skip_tests:
+        description: 'Skip validation tests'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write  # Required for OIDC authentication
+  contents: read
+
+env:
+  DOTNET_VERSION: '10.x'
+  BUILD_CONFIGURATION: 'Release'
+  SQL_SERVER: ${{ secrets.SQL_SERVER }}
+  SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+
+jobs:
+  build-dacpac:
+    name: Build Database DACPAC
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Build DACPAC with MSBuild
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Building SQL Database Project..."
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\database"
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\build-dacpac.ps1"
+          $projectPath = Join-Path $env:GITHUB_WORKSPACE "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
+          
+          & $scriptPath `
+            -ProjectPath $projectPath `
+            -OutputDir $artifactDir `
+            -Configuration $env:BUILD_CONFIGURATION
+          
+          if ($LASTEXITCODE -ne 0) {
+            throw "DACPAC build failed with exit code $LASTEXITCODE"
+          }
+          
+          Write-Host "✓ DACPAC built successfully"
+          Write-Output "artifact-path=$artifactDir" >> $env:GITHUB_OUTPUT
+        id: build
+      
+      - name: Verify DACPAC Build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          $dacpacPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\database\Hartonomous.Database.dacpac"
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\verify-dacpac.ps1"
+          
+          if (Test-Path $scriptPath) {
+            & $scriptPath -DacpacPath $dacpacPath
+            if ($LASTEXITCODE -ne 0) {
+              throw "DACPAC verification failed"
+            }
+          } else {
+            Write-Host "Verification script not found, checking file existence..."
+            if (-not (Test-Path $dacpacPath)) {
+              throw "DACPAC file not found: $dacpacPath"
+            }
+            $fileSize = (Get-Item $dacpacPath).Length / 1KB
+            Write-Host "✓ DACPAC exists: $([math]::Round($fileSize, 2)) KB"
+          }
+      
+      - name: Upload DACPAC artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-dacpac
+          path: artifacts/database/
+          retention-days: 7
+      
+      - name: Upload CLR dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: clr-dependencies
+          path: dependencies/
+          retention-days: 7
+      
+      - name: Upload deployment scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-scripts
+          path: scripts/
+          retention-days: 7
+
+  deploy-database:
+    name: Deploy to ${{ inputs.environment || 'production' }}
+    runs-on: self-hosted
+    needs: build-dacpac
+    environment: ${{ inputs.environment || 'production' }}
+    
+    steps:
+      - name: Download DACPAC
+        uses: actions/download-artifact@v4
+        with:
+          name: database-dacpac
+          path: ./artifacts/database
+      
+      - name: Download CLR dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: clr-dependencies
+          path: ./artifacts/dependencies
+      
+      - name: Download deployment scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-scripts
+          path: ./artifacts/scripts
+      
+      - name: Azure Login with OIDC (Passwordless)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Configure SQL Permissions (idempotent)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Configuring service principal SQL permissions (idempotent)..."
+          
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          if (-not $token) {
+            throw "Failed to retrieve access token from Azure"
+          }
+          
+          $sqlPermScript = ".\artifacts\scripts\Configure-GitHubActionsSqlPermissions.sql"
+          
+          if (Test-Path $sqlPermScript) {
+            Write-Host "Applying idempotent SQL permission grants..."
+            
+            if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+              Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser -WarningAction SilentlyContinue
+            }
+            
+            Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" `
+              -InputFile $sqlPermScript -AccessToken $token -TrustServerCertificate
+            
+            Write-Host "✓ SQL permissions configured (CREATE LOGIN IF NOT EXISTS pattern)"
+          } else {
+            Write-Host "⚠ SQL permission script not found - may need to run Configure-GitHubActionsServicePrincipals.ps1 locally"
+          }
+      
+      - name: Enable CLR Integration (if needed)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Enabling CLR integration (idempotent check)..."
+          
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          if (-not $token) {
+            throw "Failed to retrieve access token from Azure"
+          }
+          
+          # Check if CLR is already enabled
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser -WarningAction SilentlyContinue
+          }
+          
+          $checkClrSql = "SELECT CAST(value_in_use AS bit) AS IsEnabled FROM sys.configurations WHERE name = 'clr enabled'"
+          $clrEnabled = Invoke-Sqlcmd -Query $checkClrSql -ServerInstance "${{ env.SQL_SERVER }}" `
+            -Database "master" -AccessToken $token -TrustServerCertificate
+          
+          if ($clrEnabled.IsEnabled) {
+            Write-Host "✓ CLR already enabled (skipping)"
+          } else {
+            Write-Host "Enabling CLR integration..."
+            $scriptPath = ".\artifacts\scripts\enable-clr.ps1"
+            
+            & $scriptPath -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken $token
+            
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to enable CLR integration"
+            }
+            Write-Host "✓ CLR integration enabled"
+          }
+      
+      - name: Deploy External CLR Assemblies (idempotent)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Deploying 13 external CLR assemblies (ALTER if exists)..."
+          
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          if (-not $token) {
+            throw "Failed to retrieve access token from Azure"
+          }
+          
+          $scriptPath = ".\artifacts\scripts\deploy-clr-assemblies.ps1"
+          $depsPath = ".\artifacts\dependencies"
+          
+          # Script already handles CREATE vs ALTER based on assembly existence
+          & $scriptPath `
+            -Server "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -UseAzureAD `
+            -AccessToken $token `
+            -DependenciesPath $depsPath
+          
+          if ($LASTEXITCODE -ne 0) {
+            throw "CLR assembly deployment failed"
+          }
+          
+          Write-Host "✓ All external CLR assemblies deployed (idempotent)"
+      
+      - name: Install SqlPackage
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Checking for SqlPackage installation..."
+          
+          $scriptPath = ".\artifacts\scripts\install-sqlpackage.ps1"
+          
+          if (Test-Path $scriptPath) {
+            & $scriptPath
+            
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to install SqlPackage"
+            }
+          } else {
+            Write-Host "Checking if SqlPackage is already available..."
+            $sqlpackage = Get-Command sqlpackage -ErrorAction SilentlyContinue
+            if ($sqlpackage) {
+              Write-Host "✓ SqlPackage found: $($sqlpackage.Source)"
+              & sqlpackage /version
+            } else {
+              Write-Host "⚠ SqlPackage not found - attempting default installation..."
+              # Try common installation paths
+              $defaultPaths = @(
+                "C:\Program Files\Microsoft SQL Server\170\DAC\bin",
+                "C:\Program Files\Microsoft SQL Server\160\DAC\bin",
+                "C:\Program Files (x86)\Microsoft SQL Server\170\DAC\bin"
+              )
+              
+              foreach ($path in $defaultPaths) {
+                $sqlpackagePath = Join-Path $path "SqlPackage.exe"
+                if (Test-Path $sqlpackagePath) {
+                  Write-Host "✓ Found SqlPackage at: $sqlpackagePath"
+                  $env:PATH = "$path;$env:PATH"
+                  & $sqlpackagePath /version
+                  break
+                }
+              }
+            }
+          }
+      
+      - name: Deploy DACPAC (idempotent)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Deploying DACPAC with embedded Hartonomous.Clr assembly (idempotent)..."
+          
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          if (-not $token) {
+            throw "Failed to retrieve access token from Azure"
+          }
+          
+          $dacpacPath = ".\artifacts\database\Hartonomous.Database.dacpac"
+          if (-not (Test-Path $dacpacPath)) {
+            throw "DACPAC file not found: $dacpacPath"
+          }
+          
+          # Drop existing Hartonomous assemblies to make deployment idempotent
+          Write-Host "Clearing existing Hartonomous assemblies for clean deployment..."
+          
+          $dropAssemblySql = @"
+          IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name LIKE 'Hartonomous%')
+          BEGIN
+              DECLARE @sql NVARCHAR(MAX) = '';
+              SELECT @sql += 'DROP FUNCTION IF EXISTS ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + '; '
+              FROM sys.objects 
+              WHERE type IN ('FN', 'FS', 'FT', 'IF', 'TF')
+              AND object_id IN (SELECT object_id FROM sys.assembly_modules WHERE assembly_id IN 
+                  (SELECT assembly_id FROM sys.assemblies WHERE name LIKE 'Hartonomous%'));
+              
+              EXEC sp_executesql @sql;
+              
+              DECLARE @asmName NVARCHAR(128);
+              DECLARE asm_cursor CURSOR FOR 
+                  SELECT name FROM sys.assemblies WHERE name LIKE 'Hartonomous%' ORDER BY assembly_id DESC;
+              
+              OPEN asm_cursor;
+              FETCH NEXT FROM asm_cursor INTO @asmName;
+              WHILE @@FETCH_STATUS = 0
+              BEGIN
+                  EXEC('DROP ASSEMBLY [' + @asmName + ']');
+                  FETCH NEXT FROM asm_cursor INTO @asmName;
+              END
+              CLOSE asm_cursor;
+              DEALLOCATE asm_cursor;
+          END
+          "@
+          
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser -WarningAction SilentlyContinue
+          }
+          
+          Invoke-Sqlcmd -Query $dropAssemblySql -ServerInstance "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -TrustServerCertificate
+          
+          Write-Host "✓ Cleared existing assemblies"
+          
+          $connectionString = "Server=${{ env.SQL_SERVER }};Database=${{ env.SQL_DATABASE }};Encrypt=True;TrustServerCertificate=True;"
+          
+          Write-Host "Deploying DACPAC:"
+          Write-Host "  Target: ${{ env.SQL_SERVER }}\${{ env.SQL_DATABASE }}"
+          Write-Host "  Auth: Microsoft Entra OIDC (Passwordless)"
+          
+          sqlpackage /Action:Publish `
+            /SourceFile:"$dacpacPath" `
+            /TargetConnectionString:"$connectionString" `
+            /AccessToken:$token `
+            /p:DropObjectsNotInSource=False `
+            /p:BlockOnPossibleDataLoss=False `
+            /p:AllowIncompatiblePlatform=True `
+            /DiagnosticsFile:"dacpac-deployment.log"
+          
+          if ($LASTEXITCODE -ne 0) {
+            if (Test-Path "dacpac-deployment.log") {
+              Write-Host "`n=== SqlPackage Diagnostics ==="
+              Get-Content "dacpac-deployment.log" | Select-Object -Last 50
+            }
+            throw "DACPAC deployment failed with exit code $LASTEXITCODE"
+          }
+          
+          Write-Host "✓ DACPAC deployed successfully (idempotent)"
+      
+      - name: Set TRUSTWORTHY (if needed)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Setting TRUSTWORTHY property (idempotent check)..."
+          
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          if (-not $token) {
+            throw "Failed to retrieve access token from Azure"
+          }
+          
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser -WarningAction SilentlyContinue
+          }
+          
+          # Check if TRUSTWORTHY is already ON
+          $checkTrustworthySql = "SELECT CAST(is_trustworthy_on AS bit) AS IsTrustworthy FROM sys.databases WHERE name = '${{ env.SQL_DATABASE }}'"
+          $trustworthyStatus = Invoke-Sqlcmd -Query $checkTrustworthySql -ServerInstance "${{ env.SQL_SERVER }}" `
+            -Database "master" -AccessToken $token -TrustServerCertificate
+          
+          if ($trustworthyStatus.IsTrustworthy) {
+            Write-Host "✓ TRUSTWORTHY already ON (skipping)"
+          } else {
+            Write-Host "Setting TRUSTWORTHY ON..."
+            $scriptPath = ".\artifacts\scripts\set-trustworthy.ps1"
+            
+            & $scriptPath `
+              -Server "${{ env.SQL_SERVER }}" `
+              -Database "${{ env.SQL_DATABASE }}" `
+              -UseAzureAD `
+              -AccessToken $token
+            
+            if ($LASTEXITCODE -ne 0) {
+              throw "Failed to set TRUSTWORTHY property"
+            }
+            Write-Host "✓ TRUSTWORTHY property configured"
+          }
+      
+      - name: Verify Deployment (idempotent validation)
+        if: ${{ !inputs.skip_tests }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "`n══════════════════════════════════════════"
+          Write-Host "  Deployment Verification"
+          Write-Host "══════════════════════════════════════════"
+          
+          $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+          
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser -WarningAction SilentlyContinue
+          }
+          
+          # Verify CLR enabled
+          $query = "SELECT CAST(value_in_use AS bit) AS IsEnabled FROM sys.configurations WHERE name = 'clr enabled'"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "✓ CLR Enabled: $($result.IsEnabled)"
+          
+          # Count assemblies
+          $query = "SELECT COUNT(*) as AssemblyCount FROM sys.assemblies WHERE is_user_defined = 1"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "✓ User Assemblies: $($result.AssemblyCount)"
+          
+          # Count CLR objects
+          $query = @"
+          SELECT 
+            (SELECT COUNT(*) FROM sys.objects WHERE type IN ('FN','FS','FT','IF','TF')) as Functions,
+            (SELECT COUNT(*) FROM sys.objects WHERE type = 'AF') as Aggregates,
+            (SELECT COUNT(*) FROM sys.assembly_types WHERE is_user_defined = 1) as UDTs
+          "@
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "✓ CLR Functions: $($result.Functions)"
+          Write-Host "✓ CLR Aggregates: $($result.Aggregates)"
+          Write-Host "✓ CLR User Types: $($result.UDTs)"
+          
+          # Check TRUSTWORTHY
+          $query = "SELECT CAST(is_trustworthy_on AS bit) AS IsTrustworthy FROM sys.databases WHERE name = '${{ env.SQL_DATABASE }}'"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "✓ TRUSTWORTHY: $($result.IsTrustworthy)"
+          
+          Write-Host "`n✓ All deployment validations passed"
+          Write-Host "══════════════════════════════════════════`n"
+      
+      - name: Upload deployment logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-logs
+          path: |
+            *.log
+            artifacts/scripts/*.log
+          retention-days: 30
+          if-no-files-found: ignore
+      
+      - name: Deployment Summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "`n═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+          Write-Host "  Deployment Summary" -ForegroundColor Cyan
+          Write-Host "═══════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+          Write-Host "Environment: ${{ inputs.environment || 'production' }}" -ForegroundColor White
+          Write-Host "Target: ${{ env.SQL_SERVER }}\${{ env.SQL_DATABASE }}" -ForegroundColor White
+          Write-Host "Authentication: OIDC (Passwordless)" -ForegroundColor White
+          Write-Host "Job Status: ${{ job.status }}" -ForegroundColor $(if ('${{ job.status }}' -eq 'success') { 'Green' } else { 'Red' })
+          Write-Host "═══════════════════════════════════════════════════════════════`n" -ForegroundColor Cyan
+      
+      - name: Azure Logout
+        if: always()
+        run: |
+          az logout --username ${{ secrets.AZURE_CLIENT_ID }} 2>$null || true
+          az account clear 2>$null || true

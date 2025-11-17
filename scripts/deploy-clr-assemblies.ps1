@@ -47,29 +47,40 @@
 
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$Server,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$Database,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [switch]$UseAzureAD,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [string]$AccessToken,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [string]$Username,
 
-    [Parameter(Mandatory = $false)]
+    [Parameter()]
     [string]$Password,
 
-    [Parameter(Mandatory = $true)]
+    [Parameter()]
     [string]$DependenciesPath
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Load local dev config
+$scriptRoot = $PSScriptRoot
+$localConfig = & (Join-Path $scriptRoot "local-dev-config.ps1")
+
+# Use config defaults if not specified
+if (-not $Server) { $Server = $localConfig.SqlServer }
+if (-not $Database) { $Database = $localConfig.Database }
+if (-not $DependenciesPath) { 
+    $DependenciesPath = Join-Path (Split-Path $scriptRoot -Parent) $localConfig.ClrDependenciesPath 
+}
 
 # Validate authentication parameters
 if ($UseAzureAD) {

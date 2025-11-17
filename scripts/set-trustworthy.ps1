@@ -1,19 +1,27 @@
 #Requires -Version 7.0
 param(
-    [Parameter(Mandatory=$true)]
+    [Parameter()]
     [string]$Server,
     
-    [Parameter(Mandatory=$true)]
+    [Parameter()]
     [string]$Database,
     
-    [Parameter(Mandatory=$false)]
+    [Parameter()]
     [switch]$UseAzureAD,
     
-    [Parameter(Mandatory=$false)]
+    [Parameter()]
     [string]$AccessToken
 )
 
 $ErrorActionPreference = 'Stop'
+
+# Load local dev config
+$scriptRoot = $PSScriptRoot
+$localConfig = & (Join-Path $scriptRoot "local-dev-config.ps1")
+
+# Use config defaults if not specified
+if (-not $Server) { $Server = $localConfig.SqlServer }
+if (-not $Database) { $Database = $localConfig.Database }
 
 $sql = "USE master; ALTER DATABASE [$Database] SET TRUSTWORTHY ON; PRINT 'TRUSTWORTHY enabled for $Database';"
 $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"

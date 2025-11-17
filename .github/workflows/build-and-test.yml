@@ -1,0 +1,304 @@
+name: Build and Test
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '*.sln'
+      - '.github/workflows/build-and-test.yml'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  DOTNET_VERSION: '10.x'
+  BUILD_CONFIGURATION: 'Release'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_NOLOGO: 'true'
+
+jobs:
+  build-and-test:
+    name: Build and Test .NET Solution
+    runs-on: self-hosted
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Full history for better analysis
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Display .NET Info
+        run: dotnet --info
+      
+      - name: Restore NuGet packages
+        run: |
+          Write-Host "Restoring NuGet packages..."
+          dotnet restore Hartonomous.sln --verbosity minimal
+        shell: pwsh
+      
+      - name: Build solution
+        run: |
+          Write-Host "Building solution in ${{ env.BUILD_CONFIGURATION }} mode..."
+          dotnet build Hartonomous.sln `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore `
+            --verbosity minimal
+        shell: pwsh
+      
+      - name: Run unit tests
+        run: |
+          Write-Host "Running unit tests..."
+          dotnet test tests/**/*Tests.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-build `
+            --collect:"XPlat Code Coverage" `
+            --logger "trx;LogFileName=test-results.trx" `
+            --results-directory ./TestResults `
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+        shell: pwsh
+      
+      - name: Publish test results
+        uses: dorny/test-reporter@v1
+        if: always()
+        with:
+          name: .NET Test Results
+          path: 'TestResults/*.trx'
+          reporter: dotnet-trx
+          fail-on-error: true
+      
+      - name: Upload code coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: 'TestResults/**/coverage.opencover.xml'
+          flags: unittests
+          name: codecov-hartonomous
+          fail_ci_if_error: false
+          verbose: true
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      
+      - name: Build summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "`n=== Build Summary ==="
+          
+          $testResults = Get-ChildItem -Path "TestResults" -Filter "*.trx" -Recurse | Select-Object -First 1
+          
+          if ($testResults) {
+            [xml]$trx = Get-Content $testResults.FullName
+            $counters = $trx.TestRun.ResultSummary.Counters
+            
+            Write-Host "Tests Total: $($counters.total)"
+            Write-Host "Tests Passed: $($counters.passed)"
+            Write-Host "Tests Failed: $($counters.failed)"
+            Write-Host "Tests Skipped: $($counters.notExecuted)"
+            
+            $summary = @"
+          ## Test Results
+          - ✅ Passed: $($counters.passed)
+          - ❌ Failed: $($counters.failed)
+          - ⏭️ Skipped: $($counters.notExecuted)
+          - 📊 Total: $($counters.total)
+          "@
+            
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
+          }
+
+  build-applications:
+    name: Build Applications
+    runs-on: self-hosted
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore Hartonomous.sln
+      
+      - name: Publish Hartonomous.Api
+        shell: pwsh
+        run: |
+          Write-Host "Publishing Hartonomous.Api..."
+          
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\api"
+          
+          dotnet publish src/Hartonomous.Api/Hartonomous.Api.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --output $outputPath `
+            --no-restore `
+            /p:PublishSingleFile=false `
+            /p:PublishTrimmed=false
+          
+          Write-Host "✓ Hartonomous.Api published to: $outputPath"
+      
+      - name: Publish Hartonomous.Workers.CesConsumer
+        shell: pwsh
+        run: |
+          Write-Host "Publishing CesConsumer worker..."
+          
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\ces-consumer"
+          
+          dotnet publish src/Hartonomous.Workers.CesConsumer/Hartonomous.Workers.CesConsumer.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --output $outputPath `
+            --no-restore
+          
+          Write-Host "✓ CesConsumer published to: $outputPath"
+      
+      - name: Publish Hartonomous.Workers.Neo4jSync
+        shell: pwsh
+        run: |
+          Write-Host "Publishing Neo4jSync worker..."
+          
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\neo4j-sync"
+          
+          dotnet publish src/Hartonomous.Workers.Neo4jSync/Hartonomous.Workers.Neo4jSync.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --output $outputPath `
+            --no-restore
+          
+          Write-Host "✓ Neo4jSync published to: $outputPath"
+      
+      - name: Copy deployment scripts
+        shell: pwsh
+        run: |
+          $scriptsSource = Join-Path $env:GITHUB_WORKSPACE "scripts"
+          $scriptsDest = Join-Path $env:GITHUB_WORKSPACE "artifacts\scripts"
+          
+          Write-Host "Copying deployment scripts..."
+          Copy-Item -Path $scriptsSource -Destination $scriptsDest -Recurse -Force
+          
+          Write-Host "✓ Scripts copied to artifacts"
+      
+      - name: Copy stored procedures
+        shell: pwsh
+        run: |
+          $procsSource = Join-Path $env:GITHUB_WORKSPACE "src\Hartonomous.Database\Procedures"
+          $procsDest = Join-Path $env:GITHUB_WORKSPACE "artifacts\database\Procedures"
+          
+          if (Test-Path $procsSource) {
+            Write-Host "Copying stored procedures..."
+            New-Item -ItemType Directory -Path $procsDest -Force | Out-Null
+            Copy-Item -Path "$procsSource\*.sql" -Destination $procsDest -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host "✓ Stored procedures copied to artifacts"
+          } else {
+            Write-Host "⚠ Stored procedures directory not found: $procsSource"
+          }
+      
+      - name: Create version info
+        shell: pwsh
+        run: |
+          $versionInfo = @{
+            Version = "${{ github.run_number }}"
+            Commit = "${{ github.sha }}"
+            Branch = "${{ github.ref_name }}"
+            BuildDate = (Get-Date -Format "yyyy-MM-dd HH:mm:ss")
+            Workflow = "${{ github.workflow }}"
+            Actor = "${{ github.actor }}"
+          }
+          
+          $versionPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\version.json"
+          $versionInfo | ConvertTo-Json | Set-Content -Path $versionPath
+          
+          Write-Host "✓ Version info created"
+          Get-Content $versionPath
+      
+      - name: Upload application artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: applications-${{ github.run_number }}
+          path: artifacts/
+          retention-days: 30
+          compression-level: 6
+      
+      - name: Generate deployment summary
+        shell: pwsh
+        run: |
+          $summary = @"
+          # Build Summary
+          
+          ## Applications Published
+          - 🌐 Hartonomous.Api
+          - 📨 Hartonomous.Workers.CesConsumer
+          - 🔄 Hartonomous.Workers.Neo4jSync
+          
+          ## Build Information
+          - **Version**: ${{ github.run_number }}
+          - **Commit**: ${{ github.sha }}
+          - **Branch**: ${{ github.ref_name }}
+          - **Triggered by**: ${{ github.actor }}
+          
+          ## Artifacts
+          - Artifacts are available for download for 30 days
+          - Artifact name: \`applications-${{ github.run_number }}\`
+          "@
+          
+          Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: self-hosted
+    if: github.event_name == 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore Hartonomous.sln
+      
+      - name: Run code analysis
+        shell: pwsh
+        run: |
+          Write-Host "Running code analysis..."
+          
+          dotnet build Hartonomous.sln `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore `
+            /p:EnforceCodeStyleInBuild=true `
+            /p:AnalysisLevel=latest
+          
+          Write-Host "✓ Code analysis complete"
+      
+      - name: Comment on PR
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync(process.env.GITHUB_STEP_SUMMARY, 'utf8');
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '## Code Quality Analysis\n\n' + summary
+            });
