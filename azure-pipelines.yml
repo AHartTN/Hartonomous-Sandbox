@@ -25,7 +25,7 @@ variables:
   - name: dotnetSdkVersion
     value: '10.x'
   - name: sqlServer
-    value: 'localhost'
+    value: 'HART-DESKTOP'
   - name: sqlDatabase
     value: 'Hartonomous'
   - name: azureServiceConnection
