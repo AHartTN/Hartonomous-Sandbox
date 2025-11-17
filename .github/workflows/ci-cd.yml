@@ -259,13 +259,70 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
+      - name: Verify .NET SDK
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Check if dotnet is available
+          $dotnetCmd = Get-Command dotnet -ErrorAction SilentlyContinue
+          if (-not $dotnetCmd) {
+            throw ".NET SDK not found. Install .NET ${{ env.DOTNET_VERSION }} or later on the self-hosted runner."
+          }
+          
+          Write-Host "✓ .NET SDK found at: $($dotnetCmd.Source)"
+          
+          # Verify version
+          $version = & dotnet --version
+          Write-Host "✓ .NET SDK version: $version"
+          
+          # Check if version meets minimum requirement
+          $minVersion = [version]"${{ env.DOTNET_VERSION }}.0"
+          $installedVersion = [version]$version
+          
+          if ($installedVersion -lt $minVersion) {
+            Write-Host "⚠️ Warning: Installed .NET version $version is older than required ${{ env.DOTNET_VERSION }}"
+            Write-Host "Proceeding anyway - may cause compatibility issues"
+          } else {
+            Write-Host "✓ .NET SDK version meets minimum requirement (${{ env.DOTNET_VERSION }})"
+          }
+        shell: pwsh
       
       - name: Install EF Core tools
-        run: dotnet tool install --global dotnet-ef --version 10.0.0
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Check if dotnet-ef is already installed
+          $existingEf = Get-Command dotnet-ef -ErrorAction SilentlyContinue
+          if ($existingEf) {
+            Write-Host "✓ dotnet-ef already installed at: $($existingEf.Source)"
+            & dotnet-ef --version
+            exit 0
+          }
+          
+          Write-Host "Installing dotnet-ef version 10.0.0..."
+          dotnet tool install --global dotnet-ef --version 10.0.0
+          
+          # Add dotnet tools directory to PATH for this workflow run
+          $toolsPath = Join-Path $env:USERPROFILE ".dotnet\tools"
+          if (-not (Test-Path $toolsPath)) {
+            # Network Service account uses different profile path
+            $toolsPath = "C:\WINDOWS\ServiceProfiles\NetworkService\.dotnet\tools"
+          }
+          
+          if (Test-Path $toolsPath) {
+            Write-Host "Adding $toolsPath to PATH"
+            echo "$toolsPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          
+          # Verify installation
+          $efExe = Join-Path $toolsPath "dotnet-ef.exe"
+          if (Test-Path $efExe) {
+            Write-Host "✓ dotnet-ef installed successfully at: $efExe"
+            & $efExe --version
+          } else {
+            throw "dotnet-ef installation failed - executable not found at $efExe"
+          }
+        shell: pwsh
       
       - name: Azure Login (OIDC)
         uses: azure/login@v2
