@@ -181,61 +181,7 @@ jobs:
           Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -Query $sql -AccessToken $token -TrustServerCertificate
           Write-Host "✓ CLR enabled"
       
-      - name: Drop Hartonomous Assemblies (Idempotent - Prepare for DACPAC)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Continue'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
-          Write-Host "Dropping existing Hartonomous CLR assemblies and dependent objects..."
-          
-          $dropAssemblySql = @"
-          -- Drop dependent functions first
-          DECLARE @sql NVARCHAR(MAX) = N'';
-          SELECT @sql += 'DROP FUNCTION IF EXISTS ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
-          FROM sys.objects
-          WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT')
-            AND is_ms_shipped = 0
-            AND object_id IN (
-              SELECT referencing_id 
-              FROM sys.sql_expression_dependencies 
-              WHERE referenced_id IN (
-                SELECT assembly_id FROM sys.assemblies WHERE name LIKE 'Hartonomous.%'
-              )
-            );
-          EXEC sp_executesql @sql;
-          
-          -- Drop assemblies in reverse dependency order
-          DROP ASSEMBLY IF EXISTS [Hartonomous.Clr];
-          DROP ASSEMBLY IF EXISTS [Hartonomous.Core];
-          DROP ASSEMBLY IF EXISTS [Hartonomous.Data.Entities];
-          DROP ASSEMBLY IF EXISTS [Hartonomous.Shared.Contracts];
-          "@
-          
-          Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query $dropAssemblySql -AccessToken $token -TrustServerCertificate
-          
-          Write-Host "✓ Hartonomous assemblies and dependent objects dropped"
-      
-      - name: Deploy External CLR Assemblies
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
-          Write-Host "Deploying external CLR assemblies..."
-          
-          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\deploy-clr-assemblies.ps1"
-          
-          & $scriptPath `
-            -Server "${{ env.SQL_SERVER }}" `
-            -Database "${{ env.SQL_DATABASE }}" `
-            -DependenciesPath (Join-Path $env:GITHUB_WORKSPACE "dependencies") `
-            -UseAzureAD `
-            -AccessToken $token
-          
-          Write-Host "✓ External assemblies deployed"
-      
-      - name: Deploy DACPAC
+      - name: Deploy DACPAC with CLR Assemblies
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -243,9 +189,11 @@ jobs:
           
           $connectionString = "Server=${{ env.SQL_SERVER }};Database=${{ env.SQL_DATABASE }};Encrypt=True;TrustServerCertificate=True;"
           $dacpacPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\database\Hartonomous.Database.dacpac"
+          $dependenciesPath = Join-Path $env:GITHUB_WORKSPACE "dependencies"
           
-          Write-Host "Deploying DACPAC..."
+          Write-Host "Deploying DACPAC with CLR assemblies..."
           Write-Host "  Target: ${{ env.SQL_SERVER }}\${{ env.SQL_DATABASE }}"
+          Write-Host "  Dependencies: $dependenciesPath"
           
           SqlPackage.exe /Action:Publish `
             /SourceFile:$dacpacPath `
@@ -254,13 +202,16 @@ jobs:
             /p:BlockOnPossibleDataLoss=False `
             /p:DropObjectsNotInSource=False `
             /p:AllowIncompatiblePlatform=True `
-            /p:IncludeCompositeObjects=True
+            /p:IncludeCompositeObjects=True `
+            /p:AllowDropBlockingAssemblies=True `
+            /p:NoAlterStatementsToChangeClrTypes=True `
+            /v:DependenciesPath=$dependenciesPath
           
           if ($LASTEXITCODE -ne 0) {
             throw "DACPAC deployment failed with exit code $LASTEXITCODE"
           }
           
-          Write-Host "✓ DACPAC deployed successfully"
+          Write-Host "✓ DACPAC deployed successfully with all CLR assemblies"
       
       - name: Set TRUSTWORTHY (Idempotent)
         shell: pwsh
