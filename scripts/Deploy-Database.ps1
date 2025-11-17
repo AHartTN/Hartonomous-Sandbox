@@ -228,8 +228,8 @@ function Deploy-ExternalAssemblies {
         # .NET Framework base assemblies (lowest level dependencies)
         'System.Runtime.CompilerServices.Unsafe'
         'System.Buffers'
-        'System.Memory'
-        'System.Numerics.Vectors'
+        'System.Numerics.Vectors'      # MUST be before System.Memory
+        'System.Memory'                # Depends on System.Numerics.Vectors
         'System.ValueTuple'
         'System.Collections.Immutable'
         'System.Reflection.Metadata'
