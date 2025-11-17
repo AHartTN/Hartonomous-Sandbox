@@ -178,7 +178,6 @@ PRINT 'CLR integration enabled successfully';
                 Write-Host "✓ CLR enabled"
               pwsh: true
 
-          # Step 2: Deploy External CLR Assemblies (Idempotent with proper error handling)
           - task: PowerShell@2
             displayName: 'Deploy External CLR Assemblies'
             inputs:
