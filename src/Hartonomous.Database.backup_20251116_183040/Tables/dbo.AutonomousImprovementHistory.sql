@@ -1,0 +1,22 @@
+CREATE TABLE [dbo].[AutonomousImprovementHistory] (
+    [ImprovementId]   UNIQUEIDENTIFIER NOT NULL DEFAULT (NEWID()),
+    [AnalysisResults] NVARCHAR (MAX)   NOT NULL,
+    [GeneratedCode]   NVARCHAR (MAX)   NOT NULL,
+    [TargetFile]      NVARCHAR (512)   NOT NULL,
+    [ChangeType]      NVARCHAR (50)    NOT NULL,
+    [RiskLevel]       NVARCHAR (20)    NOT NULL,
+    [EstimatedImpact] NVARCHAR (20)    NULL,
+    [GitCommitHash]   NVARCHAR (64)    NULL,
+    [SuccessScore]    DECIMAL (5, 4)   NULL,
+    [TestsPassed]     INT              NULL,
+    [TestsFailed]     INT              NULL,
+    [PerformanceDelta]DECIMAL (10, 4)  NULL,
+    [ErrorMessage]    NVARCHAR (MAX)   NULL,
+    [WasDeployed]     BIT              NOT NULL,
+    [WasRolledBack]   BIT              NOT NULL,
+    [StartedAt]       DATETIME2 (7)    NOT NULL,
+    [CompletedAt]     DATETIME2 (7)    NULL,
+    [RolledBackAt]    DATETIME2 (7)    NULL,
+    CONSTRAINT [PK_AutonomousImprovementHistory] PRIMARY KEY CLUSTERED ([ImprovementId] ASC),
+    CONSTRAINT [CK_AutonomousImprovement_SuccessScore] CHECK ([SuccessScore]>=(0) AND [SuccessScore]<=(1))
+);

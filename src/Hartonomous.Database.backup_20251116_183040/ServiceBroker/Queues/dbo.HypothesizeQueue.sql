@@ -1,0 +1,1 @@
+CREATE QUEUE HypothesizeQueue WITH STATUS = ON;

@@ -17,5 +17,5 @@ public interface IInferenceCache
     long AccessCount { get; set; }
     long? SizeBytes { get; set; }
     double? ComputeTimeMs { get; set; }
-    Model Model { get; set; }
+    Models Model { get; set; }
 }

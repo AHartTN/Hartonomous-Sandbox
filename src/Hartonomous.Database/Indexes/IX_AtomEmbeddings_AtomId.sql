@@ -1,2 +1,2 @@
-CREATE NONCLUSTERED INDEX [IX_AtomEmbeddings_Atom]
-    ON [dbo].[AtomEmbeddings]([AtomId]);
+CREATE NONCLUSTERED INDEX [IX_AtomEmbedding_Atom]
+    ON [dbo].[AtomEmbedding]([AtomId]);

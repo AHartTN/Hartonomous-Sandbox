@@ -91,16 +91,8 @@ public class BillingUsageLedgerConfiguration : IEntityTypeConfiguration<BillingU
             .HasMaxLength(50)
             ;
 
-        builder.HasIndex(e => new { e.Operation, e.TimestampUtc })
-            .HasDatabaseName("IX_BillingUsageLedger_Operation_Timestamp")
-            ;
-
         builder.HasIndex(e => new { e.TenantId, e.TimestampUtc })
             .HasDatabaseName("IX_BillingUsageLedger_Tenant")
-            ;
-
-        builder.HasIndex(e => new { e.TenantId, e.TimestampUtc })
-            .HasDatabaseName("IX_BillingUsageLedger_TenantId_Timestamp")
             ;
 
         builder.HasIndex(e => new { e.UsageType, e.RecordedUtc })

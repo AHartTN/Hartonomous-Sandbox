@@ -24,12 +24,12 @@ public interface IJobService
     /// <summary>
     /// Gets job status by ID.
     /// </summary>
-    Task<BackgroundJob?> GetJobAsync(long jobId);
+    Task<BackgroundJobs?> GetJobAsync(long jobId);
 
     /// <summary>
     /// Gets jobs by status with pagination.
     /// </summary>
-    Task<List<BackgroundJob>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100);
+    Task<List<BackgroundJobs>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100);
 
     /// <summary>
     /// Cancels a pending/scheduled job.
@@ -93,11 +93,11 @@ public class JobService : IJobService
     {
         options ??= new JobEnqueueOptions();
 
-        var job = new BackgroundJob
+        var job = new BackgroundJobs
         {
             JobType = jobType,
             Payload = JsonSerializer.Serialize(payload),
-            Status = options.ScheduledAtUtc.HasValue ? JobStatus.Scheduled : JobStatus.Pending,
+            Status = (int)(options.ScheduledAtUtc.HasValue ? JobStatus.Scheduled : JobStatus.Pending),
             Priority = options.Priority,
             MaxRetries = options.MaxRetries,
             ScheduledAtUtc = options.ScheduledAtUtc,
@@ -106,22 +106,22 @@ public class JobService : IJobService
             CorrelationId = options.CorrelationId ?? Guid.NewGuid().ToString()
         };
 
-        _context.Set<BackgroundJob>().Add(job);
+        _context.BackgroundJobs.Add(job);
         await _context.SaveChangesAsync();
 
         return job.JobId;
     }
 
-    public async Task<BackgroundJob?> GetJobAsync(long jobId)
+    public async Task<BackgroundJobs?> GetJobAsync(long jobId)
     {
-        return await _context.Set<BackgroundJob>()
+        return await _context.BackgroundJobs
             .FirstOrDefaultAsync(j => j.JobId == jobId);
     }
 
-    public async Task<List<BackgroundJob>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100)
+    public async Task<List<BackgroundJobs>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100)
     {
-        return await _context.Set<BackgroundJob>()
-            .Where(j => j.Status == status)
+        return await _context.BackgroundJobs
+            .Where(j => j.Status == (int)status)
             .OrderByDescending(j => j.Priority)
             .ThenBy(j => j.CreatedAtUtc)
             .Skip(skip)
@@ -131,7 +131,7 @@ public class JobService : IJobService
 
     public async Task<bool> CancelJobAsync(long jobId)
     {
-        var job = await _context.Set<BackgroundJob>()
+        var job = await _context.BackgroundJobs
             .FirstOrDefaultAsync(j => j.JobId == jobId);
 
         if (job == null)
@@ -140,12 +140,12 @@ public class JobService : IJobService
         }
 
         // Can only cancel pending/scheduled jobs
-        if (job.Status != JobStatus.Pending && job.Status != JobStatus.Scheduled)
+        if (job.Status != (int)JobStatus.Pending && job.Status != (int)JobStatus.Scheduled)
         {
             return false;
         }
 
-        job.Status = JobStatus.Cancelled;
+        job.Status = (int)JobStatus.Cancelled;
         job.CompletedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync();
 

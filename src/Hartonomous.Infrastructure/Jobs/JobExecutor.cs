@@ -49,12 +49,12 @@ public class JobExecutor
         var dbContext = scope.ServiceProvider.GetRequiredService<HartonomousDbContext>();
         
         var stopwatch = Stopwatch.StartNew();
-        BackgroundJob? job = null;
+        BackgroundJobs? job = null;
 
         try
         {
             // Load job
-            job = await dbContext.Set<BackgroundJob>()
+            job = await dbContext.BackgroundJobs
                 .FirstOrDefaultAsync(j => j.JobId == jobId, cancellationToken);
 
             if (job == null)
@@ -64,10 +64,10 @@ public class JobExecutor
             }
 
             // Check if already completed/cancelled
-            if (job.Status == JobStatus.Completed || job.Status == JobStatus.Cancelled)
+            if (job.Status == (int)JobStatus.Completed || job.Status == (int)JobStatus.Cancelled)
             {
                 _logger.LogInformation("Job {JobId} already in terminal state: {Status}", jobId, job.Status);
-                return job.Status == JobStatus.Completed;
+                return job.Status == (int)JobStatus.Completed;
             }
 
             // Check if scheduled for future
@@ -87,7 +87,7 @@ public class JobExecutor
             }
 
             // Mark in progress
-            job.Status = JobStatus.InProgress;
+            job.Status = (int)JobStatus.InProgress;
             job.AttemptCount++;
             job.StartedAtUtc = DateTime.UtcNow;
             await dbContext.SaveChangesAsync(cancellationToken);
@@ -136,7 +136,7 @@ public class JobExecutor
             var result = await resultTask;
 
             // Mark completed
-            job.Status = JobStatus.Completed;
+            job.Status = (int)JobStatus.Completed;
             job.CompletedAtUtc = DateTime.UtcNow;
             job.ResultData = result != null ? JsonSerializer.Serialize(result) : null;
             job.ErrorMessage = null;
@@ -168,9 +168,9 @@ public class JobExecutor
     /// <summary>
     /// Marks a job as failed and schedules retry if attempts remain.
     /// </summary>
-    private async Task MarkJobFailedAsync(BackgroundJob job, HartonomousDbContext context, Exception exception, CancellationToken cancellationToken)
+    private async Task MarkJobFailedAsync(BackgroundJobs job, HartonomousDbContext context, Exception exception, CancellationToken cancellationToken)
     {
-        job.Status = JobStatus.Failed;
+        job.Status = (int)JobStatus.Failed;
         job.ErrorMessage = exception.Message;
         job.ErrorStackTrace = exception.StackTrace;
         job.CompletedAtUtc = DateTime.UtcNow;
@@ -178,7 +178,7 @@ public class JobExecutor
         // Check if should dead letter
         if (job.AttemptCount >= job.MaxRetries)
         {
-            job.Status = JobStatus.DeadLettered;
+            job.Status = (int)JobStatus.DeadLettered;
             _logger.LogWarning("Job {JobId} dead lettered after {Attempts} attempts", job.JobId, job.AttemptCount);
         }
         else
@@ -186,7 +186,7 @@ public class JobExecutor
             // Calculate exponential backoff delay
             var delaySeconds = Math.Pow(2, job.AttemptCount - 1); // 1s, 2s, 4s, 8s, ...
             job.ScheduledAtUtc = DateTime.UtcNow.AddSeconds(delaySeconds);
-            job.Status = JobStatus.Pending; // Reset to pending for retry
+            job.Status = (int)JobStatus.Pending; // Reset to pending for retry
 
             _logger.LogInformation("Job {JobId} will retry in {DelaySeconds}s (attempt {Attempt}/{MaxRetries})",
                 job.JobId, delaySeconds, job.AttemptCount, job.MaxRetries);
@@ -198,9 +198,9 @@ public class JobExecutor
     /// <summary>
     /// Moves a job to dead letter state with a reason.
     /// </summary>
-    private async Task DeadLetterJobAsync(BackgroundJob job, HartonomousDbContext context, string reason, CancellationToken cancellationToken)
+    private async Task DeadLetterJobAsync(BackgroundJobs job, HartonomousDbContext context, string reason, CancellationToken cancellationToken)
     {
-        job.Status = JobStatus.DeadLettered;
+        job.Status = (int)JobStatus.DeadLettered;
         job.ErrorMessage = reason;
         job.CompletedAtUtc = DateTime.UtcNow;
         await context.SaveChangesAsync(cancellationToken);

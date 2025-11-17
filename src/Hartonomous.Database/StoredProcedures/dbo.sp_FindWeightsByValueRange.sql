@@ -28,7 +28,7 @@ BEGIN
             MIN(mw.WeightValue) AS MinValue,
             MAX(mw.WeightValue) AS MaxValue
         FROM dbo.AtomCompositions ac
-        INNER JOIN dbo.Atoms a ON ac.ComponentAtomId = a.AtomId
+        INNER JOIN dbo.Atom a ON ac.ComponentAtomId = a.AtomId
         INNER JOIN MatchingWeights mw ON mw.WeightHash = a.ContentHash
         WHERE ac.ComponentType = 'weight'
         GROUP BY ac.SourceAtomId
@@ -45,7 +45,7 @@ BEGIN
         lm.MaxValue,
         layer.CreatedAt
     FROM LayerMatches lm
-    INNER JOIN dbo.Atoms layer ON layer.AtomId = lm.LayerAtomId
+    INNER JOIN dbo.Atom layer ON layer.AtomId = lm.LayerAtomId
     ORDER BY lm.WeightCount DESC, layer.CreatedAt DESC;
 END;
 GO

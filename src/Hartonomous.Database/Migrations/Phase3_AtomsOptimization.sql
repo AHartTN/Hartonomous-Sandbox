@@ -48,7 +48,7 @@ SELECT
     Metadata,
     PayloadLocator,
     CreatedAt
-FROM dbo.Atoms
+FROM dbo.Atom
 WHERE Content IS NOT NULL 
    OR ComponentStream IS NOT NULL 
    OR Metadata IS NOT NULL 
@@ -63,20 +63,20 @@ GO
 -- ==================================================================
 PRINT 'Adding temporal columns to Atoms...';
 
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'ValidFrom')
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atom') AND name = 'ValidFrom')
 BEGIN
     -- Add ValidFrom column
-    ALTER TABLE dbo.Atoms
+    ALTER TABLE dbo.Atom
         ADD [ValidFrom] DATETIME2(7) NOT NULL 
             CONSTRAINT [DF_Atoms_ValidFrom] DEFAULT SYSUTCDATETIME();
     
     PRINT 'Added ValidFrom column.';
 END;
 
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'ValidTo')
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atom') AND name = 'ValidTo')
 BEGIN
     -- Add ValidTo column
-    ALTER TABLE dbo.Atoms
+    ALTER TABLE dbo.Atom
         ADD [ValidTo] DATETIME2(7) NOT NULL 
             CONSTRAINT [DF_Atoms_ValidTo] DEFAULT '9999-12-31 23:59:59.9999999';
     
@@ -85,12 +85,12 @@ END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.periods 
-    WHERE object_id = OBJECT_ID('dbo.Atoms') 
+    WHERE object_id = OBJECT_ID('dbo.Atom') 
       AND name = 'SYSTEM_TIME'
 )
 BEGIN
     -- Add PERIOD FOR SYSTEM_TIME
-    ALTER TABLE dbo.Atoms
+    ALTER TABLE dbo.Atom
         ADD PERIOD FOR SYSTEM_TIME ([ValidFrom], [ValidTo]);
     
     PRINT 'Added PERIOD FOR SYSTEM_TIME.';
@@ -110,7 +110,7 @@ IF NOT EXISTS (
       AND temporal_type = 2  -- SYSTEM_VERSIONED_TEMPORAL_TABLE
 )
 BEGIN
-    ALTER TABLE dbo.Atoms
+    ALTER TABLE dbo.Atom
         SET (SYSTEM_VERSIONING = ON (
             HISTORY_TABLE = dbo.AtomsHistory,
             DATA_CONSISTENCY_CHECK = ON
@@ -129,35 +129,35 @@ GO
 -- ==================================================================
 PRINT 'Dropping LOB columns from Atoms table...';
 
-IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'Content')
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atom') AND name = 'Content')
 BEGIN
     -- Temporarily disable system-versioning to modify schema
-    ALTER TABLE dbo.Atoms SET (SYSTEM_VERSIONING = OFF);
+    ALTER TABLE dbo.Atom SET (SYSTEM_VERSIONING = OFF);
     
-    ALTER TABLE dbo.Atoms DROP COLUMN Content;
+    ALTER TABLE dbo.Atom DROP COLUMN Content;
     PRINT 'Dropped Content column.';
 END;
 
-IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'ComponentStream')
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atom') AND name = 'ComponentStream')
 BEGIN
-    ALTER TABLE dbo.Atoms DROP COLUMN ComponentStream;
+    ALTER TABLE dbo.Atom DROP COLUMN ComponentStream;
     PRINT 'Dropped ComponentStream column.';
 END;
 
-IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'Metadata')
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atom') AND name = 'Metadata')
 BEGIN
-    ALTER TABLE dbo.Atoms DROP COLUMN Metadata;
+    ALTER TABLE dbo.Atom DROP COLUMN Metadata;
     PRINT 'Dropped Metadata column.';
 END;
 
-IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atoms') AND name = 'PayloadLocator')
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.Atom') AND name = 'PayloadLocator')
 BEGIN
-    ALTER TABLE dbo.Atoms DROP COLUMN PayloadLocator;
+    ALTER TABLE dbo.Atom DROP COLUMN PayloadLocator;
     PRINT 'Dropped PayloadLocator column.';
 END;
 
 -- Re-enable system-versioning
-ALTER TABLE dbo.Atoms
+ALTER TABLE dbo.Atom
     SET (SYSTEM_VERSIONING = ON (
         HISTORY_TABLE = dbo.AtomsHistory,
         DATA_CONSISTENCY_CHECK = ON
@@ -201,7 +201,7 @@ SELECT
     lob.ComponentStream,
     lob.Metadata,
     lob.PayloadLocator
-FROM dbo.Atoms a
+FROM dbo.Atom a
 LEFT JOIN dbo.AtomsLOB lob ON a.AtomId = lob.AtomId;
 GO
 
@@ -213,7 +213,7 @@ GO
 -- ==================================================================
 PRINT 'Validating migration...';
 
-DECLARE @AtomsCount BIGINT = (SELECT COUNT(*) FROM dbo.Atoms);
+DECLARE @AtomsCount BIGINT = (SELECT COUNT(*) FROM dbo.Atom);
 DECLARE @LOBCount BIGINT = (SELECT COUNT(*) FROM dbo.AtomsLOB);
 DECLARE @HistoryCount BIGINT = (SELECT COUNT(*) FROM dbo.AtomsHistory);
 
@@ -225,7 +225,7 @@ PRINT 'AtomsHistory count: ' + CAST(@HistoryCount AS VARCHAR);
 DECLARE @OrphanedLOBs INT = (
     SELECT COUNT(*) 
     FROM dbo.AtomsLOB lob
-    WHERE NOT EXISTS (SELECT 1 FROM dbo.Atoms a WHERE a.AtomId = lob.AtomId)
+    WHERE NOT EXISTS (SELECT 1 FROM dbo.Atom a WHERE a.AtomId = lob.AtomId)
 );
 
 IF @OrphanedLOBs > 0

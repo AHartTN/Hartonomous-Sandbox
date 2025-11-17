@@ -128,8 +128,8 @@ BEGIN
             -- 3e. Begin small, fast transaction
             BEGIN TRANSACTION;
 
-                -- 3f. Merge unique weights into dbo.Atoms (deduplication)
-                MERGE [dbo].[Atoms] AS T
+                -- 3f. Merge unique weights into dbo.Atom (deduplication)
+                MERGE [dbo].[Atom] AS T
                 USING #UniqueWeights AS S
                 ON T.[ContentHash] = S.[ContentHash]
                 WHEN NOT MATCHED BY TARGET THEN
@@ -139,7 +139,7 @@ BEGIN
                 -- 3g. Update reference counts atomically
                 UPDATE a
                 SET a.[ReferenceCount] = a.[ReferenceCount] + cc.[Count]
-                FROM [dbo].[Atoms] a
+                FROM [dbo].[Atom] a
                 JOIN #UniqueWeights uw ON a.[ContentHash] = uw.[ContentHash]
                 JOIN #ChunkCounts cc ON uw.[Value] = cc.[Value]
                 WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
@@ -148,11 +148,11 @@ BEGIN
                 INSERT INTO #WeightToAtomId ([Value], [AtomId])
                 SELECT uw.[Value], a.[AtomId]
                 FROM #UniqueWeights uw
-                JOIN [dbo].[Atoms] a ON a.[ContentHash] = uw.[ContentHash]
+                JOIN [dbo].[Atom] a ON a.[ContentHash] = uw.[ContentHash]
                 WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 
                 -- 3i. Insert the reconstruction data for this chunk into TensorAtomCoefficients
-                INSERT INTO [dbo].[TensorAtomCoefficients] (
+                INSERT INTO [dbo].[TensorAtomCoefficient] (
                     [TensorAtomId], 
                     [ModelId], 
                     [LayerIdx], 

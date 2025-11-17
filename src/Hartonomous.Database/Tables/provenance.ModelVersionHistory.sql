@@ -10,7 +10,7 @@ CREATE TABLE [provenance].[ModelVersionHistory] (
     [CreatedAt]        DATETIME2 (7)  NOT NULL DEFAULT (SYSUTCDATETIME()),
     [TenantId]         INT            NOT NULL DEFAULT (0),
     CONSTRAINT [PK_ModelVersionHistory] PRIMARY KEY CLUSTERED ([VersionHistoryId] ASC),
-    CONSTRAINT [FK_ModelVersionHistory_Models] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Models] ([ModelId]) ON DELETE CASCADE,
+    CONSTRAINT [FK_ModelVersionHistory_Models] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Model] ([ModelId]) ON DELETE CASCADE,
     CONSTRAINT [FK_ModelVersionHistory_ParentVersion] FOREIGN KEY ([ParentVersionId]) REFERENCES [provenance].[ModelVersionHistory] ([VersionHistoryId])
 );
 GO

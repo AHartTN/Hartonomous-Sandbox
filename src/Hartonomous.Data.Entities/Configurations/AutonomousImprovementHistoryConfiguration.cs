@@ -91,17 +91,5 @@ public class AutonomousImprovementHistoryConfiguration : IEntityTypeConfiguratio
         builder.Property(e => e.WasRolledBack)
             .HasColumnType("bit")
             ;
-
-        builder.HasIndex(e => new { e.ChangeType, e.RiskLevel })
-            .HasDatabaseName("IX_AutonomousImprovement_ChangeType_RiskLevel")
-            ;
-
-        builder.HasIndex(e => new { e.StartedAt })
-            .HasDatabaseName("IX_AutonomousImprovement_StartedAt")
-            ;
-
-        builder.HasIndex(e => new { e.SuccessScore })
-            .HasDatabaseName("IX_AutonomousImprovement_SuccessScore")
-            ;
     }
 }

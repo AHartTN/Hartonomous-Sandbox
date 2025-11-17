@@ -59,8 +59,8 @@ public class BackgroundJobWorker : BackgroundService
         var context = scope.ServiceProvider.GetRequiredService<HartonomousDbContext>();
 
         // Query pending jobs ordered by priority (desc) and created time (asc)
-        var pendingJobs = await context.Set<BackgroundJob>()
-            .Where(j => j.Status == JobStatus.Pending &&
+        var pendingJobs = await context.BackgroundJobs
+            .Where(j => j.Status == (int)JobStatus.Pending &&
                        (j.ScheduledAtUtc == null || j.ScheduledAtUtc <= DateTime.UtcNow))
             .OrderByDescending(j => j.Priority)
             .ThenBy(j => j.CreatedAtUtc)

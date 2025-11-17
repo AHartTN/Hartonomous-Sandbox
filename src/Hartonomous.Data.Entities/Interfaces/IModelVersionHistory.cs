@@ -16,6 +16,6 @@ public interface IModelVersionHistory
     DateTime CreatedAt { get; set; }
     int TenantId { get; set; }
     ICollection<ModelVersionHistory> InverseParentVersion { get; set; }
-    Model Model { get; set; }
+    Models Model { get; set; }
     ModelVersionHistory? ParentVersion { get; set; }
 }

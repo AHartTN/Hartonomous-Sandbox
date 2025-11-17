@@ -24,7 +24,7 @@ CREATE TABLE [provenance].[Concepts] (
     [LastUpdatedAt]        DATETIME2 (7)  NULL,
     [IsActive]             BIT            NOT NULL DEFAULT CAST(1 AS BIT),
     CONSTRAINT [PK_Concepts] PRIMARY KEY CLUSTERED ([ConceptId] ASC),
-    CONSTRAINT [FK_Concepts_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Models] ([ModelId]) ON DELETE CASCADE
+    CONSTRAINT [FK_Concepts_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Model] ([ModelId]) ON DELETE CASCADE
 );
 GO
 

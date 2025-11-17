@@ -40,8 +40,8 @@ BEGIN
         -1.0 * nn.SpatialDistance AS Logit,
         0.0
     FROM dbo.fn_SpatialKNN(@context_centroid, @candidate_pool, N'AtomEmbeddings') AS nn
-    INNER JOIN dbo.AtomEmbeddings ae ON ae.AtomEmbeddingId = nn.AtomEmbeddingId
-    INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
+    INNER JOIN dbo.AtomEmbedding ae ON ae.AtomEmbeddingId = nn.AtomEmbeddingId
+    INNER JOIN dbo.Atom a ON a.AtomId = ae.AtomId
     WHERE ae.AtomId NOT IN (SELECT CAST(value AS BIGINT) FROM STRING_SPLIT(@context_atom_ids, ','))
     ORDER BY nn.SpatialDistance ASC;
 

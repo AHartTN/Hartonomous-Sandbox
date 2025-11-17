@@ -22,5 +22,5 @@ public partial class TokenVocabulary : ITokenVocabulary
 
     public DateTime? LastUsed { get; set; }
 
-    public virtual Model Model { get; set; } = null!;
+    public virtual Models Model { get; set; } = null!;
 }

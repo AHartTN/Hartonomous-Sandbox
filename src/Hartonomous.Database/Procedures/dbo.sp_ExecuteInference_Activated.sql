@@ -109,7 +109,7 @@ BEGIN
                 DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @StartTime, SYSUTCDATETIME());
                 
                 -- Update the inference request with results
-                UPDATE dbo.InferenceRequests
+                UPDATE dbo.InferenceRequest
                 SET Status = 'Completed',
                     OutputData = @OutputData,
                     Confidence = @Confidence,
@@ -139,7 +139,7 @@ BEGIN
                 -- Handle errors
                 DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
                 
-                UPDATE dbo.InferenceRequests
+                UPDATE dbo.InferenceRequest
                 SET Status = 'Failed',
                     OutputData = JSON_OBJECT('error': @ErrorMessage),
                     CompletionTimestamp = SYSUTCDATETIME()

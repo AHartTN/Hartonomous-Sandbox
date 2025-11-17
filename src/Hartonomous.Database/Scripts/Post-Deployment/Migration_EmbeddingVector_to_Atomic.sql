@@ -81,7 +81,7 @@ BEGIN
         @SpatialX = SpatialProjX,
         @SpatialY = SpatialProjY,
         @SpatialZ = SpatialProjZ
-    FROM dbo.AtomEmbeddings
+    FROM dbo.AtomEmbedding
     WHERE AtomEmbeddingId = @AtomEmbeddingId;
     
     IF @EmbeddingVector IS NULL
@@ -137,7 +137,7 @@ BEGIN
           AND ComponentIndex < @StartIdx + @BatchSize;
         
         -- Find or create atomic float values
-        MERGE dbo.Atoms AS target
+        MERGE dbo.Atom AS target
         USING @BatchValues AS source
         ON target.ContentHash = source.ContentHash
         WHEN NOT MATCHED THEN
@@ -159,13 +159,13 @@ BEGIN
         UPDATE bv
         SET bv.AtomId = a.AtomId
         FROM @BatchValues bv
-        INNER JOIN dbo.Atoms a ON a.ContentHash = bv.ContentHash
+        INNER JOIN dbo.Atom a ON a.ContentHash = bv.ContentHash
         WHERE bv.AtomId IS NULL;
         
         SET @AtomCount += @@ROWCOUNT;
         
         -- Create relations (vector component → float atom)
-        INSERT INTO dbo.AtomRelations (
+        INSERT INTO dbo.AtomRelation (
             SourceAtomId,
             TargetAtomId,
             RelationType,
@@ -200,7 +200,7 @@ BEGIN
         -- Increment reference counts
         UPDATE a
         SET ReferenceCount = ReferenceCount + 1
-        FROM dbo.Atoms a
+        FROM dbo.Atom a
         INNER JOIN @BatchValues bv ON bv.AtomId = a.AtomId;
         
         COMMIT TRANSACTION;
@@ -245,7 +245,7 @@ DECLARE @ProcessedCount INT = 0;
 DECLARE @ErrorCount INT = 0;
 
 SELECT @TotalEmbeddings = COUNT(*)
-FROM dbo.AtomEmbeddings ae
+FROM dbo.AtomEmbedding ae
 LEFT JOIN dbo.EmbeddingMigrationProgress emp ON emp.AtomEmbeddingId = ae.AtomEmbeddingId
 WHERE ae.EmbeddingVector IS NOT NULL
   AND emp.AtomEmbeddingId IS NULL;
@@ -254,7 +254,7 @@ PRINT 'Total embeddings to migrate: ' + CAST(@TotalEmbeddings AS NVARCHAR(10));
 
 DECLARE embedding_cursor CURSOR LOCAL FAST_FORWARD FOR
     SELECT ae.AtomEmbeddingId
-    FROM dbo.AtomEmbeddings ae
+    FROM dbo.AtomEmbedding ae
     LEFT JOIN dbo.EmbeddingMigrationProgress emp ON emp.AtomEmbeddingId = ae.AtomEmbeddingId
     WHERE ae.EmbeddingVector IS NOT NULL
       AND emp.AtomEmbeddingId IS NULL
@@ -298,7 +298,7 @@ GO
 DECLARE @MismatchCount INT;
 
 SELECT @MismatchCount = COUNT(*)
-FROM dbo.AtomEmbeddings ae
+FROM dbo.AtomEmbedding ae
 INNER JOIN dbo.EmbeddingMigrationProgress emp ON emp.AtomEmbeddingId = ae.AtomEmbeddingId
 WHERE emp.RelationCount <> ae.Dimension;
 
@@ -328,8 +328,8 @@ SELECT
     relations.SequenceIndex AS ComponentIndex,
     CAST(atoms.AtomicValue AS FLOAT) AS ComponentValue,
     relations.AtomRelationId
-FROM dbo.AtomRelations AS relations
-INNER JOIN dbo.Atoms AS atoms ON atoms.AtomId = relations.TargetAtomId
+FROM dbo.AtomRelation AS relations
+INNER JOIN dbo.Atom AS atoms ON atoms.AtomId = relations.TargetAtomId
 WHERE relations.RelationType = 'embedding_dimension';
 GO
 
@@ -355,7 +355,7 @@ PRINT 'Removing monolithic EmbeddingVector column...';
 PRINT 'WARNING: This is irreversible without restoring from backup!';
 GO
 
-ALTER TABLE dbo.AtomEmbeddings
+ALTER TABLE dbo.AtomEmbedding
 DROP COLUMN EmbeddingVector;
 GO
 
@@ -366,9 +366,9 @@ PRINT 'EmbeddingVector column removed. AtomEmbeddings is now 95% smaller!';
 PRINT 'Updating statistics...';
 GO
 
-UPDATE STATISTICS dbo.Atoms WITH FULLSCAN;
-UPDATE STATISTICS dbo.AtomRelations WITH FULLSCAN;
-UPDATE STATISTICS dbo.AtomEmbeddings WITH FULLSCAN;
+UPDATE STATISTICS dbo.Atom WITH FULLSCAN;
+UPDATE STATISTICS dbo.AtomRelation WITH FULLSCAN;
+UPDATE STATISTICS dbo.AtomEmbedding WITH FULLSCAN;
 GO
 
 PRINT '========================================';

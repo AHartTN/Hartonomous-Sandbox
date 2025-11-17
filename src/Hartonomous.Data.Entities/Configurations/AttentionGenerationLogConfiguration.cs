@@ -69,7 +69,7 @@ public class AttentionGenerationLogConfiguration : IEntityTypeConfiguration<Atte
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.AttentionGenerationLogs)
+            .WithMany(p => p.AttentionGenerationLog)
             .HasForeignKey(d => new { d.ModelId })
             ;
 

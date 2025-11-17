@@ -67,17 +67,5 @@ public class TenantSecurityPolicyConfiguration : IEntityTypeConfiguration<Tenant
         builder.Property(e => e.UpdatedUtc)
             .HasColumnType("datetime2")
             ;
-
-        builder.HasIndex(e => new { e.EffectiveFrom, e.EffectiveTo })
-            .HasDatabaseName("IX_TenantSecurityPolicy_EffectiveDates")
-            ;
-
-        builder.HasIndex(e => new { e.IsActive })
-            .HasDatabaseName("IX_TenantSecurityPolicy_IsActive")
-            ;
-
-        builder.HasIndex(e => new { e.TenantId, e.PolicyType })
-            .HasDatabaseName("IX_TenantSecurityPolicy_TenantId_PolicyType")
-            ;
     }
 }

@@ -30,8 +30,8 @@ BEGIN
             ae.EmbeddingType,
             ae.ModelId,
             ae.SpatialKey.STDistance(@query_pt) AS SpatialDistance
-        FROM dbo.AtomEmbeddings AS ae
-        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        FROM dbo.AtomEmbedding AS ae
+        INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
         WHERE ae.SpatialKey IS NOT NULL
           AND (@modality_filter IS NULL OR a.Modality = @modality_filter)
           AND (@text_query IS NULL OR CONVERT(NVARCHAR(256), a.AtomicValue) LIKE '%' + @text_query + '%') -- Changed: CanonicalText → AtomicValue
@@ -49,8 +49,8 @@ BEGIN
             CONVERT(NVARCHAR(256), a.AtomicValue) AS CanonicalText, -- Derived
             ae.AtomEmbeddingId,
             ae.ModelId
-        FROM dbo.Atoms a
-        LEFT JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId
+        FROM dbo.Atom a
+        LEFT JOIN dbo.AtomEmbedding ae ON a.AtomId = ae.AtomId
         WHERE (@modality_filter IS NULL OR a.Modality = @modality_filter)
           AND (@text_query IS NULL OR CONVERT(NVARCHAR(256), a.AtomicValue) LIKE '%' + @text_query + '%') -- Changed
         ORDER BY NEWID();

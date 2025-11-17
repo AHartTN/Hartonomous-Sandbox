@@ -42,7 +42,7 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    INSERT INTO dbo.InferenceRequest (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
         'video_generation',
         CONVERT(NVARCHAR(MAX), @requestJson),
@@ -175,7 +175,7 @@ BEGIN
         'targetFps': @targetFps
     );
 
-    UPDATE dbo.InferenceRequests
+    UPDATE dbo.InferenceRequest
     SET TotalDurationMs = @durationMs,
         OutputData = @outputJson,
         OutputMetadata = JSON_OBJECT(

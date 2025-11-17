@@ -8,5 +8,5 @@ public interface IOperationProvenance
     int Id { get; set; }
     Guid OperationId { get; set; }
     DateTime CreatedAt { get; set; }
-    ICollection<ProvenanceValidationResult> ProvenanceValidationResults { get; set; }
+    ICollection<ProvenanceValidationResults> ProvenanceValidationResults { get; set; }
 }

@@ -1,4 +1,4 @@
-CREATE TABLE dbo.InferenceRequests (
+CREATE TABLE dbo.InferenceRequest (
     InferenceId BIGINT IDENTITY(1,1) NOT NULL,
     TaskType NVARCHAR(100) NOT NULL,
     InputData JSON NULL,
@@ -14,7 +14,7 @@ CREATE TABLE dbo.InferenceRequests (
     RequestTimestamp DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CreatedUtc DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     CompletedUtc DATETIME2 NULL,
-    CONSTRAINT PK_InferenceRequests PRIMARY KEY CLUSTERED (InferenceId),
+    CONSTRAINT PK_InferenceRequest PRIMARY KEY CLUSTERED (InferenceId),
     CONSTRAINT CK_InferenceRequests_UserRating CHECK (UserRating BETWEEN 1 AND 5),
     INDEX IX_InferenceRequests_Status (Status) INCLUDE (InferenceId, CreatedUtc),
     INDEX IX_InferenceRequests_UserRating (UserRating) WHERE (UserRating IS NOT NULL),
@@ -33,8 +33,8 @@ CREATE TABLE dbo.InferenceSteps (
     RowsReturned INT NULL,
     Metadata JSON NULL,
     CONSTRAINT PK_InferenceSteps PRIMARY KEY CLUSTERED (InferenceStepId),
-    CONSTRAINT FK_InferenceSteps_Inference FOREIGN KEY (InferenceId) REFERENCES dbo.InferenceRequests(InferenceId) ON DELETE CASCADE,
-    CONSTRAINT FK_InferenceSteps_Atoms FOREIGN KEY (AtomId) REFERENCES dbo.Atoms(AtomId),
+    CONSTRAINT FK_InferenceSteps_Inference FOREIGN KEY (InferenceId) REFERENCES dbo.InferenceRequest(InferenceId) ON DELETE CASCADE,
+    CONSTRAINT FK_InferenceSteps_Atoms FOREIGN KEY (AtomId) REFERENCES dbo.Atom(AtomId),
     CONSTRAINT FK_InferenceSteps_ModelLayers FOREIGN KEY (LayerId) REFERENCES dbo.ModelLayers(LayerId),
     INDEX IX_InferenceSteps_Inference (InferenceId, StepNumber),
     INDEX IX_InferenceSteps_Layer (LayerId) WHERE (LayerId IS NOT NULL)

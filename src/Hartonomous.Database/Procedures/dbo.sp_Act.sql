@@ -170,9 +170,9 @@ BEGIN
                     ORDER BY ImpactScore DESC;
                     
                     -- Update statistics on key tables
-                    UPDATE STATISTICS dbo.Atoms WITH FULLSCAN;
-                    UPDATE STATISTICS dbo.AtomEmbeddings WITH FULLSCAN;
-                    UPDATE STATISTICS dbo.InferenceRequests WITH FULLSCAN;
+                    UPDATE STATISTICS dbo.Atom WITH FULLSCAN;
+                    UPDATE STATISTICS dbo.AtomEmbedding WITH FULLSCAN;
+                    UPDATE STATISTICS dbo.InferenceRequest WITH FULLSCAN;
                     
                     SET @ExecutedActionsList = (
                         SELECT TableName, IndexColumns, ImpactScore
@@ -255,7 +255,7 @@ BEGIN
                     
                     -- For now, just detect clusters via Hilbert curve buckets (21-bit precision = 2M buckets)
                     SELECT @DiscoveredConcepts = COUNT(DISTINCT (HilbertValue / 1024))  -- Group into ~2K clusters
-                    FROM dbo.AtomEmbeddings
+                    FROM dbo.AtomEmbedding
                     WHERE CreatedAt >= DATEADD(DAY, -7, SYSUTCDATETIME())
                       AND HilbertValue IS NOT NULL;
                     

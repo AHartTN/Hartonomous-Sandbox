@@ -50,7 +50,7 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    INSERT INTO dbo.InferenceRequest (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
         'text_generation',
         CONVERT(NVARCHAR(MAX), @requestPayload),
@@ -158,7 +158,7 @@ BEGIN
     -- Store resulting text in OUTPUT parameter (for caller convenience)
     -- @GeneratedText is already set
 
-    UPDATE dbo.InferenceRequests
+    UPDATE dbo.InferenceRequest
     SET TotalDurationMs = @totalDuration,
         OutputData = JSON_OBJECT('tokens': JSON_QUERY(@tokensJson), 'generatedText': @GeneratedText),
         OutputMetadata = JSON_OBJECT(

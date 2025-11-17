@@ -1,2 +1,2 @@
-CREATE NONCLUSTERED INDEX [IX_Models_ModelType]
-    ON [dbo].[Models]([ModelType] ASC);
+CREATE NONCLUSTERED INDEX [IX_Model_ModelType]
+    ON [dbo].[Model]([ModelType] ASC);

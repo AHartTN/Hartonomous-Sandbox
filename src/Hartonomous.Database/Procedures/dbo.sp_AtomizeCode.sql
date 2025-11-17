@@ -21,7 +21,7 @@ BEGIN
         SELECT 
             @SourceCode = CAST(Content AS NVARCHAR(MAX)),
             @ContentType = ContentType
-        FROM dbo.Atoms
+        FROM dbo.Atom
         WHERE AtomId = @AtomId AND TenantId = @TenantId;
 
         IF @SourceCode IS NULL
@@ -111,7 +111,7 @@ BEGIN
         -- ==========================================================================================
         -- Phase 5: Update parent Atom with spatial key
         -- ==========================================================================================
-        UPDATE dbo.Atoms
+        UPDATE dbo.Atom
         SET SpatialKey = @EmbeddingGeometry
         WHERE AtomId = @AtomId;
 

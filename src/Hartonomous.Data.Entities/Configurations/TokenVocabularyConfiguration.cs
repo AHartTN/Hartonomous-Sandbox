@@ -48,17 +48,8 @@ public class TokenVocabularyConfiguration : IEntityTypeConfiguration<TokenVocabu
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.TokenVocabularies)
+            .WithMany(p => p.TokenVocabulary)
             .HasForeignKey(d => new { d.ModelId })
-            ;
-
-        builder.HasIndex(e => new { e.ModelId, e.Token })
-            .HasDatabaseName("IX_TokenVocabulary_ModelId_Token")
-            ;
-
-        builder.HasIndex(e => new { e.ModelId, e.TokenId })
-            .HasDatabaseName("IX_TokenVocabulary_ModelId_TokenId")
-            .IsUnique()
             ;
     }
 }

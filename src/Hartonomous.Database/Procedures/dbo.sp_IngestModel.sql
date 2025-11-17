@@ -33,7 +33,7 @@ BEGIN
         END
         
         -- Create model record
-        INSERT INTO dbo.Models (
+        INSERT INTO dbo.Model (
             ModelName,
             ModelType,
             Architecture,
@@ -58,7 +58,7 @@ BEGIN
         IF @ModelBytes IS NOT NULL
         BEGIN
             -- Small model: Store directly in varbinary column
-            UPDATE dbo.Models
+            UPDATE dbo.Model
             SET SerializedModel = @ModelBytes
             WHERE ModelId = @ModelId;
         END
@@ -76,7 +76,7 @@ BEGIN
         IF @SetAsCurrent = 1
         BEGIN
             -- Deactivate previous versions
-            UPDATE dbo.Models
+            UPDATE dbo.Model
             SET IsActive = 0
             WHERE ModelName = @ModelName
                   AND ModelId != @ModelId

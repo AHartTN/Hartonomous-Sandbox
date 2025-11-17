@@ -19,7 +19,7 @@ BEGIN
         SUM(CASE WHEN OutputData IS NOT NULL THEN 1 ELSE 0 END) AS successful_count,
         SUM(CASE WHEN OutputData IS NULL THEN 1 ELSE 0 END) AS failed_count,
         SUM(CASE WHEN CacheHit = 1 THEN 1 ELSE 0 END) AS cache_hits
-    FROM dbo.InferenceRequests
+    FROM dbo.InferenceRequest
     WHERE RequestTimestamp >= @cutoff_time
         AND (@TaskType IS NULL OR TaskType = @TaskType)
     GROUP BY TaskType

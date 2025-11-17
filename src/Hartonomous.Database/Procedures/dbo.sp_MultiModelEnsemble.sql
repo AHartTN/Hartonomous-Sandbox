@@ -28,7 +28,7 @@ BEGIN
         
         INSERT INTO @AllAtoms
         SELECT DISTINCT ae.AtomId
-        FROM dbo.AtomEmbeddings ae
+        FROM dbo.AtomEmbedding ae
         LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
         WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId)
               AND ae.ModelId IN (@Model1Id, @Model2Id, @Model3Id);
@@ -39,19 +39,19 @@ BEGIN
             aa.AtomId,
             ISNULL(
                 (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae1.EmbeddingVector, @QueryVector1)
-                 FROM dbo.AtomEmbeddings ae1
+                 FROM dbo.AtomEmbedding ae1
                  WHERE ae1.AtomId = aa.AtomId AND ae1.ModelId = @Model1Id),
                 0.0
             ) AS Model1Score,
             ISNULL(
                 (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae2.EmbeddingVector, @QueryVector2)
-                 FROM dbo.AtomEmbeddings ae2
+                 FROM dbo.AtomEmbedding ae2
                  WHERE ae2.AtomId = aa.AtomId AND ae2.ModelId = @Model2Id),
                 0.0
             ) AS Model2Score,
             ISNULL(
                 (SELECT 1.0 - VECTOR_DISTANCE('cosine', ae3.EmbeddingVector, @QueryVector3)
-                 FROM dbo.AtomEmbeddings ae3
+                 FROM dbo.AtomEmbedding ae3
                  WHERE ae3.AtomId = aa.AtomId AND ae3.ModelId = @Model3Id),
                 0.0
             ) AS Model3Score
@@ -74,7 +74,7 @@ BEGIN
             a.ContentHash,
             a.ContentType
         FROM @EnsembleResults er
-        INNER JOIN dbo.Atoms a ON er.AtomId = a.AtomId
+        INNER JOIN dbo.Atom a ON er.AtomId = a.AtomId
         -- No need for second TenantAtoms filter - already filtered in AllAtoms collection
         ORDER BY er.EnsembleScore DESC;
         

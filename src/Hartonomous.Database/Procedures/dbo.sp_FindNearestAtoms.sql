@@ -71,7 +71,7 @@ BEGIN
     
     -- Stage 1: Spatial index seek using R-Tree
     -- This is O(log N) due to R-Tree index structure
-    -- Index: IX_AtomEmbeddings_SpatialGeometry
+    -- Index: IX_AtomEmbedding_SpatialGeometry
     ;WITH SpatialCandidates AS (
         SELECT TOP (@spatialPoolSize)
             ae.AtomId,
@@ -83,8 +83,8 @@ BEGIN
             a.Subtype,
             a.CanonicalText,
             a.ContentHash
-        FROM dbo.AtomEmbeddings ae WITH (INDEX(IX_AtomEmbeddings_SpatialGeometry))
-        INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
+        FROM dbo.AtomEmbedding ae WITH (INDEX(IX_AtomEmbedding_SpatialGeometry))
+        INNER JOIN dbo.Atom a ON ae.AtomId = a.AtomId
         WHERE ae.TenantId = @tenantId
             AND ae.SpatialGeometry IS NOT NULL
             AND ae.EmbeddingVector IS NOT NULL

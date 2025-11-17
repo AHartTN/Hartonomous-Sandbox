@@ -31,8 +31,8 @@ BEGIN
         a.ReferenceCount,
         a.CreatedAt,
         a.ModifiedAt
-    FROM dbo.AtomEmbeddings AS ae WITH (INDEX(SIX_AtomEmbeddings_SpatialKey))
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    FROM dbo.AtomEmbedding AS ae WITH (INDEX(SIX_AtomEmbedding_SpatialKey))
+    INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
     WHERE ae.SpatialKey IS NOT NULL
       AND ae.SpatialKey.STDistance(@QuerySpatialKey) <= @Threshold
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)

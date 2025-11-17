@@ -12,5 +12,5 @@ CREATE TABLE [dbo].[InferenceCache] (
     [SizeBytes]          BIGINT          NULL,
     [ComputeTimeMs]      FLOAT (53)      NULL,
     CONSTRAINT [PK_InferenceCache] PRIMARY KEY CLUSTERED ([CacheId] ASC),
-    CONSTRAINT [FK_InferenceCache_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Models] ([ModelId]) ON DELETE CASCADE
+    CONSTRAINT [FK_InferenceCache_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Model] ([ModelId]) ON DELETE CASCADE
 );

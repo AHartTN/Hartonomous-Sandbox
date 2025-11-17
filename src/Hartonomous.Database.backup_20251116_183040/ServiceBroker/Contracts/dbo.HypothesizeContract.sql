@@ -1,0 +1,3 @@
+CREATE CONTRACT [//Hartonomous/AutonomousLoop/HypothesizeContract] (
+        [//Hartonomous/AutonomousLoop/HypothesizeMessage] SENT BY INITIATOR
+    );

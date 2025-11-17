@@ -26,7 +26,7 @@ BEGIN
             DECLARE @QueryEmbedding VECTOR(1998);
             
             SELECT @QueryEmbedding = EmbeddingVector
-            FROM dbo.AtomEmbeddings
+            FROM dbo.AtomEmbedding
             WHERE AtomId = @AtomId AND TenantId = @TenantId;
             
             IF @QueryEmbedding IS NOT NULL
@@ -36,7 +36,7 @@ BEGIN
                     ae.AtomId,
                     1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryEmbedding) AS VectorScore,
                     0.0
-                FROM dbo.AtomEmbeddings ae
+                FROM dbo.AtomEmbedding ae
                 WHERE ae.TenantId = @TenantId
                       AND ae.AtomId != @AtomId
                       AND ae.EmbeddingVector IS NOT NULL;
@@ -78,7 +78,7 @@ BEGIN
             a.ContentType,
             a.CreatedAt
         FROM @Results r
-        INNER JOIN dbo.Atoms a ON r.RelatedAtomId = a.AtomId
+        INNER JOIN dbo.Atom a ON r.RelatedAtomId = a.AtomId
         WHERE a.TenantId = @TenantId
         ORDER BY r.CombinedScore DESC;
         

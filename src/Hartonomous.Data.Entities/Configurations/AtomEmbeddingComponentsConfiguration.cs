@@ -1,0 +1,35 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+namespace Hartonomous.Data.Entities.Configurations;
+
+public class AtomEmbeddingComponentsConfiguration : IEntityTypeConfiguration<AtomEmbeddingComponents>
+{
+    public void Configure(EntityTypeBuilder<AtomEmbeddingComponents> builder)
+    {
+        builder.ToTable("AtomEmbeddingComponents", "dbo");
+        builder.HasKey(e => new { e.AtomEmbeddingComponentId });
+
+        builder.Property(e => e.AtomEmbeddingComponentId)
+            .HasColumnType("bigint")
+            .ValueGeneratedOnAdd()
+            ;
+
+        builder.Property(e => e.AtomEmbeddingId)
+            .HasColumnType("bigint")
+            ;
+
+        builder.Property(e => e.ComponentIndex)
+            .HasColumnType("int")
+            ;
+
+        builder.Property(e => e.ComponentValue)
+            .HasColumnType("real")
+            ;
+
+        builder.HasOne(d => d.AtomEmbedding)
+            .WithMany(p => p.AtomEmbeddingComponents)
+            .HasForeignKey(d => new { d.AtomEmbeddingId })
+            ;
+    }
+}

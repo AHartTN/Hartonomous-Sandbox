@@ -1,0 +1,25 @@
+-- =============================================
+-- CLR Function: Stream Atomic Weights in Chunks
+-- Enables governed, resumable model weight ingestion
+-- =============================================
+-- Note: This function is implemented in CLR (ModelStreamingFunctions.cs)
+-- and must be registered after CLR assembly deployment
+
+-- The function signature is:
+-- CREATE FUNCTION [dbo].[clr_StreamAtomicWeights_Chunked] (
+--     @modelData VARBINARY(MAX),
+--     @modelFormat NVARCHAR(50),
+--     @atomOffset BIGINT,
+--     @atomChunkSize INT
+-- )
+-- RETURNS TABLE (
+--     LayerIdx INT,
+--     PositionX INT,
+--     PositionY INT,
+--     PositionZ INT,
+--     Value REAL
+-- )
+-- AS EXTERNAL NAME [Hartonomous.SqlClr].[ModelStreamingFunctions].[clr_StreamAtomicWeights_Chunked];
+-- GO
+
+-- This file serves as documentation until the CLR assembly is deployed

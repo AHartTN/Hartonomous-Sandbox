@@ -15,7 +15,7 @@ BEGIN
     SELECT 
         @width = JSON_VALUE(Metadata, '$.width'),
         @height = JSON_VALUE(Metadata, '$.height')
-    FROM dbo.Atoms
+    FROM dbo.Atom
     WHERE AtomId = @imageAtomId;
 
     -- Return pixel data ordered by position
@@ -29,7 +29,7 @@ BEGIN
         CASE WHEN @includeMetadata = 1 THEN p.PixelHash ELSE NULL END AS PixelHash,
         CASE WHEN @includeMetadata = 1 THEN ac.Metadata ELSE NULL END AS Metadata
     FROM dbo.AtomCompositions ac
-    INNER JOIN dbo.Atoms a ON ac.ComponentAtomId = a.AtomId
+    INNER JOIN dbo.Atom a ON ac.ComponentAtomId = a.AtomId
     INNER JOIN dbo.AtomicPixels p ON p.PixelHash = a.ContentHash
     WHERE ac.SourceAtomId = @imageAtomId
       AND ac.ComponentType = 'pixel'
@@ -44,7 +44,7 @@ BEGIN
         JSON_VALUE(Metadata, '$.format') AS Format,
         JSON_VALUE(Metadata, '$.colorSpace') AS ColorSpace,
         CreatedAt
-    FROM dbo.Atoms
+    FROM dbo.Atom
     WHERE AtomId = @imageAtomId;
 END;
 GO

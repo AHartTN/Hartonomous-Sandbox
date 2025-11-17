@@ -10,7 +10,7 @@ RETURN
             AVG(CAST(COALESCE(ae.SpatialKey.Z, 0) AS FLOAT))
         ) AS ContextCentroid,
         COUNT(*) AS AtomCount
-    FROM dbo.AtomEmbeddings ae
+    FROM dbo.AtomEmbedding ae
     WHERE ae.AtomId IN (SELECT CAST(value AS BIGINT) FROM STRING_SPLIT(@atom_ids, ','))
       AND ae.SpatialKey IS NOT NULL
 );

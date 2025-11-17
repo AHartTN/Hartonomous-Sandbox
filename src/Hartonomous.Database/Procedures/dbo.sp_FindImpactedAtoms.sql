@@ -34,7 +34,7 @@ BEGIN
             a.CreatedAt,
             COUNT(*) OVER () AS TotalImpacted
         FROM ImpactedAtoms ia
-        INNER JOIN dbo.Atoms a ON ia.AtomId = a.AtomId
+        INNER JOIN dbo.Atom a ON ia.AtomId = a.AtomId
         WHERE a.TenantId = @TenantId
         ORDER BY ia.Depth, ia.AtomId;
         

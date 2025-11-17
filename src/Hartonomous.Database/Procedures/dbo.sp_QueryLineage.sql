@@ -38,7 +38,7 @@ BEGIN
                 a.ContentType,
                 a.CreatedAt
             FROM UpstreamLineage ul
-            INNER JOIN dbo.Atoms a ON ul.AtomId = a.AtomId
+            INNER JOIN dbo.Atom a ON ul.AtomId = a.AtomId
             WHERE a.TenantId = @TenantId
             ORDER BY ul.Depth;
         END
@@ -70,7 +70,7 @@ BEGIN
                 a.ContentType,
                 a.CreatedAt
             FROM DownstreamLineage dl
-            INNER JOIN dbo.Atoms a ON dl.AtomId = a.AtomId
+            INNER JOIN dbo.Atom a ON dl.AtomId = a.AtomId
             WHERE a.TenantId = @TenantId
             ORDER BY dl.Depth;
         END

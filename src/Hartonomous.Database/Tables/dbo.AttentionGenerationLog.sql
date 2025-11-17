@@ -18,5 +18,5 @@ CREATE TABLE dbo.AttentionGenerationLog (
     INDEX IX_AttentionGenerationLog_GenerationStreamId (GenerationStreamId),
     INDEX IX_AttentionGenerationLog_CreatedAt (CreatedAt DESC),
 
-    CONSTRAINT FK_AttentionGenerationLog_Models FOREIGN KEY (ModelId) REFERENCES dbo.Models(ModelId)
+    CONSTRAINT FK_AttentionGenerationLog_Model FOREIGN KEY (ModelId) REFERENCES dbo.Model(ModelId)
 );

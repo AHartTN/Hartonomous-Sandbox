@@ -1,5 +1,5 @@
 -- =============================================
--- Full-Text Search Index on dbo.Atoms.Content (WITHOUT semantic search)
+-- Full-Text Search Index on dbo.Atom.Content (WITHOUT semantic search)
 -- Semantic similarity now uses vector embeddings (AtomEmbeddings table)
 -- =============================================
 
@@ -15,11 +15,11 @@ IF EXISTS (
     SELECT 1 
     FROM sys.fulltext_indexes fi
     INNER JOIN sys.fulltext_index_columns fic ON fi.object_id = fic.object_id
-    WHERE fi.object_id = OBJECT_ID('dbo.Atoms')
+    WHERE fi.object_id = OBJECT_ID('dbo.Atom')
     AND fic.statistical_semantics = 1
 )
 BEGIN
-    DROP FULLTEXT INDEX ON dbo.Atoms;
+    DROP FULLTEXT INDEX ON dbo.Atom;
 END
 GO
 
@@ -31,8 +31,8 @@ IF NOT EXISTS (
     WHERE t.name = 'Atoms' AND SCHEMA_NAME(t.schema_id) = 'dbo'
 )
 BEGIN
-    CREATE FULLTEXT INDEX ON dbo.Atoms(Content LANGUAGE 1033)
-    KEY INDEX PK_Atoms
+    CREATE FULLTEXT INDEX ON dbo.Atom(Content LANGUAGE 1033)
+    KEY INDEX PK_Atom
     ON HartonomousFullTextCatalog
     WITH (CHANGE_TRACKING = AUTO, STOPLIST = SYSTEM);
 END

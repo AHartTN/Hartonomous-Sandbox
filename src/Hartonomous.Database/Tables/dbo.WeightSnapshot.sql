@@ -1,0 +1,12 @@
+CREATE TABLE dbo.WeightSnapshot
+(
+    SnapshotId BIGINT IDENTITY(1,1) PRIMARY KEY,
+    SnapshotName NVARCHAR(255) UNIQUE NOT NULL,
+    ModelId INT NULL,
+    SnapshotTime DATETIME2(7) NOT NULL DEFAULT SYSUTCDATETIME(),
+    Description NVARCHAR(MAX) NULL,
+    WeightCount INT NOT NULL,
+    CreatedAt DATETIME2(7) NOT NULL DEFAULT SYSUTCDATETIME(),
+
+    CONSTRAINT FK_WeightSnapshot_Model FOREIGN KEY (ModelId) REFERENCES dbo.Model(ModelId) ON DELETE SET NULL
+);

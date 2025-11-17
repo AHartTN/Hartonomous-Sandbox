@@ -8,5 +8,5 @@ CREATE TABLE [dbo].[TokenVocabulary] (
     [Frequency]   BIGINT         NOT NULL DEFAULT CAST(0 AS BIGINT),
     [LastUsed]    DATETIME2 (7)  NULL,
     CONSTRAINT [PK_TokenVocabulary] PRIMARY KEY CLUSTERED ([VocabId] ASC),
-    CONSTRAINT [FK_TokenVocabulary_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Models] ([ModelId]) ON DELETE CASCADE
+    CONSTRAINT [FK_TokenVocabulary_Models_ModelId] FOREIGN KEY ([ModelId]) REFERENCES [dbo].[Model] ([ModelId]) ON DELETE CASCADE
 );

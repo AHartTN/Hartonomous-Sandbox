@@ -180,7 +180,7 @@ BEGIN
         'self_referential_attempted': @usedSelfReferentialModel
     );
 
-    INSERT INTO dbo.InferenceRequests (
+    INSERT INTO dbo.InferenceRequest (
         TaskType,
         InputData,
         ModelsUsed,

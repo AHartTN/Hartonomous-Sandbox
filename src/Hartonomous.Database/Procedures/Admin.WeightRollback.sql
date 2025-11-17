@@ -171,9 +171,9 @@ BEGIN
     DECLARE @WeightCount INT;
     
     -- Create snapshots table if it doesn't exist
-    IF OBJECT_ID('dbo.WeightSnapshots', 'U') IS NULL
+    IF OBJECT_ID('dbo.WeightSnapshot', 'U') IS NULL
     BEGIN
-        CREATE TABLE dbo.WeightSnapshots
+        CREATE TABLE dbo.WeightSnapshot
         (
             SnapshotId BIGINT IDENTITY(1,1) PRIMARY KEY,
             SnapshotName NVARCHAR(255) UNIQUE NOT NULL,
@@ -188,7 +188,7 @@ BEGIN
     END;
     
     -- Check for duplicate snapshot name
-    IF EXISTS (SELECT 1 FROM dbo.WeightSnapshots WHERE SnapshotName = @SnapshotName)
+    IF EXISTS (SELECT 1 FROM dbo.WeightSnapshot WHERE SnapshotName = @SnapshotName)
     BEGIN
         RAISERROR('Snapshot name already exists', 16, 1);
         RETURN;
@@ -201,7 +201,7 @@ BEGIN
     WHERE @ModelId IS NULL OR ta.ModelId = @ModelId;
     
     -- Insert snapshot metadata
-    INSERT INTO dbo.WeightSnapshots (SnapshotName, ModelId, SnapshotTime, Description, WeightCount)
+    INSERT INTO dbo.WeightSnapshot (SnapshotName, ModelId, SnapshotTime, Description, WeightCount)
     VALUES (@SnapshotName, @ModelId, @SnapshotTime, @Description, @WeightCount);
     
     PRINT '============================================';
@@ -241,7 +241,7 @@ BEGIN
     SELECT 
         @SnapshotTime = SnapshotTime,
         @ModelId = ModelId
-    FROM dbo.WeightSnapshots
+    FROM dbo.WeightSnapshot
     WHERE SnapshotName = @SnapshotName;
     
     IF @SnapshotTime IS NULL
@@ -279,7 +279,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    IF OBJECT_ID('dbo.WeightSnapshots', 'U') IS NULL
+    IF OBJECT_ID('dbo.WeightSnapshot', 'U') IS NULL
     BEGIN
         PRINT 'No snapshots exist yet.';
         RETURN;
@@ -293,7 +293,7 @@ BEGIN
         WeightCount,
         Description,
         CreatedAt
-    FROM dbo.WeightSnapshots
+    FROM dbo.WeightSnapshot
     ORDER BY SnapshotTime DESC;
 END;
 GO

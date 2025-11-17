@@ -50,7 +50,7 @@ BEGIN
 
     DECLARE @inferenceId BIGINT;
         -- Create inference request
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    INSERT INTO dbo.InferenceRequest (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
         'audio_generation',
         CONVERT(NVARCHAR(MAX), @requestJson),
@@ -151,7 +151,7 @@ BEGIN
             'candidates': JSON_QUERY(@candidateJson)
         );
 
-        UPDATE dbo.InferenceRequests
+        UPDATE dbo.InferenceRequest
         SET TotalDurationMs = @durationMs,
             OutputData = @outputJson
         WHERE InferenceId = @inferenceId;
@@ -219,7 +219,7 @@ BEGIN
             'base64': @base64
         );
 
-        UPDATE dbo.InferenceRequests
+        UPDATE dbo.InferenceRequest
         SET TotalDurationMs = @durationMs,
             OutputData = CONVERT(NVARCHAR(MAX), @outputJson),
             OutputMetadata = JSON_OBJECT(

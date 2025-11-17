@@ -10,8 +10,8 @@ BEGIN
 
     DECLARE cursor_embeddings CURSOR FOR
         SELECT ae.AtomEmbeddingId
-        FROM dbo.AtomEmbeddings AS ae
-        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        FROM dbo.AtomEmbedding AS ae
+        INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
         WHERE a.Modality = 'text' AND a.AtomicValue IS NOT NULL; -- Changed: CanonicalText → Modality filter
 
     OPEN cursor_embeddings;

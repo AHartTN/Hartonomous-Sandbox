@@ -13,7 +13,7 @@ RETURN
         ae.AtomEmbeddingId,
         ae.AtomId,
         ae.SpatialKey.STDistance(@query_point) AS SpatialDistance
-    FROM dbo.AtomEmbeddings ae
+    FROM dbo.AtomEmbedding ae
     WHERE ae.SpatialKey IS NOT NULL
       AND ae.SpatialKey.STDistance(@query_point) IS NOT NULL
     ORDER BY ae.SpatialKey.STDistance(@query_point) ASC

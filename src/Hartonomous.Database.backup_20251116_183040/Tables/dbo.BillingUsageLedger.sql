@@ -1,0 +1,23 @@
+CREATE TABLE [dbo].[BillingUsageLedger] (
+    [LedgerId]     BIGINT          NOT NULL IDENTITY,
+    [TenantId]     NVARCHAR (128)  NOT NULL,
+    [PrincipalId]  NVARCHAR (256)  NULL,
+    [Operation]    NVARCHAR (128)  NULL,
+    [MessageType]  NVARCHAR (128)  NULL,
+    [Handler]      NVARCHAR (256)  NULL,
+    [UsageType]    NVARCHAR (50)   NULL,
+    [Quantity]     BIGINT          NULL,
+    [UnitType]     NVARCHAR (50)   NULL,
+    [CostPerUnit]  DECIMAL (18, 8) NULL,
+    [Units]        DECIMAL (18, 6) NULL,
+    [BaseRate]     DECIMAL (18, 6) NULL,
+    [Multiplier]   DECIMAL (18, 6) NOT NULL DEFAULT 1.0,
+    [TotalCost]    DECIMAL (18, 6) NOT NULL,
+    [Metadata]     NVARCHAR (MAX)  NULL,
+    [MetadataJson] NVARCHAR (MAX)  NULL,
+    [RecordedUtc]  DATETIME2 (7)   NULL,
+    [TimestampUtc] DATETIME2 (7)   NOT NULL DEFAULT (SYSUTCDATETIME()),
+    CONSTRAINT [PK_BillingUsageLedger] PRIMARY KEY CLUSTERED ([LedgerId] ASC),
+    INDEX [IX_BillingUsageLedger_Tenant] ([TenantId], [TimestampUtc] DESC),
+    INDEX [IX_BillingUsageLedger_UsageType] ([UsageType], [RecordedUtc] DESC)
+);

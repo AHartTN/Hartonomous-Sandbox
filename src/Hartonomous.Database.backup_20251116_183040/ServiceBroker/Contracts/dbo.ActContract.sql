@@ -1,0 +1,3 @@
+CREATE CONTRACT [//Hartonomous/AutonomousLoop/ActContract] (
+        [//Hartonomous/AutonomousLoop/ActMessage] SENT BY INITIATOR
+    );

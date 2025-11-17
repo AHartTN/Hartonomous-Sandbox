@@ -29,9 +29,9 @@ BEGIN
         sf.TopicCreative,
         sf.SentimentScore,
         sf.TemporalRelevance
-    FROM dbo.AtomEmbeddings AS ae
+    FROM dbo.AtomEmbedding AS ae
     INNER JOIN dbo.SemanticFeatures AS sf ON sf.AtomEmbeddingId = ae.AtomEmbeddingId
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
     WHERE 
         -- V3: TENANCY MODEL
         (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))

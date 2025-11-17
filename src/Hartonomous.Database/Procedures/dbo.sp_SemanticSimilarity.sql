@@ -14,7 +14,7 @@ BEGIN
         
         -- Get source embedding
         SELECT @SourceEmbedding = EmbeddingVector
-        FROM dbo.AtomEmbeddings
+        FROM dbo.AtomEmbedding
         WHERE AtomId = @SourceAtomId AND TenantId = @TenantId;
         
         IF @SourceEmbedding IS NULL
@@ -30,8 +30,8 @@ BEGIN
             a.ContentHash,
             a.ContentType,
             a.CreatedAt
-        FROM dbo.AtomEmbeddings ae
-        INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId AND ae.TenantId = a.TenantId
+        FROM dbo.AtomEmbedding ae
+        INNER JOIN dbo.Atom a ON ae.AtomId = a.AtomId AND ae.TenantId = a.TenantId
         WHERE ae.TenantId = @TenantId
               AND ae.AtomId != @SourceAtomId
               AND ae.EmbeddingVector IS NOT NULL

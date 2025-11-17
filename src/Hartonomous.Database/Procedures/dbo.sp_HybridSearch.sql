@@ -30,8 +30,8 @@ BEGIN
     SELECT TOP (@spatial_candidates)
         ae.AtomEmbeddingId,
         ae.SpatialKey.STDistance(@query_point) AS spatial_distance
-    FROM dbo.AtomEmbeddings AS ae
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    FROM dbo.AtomEmbedding AS ae
+    INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
     WHERE 
         -- V3: TENANCY MODEL
         (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
@@ -51,9 +51,9 @@ BEGIN
         ae.ModelId,
         VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS exact_distance,
         c.SpatialDistance AS spatial_distance
-    FROM dbo.AtomEmbeddings AS ae
+    FROM dbo.AtomEmbedding AS ae
     INNER JOIN @candidates AS c ON c.AtomEmbeddingId = ae.AtomEmbeddingId
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
     WHERE 
         -- V3: TENANCY MODEL (redundant check, but safe)
         (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))

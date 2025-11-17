@@ -14,9 +14,9 @@ SELECT
     tac.[PositionY],
     tac.[PositionZ],
     a.[AtomicValue] AS [WeightValueBinary]  -- VARBINARY(64) containing IEEE 754 float32
-FROM [dbo].[TensorAtomCoefficients] tac
-JOIN [dbo].[Atoms] a ON tac.[TensorAtomId] = a.[AtomId]
-JOIN [dbo].[Models] m ON tac.[ModelId] = m.[ModelId]
-LEFT JOIN [dbo].[ModelLayers] ml ON tac.[ModelId] = ml.[ModelId] AND tac.[LayerIdx] = ml.[LayerIdx]
+FROM [dbo].[TensorAtomCoefficient] tac
+JOIN [dbo].[Atom] a ON tac.[TensorAtomId] = a.[AtomId]
+JOIN [dbo].[Model] m ON tac.[ModelId] = m.[ModelId]
+LEFT JOIN [dbo].[ModelLayer] ml ON tac.[ModelId] = ml.[ModelId] AND tac.[LayerIdx] = ml.[LayerIdx]
 WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 GO

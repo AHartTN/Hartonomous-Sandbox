@@ -9,7 +9,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    UPDATE dbo.InferenceRequests
+    UPDATE dbo.InferenceRequest
     SET Status = @status,
         OutputData = @outputData,
         Confidence = @confidence,

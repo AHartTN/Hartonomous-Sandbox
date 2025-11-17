@@ -66,20 +66,8 @@ public class InferenceCacheConfiguration : IEntityTypeConfiguration<InferenceCac
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.InferenceCaches)
+            .WithMany(p => p.InferenceCache)
             .HasForeignKey(d => new { d.ModelId })
-            ;
-
-        builder.HasIndex(e => new { e.CacheKey })
-            .HasDatabaseName("IX_InferenceCache_CacheKey")
-            ;
-
-        builder.HasIndex(e => new { e.LastAccessedUtc })
-            .HasDatabaseName("IX_InferenceCache_LastAccessedUtc")
-            ;
-
-        builder.HasIndex(e => new { e.ModelId, e.InferenceType })
-            .HasDatabaseName("IX_InferenceCache_ModelId_InferenceType")
             ;
     }
 }

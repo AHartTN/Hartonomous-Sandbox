@@ -14,7 +14,7 @@ BEGIN
     SELECT 
         @rows = JSON_VALUE(Metadata, '$.shape[0]'),
         @cols = JSON_VALUE(Metadata, '$.shape[1]')
-    FROM dbo.Atoms
+    FROM dbo.Atom
     WHERE AtomId = @layerAtomId;
 
     -- Return weight coefficients ordered by position
@@ -26,7 +26,7 @@ BEGIN
         CASE WHEN @includeMetadata = 1 THEN w.WeightHash ELSE NULL END AS WeightHash,
         CASE WHEN @includeMetadata = 1 THEN ac.Metadata ELSE NULL END AS Metadata
     FROM dbo.AtomCompositions ac
-    INNER JOIN dbo.Atoms a ON ac.ComponentAtomId = a.AtomId
+    INNER JOIN dbo.Atom a ON ac.ComponentAtomId = a.AtomId
     INNER JOIN dbo.AtomicWeights w ON w.WeightHash = a.ContentHash
     WHERE ac.SourceAtomId = @layerAtomId
       AND ac.ComponentType = 'weight'
@@ -43,7 +43,7 @@ BEGIN
         JSON_VALUE(Metadata, '$.modelName') AS ModelName,
         JSON_VALUE(Metadata, '$.dtype') AS DataType,
         CreatedAt
-    FROM dbo.Atoms
+    FROM dbo.Atom
     WHERE AtomId = @layerAtomId;
 END;
 GO

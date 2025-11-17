@@ -7,8 +7,8 @@ BEGIN
     DECLARE @text NVARCHAR(MAX);
     SELECT
         @text = CONVERT(NVARCHAR(256), a.AtomicValue) -- Derived from AtomicValue
-    FROM dbo.AtomEmbeddings AS ae
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+    FROM dbo.AtomEmbedding AS ae
+    INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
     WHERE ae.AtomEmbeddingId = @atom_embedding_id;
 
     IF @text IS NULL

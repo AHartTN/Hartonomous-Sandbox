@@ -39,12 +39,12 @@ BEGIN
                         parent.ContentHash,
                         parent.CreatedAt
                       FROM provenance.AtomGraphEdges edge
-                      INNER JOIN dbo.Atoms parent ON edge.FromAtomId = parent.AtomId
+                      INNER JOIN dbo.Atom parent ON edge.FromAtomId = parent.AtomId
                       WHERE edge.ToAtomId = a.AtomId
                     FOR JSON PATH
                 ) AS Parents
             FROM Lineage l
-            INNER JOIN dbo.Atoms a ON l.AtomId = a.AtomId
+            INNER JOIN dbo.Atom a ON l.AtomId = a.AtomId
             WHERE a.TenantId = @TenantId
             FOR JSON PATH, ROOT('provenance');
         END
@@ -56,8 +56,8 @@ BEGIN
                 edge.ToAtomId AS TargetAtomId,
                 'DerivedFrom' AS EdgeType
             FROM provenance.AtomGraphEdges edge
-            INNER JOIN dbo.Atoms a1 ON edge.FromAtomId = a1.AtomId
-            INNER JOIN dbo.Atoms a2 ON edge.ToAtomId = a2.AtomId
+            INNER JOIN dbo.Atom a1 ON edge.FromAtomId = a1.AtomId
+            INNER JOIN dbo.Atom a2 ON edge.ToAtomId = a2.AtomId
             WHERE a1.TenantId = @TenantId
                   AND a2.TenantId = @TenantId
                   AND (a1.AtomId = @AtomId OR a2.AtomId = @AtomId)

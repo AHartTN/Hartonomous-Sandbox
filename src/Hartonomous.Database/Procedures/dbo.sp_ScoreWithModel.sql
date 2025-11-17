@@ -24,7 +24,7 @@ BEGIN
         SELECT 
             @ModelBytes = SerializedModel,
             @ModelType = ModelType
-        FROM dbo.Models
+        FROM dbo.Model
         WHERE ModelId = @ModelId AND TenantId = @TenantId;
         
         IF @ModelBytes IS NULL
@@ -43,7 +43,7 @@ BEGIN
         SELECT 
             ae.AtomId,
             ae.EmbeddingVector
-        FROM dbo.AtomEmbeddings ae
+        FROM dbo.AtomEmbedding ae
         INNER JOIN @InputAtoms ia ON ae.AtomId = ia.AtomId
         WHERE ae.TenantId = @TenantId;
         

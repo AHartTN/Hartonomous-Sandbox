@@ -85,7 +85,7 @@ BEGIN
         BEGIN
             -- Use SIMD-optimized CLR function
             SELECT @contextVector = dbo.clr_VectorAverage(ae.EmbeddingVector)
-            FROM dbo.AtomEmbeddings ae
+            FROM dbo.AtomEmbedding ae
             INNER JOIN @contextAtoms ca ON ae.AtomId = ca.AtomId
             WHERE ae.EmbeddingVector IS NOT NULL;
         END
@@ -93,7 +93,7 @@ BEGIN
         BEGIN
             -- Fallback: use first context atom's embedding
             SELECT TOP 1 @contextVector = ae.EmbeddingVector
-            FROM dbo.AtomEmbeddings ae
+            FROM dbo.AtomEmbedding ae
             INNER JOIN @contextAtoms ca ON ae.AtomId = ca.AtomId
             WHERE ae.EmbeddingVector IS NOT NULL
             ORDER BY ca.SequenceOrder;
@@ -101,7 +101,7 @@ BEGIN
 
         -- Concatenate context text for logging
         SELECT @contextText = STRING_AGG(a.CanonicalText, ' ')
-        FROM dbo.Atoms a
+        FROM dbo.Atom a
         INNER JOIN @contextAtoms ca ON a.AtomId = ca.AtomId
         ORDER BY ca.SequenceOrder;
 
@@ -253,9 +253,9 @@ BEGIN
 
     BEGIN TRY
         -- Log to InferenceRequests table
-        IF OBJECT_ID('dbo.InferenceRequests', 'U') IS NOT NULL
+        IF OBJECT_ID('dbo.InferenceRequest', 'U') IS NOT NULL
         BEGIN
-            INSERT INTO dbo.InferenceRequests (
+            INSERT INTO dbo.InferenceRequest (
                 InferenceId,
                 TenantId,
                 ModelId,

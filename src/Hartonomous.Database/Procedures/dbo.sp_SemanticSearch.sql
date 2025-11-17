@@ -52,7 +52,7 @@ BEGIN
     DECLARE @search_method NVARCHAR(50) = CASE WHEN @use_hybrid = 1 THEN 'hybrid_spatial_vector' ELSE 'vector_only' END;
     DECLARE @models_used_json NVARCHAR(MAX) = CAST(JSON_OBJECT('searchMethod': @search_method) AS NVARCHAR(MAX));
 
-    INSERT INTO dbo.InferenceRequests (
+    INSERT INTO dbo.InferenceRequest (
         TaskType,
         InputData,
         InputHash,
@@ -146,7 +146,7 @@ BEGIN
             h.spatial_distance,
             'HYBRID_SPATIAL_VECTOR'
         FROM @Hybrid AS h
-        INNER JOIN dbo.Atoms AS a ON a.AtomId = h.AtomId
+        INNER JOIN dbo.Atom AS a ON a.AtomId = h.AtomId
         WHERE @category IS NULL
            OR a.Subtype = @category;
     END
@@ -176,8 +176,8 @@ BEGIN
             1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS similarity,
             NULL,
             'VECTOR_ONLY'
-        FROM dbo.AtomEmbeddings AS ae
-        INNER JOIN dbo.Atoms AS a ON a.AtomId = ae.AtomId
+        FROM dbo.AtomEmbedding AS ae
+        INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
         WHERE 
             -- V3: TENANCY MODEL
             (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
@@ -198,7 +198,7 @@ BEGIN
         'search_method': @search_method
     ) AS NVARCHAR(MAX));
 
-    UPDATE dbo.InferenceRequests
+    UPDATE dbo.InferenceRequest
     SET
         TotalDurationMs = @DurationMs,
         OutputMetadata = @OutputMetadata,

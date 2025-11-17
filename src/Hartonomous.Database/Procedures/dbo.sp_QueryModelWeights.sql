@@ -22,7 +22,7 @@ BEGIN
         coeff.Coefficient
     FROM dbo.TensorAtoms AS ta
     INNER JOIN dbo.ModelLayers AS ml ON ml.LayerId = ta.LayerId
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = ta.AtomId
+    INNER JOIN dbo.Atom AS a ON a.AtomId = ta.AtomId
     LEFT JOIN dbo.TensorAtomCoefficients AS coeff ON coeff.TensorAtomId = ta.TensorAtomId
     LEFT JOIN dbo.ModelLayers AS mlParent ON mlParent.LayerId = coeff.ParentLayerId
     WHERE ta.ModelId = @ModelId

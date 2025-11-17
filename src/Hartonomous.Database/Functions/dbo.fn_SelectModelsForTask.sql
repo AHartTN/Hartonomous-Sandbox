@@ -28,7 +28,7 @@ BEGIN
             m.ModelName
         FROM STRING_SPLIT(@trimmedIds, ',') vals
         CROSS APPLY (SELECT TRY_CAST(LTRIM(RTRIM(vals.value)) AS INT) AS ParsedId) parsed
-        INNER JOIN dbo.Models m ON m.ModelId = parsed.ParsedId
+        INNER JOIN dbo.Model m ON m.ModelId = parsed.ParsedId
         WHERE parsed.ParsedId IS NOT NULL;
 
         IF EXISTS (SELECT 1 FROM @models)
@@ -68,7 +68,7 @@ BEGIN
                 1.0
             ) AS Weight,
             m.ModelName
-        FROM dbo.Models m
+        FROM dbo.Model m
         LEFT JOIN dbo.ModelMetadata md ON md.ModelId = m.ModelId
         LEFT JOIN @additionalTypes at ON at.ModelType = m.ModelType
         WHERE

@@ -21,23 +21,23 @@ GO
 IF EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'idx_spatial_fine'
-      AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+      AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
     PRINT 'Dropping legacy idx_spatial_fine on AtomEmbeddings.SpatialGeometry...';
-    DROP INDEX idx_spatial_fine ON dbo.AtomEmbeddings;
+    DROP INDEX idx_spatial_fine ON dbo.AtomEmbedding;
 END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_AtomEmbeddings_SpatialGeometry' 
-    AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+    WHERE name = 'IX_AtomEmbedding_SpatialGeometry' 
+    AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
-    PRINT 'Creating IX_AtomEmbeddings_SpatialGeometry on AtomEmbeddings.SpatialGeometry...';
+    PRINT 'Creating IX_AtomEmbedding_SpatialGeometry on AtomEmbeddings.SpatialGeometry...';
     
-    CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialGeometry
-    ON dbo.AtomEmbeddings (SpatialGeometry)
+    CREATE SPATIAL INDEX IX_AtomEmbedding_SpatialGeometry
+    ON dbo.AtomEmbedding (SpatialGeometry)
     WITH (
         BOUNDING_BOX = (-1000, -1000, 1000, 1000),
         GRIDS = (
@@ -51,11 +51,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialGeometry created';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialGeometry created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialGeometry already exists';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialGeometry already exists';
 END;
 GO
 
@@ -65,23 +65,23 @@ GO
 IF EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'idx_spatial_coarse'
-      AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+      AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
     PRINT 'Dropping legacy idx_spatial_coarse on AtomEmbeddings.SpatialCoarse...';
-    DROP INDEX idx_spatial_coarse ON dbo.AtomEmbeddings;
+    DROP INDEX idx_spatial_coarse ON dbo.AtomEmbedding;
 END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_AtomEmbeddings_SpatialCoarse' 
-    AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+    WHERE name = 'IX_AtomEmbedding_SpatialCoarse' 
+    AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
-    PRINT 'Creating IX_AtomEmbeddings_SpatialCoarse on AtomEmbeddings.SpatialCoarse...';
+    PRINT 'Creating IX_AtomEmbedding_SpatialCoarse on AtomEmbeddings.SpatialCoarse...';
     
-    CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialCoarse
-    ON dbo.AtomEmbeddings (SpatialCoarse)
+    CREATE SPATIAL INDEX IX_AtomEmbedding_SpatialCoarse
+    ON dbo.AtomEmbedding (SpatialCoarse)
     WITH (
         BOUNDING_BOX = (-100, -100, 100, 100),
         GRIDS = (
@@ -95,11 +95,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialCoarse created';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialCoarse created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialCoarse already exists';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialCoarse already exists';
 END;
 GO
 
@@ -197,23 +197,23 @@ GO
 IF EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'idx_atom_spatial_key'
-      AND object_id = OBJECT_ID('dbo.Atoms')
+      AND object_id = OBJECT_ID('dbo.Atom')
 )
 BEGIN
     PRINT 'Dropping legacy idx_atom_spatial_key on Atoms.SpatialKey...';
-    DROP INDEX idx_atom_spatial_key ON dbo.Atoms;
+    DROP INDEX idx_atom_spatial_key ON dbo.Atom;
 END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_Atoms_SpatialKey' 
-    AND object_id = OBJECT_ID('dbo.Atoms')
+    WHERE name = 'IX_Atom_SpatialKey' 
+    AND object_id = OBJECT_ID('dbo.Atom')
 )
 BEGIN
-    PRINT 'Creating IX_Atoms_SpatialKey on Atoms.SpatialKey...';
+    PRINT 'Creating IX_Atom_SpatialKey on Atoms.SpatialKey...';
     
-    CREATE SPATIAL INDEX IX_Atoms_SpatialKey
-    ON dbo.Atoms (SpatialKey)
+    CREATE SPATIAL INDEX IX_Atom_SpatialKey
+    ON dbo.Atom (SpatialKey)
     WITH (
         BOUNDING_BOX = (-10000, -10000, 10000, 10000),
         GRIDS = (
@@ -227,11 +227,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    PRINT '  ✓ IX_Atoms_SpatialKey created';
+    PRINT '  ✓ IX_Atom_SpatialKey created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_Atoms_SpatialKey already exists';
+    PRINT '  ✓ IX_Atom_SpatialKey already exists';
 END;
 GO
 

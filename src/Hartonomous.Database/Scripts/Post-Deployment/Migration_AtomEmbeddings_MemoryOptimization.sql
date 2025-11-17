@@ -17,7 +17,7 @@ PRINT 'Prerequisites: EmbeddingVector column must be removed first!';
 GO
 
 -- Step 1: Verify EmbeddingVector is removed
-IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.AtomEmbeddings') AND name = 'EmbeddingVector')
+IF EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.AtomEmbedding') AND name = 'EmbeddingVector')
 BEGIN
     RAISERROR('ERROR: EmbeddingVector column still exists! Run Migration_EmbeddingVector_to_Atomic.sql first.', 16, 1);
     RETURN;
@@ -33,7 +33,7 @@ DECLARE @HasBlockingTypes INT;
 SELECT @HasBlockingTypes = COUNT(*)
 FROM sys.columns c
 INNER JOIN sys.types t ON c.user_type_id = t.user_type_id
-WHERE c.object_id = OBJECT_ID('dbo.AtomEmbeddings')
+WHERE c.object_id = OBJECT_ID('dbo.AtomEmbedding')
   AND t.name IN ('geography', 'xml', 'text', 'ntext', 'image', 'sql_variant', 'hierarchyid', 'timestamp');
 
 IF @HasBlockingTypes > 0
@@ -143,7 +143,7 @@ BEGIN
         LastComputedUtc,
         LastAccessedUtc,
         CreatedAt
-    FROM dbo.AtomEmbeddings
+    FROM dbo.AtomEmbedding
     WHERE AtomEmbeddingId > @Offset
     ORDER BY AtomEmbeddingId;
     
@@ -229,7 +229,7 @@ GO
 PRINT 'Renaming tables to switch to memory-optimized version...';
 GO
 
-EXEC sp_rename 'dbo.AtomEmbeddings', 'AtomEmbeddings_Disk_Archive';
+EXEC sp_rename 'dbo.AtomEmbedding', 'AtomEmbeddings_Disk_Archive';
 EXEC sp_rename 'dbo.AtomEmbeddings_InMemory', 'AtomEmbeddings';
 GO
 

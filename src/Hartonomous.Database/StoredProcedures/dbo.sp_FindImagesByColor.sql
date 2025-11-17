@@ -32,7 +32,7 @@ BEGIN
             COUNT(*) AS PixelCount,
             COUNT(DISTINCT mp.PixelHash) AS UniqueColors
         FROM dbo.AtomCompositions ac
-        INNER JOIN dbo.Atoms a ON ac.ComponentAtomId = a.AtomId
+        INNER JOIN dbo.Atom a ON ac.ComponentAtomId = a.AtomId
         INNER JOIN MatchingPixels mp ON mp.PixelHash = a.ContentHash
         WHERE ac.ComponentType = 'pixel'
         GROUP BY ac.SourceAtomId
@@ -46,7 +46,7 @@ BEGIN
         im.UniqueColors,
         img.CreatedAt
     FROM ImageMatches im
-    INNER JOIN dbo.Atoms img ON img.AtomId = im.ImageAtomId
+    INNER JOIN dbo.Atom img ON img.AtomId = im.ImageAtomId
     ORDER BY im.PixelCount DESC, img.CreatedAt DESC;
 END;
 GO

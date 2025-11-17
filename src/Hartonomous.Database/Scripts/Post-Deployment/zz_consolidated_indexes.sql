@@ -4,13 +4,13 @@ PRINT 'Skipping consolidated indexes (disabled due to schema mismatches)';
 GO
 /*
 
-CREATE UNIQUE INDEX [UX_AtomEmbeddingComponents_Embedding_Index] ON [dbo].[AtomEmbeddingComponents] ([AtomEmbeddingId], [ComponentIndex]);
+CREATE UNIQUE INDEX [UX_AtomEmbeddingComponents_Embedding_Index] ON [dbo].[AtomEmbeddingComponent] ([AtomEmbeddingId], [ComponentIndex]);
 GO
-CREATE INDEX [IX_AtomEmbeddings_Atom_Model_Type] ON [dbo].[AtomEmbeddings] ([AtomId], [EmbeddingType], [ModelId]);
+CREATE INDEX [IX_AtomEmbedding_Atom_Model_Type] ON [dbo].[AtomEmbedding] ([AtomId], [EmbeddingType], [ModelId]);
 GO
-CREATE INDEX [IX_AtomEmbeddings_ModelId] ON [dbo].[AtomEmbeddings] ([ModelId]);
+CREATE INDEX [IX_AtomEmbedding_ModelId] ON [dbo].[AtomEmbedding] ([ModelId]);
 GO
-CREATE INDEX [IX_AtomEmbeddings_SpatialBucket] ON [dbo].[AtomEmbeddings] ([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ]);
+CREATE INDEX [IX_AtomEmbedding_SpatialBucket] ON [dbo].[AtomEmbedding] ([SpatialBucketX], [SpatialBucketY], [SpatialBucketZ]);
 GO
 CREATE INDEX [IX_AtomGraphEdges_CreatedAt] ON [graph].[AtomGraphEdges] ([CreatedAt]);  -- Changed CreatedUtc to CreatedAt
 GO
@@ -43,11 +43,11 @@ CREATE INDEX [IX_AtomPayloadStore_RowGuid] ON [dbo].[AtomPayloadStore] ([RowGuid
 GO
 CREATE UNIQUE INDEX [UX_AtomPayloadStore_ContentHash] ON [dbo].[AtomPayloadStore] ([ContentHash]);
 GO
-CREATE INDEX [IX_AtomRelations_Source_Target_Type] ON [dbo].[AtomRelations] ([SourceAtomId], [TargetAtomId], [RelationType]);
+CREATE INDEX [IX_AtomRelation_Source_Target_Type] ON [dbo].[AtomRelation] ([SourceAtomId], [TargetAtomId], [RelationType]);
 GO
-CREATE INDEX [IX_AtomRelations_TargetAtomId] ON [dbo].[AtomRelations] ([TargetAtomId]);
+CREATE INDEX [IX_AtomRelation_TargetAtomId] ON [dbo].[AtomRelation] ([TargetAtomId]);
 GO
-CREATE UNIQUE INDEX [UX_Atoms_ContentHash] ON [dbo].[Atoms] ([ContentHash]);
+CREATE UNIQUE INDEX [UX_Atom_ContentHash] ON [dbo].[Atom] ([ContentHash]);
 GO
 CREATE INDEX [IX_AudioData_DurationMs] ON [dbo].[AudioData] ([DurationMs]);
 GO
@@ -59,33 +59,33 @@ CREATE INDEX [IX_AutonomousImprovement_StartedAt] ON [dbo].[AutonomousImprovemen
 GO
 CREATE INDEX [IX_AutonomousImprovement_SuccessScore] ON [dbo].[AutonomousImprovementHistory] ([SuccessScore] DESC) WHERE [WasDeployed] = 1 AND [WasRolledBack] = 0;
 GO
-CREATE UNIQUE INDEX [UX_BillingMultipliers_Active] ON [dbo].[BillingMultipliers] ([RatePlanId], [Dimension], [Key]) WHERE [IsActive] = 1;
+CREATE UNIQUE INDEX [UX_BillingMultipliers_Active] ON [dbo].[BillingMultiplier] ([RatePlanId], [Dimension], [Key]) WHERE [IsActive] = 1;
 GO
-CREATE UNIQUE INDEX [UX_BillingOperationRates_Active] ON [dbo].[BillingOperationRates] ([RatePlanId], [Operation]) WHERE [IsActive] = 1;
+CREATE UNIQUE INDEX [UX_BillingOperationRates_Active] ON [dbo].[BillingOperationRate] ([RatePlanId], [Operation]) WHERE [IsActive] = 1;
 GO
-CREATE INDEX [IX_BillingRatePlans_Tenant_IsActive] ON [dbo].[BillingRatePlans] ([TenantId], [IsActive]) INCLUDE ([UpdatedUtc]);
+CREATE INDEX [IX_BillingRatePlans_Tenant_IsActive] ON [dbo].[BillingRatePlan] ([TenantId], [IsActive]) INCLUDE ([UpdatedUtc]);
 GO
-CREATE UNIQUE INDEX [UX_BillingRatePlans_Tenant_PlanCode] ON [dbo].[BillingRatePlans] ([TenantId], [PlanCode]) WHERE [PlanCode] <> '';
+CREATE UNIQUE INDEX [UX_BillingRatePlans_Tenant_PlanCode] ON [dbo].[BillingRatePlan] ([TenantId], [PlanCode]) WHERE [PlanCode] <> '';
 GO
 CREATE INDEX [IX_BillingUsageLedger_Operation_Timestamp] ON [dbo].[BillingUsageLedger] ([Operation], [TimestampUtc]) INCLUDE ([TenantId], [Units], [TotalCost]);
 GO
 CREATE INDEX [IX_BillingUsageLedger_TenantId_Timestamp] ON [dbo].[BillingUsageLedger] ([TenantId], [TimestampUtc]) INCLUDE ([Operation], [TotalCost]);
 GO
-CREATE INDEX [IX_CachedActivations_LastAccessed_HitCount] ON [dbo].[CachedActivations] ([LastAccessed] DESC, [HitCount] DESC);
+CREATE INDEX [IX_CachedActivations_LastAccessed_HitCount] ON [dbo].[CachedActivation] ([LastAccessed] DESC, [HitCount] DESC);
 GO
-CREATE INDEX [IX_CachedActivations_LayerId] ON [dbo].[CachedActivations] ([LayerId]);
+CREATE INDEX [IX_CachedActivations_LayerId] ON [dbo].[CachedActivation] ([LayerId]);
 GO
-CREATE UNIQUE INDEX [IX_CachedActivations_Model_Layer_InputHash] ON [dbo].[CachedActivations] ([ModelId], [LayerId], [InputHash]);
+CREATE UNIQUE INDEX [IX_CachedActivations_Model_Layer_InputHash] ON [dbo].[CachedActivation] ([ModelId], [LayerId], [InputHash]);
 GO
-CREATE UNIQUE INDEX [IX_CodeAtoms_CodeHash] ON [dbo].[CodeAtoms] ([CodeHash]) WHERE [CodeHash] IS NOT NULL;
+CREATE UNIQUE INDEX [IX_CodeAtoms_CodeHash] ON [dbo].[CodeAtom] ([CodeHash]) WHERE [CodeHash] IS NOT NULL;
 GO
-CREATE INDEX [IX_CodeAtoms_CodeType] ON [dbo].[CodeAtoms] ([CodeType]);
+CREATE INDEX [IX_CodeAtoms_CodeType] ON [dbo].[CodeAtom] ([CodeType]);
 GO
-CREATE INDEX [IX_CodeAtoms_CreatedAt] ON [dbo].[CodeAtoms] ([CreatedAt]);
+CREATE INDEX [IX_CodeAtoms_CreatedAt] ON [dbo].[CodeAtom] ([CreatedAt]);
 GO
-CREATE INDEX [IX_CodeAtoms_Language] ON [dbo].[CodeAtoms] ([Language]);
+CREATE INDEX [IX_CodeAtoms_Language] ON [dbo].[CodeAtom] ([Language]);
 GO
-CREATE INDEX [IX_CodeAtoms_QualityScore] ON [dbo].[CodeAtoms] ([QualityScore]);
+CREATE INDEX [IX_CodeAtoms_QualityScore] ON [dbo].[CodeAtom] ([QualityScore]);
 GO
 CREATE INDEX [IX_Concepts_CoherenceScore] ON [provenance].[Concepts] ([CoherenceScore] DESC);
 GO
@@ -95,7 +95,7 @@ CREATE INDEX [IX_Concepts_DiscoveryMethod] ON [provenance].[Concepts] ([Discover
 GO
 CREATE INDEX [IX_Concepts_ModelId_IsActive] ON [provenance].[Concepts] ([ModelId], [IsActive]);
 GO
-CREATE UNIQUE INDEX [UX_DeduplicationPolicies_PolicyName] ON [dbo].[DeduplicationPolicies] ([PolicyName]);
+CREATE UNIQUE INDEX [UX_DeduplicationPolicies_PolicyName] ON [dbo].[DeduplicationPolicy] ([PolicyName]);
 GO
 CREATE INDEX [IX_GenerationStreams_CreatedUtc] ON [provenance].[GenerationStreams] ([CreatedUtc]);
 GO
@@ -121,23 +121,23 @@ CREATE INDEX [IX_InferenceCache_LastAccessedUtc] ON [dbo].[InferenceCache] ([Las
 GO
 CREATE INDEX [IX_InferenceCache_ModelId_InferenceType] ON [dbo].[InferenceCache] ([ModelId], [InferenceType]);
 GO
-CREATE INDEX [IX_InferenceRequests_CacheHit] ON [dbo].[InferenceRequests] ([CacheHit]);
+CREATE INDEX [IX_InferenceRequests_CacheHit] ON [dbo].[InferenceRequest] ([CacheHit]);
 GO
-CREATE INDEX [IX_InferenceRequests_InputHash] ON [dbo].[InferenceRequests] ([InputHash]);
+CREATE INDEX [IX_InferenceRequests_InputHash] ON [dbo].[InferenceRequest] ([InputHash]);
 GO
-CREATE INDEX [IX_InferenceRequests_ModelId] ON [dbo].[InferenceRequests] ([ModelId]);
+CREATE INDEX [IX_InferenceRequests_ModelId] ON [dbo].[InferenceRequest] ([ModelId]);
 GO
-CREATE INDEX [IX_InferenceRequests_RequestTimestamp] ON [dbo].[InferenceRequests] ([RequestTimestamp] DESC);
+CREATE INDEX [IX_InferenceRequests_RequestTimestamp] ON [dbo].[InferenceRequest] ([RequestTimestamp] DESC);
 GO
-CREATE INDEX [IX_InferenceRequests_TaskType] ON [dbo].[InferenceRequests] ([TaskType]);
+CREATE INDEX [IX_InferenceRequests_TaskType] ON [dbo].[InferenceRequest] ([TaskType]);
 GO
-CREATE INDEX [IX_InferenceSteps_InferenceId_StepNumber] ON [dbo].[InferenceSteps] ([InferenceId], [StepNumber]);
+CREATE INDEX [IX_InferenceSteps_InferenceId_StepNumber] ON [dbo].[InferenceStep] ([InferenceId], [StepNumber]);
 GO
-CREATE INDEX [IX_InferenceSteps_ModelId] ON [dbo].[InferenceSteps] ([ModelId]);
+CREATE INDEX [IX_InferenceSteps_ModelId] ON [dbo].[InferenceStep] ([ModelId]);
 GO
-CREATE INDEX [IX_IngestionJobAtoms_AtomId] ON [dbo].[IngestionJobAtoms] ([AtomId]);
+CREATE INDEX [IX_IngestionJobAtoms_AtomId] ON [dbo].[IngestionJobAtom] ([AtomId]);
 GO
-CREATE INDEX [IX_IngestionJobAtoms_Job_Atom] ON [dbo].[IngestionJobAtoms] ([IngestionJobId], [AtomId]);
+CREATE INDEX [IX_IngestionJobAtoms_Job_Atom] ON [dbo].[IngestionJobAtom] ([IngestionJobId], [AtomId]);
 GO
 CREATE INDEX [IX_LayerTensorSegments_M_Range] ON [dbo].[LayerTensorSegments] ([LayerId], [MMin], [MMax]);
 GO
@@ -147,17 +147,17 @@ CREATE INDEX [IX_LayerTensorSegments_Z_Range] ON [dbo].[LayerTensorSegments] ([L
 GO
 CREATE UNIQUE INDEX [UX_LayerTensorSegments_LayerId_SegmentOrdinal] ON [dbo].[LayerTensorSegments] ([LayerId], [SegmentOrdinal]);
 GO
-CREATE INDEX [IX_ModelLayers_LayerAtomId] ON [dbo].[ModelLayers] ([LayerAtomId]);
+CREATE INDEX [IX_ModelLayer_LayerAtomId] ON [dbo].[ModelLayer] ([LayerAtomId]);
 GO
-CREATE INDEX [IX_ModelLayers_LayerType] ON [dbo].[ModelLayers] ([LayerType]);
+CREATE INDEX [IX_ModelLayer_LayerType] ON [dbo].[ModelLayer] ([LayerType]);
 GO
-CREATE INDEX [IX_ModelLayers_M_Range] ON [dbo].[ModelLayers] ([ModelId], [MMin], [MMax]);
+CREATE INDEX [IX_ModelLayer_M_Range] ON [dbo].[ModelLayer] ([ModelId], [MMin], [MMax]);
 GO
-CREATE INDEX [IX_ModelLayers_ModelId_LayerIdx] ON [dbo].[ModelLayers] ([ModelId], [LayerIdx]);
+CREATE INDEX [IX_ModelLayer_ModelId_LayerIdx] ON [dbo].[ModelLayer] ([ModelId], [LayerIdx]);
 GO
-CREATE INDEX [IX_ModelLayers_Morton] ON [dbo].[ModelLayers] ([MortonCode]);
+CREATE INDEX [IX_ModelLayer_Morton] ON [dbo].[ModelLayer] ([MortonCode]);
 GO
-CREATE INDEX [IX_ModelLayers_Z_Range] ON [dbo].[ModelLayers] ([ModelId], [ZMin], [ZMax]);
+CREATE INDEX [IX_ModelLayer_Z_Range] ON [dbo].[ModelLayer] ([ModelId], [ZMin], [ZMax]);
 GO
 CREATE UNIQUE INDEX [IX_ModelMetadata_ModelId] ON [dbo].[ModelMetadata] ([ModelId]);
 GO
@@ -167,23 +167,23 @@ CREATE INDEX [IX_TenantSecurityPolicy_IsActive] ON [dbo].[TenantSecurityPolicy] 
 GO
 CREATE INDEX [IX_TenantSecurityPolicy_TenantId_PolicyType] ON [dbo].[TenantSecurityPolicy] ([TenantId], [PolicyType]);
 GO
-CREATE INDEX [IX_TensorAtomCoefficients_Lookup] ON [dbo].[TensorAtomCoefficients] ([TensorAtomId], [ParentLayerId], [TensorRole]);
+CREATE INDEX [IX_TensorAtomCoefficients_Lookup] ON [dbo].[TensorAtomCoefficient] ([TensorAtomId], [ParentLayerId], [TensorRole]);
 GO
-CREATE INDEX [IX_TensorAtomCoefficients_ParentLayerId] ON [dbo].[TensorAtomCoefficients] ([ParentLayerId]);
+CREATE INDEX [IX_TensorAtomCoefficients_ParentLayerId] ON [dbo].[TensorAtomCoefficient] ([ParentLayerId]);
 GO
-CREATE INDEX [IX_TensorAtoms_AtomId] ON [dbo].[TensorAtoms] ([AtomId]);
+CREATE INDEX [IX_TensorAtoms_AtomId] ON [dbo].[TensorAtom] ([AtomId]);
 GO
-CREATE INDEX [IX_TensorAtoms_LayerId] ON [dbo].[TensorAtoms] ([LayerId]);
+CREATE INDEX [IX_TensorAtoms_LayerId] ON [dbo].[TensorAtom] ([LayerId]);
 GO
-CREATE INDEX [IX_TensorAtoms_Model_Layer_Type] ON [dbo].[TensorAtoms] ([ModelId], [LayerId], [AtomType]);
+CREATE INDEX [IX_TensorAtoms_Model_Layer_Type] ON [dbo].[TensorAtom] ([ModelId], [LayerId], [AtomType]);
 GO
-CREATE INDEX [IX_TestResults_ExecutionTimeMs] ON [dbo].[TestResults] ([ExecutionTimeMs] DESC);
+CREATE INDEX [IX_TestResults_ExecutionTimeMs] ON [dbo].[TestResult] ([ExecutionTimeMs] DESC);
 GO
-CREATE INDEX [IX_TestResults_TestCategory_ExecutedAt] ON [dbo].[TestResults] ([TestCategory] DESC, [ExecutedAt] DESC);
+CREATE INDEX [IX_TestResults_TestCategory_ExecutedAt] ON [dbo].[TestResult] ([TestCategory] DESC, [ExecutedAt] DESC);
 GO
-CREATE INDEX [IX_TestResults_TestStatus] ON [dbo].[TestResults] ([TestStatus]);
+CREATE INDEX [IX_TestResults_TestStatus] ON [dbo].[TestResult] ([TestStatus]);
 GO
-CREATE INDEX [IX_TestResults_TestSuite_ExecutedAt] ON [dbo].[TestResults] ([TestSuite] DESC, [ExecutedAt] DESC);
+CREATE INDEX [IX_TestResults_TestSuite_ExecutedAt] ON [dbo].[TestResult] ([TestSuite] DESC, [ExecutedAt] DESC);
 GO
 CREATE INDEX [IX_TokenVocabulary_ModelId_Token] ON [dbo].[TokenVocabulary] ([ModelId], [Token]);
 GO
@@ -287,23 +287,23 @@ GO
 IF EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'idx_spatial_fine'
-      AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+      AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
     PRINT 'Dropping legacy idx_spatial_fine on AtomEmbeddings.SpatialGeometry...';
-    DROP INDEX idx_spatial_fine ON dbo.AtomEmbeddings;
+    DROP INDEX idx_spatial_fine ON dbo.AtomEmbedding;
 END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_AtomEmbeddings_SpatialGeometry' 
-    AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+    WHERE name = 'IX_AtomEmbedding_SpatialGeometry' 
+    AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
-    PRINT 'Creating IX_AtomEmbeddings_SpatialGeometry on AtomEmbeddings.SpatialGeometry...';
+    PRINT 'Creating IX_AtomEmbedding_SpatialGeometry on AtomEmbeddings.SpatialGeometry...';
     
-    CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialGeometry
-    ON dbo.AtomEmbeddings (SpatialGeometry)
+    CREATE SPATIAL INDEX IX_AtomEmbedding_SpatialGeometry
+    ON dbo.AtomEmbedding (SpatialGeometry)
     WITH (
         BOUNDING_BOX = (-1000, -1000, 1000, 1000),
         GRIDS = (
@@ -317,11 +317,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialGeometry created';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialGeometry created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialGeometry already exists';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialGeometry already exists';
 END;
 GO
 
@@ -331,23 +331,23 @@ GO
 IF EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'idx_spatial_coarse'
-      AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+      AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
     PRINT 'Dropping legacy idx_spatial_coarse on AtomEmbeddings.SpatialCoarse...';
-    DROP INDEX idx_spatial_coarse ON dbo.AtomEmbeddings;
+    DROP INDEX idx_spatial_coarse ON dbo.AtomEmbedding;
 END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_AtomEmbeddings_SpatialCoarse' 
-    AND object_id = OBJECT_ID('dbo.AtomEmbeddings')
+    WHERE name = 'IX_AtomEmbedding_SpatialCoarse' 
+    AND object_id = OBJECT_ID('dbo.AtomEmbedding')
 )
 BEGIN
-    PRINT 'Creating IX_AtomEmbeddings_SpatialCoarse on AtomEmbeddings.SpatialCoarse...';
+    PRINT 'Creating IX_AtomEmbedding_SpatialCoarse on AtomEmbeddings.SpatialCoarse...';
     
-    CREATE SPATIAL INDEX IX_AtomEmbeddings_SpatialCoarse
-    ON dbo.AtomEmbeddings (SpatialCoarse)
+    CREATE SPATIAL INDEX IX_AtomEmbedding_SpatialCoarse
+    ON dbo.AtomEmbedding (SpatialCoarse)
     WITH (
         BOUNDING_BOX = (-100, -100, 100, 100),
         GRIDS = (
@@ -361,11 +361,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialCoarse created';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialCoarse created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_AtomEmbeddings_SpatialCoarse already exists';
+    PRINT '  ✓ IX_AtomEmbedding_SpatialCoarse already exists';
 END;
 GO
 
@@ -463,23 +463,23 @@ GO
 IF EXISTS (
     SELECT 1 FROM sys.indexes 
     WHERE name = 'idx_atom_spatial_key'
-      AND object_id = OBJECT_ID('dbo.Atoms')
+      AND object_id = OBJECT_ID('dbo.Atom')
 )
 BEGIN
     PRINT 'Dropping legacy idx_atom_spatial_key on Atoms.SpatialKey...';
-    DROP INDEX idx_atom_spatial_key ON dbo.Atoms;
+    DROP INDEX idx_atom_spatial_key ON dbo.Atom;
 END;
 
 IF NOT EXISTS (
     SELECT 1 FROM sys.indexes 
-    WHERE name = 'IX_Atoms_SpatialKey' 
-    AND object_id = OBJECT_ID('dbo.Atoms')
+    WHERE name = 'IX_Atom_SpatialKey' 
+    AND object_id = OBJECT_ID('dbo.Atom')
 )
 BEGIN
-    PRINT 'Creating IX_Atoms_SpatialKey on Atoms.SpatialKey...';
+    PRINT 'Creating IX_Atom_SpatialKey on Atoms.SpatialKey...';
     
-    CREATE SPATIAL INDEX IX_Atoms_SpatialKey
-    ON dbo.Atoms (SpatialKey)
+    CREATE SPATIAL INDEX IX_Atom_SpatialKey
+    ON dbo.Atom (SpatialKey)
     WITH (
         BOUNDING_BOX = (-10000, -10000, 10000, 10000),
         GRIDS = (
@@ -493,11 +493,11 @@ BEGIN
         SORT_IN_TEMPDB = ON
     );
     
-    PRINT '  ✓ IX_Atoms_SpatialKey created';
+    PRINT '  ✓ IX_Atom_SpatialKey created';
 END
 ELSE
 BEGIN
-    PRINT '  ✓ IX_Atoms_SpatialKey already exists';
+    PRINT '  ✓ IX_Atom_SpatialKey already exists';
 END;
 GO
 

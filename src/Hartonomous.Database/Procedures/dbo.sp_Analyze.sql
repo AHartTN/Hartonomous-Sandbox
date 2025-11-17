@@ -89,7 +89,7 @@ BEGIN
             -- Create performance vector for anomaly detection
             -- [duration_normalized, tokens_normalized, hour_of_day, day_of_week, ...]
             CAST(NULL AS VECTOR(1998)) -- Placeholder, would compute actual vector
-        FROM dbo.InferenceRequests ir
+        FROM dbo.InferenceRequest ir
         WHERE ir.RequestTimestamp >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
             AND ir.Status IN ('Completed', 'Failed')
         ORDER BY ir.RequestTimestamp DESC;
@@ -230,8 +230,8 @@ BEGIN
                 ae.AtomId,
                 a.Modality,
                 COUNT(*) OVER (PARTITION BY ae.SpatialBucketX, ae.SpatialBucketY, ae.SpatialBucketZ) AS ClusterSize
-            FROM dbo.AtomEmbeddings ae
-            INNER JOIN dbo.Atoms a ON ae.AtomId = a.AtomId
+            FROM dbo.AtomEmbedding ae
+            INNER JOIN dbo.Atom a ON ae.AtomId = a.AtomId
             WHERE ae.CreatedAt >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
                 AND ae.SpatialBucketX IS NOT NULL
             ORDER BY ClusterSize DESC
@@ -264,7 +264,7 @@ BEGIN
                         FROM [dbo].[InferenceTracking] it 
                         WHERE it.AtomId = ae.AtomId
                     ), 0) ASC) AS VelocityRank
-                FROM [dbo].[AtomEmbeddings] ae
+                FROM [dbo].[AtomEmbedding] ae
                 WHERE ae.[HilbertValue] IS NOT NULL 
                   AND ae.[HilbertValue] <> 0
                 GROUP BY ae.[HilbertValue], ae.AtomId

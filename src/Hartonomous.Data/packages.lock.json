@@ -416,14 +416,6 @@
           "System.CodeDom": "6.0.0"
         }
       },
-      "NetTopologySuite.IO.SqlServerBytes": {
-        "type": "Transitive",
-        "resolved": "2.1.0",
-        "contentHash": "R4BcV19f2l6EjHSjh/EHwLhYQHrOov9vig1EW5oBm0iqlZOgaIJm5tBnlbFnYlvdYOPuf5p0Qtf8PCVwH77Wbg==",
-        "dependencies": {
-          "NetTopologySuite": "[2.0.0, 3.0.0-A)"
-        }
-      },
       "Polly.Core": {
         "type": "Transitive",
         "resolved": "8.4.2",
@@ -660,6 +652,15 @@
         "contentHash": "SKKKZjyCpBaDQ7yuFjdk6ELnRBRWeZsbnzUfo59Wc4PGhgf92chE3we/QlT6nk6NqlWcUgH/jogM+B/uq/Qdnw==",
         "dependencies": {
           "Microsoft.Extensions.DependencyInjection.Abstractions": "10.0.0-rc.2.25502.107"
+        }
+      },
+      "NetTopologySuite.IO.SqlServerBytes": {
+        "type": "CentralTransitive",
+        "requested": "[2.1.0, )",
+        "resolved": "2.1.0",
+        "contentHash": "R4BcV19f2l6EjHSjh/EHwLhYQHrOov9vig1EW5oBm0iqlZOgaIJm5tBnlbFnYlvdYOPuf5p0Qtf8PCVwH77Wbg==",
+        "dependencies": {
+          "NetTopologySuite": "[2.0.0, 3.0.0-A)"
         }
       },
       "Newtonsoft.Json": {

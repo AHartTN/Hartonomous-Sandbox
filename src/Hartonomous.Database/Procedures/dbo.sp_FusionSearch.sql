@@ -34,7 +34,7 @@ BEGIN
             1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS VectorScore,
             0.0 AS KeywordScore,
             0.0 AS SpatialScore
-        FROM dbo.AtomEmbeddings ae
+        FROM dbo.AtomEmbedding ae
         LEFT JOIN dbo.TenantAtoms ta ON ae.AtomId = ta.AtomId
         WHERE (@TenantId IS NULL OR ta.TenantId = @TenantId);
         
@@ -48,7 +48,7 @@ BEGIN
             DECLARE @SQL NVARCHAR(MAX) = N'
                 INSERT INTO #FTSResults (AtomId, FTSRank)
                 SELECT [KEY], RANK 
-                FROM CONTAINSTABLE(dbo.Atoms, Content, @SearchTerm)';
+                FROM CONTAINSTABLE(dbo.Atom, Content, @SearchTerm)';
             
             EXEC sp_executesql @SQL, N'@SearchTerm NVARCHAR(4000)', @Keywords;
             
@@ -70,7 +70,7 @@ BEGIN
                 ELSE 0.0
             END
             FROM @Results r
-            INNER JOIN dbo.AtomEmbeddings ae ON r.AtomId = ae.AtomId;
+            INNER JOIN dbo.AtomEmbedding ae ON r.AtomId = ae.AtomId;
         END
         
         -- Compute combined score
@@ -91,7 +91,7 @@ BEGIN
             a.ContentType,
             a.CreatedAt
         FROM @Results r
-        INNER JOIN dbo.Atoms a ON r.AtomId = a.AtomId
+        INNER JOIN dbo.Atom a ON r.AtomId = a.AtomId
         -- No need for second TenantAtoms filter - already filtered in vector score computation
         ORDER BY r.CombinedScore DESC;
         

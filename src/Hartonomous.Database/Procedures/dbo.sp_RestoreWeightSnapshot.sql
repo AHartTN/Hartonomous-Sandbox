@@ -12,7 +12,7 @@ BEGIN
     SELECT 
         @SnapshotTime = SnapshotTime,
         @ModelId = ModelId
-    FROM dbo.WeightSnapshots
+    FROM dbo.WeightSnapshot
     WHERE SnapshotName = @SnapshotName;
     
     IF @SnapshotTime IS NULL

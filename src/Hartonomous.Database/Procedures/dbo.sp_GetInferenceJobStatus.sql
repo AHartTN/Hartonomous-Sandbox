@@ -14,6 +14,6 @@ BEGIN
         RequestTimestamp,
         CompletionTimestamp,
         CorrelationId
-    FROM dbo.InferenceRequests
+    FROM dbo.InferenceRequest
     WHERE InferenceId = @inferenceId;
 END;

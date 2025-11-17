@@ -1,0 +1,1 @@
+CREATE QUEUE InitiatorQueue WITH STATUS = ON;

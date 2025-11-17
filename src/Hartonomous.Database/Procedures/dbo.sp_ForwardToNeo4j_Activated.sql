@@ -49,7 +49,7 @@ BEGIN
                         '    a.contentHash = $contentHash, ' +
                         '    a.CreatedAt = $CreatedAt, ' +
                         '    a.metadata = $metadata'
-                    FROM dbo.Atoms
+                    FROM dbo.Atom
                     WHERE AtomId = @EntityId;
                     
                     -- Execute via external REST call (using sp_invoke_external_rest_endpoint)

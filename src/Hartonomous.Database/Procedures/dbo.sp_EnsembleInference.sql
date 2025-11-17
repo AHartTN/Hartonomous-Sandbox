@@ -47,7 +47,7 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy)
+    INSERT INTO dbo.InferenceRequest (TaskType, InputData, ModelsUsed, EnsembleStrategy)
     VALUES (
         @taskType,
         CONVERT(NVARCHAR(MAX), @inputData),
@@ -86,7 +86,7 @@ BEGIN
 
     DECLARE @durationMs INT = DATEDIFF(MILLISECOND, @startTime, SYSUTCDATETIME());
     DECLARE @modelCount INT = (SELECT COUNT(*) FROM @models);
-    UPDATE dbo.InferenceRequests
+    UPDATE dbo.InferenceRequest
     SET TotalDurationMs = @durationMs,
         OutputMetadata = JSON_OBJECT(
             'status': 'completed',

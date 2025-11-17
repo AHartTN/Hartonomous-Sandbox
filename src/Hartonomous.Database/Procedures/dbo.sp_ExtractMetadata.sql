@@ -14,7 +14,7 @@ BEGIN
         SELECT 
             @Modality = Modality,
             @CanonicalText = CanonicalText
-        FROM dbo.Atoms
+        FROM dbo.Atom
         WHERE AtomId = @AtomId AND TenantId = @TenantId;
         
         IF @Modality IS NULL
@@ -52,7 +52,7 @@ BEGIN
         END
         
         -- Update atom metadata
-        UPDATE dbo.Atoms
+        UPDATE dbo.Atom
         SET Metadata = JSON_MODIFY(
             ISNULL(Metadata, '{}'),
             '$.extracted',

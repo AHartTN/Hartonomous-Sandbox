@@ -48,7 +48,7 @@ BEGIN
         SELECT 
             @BaselineAvgDurationMs = AVG(TotalDurationMs),
             @BaselineThroughput = COUNT(*)
-        FROM dbo.InferenceRequests
+        FROM dbo.InferenceRequest
         WHERE RequestTimestamp >= DATEADD(HOUR, -24, SYSUTCDATETIME())
               AND RequestTimestamp < DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Baseline: 24 hours ago to 5 minutes ago
         
@@ -59,7 +59,7 @@ BEGIN
         SELECT 
             @CurrentAvgDurationMs = AVG(TotalDurationMs),
             @CurrentThroughput = COUNT(*)
-        FROM dbo.InferenceRequests
+        FROM dbo.InferenceRequest
         WHERE RequestTimestamp >= DATEADD(MINUTE, -5, SYSUTCDATETIME()); -- Recent: last 5 minutes
         
         -- Calculate deltas

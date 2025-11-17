@@ -13,7 +13,7 @@ BEGIN
 
     DECLARE @parent_exists INT = (
         SELECT COUNT(*)
-        FROM dbo.Models
+        FROM dbo.Model
         WHERE ModelId = @ParentModelId
     );
 

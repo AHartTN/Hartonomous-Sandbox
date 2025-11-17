@@ -31,5 +31,5 @@ public partial class ConceptEvolution : IConceptEvolution
 
     public int TenantId { get; set; }
 
-    public virtual Concept Concept { get; set; } = null!;
+    public virtual Concepts Concept { get; set; } = null!;
 }

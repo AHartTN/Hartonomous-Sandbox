@@ -137,7 +137,7 @@ BEGIN
 
             BEGIN TRANSACTION;
 
-                MERGE [dbo].[Atoms] AS T
+                MERGE [dbo].[Atom] AS T
                 USING #UniquePixels AS S
                 ON T.[ContentHash] = S.[ContentHash]
                 WHEN NOT MATCHED BY TARGET THEN
@@ -147,11 +147,11 @@ BEGIN
                 INSERT INTO #PixelToAtomId ([R], [G], [B], [A], [AtomId])
                 SELECT up.[R], up.[G], up.[B], up.[A], a.[AtomId]
                 FROM #UniquePixels up
-                JOIN [dbo].[Atoms] a ON a.[ContentHash] = up.[ContentHash];
+                JOIN [dbo].[Atom] a ON a.[ContentHash] = up.[ContentHash];
 
                 UPDATE a
                 SET a.[ReferenceCount] = a.[ReferenceCount] + pixel_count
-                FROM [dbo].[Atoms] a
+                FROM [dbo].[Atom] a
                 JOIN (
                     SELECT pta.[AtomId], COUNT(*) AS pixel_count
                     FROM #ChunkPixels cp
@@ -164,7 +164,7 @@ BEGIN
                 ) AS counts ON a.[AtomId] = counts.[AtomId];
 
                 -- Insert XYZM structural representation
-                INSERT INTO [dbo].[AtomCompositions] (
+                INSERT INTO [dbo].[AtomComposition] (
                     [ParentAtomId], 
                     [ComponentAtomId], 
                     [SequenceIndex], 

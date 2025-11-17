@@ -44,7 +44,7 @@ BEGIN
     );
 
     DECLARE @inferenceId BIGINT;
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
+    INSERT INTO dbo.InferenceRequest (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputMetadata)
     VALUES (
         'image_generation',
         CONVERT(NVARCHAR(MAX), @requestInfo),
@@ -167,7 +167,7 @@ BEGIN
         'candidates': JSON_QUERY(@candidatesJson)
     );
 
-    UPDATE dbo.InferenceRequests
+    UPDATE dbo.InferenceRequest
     SET TotalDurationMs = @durationMs,
         OutputData = @outputJson,
         OutputMetadata = JSON_OBJECT(

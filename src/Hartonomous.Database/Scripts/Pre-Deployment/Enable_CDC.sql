@@ -27,16 +27,16 @@ BEGIN
             @source_name = N'Atoms',
             @role_name = NULL, -- No role-based security
             @supports_net_changes = 1; -- Enable net changes queries
-        PRINT 'CDC enabled for table dbo.Atoms.';
+        PRINT 'CDC enabled for table dbo.Atom.';
     END
     ELSE
     BEGIN
-        PRINT 'CDC schema not yet available for table dbo.Atoms (will enable in separate transaction).';
+        PRINT 'CDC schema not yet available for table dbo.Atom (will enable in separate transaction).';
     END
 END
 ELSE
 BEGIN
-    PRINT 'CDC already enabled for table dbo.Atoms.';
+    PRINT 'CDC already enabled for table dbo.Atom.';
 END
 GO
 
@@ -54,16 +54,16 @@ BEGIN
             @source_name = N'Models',
             @role_name = NULL,
             @supports_net_changes = 1;
-        PRINT 'CDC enabled for table dbo.Models.';
+        PRINT 'CDC enabled for table dbo.Model.';
     END
     ELSE
     BEGIN
-        PRINT 'CDC schema not yet available for table dbo.Models (will enable in separate transaction).';
+        PRINT 'CDC schema not yet available for table dbo.Model (will enable in separate transaction).';
     END
 END
 ELSE
 BEGIN
-    PRINT 'CDC already enabled for table dbo.Models.';
+    PRINT 'CDC already enabled for table dbo.Model.';
 END
 GO
 
@@ -81,15 +81,15 @@ BEGIN
             @source_name = N'InferenceRequests',
             @role_name = NULL,
             @supports_net_changes = 1;
-        PRINT 'CDC enabled for table dbo.InferenceRequests.';
+        PRINT 'CDC enabled for table dbo.InferenceRequest.';
     END
     ELSE
     BEGIN
-        PRINT 'CDC schema not yet available for table dbo.InferenceRequests (will enable in separate transaction).';
+        PRINT 'CDC schema not yet available for table dbo.InferenceRequest (will enable in separate transaction).';
     END
 END
 ELSE
 BEGIN
-    PRINT 'CDC already enabled for table dbo.InferenceRequests.';
+    PRINT 'CDC already enabled for table dbo.InferenceRequest.';
 END
 GO

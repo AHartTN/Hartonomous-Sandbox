@@ -11,5 +11,5 @@ public partial class OperationProvenance : IOperationProvenance
 
     public DateTime CreatedAt { get; set; }
 
-    public virtual ICollection<ProvenanceValidationResult> ProvenanceValidationResults { get; set; } = new List<ProvenanceValidationResult>();
+    public virtual ICollection<ProvenanceValidationResults> ProvenanceValidationResults { get; set; } = new List<ProvenanceValidationResults>();
 }

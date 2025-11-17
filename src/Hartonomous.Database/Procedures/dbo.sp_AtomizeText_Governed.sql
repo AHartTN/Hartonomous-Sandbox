@@ -125,7 +125,7 @@ BEGIN
             BEGIN TRANSACTION;
 
                 -- Merge into Atoms
-                MERGE [dbo].[Atoms] AS T
+                MERGE [dbo].[Atom] AS T
                 USING #UniqueTokens AS S
                 ON T.[ContentHash] = S.[ContentHash]
                 WHEN NOT MATCHED BY TARGET THEN
@@ -136,16 +136,16 @@ BEGIN
                 INSERT INTO #TokenToAtomId ([TokenText], [AtomId])
                 SELECT ut.[TokenText], a.[AtomId]
                 FROM #UniqueTokens ut
-                JOIN [dbo].[Atoms] a ON a.[ContentHash] = ut.[ContentHash];
+                JOIN [dbo].[Atom] a ON a.[ContentHash] = ut.[ContentHash];
 
                 -- Update reference counts
                 UPDATE a
                 SET a.[ReferenceCount] = a.[ReferenceCount] + 1
-                FROM [dbo].[Atoms] a
+                FROM [dbo].[Atom] a
                 JOIN #TokenToAtomId tta ON a.[AtomId] = tta.[AtomId];
 
                 -- Insert structural representation with XYZM spatial key
-                INSERT INTO [dbo].[AtomCompositions] (
+                INSERT INTO [dbo].[AtomComposition] (
                     [ParentAtomId], 
                     [ComponentAtomId], 
                     [SequenceIndex], 

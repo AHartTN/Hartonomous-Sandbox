@@ -68,7 +68,7 @@ public class ConceptEvolutionConfiguration : IEntityTypeConfiguration<ConceptEvo
             ;
 
         builder.HasOne(d => d.Concept)
-            .WithMany(p => p.ConceptEvolutions)
+            .WithMany(p => p.ConceptEvolution)
             .HasForeignKey(d => new { d.ConceptId })
             ;
 

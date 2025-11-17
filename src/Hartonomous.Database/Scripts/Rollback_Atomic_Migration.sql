@@ -25,7 +25,7 @@ PRINT '========================================';
 GO
 
 -- Step 1: Verify EmbeddingVector exists
-IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.AtomEmbeddings') AND name = 'EmbeddingVector')
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('dbo.AtomEmbedding') AND name = 'EmbeddingVector')
 BEGIN
     RAISERROR('FATAL: EmbeddingVector column does not exist! Cannot rollback.', 16, 1);
     RAISERROR('Restore from backup to recover monolithic storage.', 16, 1);
@@ -39,7 +39,7 @@ GO
 DECLARE @RelationCount INT;
 
 SELECT @RelationCount = COUNT(*)
-FROM dbo.AtomRelations
+FROM dbo.AtomRelation
 WHERE RelationType = 'embedding_dimension';
 
 PRINT 'Found ' + CAST(@RelationCount AS NVARCHAR(20)) + ' atomic relations to delete.';
@@ -53,7 +53,7 @@ IF EXISTS (
 )
 BEGIN
     PRINT 'Disabling system-versioning on AtomRelations...';
-    ALTER TABLE dbo.AtomRelations SET (SYSTEM_VERSIONING = OFF);
+    ALTER TABLE dbo.AtomRelation SET (SYSTEM_VERSIONING = OFF);
 END
 GO
 
@@ -68,14 +68,14 @@ DECLARE @AffectedAtoms TABLE (AtomId BIGINT PRIMARY KEY);
 
 INSERT INTO @AffectedAtoms (AtomId)
 SELECT DISTINCT TargetAtomId
-FROM dbo.AtomRelations
+FROM dbo.AtomRelation
 WHERE RelationType = 'embedding_dimension';
 
 DECLARE @AffectedCount INT = @@ROWCOUNT;
 PRINT '  Identified ' + CAST(@AffectedCount AS NVARCHAR(20)) + ' potentially orphaned atoms.';
 
 -- Delete relations
-DELETE FROM dbo.AtomRelations
+DELETE FROM dbo.AtomRelation
 WHERE RelationType = 'embedding_dimension';
 
 DECLARE @DeletedRelations INT = @@ROWCOUNT;
@@ -85,11 +85,11 @@ PRINT '  Deleted ' + CAST(@DeletedRelations AS NVARCHAR(20)) + ' atomic relation
 UPDATE a
 SET ReferenceCount = ReferenceCount - (
     SELECT COUNT(*)
-    FROM dbo.AtomRelations ar_del
+    FROM dbo.AtomRelation ar_del
     WHERE ar_del.TargetAtomId = a.AtomId
       AND ar_del.RelationType = 'embedding_dimension'
 )
-FROM dbo.Atoms a
+FROM dbo.Atom a
 INNER JOIN @AffectedAtoms aa ON aa.AtomId = a.AtomId;
 
 COMMIT TRANSACTION;
@@ -103,7 +103,7 @@ GO
 
 BEGIN TRANSACTION;
 
-DELETE FROM dbo.Atoms
+DELETE FROM dbo.Atom
 WHERE ReferenceCount <= 0
   AND Modality = 'numeric'
   AND Subtype = 'float64';
@@ -155,7 +155,7 @@ IF EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AtomRelations_History')
 BEGIN
     PRINT 'Re-enabling system-versioning on AtomRelations...';
     
-    ALTER TABLE dbo.AtomRelations
+    ALTER TABLE dbo.AtomRelation
     SET (SYSTEM_VERSIONING = ON (
         HISTORY_TABLE = dbo.AtomRelations_History,
         DATA_CONSISTENCY_CHECK = ON,
@@ -172,7 +172,7 @@ GO
 
 DECLARE @RemainingRelations INT;
 SELECT @RemainingRelations = COUNT(*)
-FROM dbo.AtomRelations
+FROM dbo.AtomRelation
 WHERE RelationType = 'embedding_dimension';
 
 IF @RemainingRelations > 0
@@ -186,7 +186,7 @@ END
 
 DECLARE @OrphanAtoms INT;
 SELECT @OrphanAtoms = COUNT(*)
-FROM dbo.Atoms
+FROM dbo.Atom
 WHERE ReferenceCount = 0
   AND Modality = 'numeric'
   AND Subtype = 'float64';
@@ -205,9 +205,9 @@ GO
 PRINT 'Updating statistics...';
 GO
 
-UPDATE STATISTICS dbo.Atoms WITH FULLSCAN;
-UPDATE STATISTICS dbo.AtomRelations WITH FULLSCAN;
-UPDATE STATISTICS dbo.AtomEmbeddings WITH FULLSCAN;
+UPDATE STATISTICS dbo.Atom WITH FULLSCAN;
+UPDATE STATISTICS dbo.AtomRelation WITH FULLSCAN;
+UPDATE STATISTICS dbo.AtomEmbedding WITH FULLSCAN;
 GO
 
 PRINT '========================================';

@@ -15,7 +15,7 @@ BEGIN
 
     INSERT INTO @context (AtomId, AtomText)
     SELECT a.AtomId, CAST(a.CanonicalText AS NVARCHAR(100))
-    FROM dbo.Atoms a
+    FROM dbo.Atom a
     WHERE CAST(a.CanonicalText AS NVARCHAR(100)) IN (
         SELECT LTRIM(RTRIM(value)) FROM STRING_SPLIT(@prompt, ' ')
     );

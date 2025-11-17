@@ -20,7 +20,7 @@ BEGIN
 
     -- Get start point and target region
     SELECT @StartPoint = [SpatialKey]
-    FROM [dbo].[AtomEmbeddings]
+    FROM [dbo].[AtomEmbedding]
     WHERE [AtomId] = @StartAtomId;
 
     SELECT 
@@ -73,7 +73,7 @@ BEGIN
             @gCost = os.gCost,
             @CurrentPoint = ae.[SpatialKey]
         FROM @OpenSet os
-        JOIN [dbo].[AtomEmbeddings] ae ON os.AtomId = ae.AtomId
+        JOIN [dbo].[AtomEmbedding] ae ON os.AtomId = ae.AtomId
         ORDER BY os.fCost ASC, os.hCost ASC; -- Tie-break with heuristic
 
         -- 2. Check if we've reached the goal (inside target concept domain)
@@ -100,7 +100,7 @@ BEGIN
                 ae.SpatialKey,
                 @CurrentPoint.STDistance(ae.SpatialKey) AS StepCost,
                 ae.SpatialKey.STDistance(@TargetCentroid) AS HeuristicCost
-            FROM dbo.AtomEmbeddings ae WITH(INDEX(SIX_AtomEmbeddings_SpatialKey))
+            FROM dbo.AtomEmbedding ae WITH(INDEX(SIX_AtomEmbedding_SpatialKey))
             WHERE ae.SpatialKey.STIntersects(@NeighborSearchRegion) = 1
               AND ae.AtomId <> @CurrentAtomId
               AND NOT EXISTS (SELECT 1 FROM #ClosedSet WHERE AtomId = ae.AtomId)
@@ -156,8 +156,8 @@ BEGIN
             ae.[SpatialKey].ToString() AS SpatialPosition,
             ae.[SpatialKey].STDistance(@TargetCentroid) AS DistanceToGoal
         FROM PathCTE p
-        JOIN dbo.Atoms a ON p.AtomId = a.AtomId
-        LEFT JOIN dbo.AtomEmbeddings ae ON p.AtomId = ae.AtomId
+        JOIN dbo.Atom a ON p.AtomId = a.AtomId
+        LEFT JOIN dbo.AtomEmbedding ae ON p.AtomId = ae.AtomId
         ORDER BY p.Depth DESC; -- Start to goal order
     END
     ELSE

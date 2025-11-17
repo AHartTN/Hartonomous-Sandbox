@@ -9,7 +9,7 @@ CREATE TABLE [provenance].[AtomConcepts] (
     [AssignedAt]     DATETIME2 (7) NOT NULL DEFAULT (SYSUTCDATETIME()),
     [TenantId]       INT           NOT NULL DEFAULT (0),
     CONSTRAINT [PK_AtomConcepts] PRIMARY KEY CLUSTERED ([AtomConceptId] ASC),
-    CONSTRAINT [FK_AtomConcepts_Atoms] FOREIGN KEY ([AtomId]) REFERENCES [dbo].[Atoms] ([AtomId]) ON DELETE CASCADE,
+    CONSTRAINT [FK_AtomConcepts_Atoms] FOREIGN KEY ([AtomId]) REFERENCES [dbo].[Atom] ([AtomId]) ON DELETE CASCADE,
     CONSTRAINT [FK_AtomConcepts_Concepts] FOREIGN KEY ([ConceptId]) REFERENCES [provenance].[Concepts] ([ConceptId]) ON DELETE CASCADE
 );
 GO

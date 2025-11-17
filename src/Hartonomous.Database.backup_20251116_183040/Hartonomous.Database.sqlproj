@@ -1,0 +1,302 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
+    <TargetDatabaseSet>True</TargetDatabaseSet>
+    <ProjectGuid>{4F7C8B3A-1234-5678-9ABC-DEF012345678}</ProjectGuid>
+  </PropertyGroup>
+  <Import Condition="'$(SQLDBExtensionsRefPath)' != ''" Project="$(SQLDBExtensionsRefPath)\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <Import Condition="'$(SQLDBExtensionsRefPath)' == '' AND Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets')" Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets" />
+  <ItemGroup>
+    <Folder Include="Properties" />
+    <Folder Include="Tables" />
+    <Folder Include="Views" />
+    <Folder Include="Functions" />
+    <Folder Include="Procedures" />
+    <Folder Include="Aggregates" />
+    <Folder Include="Types" />
+    <Folder Include="Schemas" />
+    <Folder Include="Security" />
+    <Folder Include="Migrations" />
+    <Folder Include="Scripts" />
+    <Folder Include="Scripts\Pre-Deployment" />
+    <Folder Include="Scripts\Post-Deployment" />
+    <Folder Include="CLR" />
+    <Folder Include="ServiceBroker" />
+    <Folder Include="ServiceBroker\Contracts" />
+    <Folder Include="ServiceBroker\MessageTypes" />
+    <Folder Include="ServiceBroker\Queues" />
+    <Folder Include="ServiceBroker\Services" />
+    <Folder Include="Indexes\" />
+    <Folder Include="CLR\ModelParsers\" />
+    <Folder Include="CLR\ModelReaders\" />
+    <Folder Include="CLR\TensorOperations\" />
+    <Folder Include="CLR\MachineLearning\" />
+    <Folder Include="CLR\NaturalLanguage\" />
+    <Folder Include="CLR\Core\" />
+    <Folder Include="CLR\Contracts\" />
+    <Folder Include="CLR\Properties\" />
+  </ItemGroup>
+  <PropertyGroup>
+    <Name>Hartonomous.Database</Name>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectVersion>4.1</ProjectVersion>
+    <DSP>Microsoft.Data.Tools.Schema.Sql.Sql170DatabaseSchemaProvider</DSP>
+    <RootPath />
+    <RootNamespace>Hartonomous.Clr</RootNamespace>
+    <AssemblyName>Hartonomous.Clr</AssemblyName>
+    <ModelCollation>1033,CI</ModelCollation>
+    <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
+    <DeployToDatabase>True</DeployToDatabase>
+    <TargetLanguage>CS</TargetLanguage>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <SqlServerVerification>False</SqlServerVerification>
+    <IncludeCompositeObjects>True</IncludeCompositeObjects>
+    <DefaultCollation>SQL_Latin1_General_CP1_CI_AS</DefaultCollation>
+    <DefaultFilegroup>PRIMARY</DefaultFilegroup>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <OutputPath>bin\Debug\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <DefineDebug>true</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <OutputPath>bin\Release\</OutputPath>
+    <BuildScriptName>$(MSBuildProjectName).sql</BuildScriptName>
+    <TreatWarningsAsErrors>False</TreatWarningsAsErrors>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <DefineDebug>false</DefineDebug>
+    <DefineTrace>true</DefineTrace>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup>
+    <VisualStudioVersion Condition="'$(VisualStudioVersion)' == ''">11.0</VisualStudioVersion>
+    <SSDTExists Condition="Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\SSDT\Microsoft.Data.Tools.Schema.SqlTasks.targets')">True</SSDTExists>
+    <VisualStudioVersion Condition="'$(SSDTExists)' == ''">11.0</VisualStudioVersion>
+  </PropertyGroup>
+  <PropertyGroup>
+    <EnableSqlClrDeployment>True</EnableSqlClrDeployment>
+    <GenerateSqlClrDdl>True</GenerateSqlClrDdl>
+    <SqlPermissionLevel>Unsafe</SqlPermissionLevel>
+    <SqlClrAnyCpu>True</SqlClrAnyCpu>
+    <SqlCLRVerifyCodeSecurity>False</SqlCLRVerifyCodeSecurity>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>CLR\SqlClrKey.snk</AssemblyOriginatorKeyFile>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <DacVersion>1.0.0</DacVersion>
+    <IgnoreTableOptions>False</IgnoreTableOptions>
+    <IgnoreColumnOrder>True</IgnoreColumnOrder>
+    <SqlClrBuildTarget>library</SqlClrBuildTarget>
+    <PermissionSet>UNSAFE</PermissionSet>
+  </PropertyGroup>
+  <ItemGroup>
+    <Build Include="Security\*.sql" />
+    <Build Include="Schemas\*.sql" />
+    <Build Include="Types\*.sql" />
+    <Build Include="Tables\*.sql" />
+    <Build Include="Indexes\*.sql" />
+    <Build Include="Functions\*.sql" />
+    <Build Include="Views\*.sql" />
+    <Build Include="Procedures\*.sql" />
+    <Build Include="Aggregates\*.sql" />
+    <Build Include="ServiceBroker\Contracts\*.sql" />
+    <Build Include="ServiceBroker\MessageTypes\*.sql" />
+    <Build Include="ServiceBroker\Queues\*.sql" />
+    <Build Include="ServiceBroker\Services\*.sql" />
+    <None Include="Migrations\*.sql" />
+    <None Include="dbo.sp_FindNearestAtoms.sql" />
+    <None Include="dbo.sp_IngestAtoms.sql" />
+    <None Include="dbo.sp_RunInference.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Build Remove="Tables\*Temporal*.sql" />
+    <Build Remove="Tables\*_Migrate_*.sql" />
+    <Build Remove="Tables\*_InMemory.sql" />
+    <Build Remove="Tables\*Add_PseudoColumn*.sql" />
+    <Build Remove="Tables\*AttentionGenerationTables.sql" />
+    <Build Remove="Tables\*ProvenanceTrackingTables.sql" />
+    <Build Remove="Tables\*ReasoningFrameworkTables.sql" />
+    <Build Remove="Tables\*StreamOrchestrationTables.sql" />
+    <Build Remove="Tables\*InferenceTracking.sql" />
+    <Build Remove="Tables\*ModelStructure.sql" />
+    <Build Remove="Procedures\*WeightRollback*.sql" />
+    <Build Remove="Procedures\*SelfImprovement*.sql" />
+    <Build Remove="Procedures\*InsertUsageRecord_Native*.sql" />
+    <Build Remove="Procedures\*MigratePayload*.sql" />
+    <Build Remove="Procedures\dbo.sp_AtomizeModel.sql" />
+    <Build Remove="Procedures\dbo.sp_AtomizeCode.sql" />
+    <Build Remove="Procedures\dbo.sp_AtomIngestion.sql" />
+    <Build Remove="Procedures\dbo.sp_FindNearestAtoms.sql" />
+    <Build Remove="Procedures\dbo.sp_IngestAtoms.sql" />
+    <Build Remove="Procedures\dbo.sp_RunInference.sql" />
+    <Build Remove="Scripts\Pre-Deployment\Enable_*.sql" />
+    <Build Remove="Scripts\Pre-Deployment\Setup_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\graph.*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Temporal_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\TensorAtomCoefficients_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\zz_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Seed*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Register*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Configure.*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Enable_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Setup_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Optimize_*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Common.*.sql" />
+    <Build Remove="Scripts\Post-Deployment\Graph.*.sql" />
+    <Build Remove="Procedures_Original\**\*.sql" />
+    <Build Remove="Functions\dbo.clr_*.sql" />
+    <Build Remove="Functions\provenance.clr_*.sql" />
+    <Build Remove="Functions\dbo.fn_CalculateComplexity.sql" />
+    <Build Remove="Functions\dbo.fn_DetermineSla.sql" />
+    <Build Remove="Functions\dbo.fn_EstimateResponseTime.sql" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="CLR\ImagePixelExtractor.cs" />
+    <Compile Include="CLR\AudioFrameExtractor.cs" />
+    <Compile Include="CLR\AtomicStream.cs" />
+    <Compile Include="CLR\AtomicStreamFunctions.cs" />
+    <Compile Include="CLR\SqlBytesInterop.cs" />
+    <Compile Include="CLR\BinaryConversions.cs" />
+    <Compile Include="CLR\HilbertCurve.cs" />
+    <Compile Include="CLR\SpatialOperations.cs" />
+    <Compile Include="CLR\SVDGeometryFunctions.cs" />
+    <Compile Include="CLR\ModelWeightExtractor.cs" />
+    <Compile Include="CLR\ModelParsers\GGUFParser.cs" />
+    <Compile Include="CLR\ModelParsers\SafeTensorsParser.cs" />
+    <Compile Include="CLR\ModelStreamingFunctions.cs" />
+    <Compile Include="CLR\ModelIngestionFunctions.cs" />
+    <Compile Include="CLR\ModelInference.cs" />
+    <Compile Include="CLR\ModelReaders\ClrGgufReader.cs" />
+    <Compile Include="CLR\VectorOperations.cs" />
+    <Compile Include="CLR\VectorAggregates.cs" />
+    <Compile Include="CLR\AdvancedVectorAggregates.cs" />
+    <Compile Include="CLR\NeuralVectorAggregates.cs" />
+    <Compile Include="CLR\GraphVectorAggregates.cs" />
+    <Compile Include="CLR\TimeSeriesVectorAggregates.cs" />
+    <Compile Include="CLR\TrajectoryAggregates.cs" />
+    <Compile Include="CLR\BehavioralAggregates.cs" />
+    <Compile Include="CLR\AnomalyDetectionAggregates.cs" />
+    <Compile Include="CLR\DimensionalityReductionAggregates.cs" />
+    <Compile Include="CLR\ReasoningFrameworkAggregates.cs" />
+    <Compile Include="CLR\RecommenderAggregates.cs" />
+    <Compile Include="CLR\ResearchToolAggregates.cs" />
+    <Compile Include="CLR\TensorDataIO.cs" />
+    <Compile Include="CLR\TensorOperations\ClrTensorProvider.cs" />
+    <Compile Include="CLR\TensorOperations\TransformerInference.cs" />
+    <Compile Include="CLR\TensorOperations\ModelSynthesis.cs" />
+    <Compile Include="CLR\MachineLearning\SVDCompression.cs" />
+    <Compile Include="CLR\MachineLearning\TSNEProjection.cs" />
+    <Compile Include="CLR\MachineLearning\MatrixFactorization.cs" />
+    <Compile Include="CLR\MachineLearning\MahalanobisDistance.cs" />
+    <Compile Include="CLR\NaturalLanguage\BpeTokenizer.cs" />
+    <Compile Include="CLR\GenerationFunctions.cs" />
+    <Compile Include="CLR\ImageGeneration.cs" />
+    <Compile Include="CLR\ImageProcessing.cs" />
+    <Compile Include="CLR\AudioProcessing.cs" />
+    <Compile Include="CLR\MultiModalGeneration.cs" />
+    <Compile Include="CLR\AttentionGeneration.cs" />
+    <Compile Include="CLR\SemanticAnalysis.cs" />
+    <Compile Include="CLR\ConceptDiscovery.cs" />
+    <Compile Include="CLR\PerformanceAnalysis.cs" />
+    <Compile Include="CLR\SystemAnalyzer.cs" />
+    <Compile Include="CLR\QueryStoreAnalyzer.cs" />
+    <Compile Include="CLR\TestResultAnalyzer.cs" />
+    <Compile Include="CLR\BillingLedgerAnalyzer.cs" />
+    <Compile Include="CLR\AutonomousFunctions.cs" />
+    <Compile Include="CLR\AutonomousAnalyticsTVF.cs" />
+    <Compile Include="CLR\StreamOrchestrator.cs" />
+    <Compile Include="CLR\ComponentStream.cs" />
+    <Compile Include="CLR\EmbeddingFunctions.cs" />
+    <Compile Include="CLR\FileSystemFunctions.cs" />
+    <Compile Include="CLR\PrimeNumberSearch.cs" />
+    <Compile Include="CLR\Core\VectorUtilities.cs" />
+    <Compile Include="CLR\Core\VectorMath.cs" />
+    <Compile Include="CLR\Core\TimestampedVector.cs" />
+    <Compile Include="CLR\Core\TensorMetadata.cs" />
+    <Compile Include="CLR\Core\SqlTensorProvider.cs" />
+    <Compile Include="CLR\Core\PooledList.cs" />
+    <Compile Include="CLR\Core\LandmarkProjection.cs" />
+    <Compile Include="CLR\Core\IClrModelReader.cs" />
+    <Compile Include="CLR\Core\GpuAccelerator.cs" />
+    <Compile Include="CLR\Contracts\ITensorProvider.cs" />
+    <Compile Include="CLR\IAnalyzers.cs" />
+    <Compile Include="CLR\Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Transactions" />
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>..\..\dependencies\System.Numerics.Vectors.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MathNet.Numerics">
+      <HintPath>..\..\dependencies\MathNet.Numerics.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\dependencies\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Microsoft.SqlServer.Types">
+      <HintPath>..\..\dependencies\Microsoft.SqlServer.Types.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Buffers">
+      <HintPath>..\..\dependencies\System.Buffers.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>..\..\dependencies\System.Memory.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\..\dependencies\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Collections.Immutable">
+      <HintPath>..\..\dependencies\System.Collections.Immutable.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="System.Reflection.Metadata">
+      <HintPath>..\..\dependencies\System.Reflection.Metadata.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <SqlCmdVariable Include="DependenciesPath">
+      <DefaultValue>D:\Repositories\Hartonomous\dependencies</DefaultValue>
+      <Value>$(SqlCmdVar__DependenciesPath)</Value>
+    </SqlCmdVariable>
+    <SqlCmdVariable Include="SqlClrKeyPath">
+      <DefaultValue>D:\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\CLR\SqlClrKey.snk</DefaultValue>
+      <Value>$(SqlCmdVar__1)</Value>
+    </SqlCmdVariable>
+    <SqlCmdVariable Include="MathNetPath">
+      <DefaultValue>D:\Microsoft SQL Server\MSSQL17.MSSQLSERVER\MSSQL\CLR\Dependencies\MathNet.Numerics.dll</DefaultValue>
+      <Value>$(SqlCmdVar__2)</Value>
+    </SqlCmdVariable>
+  </ItemGroup>
+  <ItemGroup>
+    <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
+    <PostDeploy Include="Scripts\Post-Deployment\Script.PostDeployment.sql" />
+  </ItemGroup>
+</Project>

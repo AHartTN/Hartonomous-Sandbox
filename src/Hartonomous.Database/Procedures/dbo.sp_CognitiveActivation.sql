@@ -38,7 +38,7 @@ BEGIN
         ae.AtomEmbeddingId,
         ae.AtomId,
         1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) AS ActivationStrength
-    FROM dbo.AtomEmbeddings AS ae
+    FROM dbo.AtomEmbedding AS ae
     WHERE ae.EmbeddingVector IS NOT NULL
       AND VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) <= @max_distance
     ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @query_embedding) ASC;
@@ -62,8 +62,8 @@ BEGIN
             ELSE 'LOW'
         END AS ActivationLevel
     FROM @activated AS act
-    INNER JOIN dbo.AtomEmbeddings AS ae ON ae.AtomEmbeddingId = act.AtomEmbeddingId
-    INNER JOIN dbo.Atoms AS a ON a.AtomId = act.AtomId
+    INNER JOIN dbo.AtomEmbedding AS ae ON ae.AtomEmbeddingId = act.AtomEmbeddingId
+    INNER JOIN dbo.Atom AS a ON a.AtomId = act.AtomId
     ORDER BY act.ActivationStrength DESC;
 
     DECLARE @DurationMs INT = DATEDIFF(MILLISECOND, @start_time, SYSUTCDATETIME());
@@ -72,7 +72,7 @@ BEGIN
     DECLARE @output_metadata JSON = JSON_OBJECT('status': 'completed', 'durationMs': @DurationMs);
     DECLARE @InferenceId BIGINT;
 
-    INSERT INTO dbo.InferenceRequests (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
+    INSERT INTO dbo.InferenceRequest (TaskType, InputData, ModelsUsed, EnsembleStrategy, OutputData, OutputMetadata, TotalDurationMs)
     VALUES (
         'cognitive_activation',
         CAST(@input_json AS NVARCHAR(MAX)),

@@ -103,7 +103,7 @@ BEGIN
         -- Use MERGE for atomic upsert with SHA-256 content hashing
         -- Same content = same hash = deduplicated
         
-        MERGE dbo.Atoms AS target
+        MERGE dbo.Atom AS target
         USING @atomsTemp AS source
         ON target.ContentHash = source.ContentHash 
             AND target.TenantId = @tenantId

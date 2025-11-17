@@ -13,7 +13,7 @@ BEGIN
     -- Get document metadata
     DECLARE @totalLength INT;
     SELECT @totalLength = JSON_VALUE(Metadata, '$.length')
-    FROM dbo.Atoms
+    FROM dbo.Atom
     WHERE AtomId = @textAtomId;
 
     -- Default to entire document if length not specified
@@ -27,7 +27,7 @@ BEGIN
         STRING_AGG(a.CanonicalText, '') WITHIN GROUP (ORDER BY ac.DimensionX) 
             OVER (ORDER BY ac.DimensionX ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS CumulativeText
     FROM dbo.AtomCompositions ac
-    INNER JOIN dbo.Atoms a ON ac.ComponentAtomId = a.AtomId
+    INNER JOIN dbo.Atom a ON ac.ComponentAtomId = a.AtomId
     WHERE ac.SourceAtomId = @textAtomId
       AND ac.ComponentType = 'text-token'
       AND ac.DimensionX >= @startPosition
@@ -41,7 +41,7 @@ BEGIN
         JSON_VALUE(Metadata, '$.encoding') AS Encoding,
         JSON_VALUE(Metadata, '$.language') AS Language,
         CreatedAt
-    FROM dbo.Atoms
+    FROM dbo.Atom
     WHERE AtomId = @textAtomId;
 END;
 GO

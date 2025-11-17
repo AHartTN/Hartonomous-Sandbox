@@ -29,7 +29,7 @@ BEGIN
         SELECT AtomId, PayloadLocator
         FROM graph.AtomGraphNodes
         WHERE PayloadLocator IS NOT NULL
-        AND AtomId NOT IN (SELECT AtomId FROM dbo.Atoms);
+        AND AtomId NOT IN (SELECT AtomId FROM dbo.Atom);
     
     OPEN atom_cursor;
     FETCH NEXT FROM atom_cursor INTO @CurrentAtomId, @PayloadPath;
@@ -43,9 +43,9 @@ BEGIN
             IF @PayloadBytes IS NOT NULL
             BEGIN
                 -- Insert into Atoms table with FILESTREAM payload
-                INSERT INTO dbo.Atoms (AtomId, Payload, Modality, TenantId, CreatedAt)
+                INSERT INTO dbo.Atom (AtomId, Payload, Modality, TenantId, CreatedAt)
                 SELECT @CurrentAtomId, @PayloadBytes, 'binary', 0, GETUTCDATE()
-                WHERE NOT EXISTS (SELECT 1 FROM dbo.Atoms WHERE AtomId = @CurrentAtomId);
+                WHERE NOT EXISTS (SELECT 1 FROM dbo.Atom WHERE AtomId = @CurrentAtomId);
                 
                 SET @MigratedCount = @MigratedCount + 1;
             END
@@ -70,7 +70,7 @@ BEGIN
             SET @PayloadBytes = dbo.clr_ReadFileBytes(@PayloadPath);
             
             -- Insert into new table with FILESTREAM
-            INSERT INTO dbo.Atoms (..., Payload)
+            INSERT INTO dbo.Atom (..., Payload)
             SELECT ..., @PayloadBytes
             FROM graph.AtomGraphNodes
             WHERE AtomId = @CurrentAtomId;

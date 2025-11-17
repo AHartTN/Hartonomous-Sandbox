@@ -3,7 +3,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    IF OBJECT_ID('dbo.WeightSnapshots', 'U') IS NULL
+    IF OBJECT_ID('dbo.WeightSnapshot', 'U') IS NULL
     BEGIN
         PRINT 'No snapshots exist yet.';
         RETURN;
@@ -17,6 +17,6 @@ BEGIN
         WeightCount,
         Description,
         CreatedAt
-    FROM dbo.WeightSnapshots
+    FROM dbo.WeightSnapshot
     ORDER BY SnapshotTime DESC;
 END;

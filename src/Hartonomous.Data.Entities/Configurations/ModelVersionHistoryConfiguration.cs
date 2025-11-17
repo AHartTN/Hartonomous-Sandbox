@@ -56,7 +56,7 @@ public class ModelVersionHistoryConfiguration : IEntityTypeConfiguration<ModelVe
             ;
 
         builder.HasOne(d => d.Model)
-            .WithMany(p => p.ModelVersionHistories)
+            .WithMany(p => p.ModelVersionHistory)
             .HasForeignKey(d => new { d.ModelId })
             ;
 

@@ -53,7 +53,7 @@ BEGIN
     );
 
     -- Insert inference request
-    INSERT INTO dbo.InferenceRequests (
+    INSERT INTO dbo.InferenceRequest (
         TaskType,
         InputData,
         Status,
