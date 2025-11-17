@@ -140,24 +140,28 @@ stages:
             artifact: database
 
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
             displayName: 'Grant Agent Permissions'
             inputs:
-              authenticationType: 'integratedAuthentication'
-              serverName: '$(sqlServer)'
-              databaseName: 'master'
-              sqlFile: '$(Build.SourcesDirectory)/scripts/sql/grant-pipeline-permissions.sql'
-              additionalArguments: '-TrustServerCertificate'
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/grant-pipeline-permissions.sql" -b
+                if ($LASTEXITCODE -ne 0) { throw "Failed to grant permissions" }
+                Write-Host "✓ Agent permissions granted"
+              pwsh: true
 
           # Step 1: Enable CLR Integration (Idempotent)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
             displayName: 'Enable CLR Integration'
             inputs:
-              authenticationType: 'integratedAuthentication'
-              serverName: '$(sqlServer)'
-              databaseName: 'master'
-              sqlFile: '$(Build.SourcesDirectory)/scripts/sql/enable-clr.sql'
-              additionalArguments: '-TrustServerCertificate'
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                sqlcmd -S "$(sqlServer)" -d master -E -C -i "scripts/sql/enable-clr.sql" -b
+                if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
+                Write-Host "✓ CLR enabled"
+              pwsh: true
 
           # Step 2: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
           - task: PowerShell@2
@@ -166,7 +170,7 @@ stages:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
-                $dependenciesPath = "$(Build.SourcesDirectory)/dependencies"
+                $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
                 $server = "$(sqlServer)"
                 $database = "$(sqlDatabase)"
                 
