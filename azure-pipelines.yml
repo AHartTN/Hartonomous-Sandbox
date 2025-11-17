@@ -128,9 +128,9 @@ stages:
   jobs:
   - deployment: DatabaseDeployment
     displayName: 'Deploy to SQL Server'
-    environment: 'SQL-Server-Production'
     pool:
       name: 'Local Agent Pool'
+    environment: 'SQL-Server-Production'
     strategy:
       runOnce:
         deploy:
@@ -671,9 +671,9 @@ stages:
   jobs:
   - deployment: AppDeployment
     displayName: 'Deploy Applications'
-    environment: 'Application-Servers'
     pool:
       vmImage: 'windows-latest'
+    environment: 'Application-Servers'
     strategy:
       runOnce:
         deploy:
