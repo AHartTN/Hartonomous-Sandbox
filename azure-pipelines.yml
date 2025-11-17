@@ -186,13 +186,14 @@ PRINT 'CLR integration enabled successfully';
                 Write-Host "✓ CLR enabled"
               pwsh: true
 
-            - task: PowerShell@2
-              displayName: 'Deploy External CLR Assemblies'
-              inputs:
-                targetType: 'filePath'
-                filePath: '$(Pipeline.Workspace)/database/scripts/deploy-clr-assemblies.ps1'
-                arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
-                pwsh: true
+          # Step 2: Deploy External CLR Assemblies
+          - task: PowerShell@2
+            displayName: 'Deploy External CLR Assemblies'
+            inputs:
+              targetType: 'filePath'
+              filePath: '$(Pipeline.Workspace)/database/scripts/deploy-clr-assemblies.ps1'
+              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
+              pwsh: true
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
           - task: PowerShell@2
