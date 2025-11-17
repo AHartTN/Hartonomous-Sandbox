@@ -1,0 +1,558 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+          - development
+      skip_tests:
+        description: 'Skip validation tests'
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  id-token: write  # Required for OIDC authentication
+  contents: read
+  pull-requests: write
+  checks: write
+
+env:
+  DOTNET_VERSION: '10.x'
+  BUILD_CONFIGURATION: 'Release'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: 'true'
+  DOTNET_NOLOGO: 'true'
+
+jobs:
+  # ============================================================================
+  # STEP 1: Build DACPAC
+  # ============================================================================
+  build-dacpac:
+    name: Build Database DACPAC
+    runs-on: self-hosted
+    if: github.event_name != 'pull_request'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Build DACPAC with MSBuild
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Building SQL Database Project..."
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE "artifacts\database"
+          New-Item -ItemType Directory -Path $artifactDir -Force | Out-Null
+          
+          $msbuildPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+          if (-not (Test-Path $msbuildPath)) {
+            $msbuildPath = "C:\Program Files\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\MSBuild.exe"
+          }
+          
+          $projectPath = Join-Path $env:GITHUB_WORKSPACE "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
+          
+          & $msbuildPath $projectPath `
+            /p:Configuration=Release `
+            /p:OutputPath=$artifactDir `
+            /t:Build `
+            /v:minimal
+          
+          if ($LASTEXITCODE -ne 0) {
+            throw "DACPAC build failed with exit code $LASTEXITCODE"
+          }
+          
+          Write-Host "✓ DACPAC built successfully"
+      
+      - name: Upload DACPAC artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-dacpac
+          path: artifacts/database/
+          retention-days: 7
+      
+      - name: Upload CLR dependencies
+        uses: actions/upload-artifact@v4
+        with:
+          name: clr-dependencies
+          path: dependencies/
+          retention-days: 7
+      
+      - name: Upload deployment scripts
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-scripts
+          path: scripts/
+          retention-days: 7
+
+  # ============================================================================
+  # STEP 2: Deploy Database (creates schema for scaffolding)
+  # ============================================================================
+  deploy-database:
+    name: Deploy to ${{ inputs.environment || 'production' }}
+    runs-on: self-hosted
+    needs: build-dacpac
+    environment: ${{ inputs.environment || 'production' }}
+    
+    env:
+      SQL_SERVER: ${{ secrets.SQL_SERVER }}
+      SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download DACPAC
+        uses: actions/download-artifact@v4
+        with:
+          name: database-dacpac
+          path: ./artifacts/database
+      
+      - name: Download CLR dependencies
+        uses: actions/download-artifact@v4
+        with:
+          name: clr-dependencies
+          path: ./dependencies
+      
+      - name: Download deployment scripts
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-scripts
+          path: ./scripts
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Get SQL Access Token
+        id: get-token
+        shell: pwsh
+        run: |
+          $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          "token=$token" >> $env:GITHUB_OUTPUT
+      
+      - name: Configure SQL Permissions (Idempotent)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Configuring SQL Server permissions for GitHub Actions service principal..."
+          
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\Configure-GitHubActionsSqlPermissions.sql"
+          
+          if (Test-Path $scriptPath) {
+            Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" `
+              -AccessToken $token -InputFile $scriptPath -TrustServerCertificate
+            Write-Host "✓ SQL permissions configured"
+          } else {
+            Write-Host "⚠ SQL permissions script not found, skipping..."
+          }
+      
+      - name: Enable CLR Integration (Idempotent)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Checking CLR integration status..."
+          
+          $checkClrSql = "SELECT CAST(value AS int) AS ClrEnabled FROM sys.configurations WHERE name = 'clr enabled'"
+          $clrEnabled = Invoke-Sqlcmd -Query $checkClrSql -ServerInstance "${{ env.SQL_SERVER }}" `
+            -Database "master" -AccessToken $token -TrustServerCertificate
+          
+          if ($clrEnabled.ClrEnabled -eq 0) {
+            Write-Host "CLR is disabled, enabling..."
+            $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\enable-clr.ps1"
+            & $scriptPath -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken $token
+            Write-Host "✓ CLR enabled"
+          } else {
+            Write-Host "✓ CLR already enabled, skipping"
+          }
+      
+      - name: Deploy External CLR Assemblies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Deploying external CLR assemblies..."
+          
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\deploy-clr-assemblies.ps1"
+          
+          & $scriptPath `
+            -Server "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -DependenciesPath (Join-Path $env:GITHUB_WORKSPACE "dependencies") `
+            -UseAzureAD `
+            -AccessToken $token
+          
+          Write-Host "✓ External assemblies deployed"
+      
+      - name: Drop Hartonomous Assemblies (Idempotent - Prepare for DACPAC)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Dropping existing Hartonomous CLR assemblies and dependent objects..."
+          
+          $dropAssemblySql = @"
+          -- Drop dependent functions first
+          DECLARE @sql NVARCHAR(MAX) = N'';
+          SELECT @sql += 'DROP FUNCTION IF EXISTS ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
+          FROM sys.objects
+          WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT')
+            AND is_ms_shipped = 0
+            AND object_id IN (
+              SELECT referencing_id 
+              FROM sys.sql_expression_dependencies 
+              WHERE referenced_id IN (
+                SELECT assembly_id FROM sys.assemblies WHERE name LIKE 'Hartonomous.%'
+              )
+            );
+          EXEC sp_executesql @sql;
+          
+          -- Drop assemblies in reverse dependency order
+          DROP ASSEMBLY IF EXISTS [Hartonomous.Clr];
+          DROP ASSEMBLY IF EXISTS [Hartonomous.Core];
+          DROP ASSEMBLY IF EXISTS [Hartonomous.Data.Entities];
+          DROP ASSEMBLY IF EXISTS [Hartonomous.Shared.Contracts];
+          "@
+          
+          Invoke-Sqlcmd -Query $dropAssemblySql -ServerInstance "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -TrustServerCertificate
+          
+          Write-Host "✓ Hartonomous assemblies and dependent objects dropped"
+      
+      - name: Deploy DACPAC
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          $connectionString = "Server=${{ env.SQL_SERVER }};Database=${{ env.SQL_DATABASE }};Encrypt=True;TrustServerCertificate=True;"
+          $dacpacPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\database\Hartonomous.Database.dacpac"
+          
+          Write-Host "Deploying DACPAC..."
+          Write-Host "  Target: ${{ env.SQL_SERVER }}\${{ env.SQL_DATABASE }}"
+          
+          SqlPackage.exe /Action:Publish `
+            /SourceFile:$dacpacPath `
+            /TargetConnectionString:$connectionString `
+            /AccessToken:$token `
+            /p:BlockOnPossibleDataLoss=False `
+            /p:DropObjectsNotInSource=False `
+            /p:AllowIncompatiblePlatform=True `
+            /p:IncludeCompositeObjects=True
+          
+          if ($LASTEXITCODE -ne 0) {
+            throw "DACPAC deployment failed with exit code $LASTEXITCODE"
+          }
+          
+          Write-Host "✓ DACPAC deployed successfully"
+      
+      - name: Set TRUSTWORTHY (Idempotent)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Checking TRUSTWORTHY status..."
+          
+          $checkTrustworthySql = "SELECT CAST(is_trustworthy_on AS bit) AS IsTrustworthy FROM sys.databases WHERE name = '${{ env.SQL_DATABASE }}'"
+          $trustworthyStatus = Invoke-Sqlcmd -Query $checkTrustworthySql -ServerInstance "${{ env.SQL_SERVER }}" `
+            -Database "master" -AccessToken $token -TrustServerCertificate
+          
+          if ($trustworthyStatus.IsTrustworthy -eq $false) {
+            Write-Host "TRUSTWORTHY is OFF, enabling..."
+            $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\set-trustworthy.ps1"
+            
+            if (Test-Path $scriptPath) {
+              & $scriptPath `
+                -Server "${{ env.SQL_SERVER }}" `
+                -Database "${{ env.SQL_DATABASE }}" `
+                -UseAzureAD `
+                -AccessToken $token
+              Write-Host "✓ TRUSTWORTHY enabled"
+            }
+          } else {
+            Write-Host "✓ TRUSTWORTHY already enabled, skipping"
+          }
+      
+      - name: Validate Deployment
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "`n=== Deployment Validation ==="
+          
+          # Count assemblies
+          $query = "SELECT COUNT(*) AS AssemblyCount FROM sys.assemblies WHERE is_user_defined = 1"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "External Assemblies: $($result.AssemblyCount)"
+          
+          # Count functions
+          $query = "SELECT COUNT(*) AS FunctionCount FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT') AND is_ms_shipped = 0"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "User-Defined Functions: $($result.FunctionCount)"
+          
+          # Count CLR aggregates
+          $query = "SELECT COUNT(*) AS AggregateCount FROM sys.objects WHERE type = 'AF'"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "CLR Aggregates: $($result.AggregateCount)"
+          
+          # Count UDTs
+          $query = "SELECT COUNT(*) AS UdtCount FROM sys.types WHERE is_user_defined = 1 AND is_assembly_type = 1"
+          $result = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -AccessToken $token -Query $query -TrustServerCertificate
+          Write-Host "CLR User-Defined Types: $($result.UdtCount)"
+          
+          Write-Host "`n✓ Deployment validation complete"
+      
+      - name: Upload scaffolded entities artifact marker
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-deployed
+          path: scripts/
+          retention-days: 1
+
+  # ============================================================================
+  # STEP 3: Scaffold EF Core Entities (depends on deployed database)
+  # ============================================================================
+  scaffold-entities:
+    name: Scaffold EF Core Entities
+    runs-on: self-hosted
+    needs: deploy-database
+    environment: ${{ inputs.environment || 'production' }}
+    
+    env:
+      SQL_SERVER: ${{ secrets.SQL_SERVER }}
+      SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Install EF Core tools
+        run: dotnet tool install --global dotnet-ef --version 10.0.0
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Get SQL Access Token
+        id: get-token
+        shell: pwsh
+        run: |
+          $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          "token=$token" >> $env:GITHUB_OUTPUT
+      
+      - name: Scaffold EF Core Entities
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $token = "${{ steps.get-token.outputs.token }}"
+          
+          Write-Host "Scaffolding EF Core entities from database schema..."
+          
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\scaffold-entities.ps1"
+          
+          & $scriptPath `
+            -SqlServer "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -UseAzureAD `
+            -AccessToken $token
+          
+          Write-Host "✓ EF Core entities scaffolded"
+      
+      - name: Commit scaffolded entities
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add src/Hartonomous.Data.Entities/**
+          
+          if (git diff --cached --quiet) {
+            Write-Host "No changes to scaffolded entities"
+          } else {
+            git commit -m "chore: Update scaffolded EF Core entities from database schema"
+            git push
+            Write-Host "✓ Scaffolded entities committed and pushed"
+          }
+      
+      - name: Upload scaffolded entities
+        uses: actions/upload-artifact@v4
+        with:
+          name: scaffolded-entities
+          path: src/Hartonomous.Data.Entities/
+          retention-days: 1
+
+  # ============================================================================
+  # STEP 4: Build and Test .NET Solution (uses scaffolded entities)
+  # ============================================================================
+  build-and-test:
+    name: Build and Test .NET Solution
+    runs-on: self-hosted
+    needs: scaffold-entities
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Download scaffolded entities
+        uses: actions/download-artifact@v4
+        with:
+          name: scaffolded-entities
+          path: src/Hartonomous.Data.Entities/
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Display .NET Info
+        run: dotnet --info
+      
+      - name: Restore NuGet packages
+        run: dotnet restore Hartonomous.Tests.sln --verbosity minimal
+        shell: pwsh
+      
+      - name: Build solution
+        run: |
+          Write-Host "Building solution in ${{ env.BUILD_CONFIGURATION }} mode..."
+          dotnet build Hartonomous.Tests.sln `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore `
+            --verbosity minimal
+        shell: pwsh
+      
+      - name: Run unit tests
+        run: |
+          Write-Host "Running unit tests..."
+          dotnet test tests/**/*Tests.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-build `
+            --collect:"XPlat Code Coverage" `
+            --logger "trx;LogFileName=test-results.trx" `
+            --results-directory ./TestResults `
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+        shell: pwsh
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: TestResults/
+          retention-days: 7
+      
+      - name: Build summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "`n=== Build Summary ==="
+          
+          $testResults = Get-ChildItem -Path "TestResults" -Filter "*.trx" -Recurse | Select-Object -First 1
+          
+          if ($testResults) {
+            [xml]$trx = Get-Content $testResults.FullName
+            $counters = $trx.TestRun.ResultSummary.Counters
+            
+            Write-Host "Tests Total: $($counters.total)"
+            Write-Host "Tests Passed: $($counters.passed)"
+            Write-Host "Tests Failed: $($counters.failed)"
+            Write-Host "Tests Skipped: $($counters.notExecuted)"
+            
+            $summary = @"
+          ## Test Results
+          - ✅ Passed: $($counters.passed)
+          - ❌ Failed: $($counters.failed)
+          - ⏭️ Skipped: $($counters.notExecuted)
+          - 📊 Total: $($counters.total)
+          "@
+            
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
+          }
+
+  # ============================================================================
+  # STEP 5: Build Applications (uses scaffolded entities)
+  # ============================================================================
+  build-applications:
+    name: Build Applications
+    runs-on: self-hosted
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download scaffolded entities
+        uses: actions/download-artifact@v4
+        with:
+          name: scaffolded-entities
+          path: src/Hartonomous.Data.Entities/
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore Hartonomous.Tests.sln
+      
+      - name: Publish Hartonomous.Api
+        shell: pwsh
+        run: |
+          Write-Host "Publishing Hartonomous.Api..."
+          
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\api"
+          
+          dotnet publish src/Hartonomous.Api/Hartonomous.Api.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --output $outputPath `
+            --no-restore `
+            /p:PublishSingleFile=false `
+            /p:PublishTrimmed=false
+          
+          Write-Host "✓ Hartonomous.Api published to: $outputPath"
+      
+      - name: Upload application artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: applications
+          path: artifacts/
+          retention-days: 7
