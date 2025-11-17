@@ -32,7 +32,7 @@ public class OperationProvenanceConfiguration : IEntityTypeConfiguration<Operati
             ;
 
         builder.HasIndex(e => new { e.OperationId })
-            .HasDatabaseName("UQ__Operatio__A4F5FC45A4EF3184")
+            .HasDatabaseName("UQ__Operatio__A4F5FC4568462F78")
             .IsUnique()
             ;
     }
