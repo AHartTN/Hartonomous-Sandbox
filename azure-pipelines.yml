@@ -164,7 +164,27 @@ stages:
                 Write-Host "✓ CLR enabled"
               pwsh: true
 
-          # Step 2: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
+          # Step 2: Set TRUSTWORTHY ON (Required BEFORE deploying UNSAFE assemblies)
+          - task: PowerShell@2
+            displayName: 'Set TRUSTWORTHY ON'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $script = Get-Content "scripts/sql/set-trustworthy.sql" -Raw
+                $script = $script -replace '\$\(sqlDatabase\)', '$(sqlDatabase)'
+                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+                try {
+                  $script | Out-File -FilePath $tempFile -Encoding utf8
+                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
+                  if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
+                  Write-Host "✓ TRUSTWORTHY enabled"
+                } finally {
+                  Remove-Item $tempFile -ErrorAction SilentlyContinue
+                }
+              pwsh: true
+
+          # Step 3: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
           - task: PowerShell@2
             displayName: 'Deploy External CLR Assemblies'
             inputs:
@@ -280,26 +300,6 @@ stages:
                 
                 if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
                 Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
-              pwsh: true
-
-          # Step 4: Set TRUSTWORTHY ON (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Set TRUSTWORTHY ON'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                $script = Get-Content "scripts/sql/set-trustworthy.sql" -Raw
-                $script = $script -replace '\$\(sqlDatabase\)', '$(sqlDatabase)'
-                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                try {
-                  $script | Out-File -FilePath $tempFile -Encoding utf8
-                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
-                  if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
-                  Write-Host "✓ TRUSTWORTHY validated"
-                } finally {
-                  Remove-Item $tempFile -ErrorAction SilentlyContinue
-                }
               pwsh: true
 
 # ============================================================================
