@@ -138,13 +138,20 @@ stages:
               pwsh: true
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
-          - task: PowerShell@2
+          - task: SqlAzureDacpacDeployment@1
             displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
-              targetType: 'filePath'
-              filePath: '$(Pipeline.Workspace)/database/scripts/deploy-dacpac.ps1'
-              arguments: '-DacpacPath "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac" -Server "$(sqlServer)" -Database "$(sqlDatabase)"'
-              pwsh: true
+              azureSubscription: ''
+              authenticationType: 'server'
+              serverName: '$(sqlServer)'
+              databaseName: '$(sqlDatabase)'
+              sqlUsername: ''
+              sqlPassword: ''
+              authenticationType: 'windowsAuthentication'
+              deployType: 'DacpacTask'
+              deploymentAction: 'Publish'
+              dacpacFile: '$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac'
+              additionalArguments: '/p:DropObjectsNotInSource=False /p:BlockOnPossibleDataLoss=True /p:IgnorePreDeployScript=True /p:IgnorePostDeployScript=True'
 
           # Step 4: Set TRUSTWORTHY ON (Idempotent)
           - task: PowerShell@2
