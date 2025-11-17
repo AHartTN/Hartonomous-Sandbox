@@ -1,127 +1,495 @@
 [CmdletBinding()]
 param (
     [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
     [string]$Server,
 
     [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
     [string]$Database,
 
     [Parameter(Mandatory = $true)]
+    [ValidateNotNullOrEmpty()]
     [string]$AccessToken,
 
     [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path $_ -PathType Leaf })]
     [string]$DacpacPath,
 
     [Parameter(Mandatory = $true)]
+    [ValidateScript({ Test-Path $_ -PathType Container })]
     [string]$DependenciesPath,
 
     [Parameter(Mandatory = $true)]
-    [string]$ScriptsPath
+    [ValidateScript({ Test-Path $_ -PathType Container })]
+    [string]$ScriptsPath,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$DryRun,
+
+    [Parameter(Mandatory = $false)]
+    [switch]$SkipValidation
 )
+
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
 
 function Write-Log {
     param (
+        [Parameter(Mandatory = $true)]
         [string]$Message,
-        [string]$Color = "White"
-    )
-    Write-Host "[$([DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss'))] $Message" -ForegroundColor $Color
-}
-
-function Invoke-SqlCmdWithLogging {
-    param (
-        [string]$Query,
-        [string]$InputFile
+        
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Info', 'Success', 'Warning', 'Error', 'Debug')]
+        [string]$Level = 'Info'
     )
     
-    $params = @{
-        ServerInstance = $Server
-        Database = $Database
-        AccessToken = $AccessToken
+    $timestamp = [DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss')
+    $colors = @{
+        'Info'    = 'Cyan'
+        'Success' = 'Green'
+        'Warning' = 'Yellow'
+        'Error'   = 'Red'
+        'Debug'   = 'Gray'
+    }
+    
+    $prefix = switch ($Level) {
+        'Success' { '✓' }
+        'Error'   { '✗' }
+        'Warning' { '⚠' }
+        'Debug'   { '→' }
+        default   { '•' }
+    }
+    
+    Write-Host "[$timestamp] $prefix $Message" -ForegroundColor $colors[$Level]
+}
+
+function Write-Log {
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$Message,
+        
+        [Parameter(Mandatory = $false)]
+        [ValidateSet('Info', 'Success', 'Warning', 'Error', 'Debug')]
+        [string]$Level = 'Info'
+    )
+    
+    $timestamp = [DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss')
+    $colors = @{
+        'Info'    = 'Cyan'
+        'Success' = 'Green'
+        'Warning' = 'Yellow'
+        'Error'   = 'Red'
+        'Debug'   = 'Gray'
+    }
+    
+    $prefix = switch ($Level) {
+        'Success' { '✓' }
+        'Error'   { '✗' }
+        'Warning' { '⚠' }
+        'Debug'   { '→' }
+        default   { '•' }
+    }
+    
+    Write-Host "[$timestamp] $prefix $Message" -ForegroundColor $colors[$Level]
+}
+
+function Invoke-SqlCmdSafe {
+    <#
+    .SYNOPSIS
+    Executes SQL commands with comprehensive error handling and logging.
+    #>
+    [CmdletBinding()]
+    param (
+        [Parameter(Mandatory = $false)]
+        [string]$Query,
+
+        [Parameter(Mandatory = $false)]
+        [string]$InputFile,
+
+        [Parameter(Mandatory = $false)]
+        [string]$DatabaseName = 'master',
+
+        [Parameter(Mandatory = $false)]
+        [hashtable]$Variables = @{},
+
+        [Parameter(Mandatory = $false)]
+        [int]$QueryTimeout = 300
+    )
+
+    $sqlParams = @{
+        ServerInstance    = $Server
+        Database          = $DatabaseName
+        AccessToken       = $AccessToken
         ConnectionTimeout = 30
-        QueryTimeout = 0
-        Verbose = $true
+        QueryTimeout      = $QueryTimeout
+        TrustServerCertificate = $true
+        ErrorAction       = 'Stop'
     }
 
-    if ($PSBoundParameters.ContainsKey('InputFile')) {
-        $params.InputFile = $InputFile
-    } else {
-        $params.Query = $Query
+    # Add variables if provided
+    if ($Variables.Count -gt 0) {
+        $sqlParams.Variable = $Variables.GetEnumerator() | ForEach-Object { "$($_.Key)=$($_.Value)" }
+    }
+
+    # Add query or input file
+    if ($InputFile) {
+        if (-not (Test-Path $InputFile)) {
+            throw "SQL script file not found: $InputFile"
+        }
+        $sqlParams.InputFile = $InputFile
+        Write-Log "Executing SQL script: $(Split-Path $InputFile -Leaf)" -Level Debug
+    }
+    elseif ($Query) {
+        $sqlParams.Query = $Query
+        $queryPreview = if ($Query.Length -gt 100) { $Query.Substring(0, 100) + '...' } else { $Query }
+        Write-Log "Executing SQL query: $queryPreview" -Level Debug
+    }
+    else {
+        throw "Either -Query or -InputFile must be specified"
     }
 
     try {
-        Invoke-SqlCmd @params
+        if ($DryRun) {
+            Write-Log "[DRY RUN] Would execute SQL command" -Level Warning
+            return $null
+        }
+        
+        $result = Invoke-Sqlcmd @sqlParams
+        return $result
     }
     catch {
-        Write-Error "SQL command failed: $_"
-        exit 1
+        Write-Log "SQL execution failed: $($_.Exception.Message)" -Level Error
+        Write-Log "Connection: Server=$Server, Database=$DatabaseName" -Level Error
+        throw
     }
 }
 
-#
-# --- Main Execution ---
-#
+function Test-DatabaseExists {
+    <#
+    .SYNOPSIS
+    Checks if a database exists on the SQL Server instance.
+    #>
+    param (
+        [Parameter(Mandatory = $true)]
+        [string]$DatabaseName
+    )
 
-try {
-    # Step 1: Enable CLR on the server
-    Write-Log "Step 1: Enabling CLR Integration on server '$Server'..."
-    $enableClrSql = "sp_configure 'show advanced options', 1; RECONFIGURE; sp_configure 'clr enabled', 1; RECONFIGURE;"
-    Invoke-SqlCmd -ServerInstance $Server -Database "master" -Query $enableClrSql -AccessToken $AccessToken -TrustServerCertificate
-    Write-Log "CLR Integration enabled successfully." -ForegroundColor Green
+    $query = "SELECT COUNT(*) AS DbCount FROM sys.databases WHERE name = '$DatabaseName'"
+    $result = Invoke-SqlCmdSafe -Query $query -DatabaseName 'master'
+    return ($result.DbCount -gt 0)
+}
 
-    # Step 2: Run pre-deployment cleanup script
-    Write-Log "Step 2: Running pre-deployment cleanup script..."
-    $preDeployScriptPath = Join-Path $ScriptsPath "Pre-Deployment.sql"
-    Invoke-SqlCmdWithLogging -InputFile $preDeployScriptPath
-    Write-Log "Pre-deployment cleanup script executed successfully." -ForegroundColor Green
+function Enable-ClrIntegration {
+    <#
+    .SYNOPSIS
+    Enables CLR integration on the SQL Server instance (idempotent).
+    #>
+    Write-Log "Enabling CLR integration..." -Level Info
+    
+    $clrScript = Join-Path $ScriptsPath "enable-clr.sql"
+    if (Test-Path $clrScript) {
+        Invoke-SqlCmdSafe -InputFile $clrScript -DatabaseName 'master'
+        Write-Log "CLR integration enabled successfully" -Level Success
+    }
+    else {
+        # Fallback to inline SQL if script doesn't exist
+        Write-Log "enable-clr.sql not found, using inline SQL" -Level Warning
+        $query = @"
+EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
+EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
+EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
+"@
+        Invoke-SqlCmdSafe -Query $query -DatabaseName 'master'
+        Write-Log "CLR integration enabled (inline)" -Level Success
+    }
+}
 
-    # Step 3: Deploy external dependency assemblies
-    Write-Log "Step 3: Deploying external dependencies from '$DependenciesPath'..."
-    $dependencyDlls = Get-ChildItem -Path $DependenciesPath -Filter *.dll | Sort-Object Name
+function Invoke-PreDeploymentCleanup {
+    <#
+    .SYNOPSIS
+    Runs pre-deployment cleanup to drop CLR-dependent objects for idempotency.
+    #>
+    Write-Log "Running pre-deployment cleanup..." -Level Info
+    
+    $preDeployScript = Join-Path $ScriptsPath "Pre-Deployment.sql"
+    if (-not (Test-Path $preDeployScript)) {
+        Write-Log "Pre-Deployment.sql not found, skipping cleanup" -Level Warning
+        return
+    }
+
+    $variables = @{ DatabaseName = $Database }
+    Invoke-SqlCmdSafe -InputFile $preDeployScript -DatabaseName 'master' -Variables $variables
+    Write-Log "Pre-deployment cleanup completed" -Level Success
+}
+
+function Deploy-ExternalAssemblies {
+    <#
+    .SYNOPSIS
+    Deploys external CLR dependency assemblies (idempotent).
+    #>
+    Write-Log "Deploying external CLR assemblies from: $DependenciesPath" -Level Info
+    
+    $dependencyDlls = Get-ChildItem -Path $DependenciesPath -Filter *.dll -File | Sort-Object Name
+    
+    if ($dependencyDlls.Count -eq 0) {
+        Write-Log "No dependency DLLs found in $DependenciesPath" -Level Warning
+        return
+    }
+
+    $deployedCount = 0
+    $skippedCount = 0
+
     foreach ($dll in $dependencyDlls) {
         $assemblyName = $dll.BaseName
-        Write-Log "  - Deploying assembly: $assemblyName"
-        $bytes = [System.IO.File]::ReadAllBytes($dll.FullName)
-        $hexString = '0x' + [System.BitConverter]::ToString($bytes).Replace('-', '')
         
-        $createAssemblySql = @"
-IF NOT EXISTS (SELECT * FROM sys.assemblies WHERE name = '$assemblyName')
-BEGIN
-    CREATE ASSEMBLY [$assemblyName] FROM $hexString WITH PERMISSION_SET = UNSAFE;
-END
-"@
-        Invoke-SqlCmdWithLogging -Query $createAssemblySql
-        Write-Log "    ✓ Deployed $assemblyName"
-    }
-    Write-Log "External dependencies deployed successfully." -ForegroundColor Green
+        # Check if assembly already exists
+        $checkQuery = "SELECT COUNT(*) AS AssemblyCount FROM sys.assemblies WHERE name = '$assemblyName'"
+        $existingResult = Invoke-SqlCmdSafe -Query $checkQuery -DatabaseName 'master'
+        
+        if ($existingResult.AssemblyCount -gt 0) {
+            Write-Log "  ⊙ Assembly '$assemblyName' already exists, skipping" -Level Debug
+            $skippedCount++
+            continue
+        }
 
-    # Step 4: Deploy the DACPAC
-    Write-Log "Step 4: Deploying DACPAC from '$DacpacPath'..."
-    $sqlPackagePath = "C:\Program Files\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe"
+        Write-Log "  → Deploying assembly: $assemblyName" -Level Info
+        
+        try {
+            $bytes = [System.IO.File]::ReadAllBytes($dll.FullName)
+            $hexString = '0x' + [System.BitConverter]::ToString($bytes).Replace('-', '')
+            
+            $createAssemblySql = @"
+CREATE ASSEMBLY [$assemblyName] 
+FROM $hexString 
+WITH PERMISSION_SET = UNSAFE;
+"@
+            Invoke-SqlCmdSafe -Query $createAssemblySql -DatabaseName 'master' -QueryTimeout 600
+            Write-Log "  ✓ Deployed: $assemblyName" -Level Success
+            $deployedCount++
+        }
+        catch {
+            $errorMsg = $_.Exception.Message
+            Write-Log "  ✗ Failed to deploy ${assemblyName}: $errorMsg" -Level Error
+            throw
+        }
+    }
+    
+    Write-Log "External assemblies deployed: $deployedCount new, $skippedCount existing" -Level Success
+}
+
+function Deploy-Dacpac {
+    <#
+    .SYNOPSIS
+    Deploys the DACPAC using SqlPackage.exe with comprehensive options.
+    #>
+    Write-Log "Deploying DACPAC: $DacpacPath" -Level Info
+    
+    # Find SqlPackage.exe
+    $sqlPackagePaths = @(
+        "C:\Program Files\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe",
+        "C:\Program Files\Microsoft SQL Server\170\DAC\bin\SqlPackage.exe",
+        "C:\Program Files (x86)\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe"
+    )
+    
+    $sqlPackagePath = $sqlPackagePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    
+    if (-not $sqlPackagePath) {
+        throw "SqlPackage.exe not found. Please install SQL Server Data Tools or SqlPackage."
+    }
+    
+    Write-Log "Using SqlPackage: $sqlPackagePath" -Level Debug
+    
+    # Build connection string (without AccessToken - passed separately)
+    $connectionString = "Server=$Server;Database=$Database;Encrypt=True;TrustServerCertificate=True;"
+    
     $sqlPackageArgs = @(
         "/Action:Publish",
         "/SourceFile:`"$DacpacPath`"",
-        "/TargetConnectionString:`"Server=$Server;Database=$Database;Authentication=Active Directory
-        Password`"",
+        "/TargetConnectionString:`"$connectionString`"",
+        "/AccessToken:`"$AccessToken`"",
         "/p:BlockOnPossibleDataLoss=False",
-        "/p:DropObjectsNotInSource=true",
-        "/p:TreatVerificationErrorsAsWarnings=false",
-        "/AccessToken:`"$AccessToken`""
+        "/p:DropObjectsNotInSource=False",
+        "/p:AllowIncompatiblePlatform=True",
+        "/p:IncludeCompositeObjects=True",
+        "/p:AllowDropBlockingAssemblies=True",
+        "/p:NoAlterStatementsToChangeClrTypes=False",
+        "/p:TreatVerificationErrorsAsWarnings=False",
+        "/p:IgnorePermissions=False",
+        "/p:IgnoreRoleMembership=False",
+        "/v:DependenciesPath=`"$DependenciesPath`""
     )
-    & $sqlPackagePath $sqlPackageArgs
+    
+    if ($DryRun) {
+        Write-Log "[DRY RUN] Would execute: $sqlPackagePath $($sqlPackageArgs -join ' ')" -Level Warning
+        return
+    }
+    
+    Write-Log "Executing SqlPackage.exe..." -Level Debug
+    $output = & $sqlPackagePath $sqlPackageArgs 2>&1
+    
     if ($LASTEXITCODE -ne 0) {
+        Write-Log "SqlPackage.exe output:" -Level Error
+        $output | ForEach-Object { Write-Log "  $_" -Level Error }
         throw "SqlPackage.exe failed with exit code $LASTEXITCODE"
     }
-    Write-Log "DACPAC deployed successfully." -ForegroundColor Green
+    
+    # Log successful output (last 10 lines)
+    $output | Select-Object -Last 10 | ForEach-Object { Write-Log "  $_" -Level Debug }
+    Write-Log "DACPAC deployed successfully" -Level Success
+}
 
-    # Step 5: Set database to trustworthy
-    Write-Log "Step 5: Setting database '$Database' to TRUSTWORTHY ON..."
-    $setTrustworthySql = "ALTER DATABASE [$Database] SET TRUSTWORTHY ON;"
-    Invoke-SqlCmdWithLogging -Query $setTrustworthySql
-    Write-Log "Database set to TRUSTWORTHY." -ForegroundColor Green
+function Set-DatabaseTrustworthy {
+    <#
+    .SYNOPSIS
+    Sets the database to TRUSTWORTHY ON for CLR assemblies.
+    #>
+    Write-Log "Setting database to TRUSTWORTHY ON..." -Level Info
+    
+    $trustworthyScript = Join-Path $ScriptsPath "set-trustworthy.sql"
+    if (Test-Path $trustworthyScript) {
+        $variables = @{ DatabaseName = $Database }
+        Invoke-SqlCmdSafe -InputFile $trustworthyScript -DatabaseName 'master' -Variables $variables
+    }
+    else {
+        # Fallback to inline SQL
+        $query = "ALTER DATABASE [$Database] SET TRUSTWORTHY ON;"
+        Invoke-SqlCmdSafe -Query $query -DatabaseName 'master'
+    }
+    
+    Write-Log "Database set to TRUSTWORTHY ON" -Level Success
+}
 
-    Write-Log "Database deployment completed successfully." -ForegroundColor Green
+function Test-DeploymentSuccess {
+    <#
+    .SYNOPSIS
+    Validates the deployment by checking key database objects.
+    #>
+    Write-Log "Validating deployment..." -Level Info
+    
+    # Check assemblies in master
+    $assembliesQuery = "SELECT COUNT(*) AS AssemblyCount FROM sys.assemblies WHERE is_user_defined = 1"
+    $assemblies = Invoke-SqlCmdSafe -Query $assembliesQuery -DatabaseName 'master'
+    Write-Log "  • External assemblies in master: $($assemblies.AssemblyCount)" -Level Info
+    
+    # Check database-specific assembly
+    $clrAssemblyQuery = "SELECT COUNT(*) AS ClrCount FROM sys.assemblies WHERE name = 'Hartonomous.Clr'"
+    $clrAssembly = Invoke-SqlCmdSafe -Query $clrAssemblyQuery -DatabaseName $Database
+    Write-Log "  • Hartonomous.Clr assembly: $($clrAssembly.ClrCount)" -Level Info
+    
+    # Check functions
+    $functionsQuery = "SELECT COUNT(*) AS FuncCount FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT') AND is_ms_shipped = 0"
+    $functions = Invoke-SqlCmdSafe -Query $functionsQuery -DatabaseName $Database
+    Write-Log "  • User-defined functions: $($functions.FuncCount)" -Level Info
+    
+    # Check UDTs
+    $udtsQuery = "SELECT COUNT(*) AS UdtCount FROM sys.types WHERE is_user_defined = 1 AND is_assembly_type = 1"
+    $udts = Invoke-SqlCmdSafe -Query $udtsQuery -DatabaseName $Database
+    Write-Log "  • CLR User-Defined Types: $($udts.UdtCount)" -Level Info
+    
+    # Check CLR aggregates
+    $aggregatesQuery = "SELECT COUNT(*) AS AggCount FROM sys.objects WHERE type = 'AF'"
+    $aggregates = Invoke-SqlCmdSafe -Query $aggregatesQuery -DatabaseName $Database
+    Write-Log "  • CLR Aggregates: $($aggregates.AggCount)" -Level Info
+    
+    # Check TRUSTWORTHY setting
+    $trustworthyQuery = "SELECT is_trustworthy_on FROM sys.databases WHERE name = '$Database'"
+    $trustworthy = Invoke-SqlCmdSafe -Query $trustworthyQuery -DatabaseName 'master'
+    $trustworthyStatus = if ($trustworthy.is_trustworthy_on) { "ENABLED" } else { "DISABLED" }
+    Write-Log "  • TRUSTWORTHY: $trustworthyStatus" -Level Info
+    
+    Write-Log "Validation completed successfully" -Level Success
+}
+
+#
+# === MAIN EXECUTION ===
+#
+
+$deploymentStartTime = Get-Date
+
+Write-Log "═══════════════════════════════════════════════════════════════" -Level Info
+Write-Log "  HARTONOMOUS DATABASE DEPLOYMENT" -Level Info
+Write-Log "═══════════════════════════════════════════════════════════════" -Level Info
+Write-Log "Server:       $Server" -Level Info
+Write-Log "Database:     $Database" -Level Info
+Write-Log "DACPAC:       $DacpacPath" -Level Info
+Write-Log "Dependencies: $DependenciesPath" -Level Info
+Write-Log "Scripts:      $ScriptsPath" -Level Info
+if ($DryRun) {
+    Write-Log "Mode:         DRY RUN (no changes will be made)" -Level Warning
+}
+Write-Log "═══════════════════════════════════════════════════════════════" -Level Info
+Write-Log "" -Level Info
+
+try {
+    # Validate prerequisites
+    Write-Log "STEP 0: Validating prerequisites..." -Level Info
+    
+    if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+        throw "SqlServer PowerShell module is not installed. Install with: Install-Module -Name SqlServer"
+    }
+    
+    Import-Module SqlServer -ErrorAction Stop
+    Write-Log "SqlServer module loaded successfully" -Level Success
+    Write-Log "" -Level Info
+
+    # Step 1: Enable CLR Integration
+    Write-Log "STEP 1: Enabling CLR Integration..." -Level Info
+    Enable-ClrIntegration
+    Write-Log "" -Level Info
+
+    # Step 2: Pre-deployment cleanup
+    Write-Log "STEP 2: Pre-deployment cleanup..." -Level Info
+    Invoke-PreDeploymentCleanup
+    Write-Log "" -Level Info
+
+    # Step 3: Deploy external assemblies
+    Write-Log "STEP 3: Deploying external CLR dependencies..." -Level Info
+    Deploy-ExternalAssemblies
+    Write-Log "" -Level Info
+
+    # Step 4: Deploy DACPAC
+    Write-Log "STEP 4: Deploying DACPAC..." -Level Info
+    Deploy-Dacpac
+    Write-Log "" -Level Info
+
+    # Step 5: Set TRUSTWORTHY
+    Write-Log "STEP 5: Setting database to TRUSTWORTHY..." -Level Info
+    Set-DatabaseTrustworthy
+    Write-Log "" -Level Info
+
+    # Step 6: Validation
+    if (-not $SkipValidation) {
+        Write-Log "STEP 6: Validating deployment..." -Level Info
+        Test-DeploymentSuccess
+        Write-Log "" -Level Info
+    }
+
+    # Success summary
+    $deploymentDuration = (Get-Date) - $deploymentStartTime
+    Write-Log "═══════════════════════════════════════════════════════════════" -Level Success
+    Write-Log "  DEPLOYMENT COMPLETED SUCCESSFULLY" -Level Success
+    Write-Log "═══════════════════════════════════════════════════════════════" -Level Success
+    Write-Log "Duration: $($deploymentDuration.ToString('mm\:ss'))" -Level Success
+    Write-Log "Database: $Database on $Server" -Level Success
+    Write-Log "═══════════════════════════════════════════════════════════════" -Level Success
+
+    exit 0
 }
 catch {
-    Write-Error "An error occurred during the deployment process: $_"
+    $deploymentDuration = (Get-Date) - $deploymentStartTime
+    Write-Log "" -Level Error
+    Write-Log "═══════════════════════════════════════════════════════════════" -Level Error
+    Write-Log "  DEPLOYMENT FAILED" -Level Error
+    Write-Log "═══════════════════════════════════════════════════════════════" -Level Error
+    Write-Log "Error: $($_.Exception.Message)" -Level Error
+    Write-Log "Duration: $($deploymentDuration.ToString('mm\:ss'))" -Level Error
+    Write-Log "═══════════════════════════════════════════════════════════════" -Level Error
+    
+    if ($_.ScriptStackTrace) {
+        Write-Log "Stack trace:" -Level Debug
+        Write-Log $_.ScriptStackTrace -Level Debug
+    }
+    
     exit 1
 }

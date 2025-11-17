@@ -140,8 +140,8 @@ jobs:
       - name: Execute Unified Database Deployment
         run: |
           ./scripts/Deploy-Database.ps1 `
-            -Server "${{ secrets.SQL_SERVER_NAME }}" `
-            -Database "${{ secrets.SQL_DATABASE_NAME }}" `
+            -Server "${{ secrets.SQL_SERVER }}" `
+            -Database "${{ secrets.SQL_DATABASE }}" `
             -AccessToken "${{ steps.get_token.outputs.token }}" `
             -DacpacPath "./artifacts/database/Hartonomous.Database.dacpac" `
             -DependenciesPath "./dependencies" `
@@ -155,8 +155,8 @@ jobs:
     environment: production
     
     env:
-      SQL_SERVER_NAME: ${{ secrets.SQL_SERVER_NAME }}
-      SQL_DATABASE_NAME: ${{ secrets.SQL_DATABASE_NAME }}
+      SQL_SERVER: ${{ secrets.SQL_SERVER }}
+      SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
     
     steps:
       - name: Checkout code
@@ -196,8 +196,8 @@ jobs:
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\scaffold-entities.ps1"
           
           & $scriptPath `
-            -SqlServer "${{ env.SQL_SERVER_NAME }}" `
-            -Database "${{ env.SQL_DATABASE_NAME }}" `
+            -SqlServer "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
             -UseAzureAD `
             -AccessToken $token
           
