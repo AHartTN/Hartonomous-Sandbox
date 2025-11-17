@@ -198,7 +198,9 @@ stages:
                     $sql += "BEGIN`n"
                     $sql += "    PRINT '  Assembly not found, creating...';`n"
                     $sql += "END`n"
-                    $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;`n"
+                    # Most system assemblies should use SAFE permission set, not UNSAFE
+                    $permissionSet = if ($Name -in @('System.Numerics.Vectors', 'System.ValueTuple', 'System.Memory', 'System.Buffers', 'System.Runtime.CompilerServices.Unsafe', 'System.Collections.Immutable', 'System.Reflection.Metadata')) { 'SAFE' } else { 'UNSAFE' }
+                    $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = $permissionSet;`n"
                     $sql += "PRINT '  OK $Name deployed (SHA256: $fileHash)';`n"
                     $sql += "GO`n"
 
