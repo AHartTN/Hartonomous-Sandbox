@@ -36,8 +36,9 @@ $ProgressPreference = 'SilentlyContinue'
 
 function Write-Log {
     param (
-        [Parameter(Mandatory = $true)]
-        [string]$Message,
+        [Parameter(Mandatory = $false)]
+        [AllowEmptyString()]
+        [string]$Message = "",
         
         [Parameter(Mandatory = $false)]
         [ValidateSet('Info', 'Success', 'Warning', 'Error', 'Debug')]
@@ -61,37 +62,11 @@ function Write-Log {
         default   { '•' }
     }
     
-    Write-Host "[$timestamp] $prefix $Message" -ForegroundColor $colors[$Level]
-}
-
-function Write-Log {
-    param (
-        [Parameter(Mandatory = $true)]
-        [string]$Message,
-        
-        [Parameter(Mandatory = $false)]
-        [ValidateSet('Info', 'Success', 'Warning', 'Error', 'Debug')]
-        [string]$Level = 'Info'
-    )
-    
-    $timestamp = [DateTime]::Now.ToString('yyyy-MM-dd HH:mm:ss')
-    $colors = @{
-        'Info'    = 'Cyan'
-        'Success' = 'Green'
-        'Warning' = 'Yellow'
-        'Error'   = 'Red'
-        'Debug'   = 'Gray'
+    if ($Message) {
+        Write-Host "[$timestamp] $prefix $Message" -ForegroundColor $colors[$Level]
+    } else {
+        Write-Host ""
     }
-    
-    $prefix = switch ($Level) {
-        'Success' { '✓' }
-        'Error'   { '✗' }
-        'Warning' { '⚠' }
-        'Debug'   { '→' }
-        default   { '•' }
-    }
-    
-    Write-Host "[$timestamp] $prefix $Message" -ForegroundColor $colors[$Level]
 }
 
 function Invoke-SqlCmdSafe {
