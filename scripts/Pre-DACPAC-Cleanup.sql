@@ -5,31 +5,28 @@
 USE [$(DatabaseName)];
 GO
 
--- Drop all functions that depend on the main CLR assembly
-DECLARE @sql NVARCHAR(MAX) = N'';
-SELECT @sql += 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
+-- Drop all CLR-mappable objects (Procedures, Functions, Aggregates)
+DECLARE @sql_objects NVARCHAR(MAX) = N'';
+SELECT @sql_objects += 
+    'DROP ' +
+    CASE o.type
+        WHEN 'AF' THEN 'AGGREGATE'
+        WHEN 'PC' THEN 'PROCEDURE'
+        WHEN 'FS' THEN 'FUNCTION'
+        WHEN 'FT' THEN 'FUNCTION'
+        ELSE 'FUNCTION' -- Default for other function types like IF, TF
+    END + ' ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
 FROM sys.assembly_modules am
 JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
 JOIN sys.objects o ON am.object_id = o.object_id
 JOIN sys.schemas s ON o.schema_id = s.schema_id
 WHERE a.name = 'Hartonomous.Clr';
-EXEC sp_executesql @sql;
-PRINT 'Dropped all CLR-dependent functions.';
+
+EXEC sp_executesql @sql_objects;
+PRINT 'Dropped all CLR-dependent procedures, functions, and aggregates.';
 GO
 
--- Drop all aggregates that depend on the main CLR assembly
-DECLARE @sql_agg NVARCHAR(MAX) = N'';
-SELECT @sql_agg += 'DROP AGGREGATE ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
-FROM sys.assembly_modules am
-JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-JOIN sys.objects o ON am.object_id = o.object_id
-JOIN sys.schemas s ON o.schema_id = s.schema_id
-WHERE a.name = 'Hartonomous.Clr' AND o.type = 'AF';
-EXEC sp_executesql @sql_agg;
-PRINT 'Dropped all CLR-dependent aggregates.';
-GO
-
--- Drop all types that depend on the main CLR assembly
+-- Drop all CLR UDTs (User-Defined Types)
 DECLARE @sql_types NVARCHAR(MAX) = N'';
 SELECT @sql_types += 'DROP TYPE ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
 FROM sys.assembly_types at
@@ -37,6 +34,7 @@ JOIN sys.assemblies a ON at.assembly_id = a.assembly_id
 JOIN sys.types t ON at.user_type_id = t.user_type_id
 JOIN sys.schemas s ON t.schema_id = s.schema_id
 WHERE a.name = 'Hartonomous.Clr';
+
 EXEC sp_executesql @sql_types;
 PRINT 'Dropped all CLR-dependent types.';
 GO
