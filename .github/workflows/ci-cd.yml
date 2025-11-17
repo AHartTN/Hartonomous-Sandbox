@@ -240,7 +240,7 @@ jobs:
             -Server "${{ secrets.SQL_SERVER }}" `
             -Database "${{ secrets.SQL_DATABASE }}" `
             -AccessToken "${{ steps.get_token.outputs.token }}" `
-            -DacpacPath $dacpacPath.FullName `
+            -DacpacPath "$($dacpacPath.FullName)" `
             -DependenciesPath "./dependencies" `
             -ScriptsPath "./scripts/sql"
         shell: pwsh
