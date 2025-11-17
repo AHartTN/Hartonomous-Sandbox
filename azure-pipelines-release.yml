@@ -9,6 +9,7 @@ resources:
   pipelines:
   - pipeline: buildPipeline
     source: 'Hartonomous-CI-CD'
+    project: 'Hartonomous'
     trigger:
       branches:
         include:
