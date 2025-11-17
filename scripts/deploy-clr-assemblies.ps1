@@ -174,19 +174,13 @@ function Deploy-Assembly {
 
     # Check if already registered
     $checkSql = "SELECT clr_name FROM sys.assemblies WHERE name = '$AssemblyName'"
-    $tempCheckFile = [System.IO.Path]::GetTempFileName() + ".sql"
-    "USE [$Database]; $checkSql" | Out-File -FilePath $tempCheckFile -Encoding utf8
     
-    try {
-        if ($UseAzureAD) {
-            $existing = sqlcmd -S $Server -d $Database -G -P $AccessToken -i $tempCheckFile -h -1 2>&1 | Select-Object -First 1
-        } elseif ($Username -and $Password) {
-            $existing = sqlcmd -S $Server -U $Username -P $Password -d $Database -i $tempCheckFile -h -1 2>&1 | Select-Object -First 1
-        } else {
-            $existing = sqlcmd -S $Server -d $Database -E -C -i $tempCheckFile -h -1 2>&1 | Select-Object -First 1
-        }
-    } finally {
-        Remove-Item $tempCheckFile -ErrorAction SilentlyContinue
+    if ($UseAzureAD) {
+        $existing = Invoke-Sqlcmd -ServerInstance $Server -Database $Database -Query $checkSql -AccessToken $AccessToken -TrustServerCertificate -ErrorAction SilentlyContinue | Select-Object -ExpandProperty clr_name -ErrorAction SilentlyContinue
+    } elseif ($Username -and $Password) {
+        $existing = sqlcmd -S $Server -U $Username -P $Password -d $Database -Q $checkSql -h -1 2>&1 | Select-Object -First 1
+    } else {
+        $existing = sqlcmd -S $Server -d $Database -E -C -Q $checkSql -h -1 2>&1 | Select-Object -First 1
     }
 
     $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
@@ -202,39 +196,32 @@ function Deploy-Assembly {
 
     $hexString = ConvertTo-HexString -FilePath $FilePath
 
-    # Write DROP + CREATE to temp file to avoid command-line length limits
-    $tempSqlFile = [System.IO.Path]::GetTempFileName() + ".sql"
-    
-    @"
-USE [master];
-GO
-
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$Database')
-BEGIN
-    CREATE DATABASE [$Database];
-END
-GO
-
-USE [$Database];
-GO
-
+    $deploySql = @"
 IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$AssemblyName')
     DROP ASSEMBLY [$AssemblyName];
-GO
 
 CREATE ASSEMBLY [$AssemblyName]
 FROM 0x$hexString
 WITH PERMISSION_SET = UNSAFE;
-GO
-"@ | Out-File -FilePath $tempSqlFile -Encoding utf8
+"@
 
     try {
         if ($UseAzureAD) {
-            $output = sqlcmd -S $Server -d master -G -P $AccessToken -i $tempSqlFile 2>&1
+            # Use Invoke-Sqlcmd with AccessToken for Azure AD auth (works for on-premises Arc SQL)
+            Invoke-Sqlcmd -ServerInstance $Server -Database $Database -Query $deploySql -AccessToken $AccessToken -TrustServerCertificate -ErrorAction Stop
+            $output = @()
         } elseif ($Username -and $Password) {
-            $output = sqlcmd -S $Server -U $Username -P $Password -d master -i $tempSqlFile 2>&1
+            # Write to temp file for SQL auth to avoid command-line length limits
+            $tempSqlFile = [System.IO.Path]::GetTempFileName() + ".sql"
+            "USE [$Database];`n$deploySql" | Out-File -FilePath $tempSqlFile -Encoding utf8
+            $output = sqlcmd -S $Server -U $Username -P $Password -d $Database -i $tempSqlFile 2>&1
+            Remove-Item $tempSqlFile -ErrorAction SilentlyContinue
         } else {
-            $output = sqlcmd -S $Server -d master -E -C -i $tempSqlFile 2>&1
+            # Write to temp file for Windows auth to avoid command-line length limits  
+            $tempSqlFile = [System.IO.Path]::GetTempFileName() + ".sql"
+            "USE [$Database];`n$deploySql" | Out-File -FilePath $tempSqlFile -Encoding utf8
+            $output = sqlcmd -S $Server -d $Database -E -C -i $tempSqlFile 2>&1
+            Remove-Item $tempSqlFile -ErrorAction SilentlyContinue
         }
 
         # Check for Level 16+ errors (not warnings)
@@ -242,7 +229,7 @@ GO
 
         # Verify registration
         $verifyCount = if ($UseAzureAD) {
-            sqlcmd -S $Server -d $Database -G -P $AccessToken -Q "SELECT COUNT(*) FROM sys.assemblies WHERE name = '$AssemblyName'" -h -1 2>&1 | Select-Object -First 1
+            Invoke-Sqlcmd -ServerInstance $Server -Database $Database -Query "SELECT COUNT(*) as cnt FROM sys.assemblies WHERE name = '$AssemblyName'" -AccessToken $AccessToken -TrustServerCertificate | Select-Object -ExpandProperty cnt
         } elseif ($Username -and $Password) {
             sqlcmd -S $Server -U $Username -P $Password -d $Database -Q "SELECT COUNT(*) FROM sys.assemblies WHERE name = '$AssemblyName'" -h -1 2>&1 | Select-Object -First 1
         } else {
