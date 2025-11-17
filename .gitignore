@@ -50,6 +50,8 @@ _work/
 
 # Scaffolded EF Core entities (generated from database, not source code)
 src/Hartonomous.Data.Entities/Entities/
+src/Hartonomous.Data.Entities/Configurations/
+src/Hartonomous.Data.Entities/Interfaces/
 src/Hartonomous.Data.Entities/HartonomousDbContext.cs
 src/Hartonomous.Data.Entities/HartonomousDbContextFactory.cs
 
