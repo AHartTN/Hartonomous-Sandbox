@@ -139,24 +139,123 @@ stages:
           - download: current
             artifact: database
 
-          # Deploy DACPAC with embedded pre/post-deployment scriptspts
-          # Pre-deployment: Enables CLR and sets TRUSTWORTHY
-          # DACPAC: Deploys Hartonomous.Clr.dll assembly + schema
-          # Post-deployment: Deploys 16 external CLR dependency assemblies
+          # Step 1: Enable CLR Integration
           - task: PowerShell@2
-            displayName: 'Deploy Database with CLR (Idempotent)'
+            displayName: 'Enable CLR Integration'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                Write-Host "Enabling CLR integration..."
+                
+                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+                @"
+                EXEC sp_configure 'show advanced options', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr enabled', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr strict security', 0;
+                RECONFIGURE;
+                "@ | Out-File -FilePath $tempFile -Encoding utf8
+                
+                try {
+                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
+                  if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
+                  Write-Host "✓ CLR enabled"
+                } finally {
+                  Remove-Item $tempFile -ErrorAction SilentlyContinue
+                }
+              pwsh: true
+
+          # Step 2: Deploy External CLR Assemblies (16 assemblies in dependency order)
+          - task: PowerShell@2
+            displayName: 'Deploy External CLR Assemblies'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
+                $server = "$(sqlServer)"
+                $database = "$(sqlDatabase)"
+                
+                Write-Host "Deploying 16 external CLR assemblies in dependency order..."
+                
+                function Deploy-ClrAssembly {
+                    param([string]$Name, [string]$FilePath)
+                    Write-Host "  Deploying: $Name"
+                    
+                    $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+                    $hex = ($bytes | ForEach-Object { $_.ToString("X2") }) -join ''
+                    
+                    $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+                    @"
+                USE [$database];
+                GO
+                
+                IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')
+                BEGIN
+                    DROP ASSEMBLY [$Name];
+                END
+                GO
+                
+                CREATE ASSEMBLY [$Name]
+                FROM 0x$hex
+                WITH PERMISSION_SET = UNSAFE;
+                GO
+                "@ | Out-File -FilePath $tempFile -Encoding utf8
+                    
+                    try {
+                        sqlcmd -S $server -d master -E -C -i $tempFile -b
+                        if ($LASTEXITCODE -ne 0) { throw "Failed to deploy $Name" }
+                        Write-Host "  ✓ $Name deployed"
+                    } finally {
+                        Remove-Item $tempFile -ErrorAction SilentlyContinue
+                    }
+                }
+                
+                # Tier 1: Base runtime dependencies
+                Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll"
+                Deploy-ClrAssembly 'System.ValueTuple' "$dependenciesPath/System.ValueTuple.dll"
+                
+                # Tier 2: Memory management
+                Deploy-ClrAssembly 'System.Memory' "$dependenciesPath/System.Memory.dll"
+                Deploy-ClrAssembly 'System.Buffers' "$dependenciesPath/System.Buffers.dll"
+                Deploy-ClrAssembly 'System.Runtime.CompilerServices.Unsafe' "$dependenciesPath/System.Runtime.CompilerServices.Unsafe.dll"
+                
+                # Tier 3: Collections and reflection
+                Deploy-ClrAssembly 'System.Collections.Immutable' "$dependenciesPath/System.Collections.Immutable.dll"
+                Deploy-ClrAssembly 'System.Reflection.Metadata' "$dependenciesPath/System.Reflection.Metadata.dll"
+                
+                # Tier 4: Serialization
+                Deploy-ClrAssembly 'System.Runtime.Serialization' "$dependenciesPath/System.Runtime.Serialization.dll"
+                Deploy-ClrAssembly 'System.ServiceModel.Internals' "$dependenciesPath/System.ServiceModel.Internals.dll"
+                Deploy-ClrAssembly 'SMDiagnostics' "$dependenciesPath/SMDiagnostics.dll"
+                
+                # Tier 5: Third-party libraries
+                Deploy-ClrAssembly 'MathNet.Numerics' "$dependenciesPath/MathNet.Numerics.dll"
+                Deploy-ClrAssembly 'Newtonsoft.Json' "$dependenciesPath/Newtonsoft.Json.dll"
+                Deploy-ClrAssembly 'Microsoft.SqlServer.Types' "$dependenciesPath/Microsoft.SqlServer.Types.dll"
+                
+                # Tier 6: Application assemblies
+                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
+                Deploy-ClrAssembly 'SqlClrFunctions' "$dependenciesPath/SqlClrFunctions.dll"
+                Deploy-ClrAssembly 'Hartonomous.Database' "$dependenciesPath/Hartonomous.Database.dll"
+                
+                Write-Host "✓ All 16 external CLR assemblies deployed successfully"
+              pwsh: true
+
+          # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
+          - task: PowerShell@2
+            displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
                 $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
                 $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
-                $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
                 
-                Write-Host "Deploying DACPAC with pre/post-deployment scripts..."
-                Write-Host "  DACPAC: $dacpacPath"
-                Write-Host "  Target: $(sqlServer)\$(sqlDatabase)"
-                Write-Host "  Dependencies: $dependenciesPath"
+                Write-Host "Deploying DACPAC: $dacpacPath"
+                Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
                 
                 sqlpackage.exe `
                   /Action:Publish `
@@ -164,11 +263,31 @@ stages:
                   /TargetConnectionString:"$connectionString" `
                   /p:DropObjectsNotInSource=False `
                   /p:BlockOnPossibleDataLoss=True `
-                  /v:DependenciesPath="$dependenciesPath" `
-                  /v:DatabaseName="$(sqlDatabase)"
+                  /p:IgnorePreDeployScript=True `
+                  /p:IgnorePostDeployScript=True
                 
                 if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
-                Write-Host "✓ Database deployed with CLR assemblies"
+                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
+              pwsh: true
+
+          # Step 4: Set TRUSTWORTHY ON
+          - task: PowerShell@2
+            displayName: 'Set TRUSTWORTHY ON'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                
+                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+                "ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;" | Out-File -FilePath $tempFile -Encoding utf8
+                
+                try {
+                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
+                  if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
+                  Write-Host "✓ TRUSTWORTHY enabled"
+                } finally {
+                  Remove-Item $tempFile -ErrorAction SilentlyContinue
+                }
               pwsh: true
 
 # ============================================================================
