@@ -250,6 +250,8 @@ jobs:
     runs-on: [self-hosted, windows, sql-server]
     needs: deploy-database
     environment: production
+    permissions:
+      contents: write
     
     env:
       SQL_SERVER: ${{ secrets.SQL_SERVER }}
@@ -258,6 +260,9 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: true
       
       - name: Verify .NET SDK
         run: |
