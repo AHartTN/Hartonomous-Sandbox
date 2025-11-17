@@ -127,220 +127,216 @@ stages:
   dependsOn: BuildDatabase
   condition: succeeded()
   jobs:
-  - deployment: DatabaseDeployment
+  - job: DatabaseDeployment
     displayName: 'Deploy to SQL Server'
     pool:
       name: 'Local Agent Pool'
-    environment: 'SQL-Server-Production'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
+    steps:
           # Download database artifact
-          - download: current
-            artifact: database
+    - download: current
+      artifact: database
 
           # Install .NET 10 SDK
-          - task: UseDotNet@2
-            displayName: 'Install .NET 10 SDK'
-            inputs:
-              packageType: 'sdk'
-              version: '$(dotnetSdkVersion)'
-              includePreviewVersions: true
-              performMultiLevelLookup: true
+    - task: UseDotNet@2
+      displayName: 'Install .NET 10 SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetSdkVersion)'
+        includePreviewVersions: true
+        performMultiLevelLookup: true
 
           # Install SqlPackage as global tool
-          - task: PowerShell@2
-            displayName: 'Install SqlPackage CLI Tool'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Continue'
-                dotnet tool install --global Microsoft.SqlPackage 2>$null
-                if ($LASTEXITCODE -ne 0) {
-                  Write-Host "SqlPackage already installed or installation failed, attempting update..."
-                  dotnet tool update --global Microsoft.SqlPackage
-                }
-                sqlpackage /version
-                $ErrorActionPreference = 'Stop'
-              pwsh: true
+    - task: PowerShell@2
+      displayName: 'Install SqlPackage CLI Tool'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Continue'
+          dotnet tool install --global Microsoft.SqlPackage 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "SqlPackage already installed or installation failed, attempting update..."
+            dotnet tool update --global Microsoft.SqlPackage
+          }
+          sqlpackage /version
+          $ErrorActionPreference = 'Stop'
+        pwsh: true
 
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Grant Agent Permissions'
-            inputs:
-              targetType: 'inline'
-              script: |
-                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
-                  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
-                }
-                $sql = @"
+    - task: PowerShell@2
+      displayName: 'Grant Agent Permissions'
+      inputs:
+        targetType: 'inline'
+        script: |
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+          }
+          $sql = @"
 USE [master];
 EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
 EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
 EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
 PRINT 'CLR integration enabled';
 "@
-                Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -TrustServerCertificate
-                Write-Host "✓ Agent permissions granted"
-              pwsh: true
+          Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -TrustServerCertificate
+          Write-Host "✓ Agent permissions granted"
+        pwsh: true
 
           # Step 1: Enable CLR Integration (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Enable CLR Integration'
-            inputs:
-              targetType: 'inline'
-              script: |
-                if (-not (Get-Module -ListAvailable -Name SqlServer)) {
-                  Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
-                }
-                $sql = @"
+    - task: PowerShell@2
+      displayName: 'Enable CLR Integration'
+      inputs:
+        targetType: 'inline'
+        script: |
+          if (-not (Get-Module -ListAvailable -Name SqlServer)) {
+            Install-Module -Name SqlServer -Force -AllowClobber -Scope CurrentUser
+          }
+          $sql = @"
 EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
 EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
 EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
 PRINT 'CLR integration enabled successfully';
 "@
-                Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -Database "master" -TrustServerCertificate
-                Write-Host "✓ CLR enabled"
-              pwsh: true
+          Invoke-Sqlcmd -Query $sql -ServerInstance "$(sqlServer)" -Database "master" -TrustServerCertificate
+          Write-Host "✓ CLR enabled"
+        pwsh: true
 
           # Step 2: Deploy External CLR Assemblies (16 assemblies in dependency order - Idempotent)
-          - task: PowerShell@2
-            displayName: 'Deploy External CLR Assemblies'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
-                $server = "$(sqlServer)"
-                $database = "$(sqlDatabase)"
-                
-                Write-Host "Deploying 16 external CLR assemblies (idempotent)..."
-                
-                function Deploy-ClrAssembly {
-                    param([string]$Name, [string]$FilePath)
-                    Write-Host "  Checking: $Name"
-                    
-                    if (-not (Test-Path $FilePath)) {
-                        throw "Assembly file not found: $FilePath"
-                    }
-                    
-                    $bytes = [System.IO.File]::ReadAllBytes($FilePath)
-                    $hex = ($bytes | ForEach-Object { $_.ToString("X2") }) -join ''
-                    $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
-                    
-                    $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                    
-                    $sql = "USE [master];`n"
-                    $sql += "GO`n"
-                    $sql += "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')`n"
-                    $sql += "BEGIN`n"
-                    $sql += "    CREATE DATABASE [$database];`n"
-                    $sql += "    PRINT 'Database [$database] created';`n"
-                    $sql += "END`n"
-                    $sql += "GO`n"
-                    $sql += "USE [$database];`n"
-                    $sql += "GO`n"
-                    $sql += "IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')`n"
-                    $sql += "BEGIN`n"
-                    $sql += "    PRINT '  Assembly exists, updating...';`n"
-                    $sql += "    DROP ASSEMBLY [$Name];`n"
-                    $sql += "END`n"
-                    $sql += "ELSE`n"
-                    $sql += "BEGIN`n"
-                    $sql += "    PRINT '  Assembly not found, creating...';`n"
-                    $sql += "END`n"
-                    $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;`n"
-                    $sql += "PRINT '  OK $Name deployed (SHA256: $fileHash)';`n"
-                    $sql += "GO`n"
-                    
-                    $sql | Out-File -FilePath $tempFile -Encoding utf8
+    - task: PowerShell@2
+      displayName: 'Deploy External CLR Assemblies'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Stop'
+          $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
+          $server = "$(sqlServer)"
+          $database = "$(sqlDatabase)"
+          
+          Write-Host "Deploying 16 external CLR assemblies (idempotent)..."
+          
+          function Deploy-ClrAssembly {
+        param([string]$Name, [string]$FilePath)
+        Write-Host "  Checking: $Name"
+        
+        if (-not (Test-Path $FilePath)) {
+            throw "Assembly file not found: $FilePath"
+        }
+        
+        $bytes = [System.IO.File]::ReadAllBytes($FilePath)
+        $hex = ($bytes | ForEach-Object { $_.ToString("X2") }) -join ''
+        $fileHash = (Get-FileHash -Path $FilePath -Algorithm SHA256).Hash
+        
+        $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+        
+        $sql = "USE [master];`n"
+        $sql += "GO`n"
+        $sql += "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '$database')`n"
+        $sql += "BEGIN`n"
+        $sql += "    CREATE DATABASE [$database];`n"
+        $sql += "    PRINT 'Database [$database] created';`n"
+        $sql += "END`n"
+        $sql += "GO`n"
+        $sql += "USE [$database];`n"
+        $sql += "GO`n"
+        $sql += "IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$Name')`n"
+        $sql += "BEGIN`n"
+        $sql += "    PRINT '  Assembly exists, updating...';`n"
+        $sql += "    DROP ASSEMBLY [$Name];`n"
+        $sql += "END`n"
+        $sql += "ELSE`n"
+        $sql += "BEGIN`n"
+        $sql += "    PRINT '  Assembly not found, creating...';`n"
+        $sql += "END`n"
+        $sql += "CREATE ASSEMBLY [$Name] FROM 0x$hex WITH PERMISSION_SET = UNSAFE;`n"
+        $sql += "PRINT '  OK $Name deployed (SHA256: $fileHash)';`n"
+        $sql += "GO`n"
+        
+        $sql | Out-File -FilePath $tempFile -Encoding utf8
 
-                    try {
-                        sqlcmd -S $server -d master -E -C -i $tempFile -b
-                        if ($LASTEXITCODE -ne 0) { throw "Failed to deploy $Name" }
-                        Write-Host "  ✓ $Name deployed"
-                    } finally {
-                        Remove-Item $tempFile -ErrorAction SilentlyContinue
-                    }
-                }
-                
-                # Tier 1: Base runtime dependencies
-                Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll"
-                Deploy-ClrAssembly 'System.ValueTuple' "$dependenciesPath/System.ValueTuple.dll"
-                
-                # Tier 2: Memory management
-                Deploy-ClrAssembly 'System.Memory' "$dependenciesPath/System.Memory.dll"
-                Deploy-ClrAssembly 'System.Buffers' "$dependenciesPath/System.Buffers.dll"
-                Deploy-ClrAssembly 'System.Runtime.CompilerServices.Unsafe' "$dependenciesPath/System.Runtime.CompilerServices.Unsafe.dll"
-                
-                # Tier 3: Collections and reflection
-                Deploy-ClrAssembly 'System.Collections.Immutable' "$dependenciesPath/System.Collections.Immutable.dll"
-                Deploy-ClrAssembly 'System.Reflection.Metadata' "$dependenciesPath/System.Reflection.Metadata.dll"
-                
-                # Tier 4: Serialization
-                Deploy-ClrAssembly 'System.Runtime.Serialization' "$dependenciesPath/System.Runtime.Serialization.dll"
-                Deploy-ClrAssembly 'System.ServiceModel.Internals' "$dependenciesPath/System.ServiceModel.Internals.dll"
-                Deploy-ClrAssembly 'SMDiagnostics' "$dependenciesPath/SMDiagnostics.dll"
-                
-                # Tier 5: Third-party libraries
-                Deploy-ClrAssembly 'MathNet.Numerics' "$dependenciesPath/MathNet.Numerics.dll"
-                Deploy-ClrAssembly 'Newtonsoft.Json' "$dependenciesPath/Newtonsoft.Json.dll"
-                Deploy-ClrAssembly 'Microsoft.SqlServer.Types' "$dependenciesPath/Microsoft.SqlServer.Types.dll"
-                
-                # Tier 6: Application assemblies
-                Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
-                Deploy-ClrAssembly 'SqlClrFunctions' "$dependenciesPath/SqlClrFunctions.dll"
-                Deploy-ClrAssembly 'Hartonomous.Database' "$dependenciesPath/Hartonomous.Database.dll"
-                
-                Write-Host "✓ All 16 external CLR assemblies deployed successfully"
-              pwsh: true
+        try {
+            sqlcmd -S $server -d master -E -C -i $tempFile -b
+            if ($LASTEXITCODE -ne 0) { throw "Failed to deploy $Name" }
+            Write-Host "  ✓ $Name deployed"
+        } finally {
+            Remove-Item $tempFile -ErrorAction SilentlyContinue
+        }
+          }
+          
+          # Tier 1: Base runtime dependencies
+          Deploy-ClrAssembly 'System.Numerics.Vectors' "$dependenciesPath/System.Numerics.Vectors.dll"
+          Deploy-ClrAssembly 'System.ValueTuple' "$dependenciesPath/System.ValueTuple.dll"
+          
+          # Tier 2: Memory management
+          Deploy-ClrAssembly 'System.Memory' "$dependenciesPath/System.Memory.dll"
+          Deploy-ClrAssembly 'System.Buffers' "$dependenciesPath/System.Buffers.dll"
+          Deploy-ClrAssembly 'System.Runtime.CompilerServices.Unsafe' "$dependenciesPath/System.Runtime.CompilerServices.Unsafe.dll"
+          
+          # Tier 3: Collections and reflection
+          Deploy-ClrAssembly 'System.Collections.Immutable' "$dependenciesPath/System.Collections.Immutable.dll"
+          Deploy-ClrAssembly 'System.Reflection.Metadata' "$dependenciesPath/System.Reflection.Metadata.dll"
+          
+          # Tier 4: Serialization
+          Deploy-ClrAssembly 'System.Runtime.Serialization' "$dependenciesPath/System.Runtime.Serialization.dll"
+          Deploy-ClrAssembly 'System.ServiceModel.Internals' "$dependenciesPath/System.ServiceModel.Internals.dll"
+          Deploy-ClrAssembly 'SMDiagnostics' "$dependenciesPath/SMDiagnostics.dll"
+          
+          # Tier 5: Third-party libraries
+          Deploy-ClrAssembly 'MathNet.Numerics' "$dependenciesPath/MathNet.Numerics.dll"
+          Deploy-ClrAssembly 'Newtonsoft.Json' "$dependenciesPath/Newtonsoft.Json.dll"
+          Deploy-ClrAssembly 'Microsoft.SqlServer.Types' "$dependenciesPath/Microsoft.SqlServer.Types.dll"
+          
+          # Tier 6: Application assemblies
+          Deploy-ClrAssembly 'System.Drawing' "$dependenciesPath/System.Drawing.dll"
+          Deploy-ClrAssembly 'SqlClrFunctions' "$dependenciesPath/SqlClrFunctions.dll"
+          Deploy-ClrAssembly 'Hartonomous.Database' "$dependenciesPath/Hartonomous.Database.dll"
+          
+          Write-Host "✓ All 16 external CLR assemblies deployed successfully"
+        pwsh: true
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
-          - task: PowerShell@2
-            displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
-                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
-                
-                Write-Host "Deploying DACPAC: $dacpacPath"
-                Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
-                
-                sqlpackage.exe `
-                  /Action:Publish `
-                  /SourceFile:"$dacpacPath" `
-                  /TargetConnectionString:"$connectionString" `
-                  /p:DropObjectsNotInSource=False `
-                  /p:BlockOnPossibleDataLoss=True `
-                  /p:IgnorePreDeployScript=True `
-                  /p:IgnorePostDeployScript=True
-                
-                if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
-                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
-              pwsh: true
+    - task: PowerShell@2
+      displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Stop'
+          $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
+          $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
+          
+          Write-Host "Deploying DACPAC: $dacpacPath"
+          Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
+          
+          sqlpackage.exe `
+            /Action:Publish `
+            /SourceFile:"$dacpacPath" `
+            /TargetConnectionString:"$connectionString" `
+            /p:DropObjectsNotInSource=False `
+            /p:BlockOnPossibleDataLoss=True `
+            /p:IgnorePreDeployScript=True `
+            /p:IgnorePostDeployScript=True
+          
+          if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
+          Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
+        pwsh: true
 
           # Step 4: Set TRUSTWORTHY ON (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Set TRUSTWORTHY ON'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                $dbName = '$(sqlDatabase)'
-                $sql = "USE master; ALTER DATABASE [$dbName] SET TRUSTWORTHY ON; PRINT 'TRUSTWORTHY enabled for $dbName';"
-                $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
-                try {
-                  $sql | Out-File -FilePath $tempFile -Encoding utf8
-                  sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
-                  if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
-                  Write-Host "✓ TRUSTWORTHY validated"
-                } finally {
-                  Remove-Item $tempFile -ErrorAction SilentlyContinue
-                }
-              pwsh: true
+    - task: PowerShell@2
+      displayName: 'Set TRUSTWORTHY ON'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Stop'
+          $dbName = '$(sqlDatabase)'
+          $sql = "USE master; ALTER DATABASE [$dbName] SET TRUSTWORTHY ON; PRINT 'TRUSTWORTHY enabled for $dbName';"
+          $tempFile = [System.IO.Path]::GetTempFileName() + ".sql"
+          try {
+            $sql | Out-File -FilePath $tempFile -Encoding utf8
+            sqlcmd -S "$(sqlServer)" -d "master" -E -C -i $tempFile -b
+            if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
+            Write-Host "✓ TRUSTWORTHY validated"
+          } finally {
+            Remove-Item $tempFile -ErrorAction SilentlyContinue
+          }
+        pwsh: true
 
 # ============================================================================
 # STAGE 3: SCAFFOLD EF CORE ENTITIES
@@ -523,37 +519,33 @@ PRINT 'CLR integration enabled successfully';
   dependsOn: BuildDotNet
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
-  - deployment: AppDeployment
+  - job: AppDeployment
     displayName: 'Deploy Applications'
     pool:
       name: 'Local Agent Pool'
-    environment: 'Application-Servers'
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-          - download: current
-            artifact: dotnet
+    steps:
+    - download: current
+      artifact: dotnet
 
-          - task: PowerShell@2
-            displayName: 'Display Deployment Summary'
-            inputs:
-              targetType: 'inline'
-              script: |
-                Write-Host "========================================"
-                Write-Host "  Hartonomous Deployment Complete"
-                Write-Host "========================================"
-                Write-Host "Database: $(sqlServer)\$(sqlDatabase)"
-                Write-Host ""
-                Write-Host "Artifacts Ready for Deployment:"
-                Write-Host "  - API: $(Pipeline.Workspace)/dotnet/api"
-                Write-Host "  - CesConsumer: $(Pipeline.Workspace)/dotnet/ces-consumer"
-                Write-Host "  - Neo4jSync: $(Pipeline.Workspace)/dotnet/neo4j-sync"
-                Write-Host ""
-                Write-Host "Next Steps:"
-                Write-Host "  1. Configure service connections"
-                Write-Host "  2. Deploy to target servers"
-                Write-Host "  3. Configure application settings"
-                Write-Host "  4. Run smoke tests"
-                Write-Host "========================================"
-              pwsh: true
+    - task: PowerShell@2
+      displayName: 'Display Deployment Summary'
+      inputs:
+        targetType: 'inline'
+        script: |
+          Write-Host "========================================"
+          Write-Host "  Hartonomous Deployment Complete"
+          Write-Host "========================================"
+          Write-Host "Database: $(sqlServer)\$(sqlDatabase)"
+          Write-Host ""
+          Write-Host "Artifacts Ready for Deployment:"
+          Write-Host "  - API: $(Pipeline.Workspace)/dotnet/api"
+          Write-Host "  - CesConsumer: $(Pipeline.Workspace)/dotnet/ces-consumer"
+          Write-Host "  - Neo4jSync: $(Pipeline.Workspace)/dotnet/neo4j-sync"
+          Write-Host ""
+          Write-Host "Next Steps:"
+          Write-Host "  1. Configure service connections"
+          Write-Host "  2. Deploy to target servers"
+          Write-Host "  3. Configure application settings"
+          Write-Host "  4. Run smoke tests"
+          Write-Host "========================================"
+        pwsh: true
