@@ -45,6 +45,7 @@ stages:
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
+        includePreviewVersions: true
         performMultiLevelLookup: true
     
     # Build DACPAC using msbuild (agent must have MSBuild or Visual Studio)
@@ -139,6 +140,31 @@ stages:
           - download: current
             artifact: database
 
+          # Install .NET 10 SDK
+          - task: UseDotNet@2
+            displayName: 'Install .NET 10 SDK'
+            inputs:
+              packageType: 'sdk'
+              version: '$(dotnetSdkVersion)'
+              includePreviewVersions: true
+              performMultiLevelLookup: true
+
+          # Install SqlPackage as global tool
+          - task: PowerShell@2
+            displayName: 'Install SqlPackage CLI Tool'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Continue'
+                dotnet tool install --global Microsoft.SqlPackage 2>$null
+                if ($LASTEXITCODE -ne 0) {
+                  Write-Host "SqlPackage already installed or installation failed, attempting update..."
+                  dotnet tool update --global Microsoft.SqlPackage
+                }
+                sqlpackage /version
+                $ErrorActionPreference = 'Stop'
+              pwsh: true
+
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
           - task: PowerShell@2
             displayName: 'Grant Agent Permissions'
@@ -228,7 +254,9 @@ PRINT 'CLR integration enabled successfully';
                     $sql += "PRINT '  OK $Name deployed (SHA256: $fileHash)';`n"
                     $sql += "GO`n"
                     
-                    $sql | Out-File -FilePath $tempFile -Encoding utf8                    try {
+                    $sql | Out-File -FilePath $tempFile -Encoding utf8
+
+                    try {
                         sqlcmd -S $server -d master -E -C -i $tempFile -b
                         if ($LASTEXITCODE -ne 0) { throw "Failed to deploy $Name" }
                         Write-Host "  ✓ $Name deployed"
@@ -333,7 +361,35 @@ PRINT 'CLR integration enabled successfully';
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
-    
+        includePreviewVersions: true
+        performMultiLevelLookup: true
+
+    # Install dotnet-ef tool
+    - task: PowerShell@2
+      displayName: 'Install dotnet-ef CLI Tool'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Continue'
+          dotnet tool install --global dotnet-ef --version 10.0.0 2>$null
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "dotnet-ef already installed or installation failed, attempting update..."
+            dotnet tool update --global dotnet-ef --version 10.0.0
+          }
+          dotnet tool list --global
+          dotnet ef --version
+          $ErrorActionPreference = 'Stop'
+        pwsh: true
+
+    # Build Data.Entities project before scaffolding
+    - task: PowerShell@2
+      displayName: 'Build Data.Entities Project'
+      inputs:
+        targetType: 'inline'
+        script: |
+          dotnet build src/Hartonomous.Data.Entities/Hartonomous.Data.Entities.csproj --configuration $(buildConfiguration)
+        pwsh: true
+
     # Scaffold entities from deployed database
     - task: PowerShell@2
       displayName: 'Scaffold EF Core Entities'
@@ -341,11 +397,11 @@ PRINT 'CLR integration enabled successfully';
         targetType: 'inline'
         script: |
           $ErrorActionPreference = 'Stop'
-          
+
           Write-Host "Scaffolding entities from database..."
-          
+
           cd src/Hartonomous.Data.Entities
-          
+
           dotnet ef dbcontext scaffold `
             "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;" `
             Microsoft.EntityFrameworkCore.SqlServer `
@@ -354,8 +410,8 @@ PRINT 'CLR integration enabled successfully';
             --context HartonomousDbContext `
             --force `
             --no-build
-          
-          Write-Host "\u2713 Entities scaffolded"
+
+          Write-Host "✓ Entities scaffolded"
         pwsh: true
 
 # ============================================================================
@@ -377,22 +433,26 @@ PRINT 'CLR integration enabled successfully';
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
+        includePreviewVersions: true
+        performMultiLevelLookup: true
 
-    # Restore NuGet packages
-    - task: DotNetCoreCLI@2
+    # Restore NuGet packages (excluding Database project)
+    - task: PowerShell@2
       displayName: 'Restore NuGet Packages'
       inputs:
-        command: 'restore'
-        projects: 'Hartonomous.sln'
-        feedsToUse: 'select'
+        targetType: 'inline'
+        script: |
+          dotnet restore Hartonomous.sln
+        pwsh: true
 
-    # Build solution
-    - task: DotNetCoreCLI@2
+    # Build solution (dotnet CLI will skip sqlproj automatically)
+    - task: PowerShell@2
       displayName: 'Build Solution (Release)'
       inputs:
-        command: 'build'
-        projects: 'Hartonomous.sln'
-        arguments: '--configuration $(buildConfiguration) --no-restore'
+        targetType: 'inline'
+        script: |
+          dotnet build Hartonomous.sln --configuration $(buildConfiguration) --no-restore
+        pwsh: true
 
     # Run unit tests
     - task: DotNetCoreCLI@2
@@ -466,7 +526,7 @@ PRINT 'CLR integration enabled successfully';
   - deployment: AppDeployment
     displayName: 'Deploy Applications'
     pool:
-      vmImage: 'windows-latest'
+      name: 'Local Agent Pool'
     environment: 'Application-Servers'
     strategy:
       runOnce:
