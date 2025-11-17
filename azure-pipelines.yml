@@ -138,20 +138,50 @@ stages:
               pwsh: true
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
-          - task: SqlAzureDacpacDeployment@1
+          - task: PowerShell@2
+            displayName: 'Install SqlPackage on Linux Agent'
+            inputs:
+              targetType: 'inline'
+              script: |
+                if (!(Get-Command sqlpackage -ErrorAction SilentlyContinue)) {
+                  Write-Host "Installing SqlPackage..."
+                  $url = "https://aka.ms/sqlpackage-linux"
+                  $zipPath = "/tmp/sqlpackage.zip"
+                  $extractPath = "/tmp/sqlpackage"
+                  Invoke-WebRequest -Uri $url -OutFile $zipPath
+                  New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
+                  Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
+                  chmod +x "$extractPath/sqlpackage"
+                  Write-Host "##vso[task.prependpath]$extractPath"
+                  Write-Host "SqlPackage installed"
+                } else {
+                  Write-Host "SqlPackage already available"
+                }
+              pwsh: true
+              
+          - task: PowerShell@2
             displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
             inputs:
-              azureSubscription: ''
-              authenticationType: 'server'
-              serverName: '$(sqlServer)'
-              databaseName: '$(sqlDatabase)'
-              sqlUsername: ''
-              sqlPassword: ''
-              authenticationType: 'windowsAuthentication'
-              deployType: 'DacpacTask'
-              deploymentAction: 'Publish'
-              dacpacFile: '$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac'
-              additionalArguments: '/p:DropObjectsNotInSource=False /p:BlockOnPossibleDataLoss=True /p:IgnorePreDeployScript=True /p:IgnorePostDeployScript=True'
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=False;User ID=$(sqlUsername);Password=$(sqlPassword);TrustServerCertificate=True;"
+                
+                Write-Host "Deploying DACPAC: $dacpacPath"
+                Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
+                
+                sqlpackage /Action:Publish `
+                  /SourceFile:"$dacpacPath" `
+                  /TargetConnectionString:"$connectionString" `
+                  /p:DropObjectsNotInSource=False `
+                  /p:BlockOnPossibleDataLoss=True `
+                  /p:IgnorePreDeployScript=True `
+                  /p:IgnorePostDeployScript=True
+                
+                if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
+                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
+              pwsh: true
 
           # Step 4: Set TRUSTWORTHY ON (Idempotent)
           - task: PowerShell@2
