@@ -1,773 +1,525 @@
-trigger:trigger:
+# ============================================================================
+# Hartonomous Azure DevOps Pipeline
+# Complete CI/CD for SQL Server Database + CLR + .NET 10 Applications
+# Based on Microsoft Docs 2024/2025 Official Guidance
+# ============================================================================
 
-  branches:  - main
+name: Hartonomous-$(Date:yyyyMMdd)$(Rev:.r)
 
+trigger:
+  branches:
     include:
-
-      - mainpool:
-
-      - develop  vmImage: 'ubuntu-latest'
-
+      - main
   paths:
-
-    exclude:variables:
-
-      - docs/**  buildConfiguration: 'Release'
-
-      - README.md  dotnetSdkVersion: '8.x'
-
+    exclude:
+      - docs/**
+      - '*.md'
       - LICENSE
 
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  - name: buildConfiguration
+    value: 'Release'
+  - name: dotnetSdkVersion
+    value: '10.x'
+  - name: sqlServer
+    value: 'your-sql-server.database.windows.net'
+  - name: sqlDatabase
+    value: 'Hartonomous'
+  - name: azureServiceConnection
+    value: 'Azure-Service-Connection' # Azure service connection name
+
 stages:
-
-pool:- stage: 'Build'
-
-  vmImage: 'windows-latest'  displayName: 'Build the application'
-
+# ============================================================================
+# STAGE 1: BUILD ALL COMPONENTS
+# ============================================================================
+- stage: Build
+  displayName: 'Build All Components'
   jobs:
-
-variables:  - job: 'Build'
-
-  buildConfiguration: 'Release'    displayName: 'Build job'
-
-  dotnetVersion: '10.x'    steps:
-
-  sqlServerInstance: 'localhost'    - task: UseDotNet@2
-
-  databaseName: 'Hartonomous'      displayName: 'Install .NET SDK $(dotnetSdkVersion)'
-
+  - job: BuildDatabase
+    displayName: 'Build Database DACPAC'
+    steps:
+    # Build SQL Database Project with MSBuild (required for .sqlproj)
+    - task: VSBuild@1
+      displayName: 'Build SQL Database Project (MSBuild)'
       inputs:
-
-stages:        packageType: 'sdk'
-
-- stage: Build        version: '$(dotnetSdkVersion)'
-
-  displayName: 'Build and Test'        performMultiLevelLookup: true
-
-  jobs:
-
-  - job: BuildProjects    - task: DotNetCoreCLI@2
-
-    displayName: 'Build All Projects'      displayName: 'Restore project dependencies'
-
-    steps:      inputs:
-
-    - task: UseDotNet@2        command: 'restore'
-
-      displayName: 'Install .NET 10 SDK'        projects: '**/*.csproj'
-
+        solution: 'src/Hartonomous.Database/Hartonomous.Database.sqlproj'
+        platform: 'Any CPU'
+        configuration: '$(buildConfiguration)'
+        msbuildArgs: '/p:OutDir=$(Build.ArtifactStagingDirectory)/database/ /v:minimal'
+        
+    # Verify DACPAC
+    - task: PowerShell@2
+      displayName: 'Verify DACPAC Build'
       inputs:
+        targetType: 'inline'
+        script: |
+          $dacpacPath = "$(Build.ArtifactStagingDirectory)/database/Hartonomous.Database.dacpac"
+          if (Test-Path $dacpacPath) {
+            Write-Host "✓ DACPAC built successfully: $dacpacPath"
+            $hash = (Get-FileHash $dacpacPath -Algorithm SHA256).Hash
+            Write-Host "SHA256: $hash"
+          } else {
+            Write-Error "✗ DACPAC not found at $dacpacPath"
+            exit 1
+          }
+        pwsh: true
 
-        packageType: 'sdk'    - task: DotNetCoreCLI@2
+    # Copy external CLR dependencies
+    - task: CopyFiles@2
+      displayName: 'Copy External CLR Dependencies'
+      inputs:
+        SourceFolder: 'dependencies'
+        Contents: '*.dll'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/database/dependencies'
 
-        version: '$(dotnetVersion)'      displayName: 'Build the project - $(buildConfiguration)'
+    # Publish database artifacts
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish Database Artifacts'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/database'
+        artifact: 'database'
+        publishLocation: 'pipeline'
 
-        performMultiLevelLookup: true      inputs:
+  - job: BuildDotNetSolution
+    displayName: 'Build .NET 10 Solution'
+    steps:
+    # Install .NET 10 SDK
+    - task: UseDotNet@2
+      displayName: 'Install .NET 10 SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetSdkVersion)'
+        performMultiLevelLookup: true
 
+    # Restore NuGet packages
+    - task: DotNetCoreCLI@2
+      displayName: 'Restore NuGet Packages'
+      inputs:
+        command: 'restore'
+        projects: 'Hartonomous.sln'
+        feedsToUse: 'select'
+
+    # Build solution
+    - task: DotNetCoreCLI@2
+      displayName: 'Build Solution (Release)'
+      inputs:
         command: 'build'
+        projects: 'Hartonomous.sln'
+        arguments: '--configuration $(buildConfiguration) --no-restore'
 
-    - task: DotNetCoreCLI@2        arguments: '--no-restore --configuration $(buildConfiguration)'
-
-      displayName: 'Restore Dependencies'        projects: '**/*.csproj'
-
+    # Build CLR Assembly
+    - task: DotNetCoreCLI@2
+      displayName: 'Build CLR Assembly (UNSAFE)'
       inputs:
-
-        command: 'restore'    - task: DotNetCoreCLI@2
-
-        projects: 'Hartonomous.sln'      displayName: 'Run unit tests'
-
-      inputs:
-
-    - task: DotNetCoreCLI@2        command: 'test'
-
-      displayName: 'Build Solution'        projects: 'tests/**/*Tests.csproj'
-
-      inputs:        arguments: '--no-build --configuration $(buildConfiguration) --collect:"XPlat Code Coverage"'
-
         command: 'build'
+        projects: 'src/Hartonomous.Clr/Hartonomous.Clr.csproj'
+        arguments: '--configuration $(buildConfiguration) --no-restore --output $(Build.ArtifactStagingDirectory)/clr'
 
-        projects: 'Hartonomous.sln'    - task: DotNetCoreCLI@2
-
-        arguments: '--configuration $(buildConfiguration) --no-restore'      displayName: 'Publish Hartonomous.Api'
-
+    # Verify CLR assembly
+    - task: PowerShell@2
+      displayName: 'Verify CLR Assembly Build'
       inputs:
+        targetType: 'inline'
+        script: |
+          $dllPath = "$(Build.ArtifactStagingDirectory)/clr/Hartonomous.Clr.dll"
+          if (Test-Path $dllPath) {
+            Write-Host "✓ CLR assembly built: $dllPath"
+            $hash = (Get-FileHash $dllPath -Algorithm SHA256).Hash
+            Write-Host "SHA256: $hash"
+          } else {
+            Write-Error "✗ CLR assembly not found"
+            exit 1
+          }
+        pwsh: true
 
-    - task: DotNetCoreCLI@2        command: 'publish'
-
-      displayName: 'Run Unit Tests'        projects: 'src/Hartonomous.Api/Hartonomous.Api.csproj'
-
-      inputs:        publishWebProjects: false
-
-        command: 'test'        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/api'
-
-        projects: 'tests/Hartonomous.UnitTests/Hartonomous.UnitTests.csproj'        zipAfterPublish: false
-
-        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'        modifyOutputPath: false
-
+    # Run unit tests
+    - task: DotNetCoreCLI@2
+      displayName: 'Run Unit Tests'
+      inputs:
+        command: 'test'
+        projects: 'tests/**/*Tests.csproj'
+        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --logger trx'
         publishTestResults: true
 
+    # Publish applications
     - task: DotNetCoreCLI@2
-
-    - task: DotNetCoreCLI@2      displayName: 'Publish CesConsumer'
-
-      displayName: 'Run Integration Tests'      inputs:
-
-      inputs:        command: 'publish'
-
-        command: 'test'        projects: 'src/CesConsumer/CesConsumer.csproj'
-
-        projects: 'tests/Hartonomous.IntegrationTests/Hartonomous.IntegrationTests.csproj'        publishWebProjects: false
-
-        arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage"'        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/ces-consumer'
-
-        publishTestResults: true        zipAfterPublish: false
-
-        modifyOutputPath: false
-
-    - task: DotNetCoreCLI@2
-
-      displayName: 'Publish Web API'    - task: DotNetCoreCLI@2
-
-      inputs:      displayName: 'Publish Neo4jSync'
-
-        command: 'publish'      inputs:
-
-        projects: 'src/Hartonomous.Api/Hartonomous.Api.csproj'        command: 'publish'
-
-        publishWebProjects: false        projects: 'src/Neo4jSync/Neo4jSync.csproj'
-
-        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/api'        publishWebProjects: false
-
-        zipAfterPublish: false        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/neo4j-sync'
-
-        zipAfterPublish: false
-
-    - task: DotNetCoreCLI@2        modifyOutputPath: false
-
-      displayName: 'Publish Model Ingestion Service'
-
-      inputs:    - task: DotNetCoreCLI@2
-
-        command: 'publish'      displayName: 'Publish ModelIngestion'
-
-        projects: 'src/ModelIngestion/ModelIngestion.csproj'      inputs:
-
-        publishWebProjects: false        command: 'publish'
-
-        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/model-ingestion'        projects: 'src/ModelIngestion/ModelIngestion.csproj'
-
-        zipAfterPublish: false        publishWebProjects: false
-
-        arguments: '--no-build --configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/model-ingestion'
-
-    - task: DotNetCoreCLI@2        zipAfterPublish: false
-
-      displayName: 'Publish CDC Consumer Service'        modifyOutputPath: false
-
+      displayName: 'Publish Hartonomous.Api'
       inputs:
-
-        command: 'publish'    - task: CopyFiles@2
-
-        projects: 'src/CesConsumer/CesConsumer.csproj'      displayName: 'Copy deployment scripts'
-
-        publishWebProjects: false      inputs:
-
-        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/ces-consumer'        SourceFolder: 'deploy'
-
-        zipAfterPublish: false        Contents: '**'
-
-        TargetFolder: '$(Build.ArtifactStagingDirectory)/deploy'
-
-    - task: DotNetCoreCLI@2
-
-      displayName: 'Publish Neo4j Sync Service'    - task: PublishBuildArtifacts@1
-
-      inputs:      displayName: 'Publish build artifacts'
-
-        command: 'publish'      inputs:
-
-        projects: 'src/Neo4jSync/Neo4jSync.csproj'        PathtoPublish: '$(Build.ArtifactStagingDirectory)'
-
-        publishWebProjects: false        ArtifactName: 'drop'
-
-        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/neo4j-sync'        publishLocation: 'Container'
-
+        command: 'publish'
+        projects: 'src/Hartonomous.Api/Hartonomous.Api.csproj'
+        publishWebProjects: false
+        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/api'
         zipAfterPublish: false
 
-- stage: 'DeployDatabase'
-
-    - task: DotNetCoreCLI@2  displayName: 'Deploy Database to HART-SERVER (Arc SQL)'
-
-      displayName: 'Build SQL CLR Assembly'  dependsOn: Build
-
-      inputs:  condition: succeeded()
-
-        command: 'build'  jobs:
-
-        projects: 'src/SqlClr/SqlClrFunctions.csproj'  - deployment: DeployDatabaseToArc
-
-        arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)/clr'    displayName: 'Deploy Database to Arc-enabled SQL Server'
-
-    environment: 'hart-desktop-database'
-
-    - task: CopyFiles@2    pool:
-
-      displayName: 'Copy SQL Scripts'      vmImage: 'ubuntu-latest'
-
-      inputs:    variables:
-
-        SourceFolder: 'sql'      SQL_SERVER: 'HART-DESKTOP'
-
-        Contents: '**/*.sql'      SQL_DATABASE: 'Hartonomous'
-
-        TargetFolder: '$(Build.ArtifactStagingDirectory)/sql'      FILESTREAM_PATH: 'D:\SQLData\FILESTREAM'
-
-    strategy:
-
-    - task: CopyFiles@2      runOnce:
-
-      displayName: 'Copy Deployment Scripts'        deploy:
-
-      inputs:          steps:
-
-        SourceFolder: 'scripts'          - checkout: self
-
-        Contents: |            displayName: 'Checkout source for deployment scripts'
-
-          deploy/**/*.ps1
-
-          *.ps1          - download: current
-
-          *.sql            artifact: drop
-
-        TargetFolder: '$(Build.ArtifactStagingDirectory)/scripts'            displayName: 'Download build artifacts'
-
-
-
-    - task: CopyFiles@2          - task: UseDotNet@2
-
-      displayName: 'Copy Service Definitions'            displayName: 'Install .NET SDK for EF migrations'
-
-      inputs:            inputs:
-
-        SourceFolder: 'deploy'              packageType: 'sdk'
-
-        Contents: '*.service'              version: '9.x'
-
-        TargetFolder: '$(Build.ArtifactStagingDirectory)/deploy'              performMultiLevelLookup: true
-
-
-
-    - task: PublishBuildArtifacts@1          - task: PowerShell@2
-
-      displayName: 'Publish Build Artifacts'            displayName: 'Build UNSAFE CLR Assembly'
-
-      inputs:            inputs:
-
-        PathtoPublish: '$(Build.ArtifactStagingDirectory)'              targetType: 'inline'
-
-        ArtifactName: 'drop'              script: |
-
-        publishLocation: 'Container'                Write-Host "Building SqlClr project with UNSAFE permission set..."
-
-                dotnet build src/SqlClr/SqlClrFunctions.csproj --configuration Release
-
-- stage: DeployDatabase                
-
-  displayName: 'Deploy Database'                $dllPath = "src/SqlClr/bin/Release/SqlClrFunctions.dll"
-
-  dependsOn: Build                if (Test-Path $dllPath) {
-
-  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))                  Write-Host "✓ CLR assembly built: $dllPath"
-
-  jobs:                  $hash = (Get-FileHash $dllPath -Algorithm SHA256).Hash
-
-  - deployment: DatabaseDeployment                  Write-Host "Assembly SHA256: $hash"
-
-    displayName: 'Deploy Database and CLR'                  Copy-Item $dllPath -Destination "$(Build.ArtifactStagingDirectory)/clr/"
-
-    environment: 'Production-Database'                } else {
-
-    pool:                  Write-Error "CLR assembly not found at $dllPath"
-
-      vmImage: 'windows-latest'                  exit 1
-
-    strategy:                }
-
-      runOnce:              pwsh: true
-
-        deploy:
-
-          steps:          - task: CopyFiles@2
-
-          - download: current            displayName: 'Copy SQL deployment scripts'
-
-            artifact: drop            inputs:
-
-              SourceFolder: 'sql'
-
-          - task: PowerShell@2              Contents: '**/*.sql'
-
-            displayName: 'Deploy Database Schema and CLR'              TargetFolder: '$(Build.ArtifactStagingDirectory)/sql'
-
-            inputs:
-
-              targetType: 'inline'          - task: CopyFiles@2
-
-              script: |            displayName: 'Copy PowerShell deployment scripts'
-
-                $ErrorActionPreference = 'Stop'            inputs:
-
-                              SourceFolder: 'scripts'
-
-                Write-Host "========================================="              Contents: |
-
-                Write-Host "  Hartonomous Database Deployment"                deploy/**/*.ps1
-
-                Write-Host "========================================="                deploy-database.ps1
-
-                                deployment-functions.ps1
-
-                # Set variables                *.sql
-
-                $serverInstance = "$(sqlServerInstance)"              TargetFolder: '$(Build.ArtifactStagingDirectory)/scripts'
-
-                $database = "$(databaseName)"
-
-                $scriptsPath = "$(Pipeline.Workspace)/drop/scripts"          - task: PublishPipelineArtifact@1
-
-                $clrPath = "$(Pipeline.Workspace)/drop/clr/SqlClrFunctions.dll"            displayName: 'Publish database deployment package'
-
-                            inputs:
-
-                Write-Host "Server: $serverInstance"              targetPath: '$(Build.ArtifactStagingDirectory)'
-
-                Write-Host "Database: $database"              artifact: 'database-deployment'
-
-                Write-Host ""              publishLocation: 'pipeline'
-
-                
-
-                # Execute deployment script          - task: SSH@0
-
-                & "$scriptsPath/deploy/deploy-database.ps1" `            displayName: 'Deploy database scripts to HART-DESKTOP via SSH'
-
-                  -ServerInstance $serverInstance `            inputs:
-
-                  -Database $database `              sshEndpoint: 'hart-desktop-ssh'
-
-                  -AssemblyPath $clrPath `              runOptions: 'commands'
-
-                  -Verbose              commands: |
-
-                                # Create deployment directory on Windows Arc server
-
-                if ($LASTEXITCODE -eq 0) {                powershell -Command "New-Item -ItemType Directory -Force -Path 'C:\Deploy\hartonomous\database' | Out-Null; Write-Host 'Deployment directory ready'"
-
-                  Write-Host ""            
-
-                  Write-Host "✓ Database deployment completed successfully" -ForegroundColor Green          - task: CopyFilesOverSSH@0
-
-                } else {            displayName: 'Copy deployment package to HART-DESKTOP'
-
-                  Write-Error "✗ Database deployment failed"            inputs:
-
-                  exit 1              sshEndpoint: 'hart-desktop-ssh'
-
-                }              sourceFolder: '$(Build.ArtifactStagingDirectory)'
-
-              pwsh: true              contents: '**'
-
-              targetFolder: 'C:\Deploy\hartonomous\database'
-
-          - task: PowerShell@2              cleanTargetFolder: true
-
-            displayName: 'Verify Database Deployment'              overwrite: true
-
-            inputs:              failOnEmptySource: true
-
-              targetType: 'inline'
-
-              script: |          - task: SSH@0
-
-                $query = @"            displayName: 'Execute database deployment on HART-DESKTOP'
-
-                -- Verify assemblies            inputs:
-
-                SELECT name, permission_set_desc, is_visible               sshEndpoint: 'hart-desktop-ssh'
-
-                FROM sys.assemblies               runOptions: 'commands'
-
-                WHERE name IN ('HartonomousSqlBridge', 'SqlClrFunctions');              commands: |
-
-                                cd C:\Deploy\hartonomous\database
-
-                -- Verify Service Broker
-
-                SELECT is_broker_enabled                 # Execute deployment orchestrator with PowerShell
-
-                FROM sys.databases                 powershell -ExecutionPolicy Bypass -File scripts\deploy\deploy-database.ps1 `
-
-                WHERE name = '$(databaseName)';                  -ServerName "localhost" `
-
-                                  -DatabaseName "$(SQL_DATABASE)" `
-
-                -- Verify CLR functions                  -ScriptsDirectory "scripts\deploy" `
-
-                SELECT COUNT(*) AS CLRFunctionCount                  -AssemblyPath "clr\SqlClrFunctions.dll" `
-
-                FROM sys.objects o                  -ProjectPath "src\Hartonomous.Data\Hartonomous.Data.csproj" `
-
-                WHERE o.type IN ('FN', 'FS', 'FT', 'AF')                  -SqlUser "$(SQL_USERNAME)" `
-
-                  AND EXISTS (                  -SqlPassword (ConvertTo-SecureString -String "$(SQL_PASSWORD)" -AsPlainText -Force) `
-
-                      SELECT 1                   -Verbose
-
-                      FROM sys.assembly_modules am 
-
-                      WHERE am.object_id = o.object_id                if ($LASTEXITCODE -eq 0) {
-
-                  );                  Write-Host "✓ Database deployment completed successfully"
-
-                "@                  exit 0
-
-                                } else {
-
-                sqlcmd -S "$(sqlServerInstance)" -d "$(databaseName)" -Q $query                  Write-Host "✗ Database deployment failed"
-
-              pwsh: true                  exit 1
-
-                }
-
-- stage: DeployApplications
-
-  displayName: 'Deploy Applications'          - bash: |
-
-  dependsOn: DeployDatabase              echo "========================================" 
-
-  condition: succeeded()              echo "  Database Deployment Summary"
-
-  jobs:              echo "========================================"
-
-  - deployment: ApiDeployment              echo "Target: $(SQL_SERVER) (Azure Arc-enabled)"
-
-    displayName: 'Deploy Web API'              echo "Database: $(SQL_DATABASE)"
-
-    environment: 'Production-API'              echo "CLR Mode: UNSAFE (on-premises only)"
-
-    pool:              echo "FILESTREAM: $(FILESTREAM_PATH)"
-
-      vmImage: 'windows-latest'              echo ""
-
-    strategy:              echo "Artifacts published:"
-
-      runOnce:              ls -lh $(Build.ArtifactStagingDirectory)/clr/
-
-        deploy:              ls -lh $(Build.ArtifactStagingDirectory)/sql/
-
-          steps:              echo "========================================"
-
-          - download: current            displayName: 'Display deployment summary'
-
-            artifact: drop
-
-- stage: 'DeployToProduction'
-
-          - task: IISWebAppManagementOnMachineGroup@0  displayName: 'Deploy to HART-SERVER Production'
-
-            displayName: 'Create/Update IIS Application Pool'  dependsOn: 
-
-            inputs:    - Build
-
-              EnableIIS: true    - DeployDatabase
-
-              IISDeploymentType: 'IISWebsite'  condition: succeeded()
-
-              ActionIISWebsite: 'CreateOrUpdateAppPool'  jobs:
-
-              AppPoolName: 'HartonomousApiPool'  - deployment: DeployServices
-
-              DotNetVersion: 'No Managed Code'    displayName: 'Deploy Hartonomous Services'
-
-              PipeLineMode: 'Integrated'    environment: 'hart-server-production'
-
-              AppPoolIdentity: 'ApplicationPoolIdentity'    strategy:
-
-      runOnce:
-
-          - task: IISWebAppManagementOnMachineGroup@0        deploy:
-
-            displayName: 'Create/Update IIS Website'          steps:
-
-            inputs:          - download: current
-
-              EnableIIS: true            artifact: drop
-
-              IISDeploymentType: 'IISWebsite'
-
-              ActionIISWebsite: 'CreateOrUpdateWebsite'          - bash: |
-
-              WebsiteName: 'HartonomousApi'              echo "Installing systemd service files..."
-
-              WebsitePhysicalPath: 'C:\inetpub\wwwroot\HartonomousApi'              mkdir -p ~/.config/systemd/user
-
-              AddBinding: true              cp $(Pipeline.Workspace)/drop/deploy/*.service ~/.config/systemd/user/
-
-              Bindings: |              systemctl --user daemon-reload
-
-                {            displayName: 'Install systemd service files'
-
-                  "bindings":[
-
-                    {          - bash: |
-
-                      "protocol":"http",              echo "Stopping services..."
-
-                      "ipAddress":"*",              systemctl --user stop hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion || true
-
-                      "port":"5000",            displayName: 'Stop existing services'
-
-                      "hostname":""
-
-                    },          - bash: |
-
-                    {              echo "Deploying API..."
-
-                      "protocol":"https",              mkdir -p /srv/www/hartonomous/api
-
-                      "ipAddress":"*",              cp -r $(Pipeline.Workspace)/drop/api/* /srv/www/hartonomous/api/
-
-                      "port":"5001",              chmod +x /srv/www/hartonomous/api/Hartonomous.Api || true
-
-                      "hostname":"",            displayName: 'Deploy API'
-
-                      "sslThumbprint":"$(sslCertThumbprint)"
-
-                    }          - bash: |
-
-                  ]              echo "Deploying CesConsumer..."
-
-                }              mkdir -p /srv/www/hartonomous/ces-consumer
-
-              AppPoolName: 'HartonomousApiPool'              cp -r $(Pipeline.Workspace)/drop/ces-consumer/* /srv/www/hartonomous/ces-consumer/
-
-              chmod +x /srv/www/hartonomous/ces-consumer/CesConsumer || true
-
-          - task: IISWebAppDeploymentOnMachineGroup@0            displayName: 'Deploy CesConsumer'
-
-            displayName: 'Deploy Web API to IIS'
-
-            inputs:          - bash: |
-
-              WebSiteName: 'HartonomousApi'              echo "Deploying Neo4jSync..."
-
-              Package: '$(Pipeline.Workspace)/drop/api'              mkdir -p /srv/www/hartonomous/neo4j-sync
-
-              TakeAppOfflineFlag: true              cp -r $(Pipeline.Workspace)/drop/neo4j-sync/* /srv/www/hartonomous/neo4j-sync/
-
-              chmod +x /srv/www/hartonomous/neo4j-sync/Neo4jSync || true
-
-  - deployment: BackgroundServicesDeployment            displayName: 'Deploy Neo4jSync'
-
-    displayName: 'Deploy Background Services'
-
-    environment: 'Production-Services'          - bash: |
-
-    pool:              echo "Deploying ModelIngestion..."
-
-      vmImage: 'windows-latest'              mkdir -p /srv/www/hartonomous/model-ingestion
-
-    strategy:              cp -r $(Pipeline.Workspace)/drop/model-ingestion/* /srv/www/hartonomous/model-ingestion/
-
-      runOnce:              chmod +x /srv/www/hartonomous/model-ingestion/ModelIngestion || true
-
-        deploy:            displayName: 'Deploy ModelIngestion'
-
-          steps:
-
-          - download: current          - bash: |
-
-            artifact: drop              echo "Starting services..."
-
-              systemctl --user enable hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion
-
-          - task: PowerShell@2              systemctl --user start hartonomous-api hartonomous-ces-consumer hartonomous-neo4j-sync hartonomous-model-ingestion
-
-            displayName: 'Deploy Model Ingestion Service'            displayName: 'Start services'
-
-            inputs:
-
-              targetType: 'inline'          - bash: |
-
-              script: |              echo "Checking service status..."
-
-                $serviceName = "HartonomousModelIngestion"              systemctl --user status hartonomous-api --no-pager || true
-
-                $servicePath = "C:\Services\Hartonomous\ModelIngestion"              systemctl --user status hartonomous-ces-consumer --no-pager || true
-
-                $exePath = "$servicePath\ModelIngestion.exe"              systemctl --user status hartonomous-neo4j-sync --no-pager || true
-
-                              systemctl --user status hartonomous-model-ingestion --no-pager || true
-
-                # Stop service if running            displayName: 'Verify service status'
-
-                if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-                  Stop-Service -Name $serviceName -Force
-                }
-                
-                # Copy files
-                New-Item -ItemType Directory -Force -Path $servicePath | Out-Null
-                Copy-Item -Path "$(Pipeline.Workspace)/drop/model-ingestion/*" -Destination $servicePath -Recurse -Force
-                
-                # Create/update service
-                if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-                  sc.exe config $serviceName binPath= $exePath
-                } else {
-                  sc.exe create $serviceName binPath= $exePath start= auto DisplayName= "Hartonomous Model Ingestion"
-                }
-                
-                # Start service
-                Start-Service -Name $serviceName
-                Write-Host "✓ Model Ingestion Service deployed and started"
-              pwsh: true
-
-          - task: PowerShell@2
-            displayName: 'Deploy CDC Consumer Service'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $serviceName = "HartonomousCesConsumer"
-                $servicePath = "C:\Services\Hartonomous\CesConsumer"
-                $exePath = "$servicePath\CesConsumer.exe"
-                
-                if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-                  Stop-Service -Name $serviceName -Force
-                }
-                
-                New-Item -ItemType Directory -Force -Path $servicePath | Out-Null
-                Copy-Item -Path "$(Pipeline.Workspace)/drop/ces-consumer/*" -Destination $servicePath -Recurse -Force
-                
-                if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-                  sc.exe config $serviceName binPath= $exePath
-                } else {
-                  sc.exe create $serviceName binPath= $exePath start= auto DisplayName= "Hartonomous CDC Event Consumer"
-                }
-                
-                Start-Service -Name $serviceName
-                Write-Host "✓ CDC Consumer Service deployed and started"
-              pwsh: true
-
-          - task: PowerShell@2
-            displayName: 'Deploy Neo4j Sync Service'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $serviceName = "HartonomousNeo4jSync"
-                $servicePath = "C:\Services\Hartonomous\Neo4jSync"
-                $exePath = "$servicePath\Neo4jSync.exe"
-                
-                if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-                  Stop-Service -Name $serviceName -Force
-                }
-                
-                New-Item -ItemType Directory -Force -Path $servicePath | Out-Null
-                Copy-Item -Path "$(Pipeline.Workspace)/drop/neo4j-sync/*" -Destination $servicePath -Recurse -Force
-                
-                if (Get-Service -Name $serviceName -ErrorAction SilentlyContinue) {
-                  sc.exe config $serviceName binPath= $exePath
-                } else {
-                  sc.exe create $serviceName binPath= $exePath start= auto DisplayName= "Hartonomous Neo4j Synchronization"
-                }
-                
-                Start-Service -Name $serviceName
-                Write-Host "✓ Neo4j Sync Service deployed and started"
-              pwsh: true
-
-- stage: SmokeTest
-  displayName: 'Smoke Test'
-  dependsOn: DeployApplications
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish CesConsumer'
+      inputs:
+        command: 'publish'
+        projects: 'src/CesConsumer/CesConsumer.csproj'
+        publishWebProjects: false
+        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/ces-consumer'
+        zipAfterPublish: false
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish Neo4jSync'
+      inputs:
+        command: 'publish'
+        projects: 'src/Neo4jSync/Neo4jSync.csproj'
+        publishWebProjects: false
+        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/neo4j-sync'
+        zipAfterPublish: false
+
+    - task: DotNetCoreCLI@2
+      displayName: 'Publish ModelIngestion'
+      inputs:
+        command: 'publish'
+        projects: 'src/ModelIngestion/ModelIngestion.csproj'
+        publishWebProjects: false
+        arguments: '--configuration $(buildConfiguration) --no-build --output $(Build.ArtifactStagingDirectory)/model-ingestion'
+        zipAfterPublish: false
+
+    # Copy deployment scripts
+    - task: CopyFiles@2
+      displayName: 'Copy Deployment Scripts'
+      inputs:
+        SourceFolder: 'scripts'
+        Contents: '**'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/scripts'
+
+    # Copy procedure files
+    - task: CopyFiles@2
+      displayName: 'Copy Stored Procedures'
+      inputs:
+        SourceFolder: 'src/Hartonomous.Database/Procedures'
+        Contents: '**/*.sql'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/database/Procedures'
+
+    # Publish .NET artifacts
+    - task: PublishPipelineArtifact@1
+      displayName: 'Publish .NET Artifacts'
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)'
+        artifact: 'dotnet'
+        publishLocation: 'pipeline'
+
+# ============================================================================
+# STAGE 2: DEPLOY DATABASE
+# ============================================================================
+- stage: DeployDatabase
+  displayName: 'Deploy Database Schema + CLR'
+  dependsOn: Build
   condition: succeeded()
   jobs:
-  - job: HealthCheck
-    displayName: 'Run Health Checks'
+  - deployment: DatabaseDeployment
+    displayName: 'Deploy to SQL Server'
+    environment: 'SQL-Server-Production'
     pool:
       vmImage: 'windows-latest'
-    steps:
-    - task: PowerShell@2
-      displayName: 'Test API Health Endpoint'
-      inputs:
-        targetType: 'inline'
-        script: |
-          $apiUrl = "http://localhost:5000/health"
-          Write-Host "Testing API health endpoint: $apiUrl"
-          
-          $response = Invoke-RestMethod -Uri $apiUrl -Method Get -TimeoutSec 30
-          
-          if ($response.status -eq "Healthy") {
-            Write-Host "✓ API is healthy" -ForegroundColor Green
-            exit 0
-          } else {
-            Write-Error "✗ API health check failed"
-            Write-Host $response
-            exit 1
-          }
-        pwsh: true
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          # Download artifacts
+          - download: current
+            artifact: database
+          - download: current
+            artifact: dotnet
 
-    - task: PowerShell@2
-      displayName: 'Verify Services Running'
-      inputs:
-        targetType: 'inline'
-        script: |
-          $services = @(
-            "HartonomousModelIngestion",
-            "HartonomousCesConsumer",
-            "HartonomousNeo4jSync"
-          )
-          
-          $allHealthy = $true
-          foreach ($service in $services) {
-            $status = (Get-Service -Name $service).Status
-            if ($status -eq "Running") {
-              Write-Host "✓ $service is running" -ForegroundColor Green
-            } else {
-              Write-Host "✗ $service is not running (Status: $status)" -ForegroundColor Red
-              $allHealthy = $false
-            }
-          }
-          
-          if (-not $allHealthy) {
-            exit 1
-          }
-        pwsh: true
+          # Step 1: Enable CLR on master database
+          - task: AzureCLI@2
+            displayName: 'Step 1: Enable CLR Integration'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                Write-Host "Enabling CLR integration on SQL Server..."
+                
+                # Get Azure AD access token for SQL
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                sqlcmd -S "$(sqlServer)" -d "master" -G -P $token -Q @"
+                EXEC sp_configure 'show advanced options', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr enabled', 1;
+                RECONFIGURE;
+                EXEC sp_configure 'clr strict security', 0;
+                RECONFIGURE;
+                PRINT 'CLR enabled successfully';
+                "@
+                
+                Write-Host "✓ CLR configuration complete"
 
-    - task: PowerShell@2
-      displayName: 'Test Embedding Generation'
-      inputs:
-        targetType: 'inline'
-        script: |
-          $apiUrl = "http://localhost:5000/api/embedding/generate"
-          $body = @{
-            text = "Test embedding generation"
-            modelIdentifier = "all-MiniLM-L6-v2"
-          } | ConvertTo-Json
-          
-          Write-Host "Testing embedding generation..."
-          
-          try {
-            $response = Invoke-RestMethod -Uri $apiUrl -Method Post -Body $body -ContentType "application/json" -TimeoutSec 60
-            
-            if ($response.embeddingId -and $response.dimensions -eq 384) {
-              Write-Host "✓ Embedding generation successful" -ForegroundColor Green
-              Write-Host "Embedding ID: $($response.embeddingId)"
-              Write-Host "Dimensions: $($response.dimensions)"
-              exit 0
-            } else {
-              Write-Error "✗ Embedding response invalid"
-              exit 1
-            }
-          } catch {
-            Write-Error "✗ Embedding generation failed: $_"
-            exit 1
-          }
-        pwsh: true
+          # Step 2: Deploy DACPAC
+          - task: AzureCLI@2
+            displayName: 'Step 2: Deploy DACPAC with SqlPackage'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
+                
+                # Get Azure AD access token
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                Write-Host "Deploying DACPAC: $dacpacPath"
+                
+                sqlpackage.exe `
+                  /Action:Publish `
+                  /SourceFile:"$dacpacPath" `
+                  /TargetServerName:"$(sqlServer)" `
+                  /TargetDatabaseName:"$(sqlDatabase)" `
+                  /AccessToken:"$token" `
+                  /p:DropObjectsNotInSource=False `
+                  /p:BlockOnPossibleDataLoss=True `
+                  /p:IgnorePermissions=True `
+                  /p:IgnoreRoleMembership=True `
+                  /DiagnosticsFile:"$(Pipeline.Workspace)/dacpac-deployment.log"
+                
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "✓ DACPAC deployed successfully"
+                } else {
+                  Write-Error "✗ DACPAC deployment failed with exit code $LASTEXITCODE"
+                  exit 1
+                }
+
+          # Step 3: Set TRUSTWORTHY
+          - task: AzureCLI@2
+            displayName: 'Step 3: Set Database TRUSTWORTHY ON'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                Write-Host "Setting TRUSTWORTHY ON for $(sqlDatabase)..."
+                
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                sqlcmd -S "$(sqlServer)" -d "master" -G -P $token -Q @"
+                ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;
+                PRINT 'TRUSTWORTHY enabled';
+                "@
+                
+                Write-Host "✓ TRUSTWORTHY enabled"
+
+          # Step 4: Deploy external CLR assemblies (16 DLLs)
+          - task: AzureCLI@2
+            displayName: 'Step 4: Deploy External CLR Assemblies (16 DLLs)'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                & "$(Pipeline.Workspace)/dotnet/scripts/deploy-clr-assemblies.ps1" `
+                  -Server "$(sqlServer)" `
+                  -Database "$(sqlDatabase)" `
+                  -UseAzureAD `
+                  -AccessToken $token `
+                  -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"
+
+          # Step 5: Deploy Hartonomous.Clr assembly
+          - task: AzureCLI@2
+            displayName: 'Step 5: Deploy Hartonomous.Clr Assembly'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                $dllPath = "$(Pipeline.Workspace)/dotnet/clr/Hartonomous.Clr.dll"
+                if (-not (Test-Path $dllPath)) {
+                  Write-Error "CLR assembly not found: $dllPath"
+                  exit 1
+                }
+                
+                Write-Host "Deploying Hartonomous.Clr from $dllPath..."
+                
+                # Read DLL as hex string
+                $bytes = [System.IO.File]::ReadAllBytes($dllPath)
+                $hexString = ($bytes | ForEach-Object { $_.ToString("X2") }) -join ''
+                
+                # Deploy assembly
+                $sql = @"
+                IF EXISTS (SELECT * FROM sys.assemblies WHERE name = 'Hartonomous.Clr')
+                  DROP ASSEMBLY [Hartonomous.Clr];
+                
+                CREATE ASSEMBLY [Hartonomous.Clr]
+                FROM 0x$hexString
+                WITH PERMISSION_SET = UNSAFE;
+                
+                PRINT 'Hartonomous.Clr deployed successfully';
+                "@
+                
+                $sql | sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token
+                Write-Host "✓ Hartonomous.Clr assembly deployed"
+
+          # Step 6: Scaffold EF Core entities (Database-First)
+          - task: DotNetCoreCLI@2
+            displayName: 'Step 6a: Install dotnet-ef Tool'
+            inputs:
+              command: 'custom'
+              custom: 'tool'
+              arguments: 'install --global dotnet-ef --version 10.*'
+
+          - task: AzureCLI@2
+            displayName: 'Step 6b: Scaffold EF Core Entities (Database-First)'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Authentication=Active Directory Default;"
+                
+                Write-Host "Scaffolding EF Core entities from database..."
+                
+                dotnet ef dbcontext scaffold "$connectionString" `
+                  Microsoft.EntityFrameworkCore.SqlServer `
+                  --project "$(Pipeline.Workspace)/dotnet/src/Hartonomous.Data/Hartonomous.Data.csproj" `
+                  --context HartonomousDbContext `
+                  --context-dir . `
+                  --output-dir Entities `
+                  --force `
+                  --no-onconfiguring
+                
+                Write-Host "✓ Entity scaffolding complete"
+            continueOnError: true
+
+          # Step 7: Deploy stored procedures
+          - task: AzureCLI@2
+            displayName: 'Step 7: Deploy Stored Procedures'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                $proceduresPath = "$(Pipeline.Workspace)/database/Procedures"
+                
+                if (Test-Path $proceduresPath) {
+                  Write-Host "Deploying stored procedures from $proceduresPath..."
+                  
+                  Get-ChildItem -Path $proceduresPath -Filter "*.sql" -Recurse | ForEach-Object {
+                    Write-Host "Deploying: $($_.Name)"
+                    sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token -i "$($_.FullName)"
+                  }
+                  
+                  Write-Host "\u2713 All stored procedures deployed"
+                } else {
+                  Write-Host "No procedures directory found, skipping..."
+                }
+              continueOnError: true
+
+          # Step 8: Validate deployment
+          - task: AzureCLI@2
+            displayName: 'Step 8: Validate Database Deployment'
+            inputs:
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                
+                Write-Host "========================================"
+                Write-Host "  Database Deployment Validation"
+                Write-Host "========================================"
+                
+                # Verify CLR assemblies
+                Write-Host "`nCLR Assemblies:"
+                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token -Q @"
+                SELECT name, permission_set_desc, is_visible, create_date
+                FROM sys.assemblies
+                WHERE is_user_defined = 1
+                ORDER BY name;
+                "@
+                
+                # Verify TRUSTWORTHY
+                Write-Host "`nTRUSTWORTHY Setting:"
+                sqlcmd -S "$(sqlServer)" -d "master" -G -P $token -Q @"
+                SELECT name, is_trustworthy_on
+                FROM sys.databases
+                WHERE name = '$(sqlDatabase)';
+                "@
+                
+                # Verify CLR functions
+                Write-Host "`nCLR Functions:"
+                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token -Q @"
+                SELECT SCHEMA_NAME(o.schema_id) AS SchemaName, 
+                       o.name AS FunctionName, 
+                       o.type_desc
+                FROM sys.objects o
+                INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
+                WHERE o.type IN ('FN', 'FS', 'FT', 'AF')
+                ORDER BY SchemaName, FunctionName;
+                "@
+                
+                Write-Host "`n\u2713 Validation complete"
+
+          # Publish deployment logs
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish Deployment Logs'
+            condition: always()
+            inputs:
+              targetPath: '$(Pipeline.Workspace)'
+              artifact: 'deployment-logs'
+              publishLocation: 'pipeline'
+
+# ============================================================================
+# STAGE 3: DEPLOY APPLICATIONS (Optional)
+# ============================================================================
+- stage: DeployApplications
+  displayName: 'Deploy .NET Applications'
+  dependsOn: DeployDatabase
+  condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  jobs:
+  - deployment: AppDeployment
+    displayName: 'Deploy Applications'
+    environment: 'Application-Servers'
+    pool:
+      vmImage: 'windows-latest'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - download: current
+            artifact: dotnet
+
+          - task: PowerShell@2
+            displayName: 'Display Deployment Summary'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host "========================================"
+                Write-Host "  Hartonomous Deployment Complete"
+                Write-Host "========================================"
+                Write-Host "Database: $(sqlServer)\$(sqlDatabase)"
+                Write-Host ""
+                Write-Host "Artifacts Ready for Deployment:"
+                Write-Host "  - API: $(Pipeline.Workspace)/dotnet/api"
+                Write-Host "  - CesConsumer: $(Pipeline.Workspace)/dotnet/ces-consumer"
+                Write-Host "  - Neo4jSync: $(Pipeline.Workspace)/dotnet/neo4j-sync"
+                Write-Host "  - ModelIngestion: $(Pipeline.Workspace)/dotnet/model-ingestion"
+                Write-Host ""
+                Write-Host "Next Steps:"
+                Write-Host "  1. Configure service connections"
+                Write-Host "  2. Deploy to target servers"
+                Write-Host "  3. Configure application settings"
+                Write-Host "  4. Run smoke tests"
+                Write-Host "========================================"
+              pwsh: true
