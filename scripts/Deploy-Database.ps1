@@ -222,32 +222,30 @@ function Deploy-ExternalAssemblies {
         return
     }
     
-    # Define strict dependency order for assemblies
-    # System assemblies first, then third-party libraries
+    # Define strict dependency order based on DEPENDENCY-MATRIX.md analysis
+    # GAC assemblies (System.Drawing, System.Runtime.Serialization, System.ValueTuple,
+    # SMDiagnostics, System.ServiceModel.Internals) are EXCLUDED - already in GAC
     $orderedAssemblies = @(
-        # .NET Framework base assemblies (lowest level dependencies)
+        # Level 1: No dependencies (deploy first)
         'System.Runtime.CompilerServices.Unsafe'
         'System.Buffers'
-        'System.Numerics.Vectors'      # MUST be before System.Memory
-        'System.Memory'                # Depends on System.Numerics.Vectors
-        'System.ValueTuple'
-        'System.Collections.Immutable'
-        'System.Reflection.Metadata'
         
-        # Third-party numerical library (depends on System assemblies)
-        'MathNet.Numerics'
+        # Level 2: Depends only on GAC assemblies
+        'System.Numerics.Vectors'      # Depends on System.Numerics (GAC)
         
-        # Other third-party libraries
-        'Newtonsoft.Json'
+        # Level 3: Depends on Level 1 + Level 2
+        'System.Memory'                # Depends on: Unsafe, Buffers, Numerics.Vectors
         
-        # System framework assemblies (higher level)
-        'System.Drawing'
-        'System.Runtime.Serialization'
-        'System.ServiceModel.Internals'
-        'SMDiagnostics'
+        # Level 4: Depends on System.Memory
+        'System.Collections.Immutable' # Depends on System.Memory
         
-        # SQL Server types
-        'Microsoft.SqlServer.Types'
+        # Level 5: Depends on System.Collections.Immutable
+        'System.Reflection.Metadata'   # Depends on System.Collections.Immutable
+        
+        # Level 6: Third-party libraries (depend only on GAC assemblies)
+        'Microsoft.SqlServer.Types'    # Depends on System, System.Data, System.Xml (all GAC)
+        'Newtonsoft.Json'              # Depends on System, System.Core, System.Data, etc. (all GAC)
+        'MathNet.Numerics'             # Depends on System.Numerics (GAC), System.Runtime.Serialization (GAC)
     )
     
     # Sort DLLs by defined order, unknown assemblies go last alphabetically
