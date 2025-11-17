@@ -5,6 +5,14 @@
 USE [$(DatabaseName)];
 GO
 
+-- Drop T-SQL objects that depend on CLR User-Defined Types
+IF EXISTS (SELECT 1 FROM sys.objects WHERE name = 'OperationProvenance' AND type = 'U')
+BEGIN
+    DROP TABLE [dbo].[OperationProvenance];
+    PRINT 'Dropped dependent table [dbo].[OperationProvenance].';
+END
+GO
+
 -- Drop all CLR-mappable objects (Procedures, Functions, Aggregates)
 DECLARE @sql_objects NVARCHAR(MAX) = N'';
 SELECT @sql_objects += 
