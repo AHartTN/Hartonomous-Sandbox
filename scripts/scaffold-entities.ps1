@@ -27,11 +27,11 @@ if (-not $ProjectPath) { $ProjectPath = Join-Path (Split-Path $scriptRoot -Paren
 Write-Host "Scaffolding entities from database..."
 Set-Location $ProjectPath
 
-# Restore NuGet packages first
-Write-Host "Restoring NuGet packages..."
-dotnet restore
+# Build project first (required for --no-build in dotnet ef)
+Write-Host "Building project for scaffolding..."
+dotnet build --configuration Debug
 if ($LASTEXITCODE -ne 0) {
-    throw "NuGet restore failed with exit code $LASTEXITCODE"
+    throw "Project build failed with exit code $LASTEXITCODE"
 }
 
 if ($UseAzureAD) {
@@ -45,6 +45,7 @@ if ($UseAzureAD) {
     # In GitHub Actions, Network Service can access Arc tokens
     $connectionString = "Server=$Server;Database=$Database;Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=True;"
     
+    # --no-build: Use already-built assembly (avoids circular dependency, faster scaffolding)
     dotnet ef dbcontext scaffold `
       $connectionString `
       Microsoft.EntityFrameworkCore.SqlServer `
