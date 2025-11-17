@@ -102,19 +102,19 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Download DACPAC Artifact
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: database-dacpac
           path: ./artifacts/database
 
       - name: Download CLR Dependencies
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: clr-dependencies
           path: ./dependencies
 
       - name: Download Deployment Scripts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: deployment-scripts
           path: ./scripts
