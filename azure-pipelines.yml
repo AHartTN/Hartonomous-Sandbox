@@ -24,11 +24,12 @@ variables:
     value: 'Release'
   - name: dotnetSdkVersion
     value: '10.x'
-  # sqlServer and sqlDatabase MUST be configured via Azure DevOps UI variables or variable groups
-  # DO NOT hardcode - supports local dev (localhost) AND remote Arc servers
-  # Example values:
-  #   Local Dev: sqlServer='localhost', sqlDatabase='Hartonomous'
-  #   Arc Production: sqlServer='prod-sql-server.domain.com', sqlDatabase='Hartonomous'
+  - name: sqlServer
+    value: 'localhost'
+  - name: sqlDatabase
+    value: 'Hartonomous'
+  - name: azureServiceConnection
+    value: 'AzureArcSQLConnection'  # Configure this service connection in Azure DevOps if using service principal auth
 
 stages:
 # ============================================================================
