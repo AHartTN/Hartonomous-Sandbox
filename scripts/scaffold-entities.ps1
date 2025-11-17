@@ -37,6 +37,13 @@ if ($LASTEXITCODE -ne 0) {
     throw "NuGet restore failed with exit code $LASTEXITCODE"
 }
 
+# Build the project to generate deps.json
+Write-Host "Building project..."
+dotnet build --no-restore
+if ($LASTEXITCODE -ne 0) {
+    throw "Build failed with exit code $LASTEXITCODE"
+}
+
 if ($UseAzureAD -and $AccessToken) {
     # Azure AD with access token - build connection string with token
     Write-Host "Using Azure AD service principal authentication"
@@ -51,8 +58,11 @@ if ($UseAzureAD -and $AccessToken) {
       --output-dir Entities `
       --context-dir . `
       --context HartonomousDbContext `
-      --force `
-      --no-build
+      --force
+    
+    if ($LASTEXITCODE -ne 0) {
+        throw "EF Core scaffolding failed with exit code $LASTEXITCODE"
+    }
 } else {
     # Windows integrated authentication
     Write-Host "Using Windows integrated authentication"
@@ -62,8 +72,11 @@ if ($UseAzureAD -and $AccessToken) {
       --output-dir Entities `
       --context-dir . `
       --context HartonomousDbContext `
-      --force `
-      --no-build
+      --force
+    
+    if ($LASTEXITCODE -ne 0) {
+        throw "EF Core scaffolding failed with exit code $LASTEXITCODE"
+    }
 }
 
 Write-Host "✓ Entities scaffolded"
