@@ -133,38 +133,16 @@ jobs:
           name: deployment-scripts
           path: ./scripts
       
-      - name: Azure Login (OIDC)
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-      
-      - name: Get SQL Access Token
+      - name: Get SQL Access Token from Arc Machine Managed Identity
         id: get-token
         shell: pwsh
         run: |
-          $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
+          # Use Arc machine's managed identity to get SQL token
+          $tokenEndpoint = "http://localhost:40342/metadata/identity/oauth2/token"
+          $response = Invoke-RestMethod -Uri "$tokenEndpoint?api-version=2020-06-01&resource=https://database.windows.net/" -Headers @{Metadata="true"}
+          $token = $response.access_token
           echo "::add-mask::$token"
           "token=$token" >> $env:GITHUB_OUTPUT
-      
-      - name: Configure SQL Permissions (Idempotent)
-        shell: pwsh
-        run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
-          Write-Host "Configuring SQL Server permissions for GitHub Actions service principal..."
-          
-          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\Configure-GitHubActionsSqlPermissions.sql"
-          
-          if (Test-Path $scriptPath) {
-            Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" `
-              -AccessToken $token -InputFile $scriptPath -TrustServerCertificate
-            Write-Host "✓ SQL permissions configured"
-          } else {
-            Write-Host "⚠ SQL permissions script not found, skipping..."
-          }
       
       - name: Enable CLR Integration (Idempotent)
         shell: pwsh
@@ -175,7 +153,7 @@ jobs:
           Write-Host "Checking CLR integration status..."
           
           $checkClrSql = "SELECT CAST(value AS int) AS ClrEnabled FROM sys.configurations WHERE name = 'clr enabled'"
-          $clrEnabled = Invoke-Sqlcmd -Query $checkClrSql -ServerInstance "${{ env.SQL_SERVER }}" `
+          $clrEnabled = Invoke-Sqlcmd -Query $checkClrSql -ServerInstance "tcp:${{ env.SQL_SERVER }}" `
             -Database "master" -AccessToken $token -TrustServerCertificate
           
           if ($clrEnabled.ClrEnabled -eq 0) {
