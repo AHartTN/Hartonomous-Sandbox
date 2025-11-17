@@ -190,13 +190,25 @@ jobs:
           Write-Host "Installing SqlPackage via dotnet tool..."
           dotnet tool install -g microsoft.sqlpackage
           
-          # Verify installation
-          $installed = Get-Command sqlpackage -ErrorAction SilentlyContinue
-          if ($installed) {
-            Write-Host "✓ SqlPackage installed successfully at: $($installed.Source)"
-            & sqlpackage /version
+          # Add dotnet tools directory to PATH for this workflow run
+          $toolsPath = Join-Path $env:USERPROFILE ".dotnet\tools"
+          if (-not (Test-Path $toolsPath)) {
+            # Network Service account uses different profile path
+            $toolsPath = "C:\WINDOWS\ServiceProfiles\NetworkService\.dotnet\tools"
+          }
+          
+          if (Test-Path $toolsPath) {
+            Write-Host "Adding $toolsPath to PATH"
+            echo "$toolsPath" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          }
+          
+          # Verify installation by checking the expected install location directly
+          $sqlPackageExe = Join-Path $toolsPath "sqlpackage.exe"
+          if (Test-Path $sqlPackageExe) {
+            Write-Host "✓ SqlPackage installed successfully at: $sqlPackageExe"
+            & $sqlPackageExe /version
           } else {
-            throw "SqlPackage installation failed - not found in PATH after install"
+            throw "SqlPackage installation failed - sqlpackage.exe not found at $sqlPackageExe"
           }
         shell: pwsh
 
