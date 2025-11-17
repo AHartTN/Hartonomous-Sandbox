@@ -252,6 +252,7 @@ jobs:
     environment: production
     permissions:
       contents: write
+      id-token: write
     
     env:
       SQL_SERVER: ${{ secrets.SQL_SERVER }}
