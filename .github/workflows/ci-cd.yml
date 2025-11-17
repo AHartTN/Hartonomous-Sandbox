@@ -175,6 +175,31 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      - name: Install SqlPackage
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          # Check if SqlPackage is already available
+          $existing = Get-Command sqlpackage -ErrorAction SilentlyContinue
+          if ($existing) {
+            Write-Host "✓ SqlPackage already installed at: $($existing.Source)"
+            & sqlpackage /version
+            exit 0
+          }
+          
+          Write-Host "Installing SqlPackage via dotnet tool..."
+          dotnet tool install -g microsoft.sqlpackage
+          
+          # Verify installation
+          $installed = Get-Command sqlpackage -ErrorAction SilentlyContinue
+          if ($installed) {
+            Write-Host "✓ SqlPackage installed successfully at: $($installed.Source)"
+            & sqlpackage /version
+          } else {
+            throw "SqlPackage installation failed - not found in PATH after install"
+          }
+        shell: pwsh
+
       - name: Get Azure AD Access Token for SQL
         id: get_token
         run: |

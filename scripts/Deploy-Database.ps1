@@ -303,17 +303,36 @@ function Deploy-Dacpac {
     #>
     Write-Log "Deploying DACPAC: $DacpacPath" -Level Info
     
-    # Find SqlPackage.exe
-    $sqlPackagePaths = @(
-        "C:\Program Files\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe",
-        "C:\Program Files\Microsoft SQL Server\170\DAC\bin\SqlPackage.exe",
-        "C:\Program Files (x86)\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe"
-    )
+    # Find SqlPackage.exe using Get-Command (idempotent, checks PATH first)
+    # MS Docs best practice: Use Get-Command to find executables in PATH
+    # https://learn.microsoft.com/en-us/sql/tools/sqlpackage/sqlpackage-pipelines
+    $sqlPackagePath = $null
     
-    $sqlPackagePath = $sqlPackagePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+    # 1. Check if sqlpackage is in PATH (dotnet global tool or added to PATH)
+    $sqlPackageCmd = Get-Command sqlpackage -ErrorAction SilentlyContinue
+    if ($sqlPackageCmd) {
+        $sqlPackagePath = $sqlPackageCmd.Source
+        Write-Log "Found SqlPackage in PATH: $sqlPackagePath" -Level Debug
+    }
+    
+    # 2. Check standard SqlPackage.exe locations (DacFx.msi installs)
+    if (-not $sqlPackagePath) {
+        $sqlPackagePaths = @(
+            "C:\Program Files\Microsoft SQL Server\170\DAC\bin\SqlPackage.exe",  # SQL Server 2025 (DacFx 170)
+            "C:\Program Files\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe",  # SQL Server 2022 (DacFx 160)
+            "C:\Program Files (x86)\Microsoft SQL Server\170\DAC\bin\SqlPackage.exe",
+            "C:\Program Files (x86)\Microsoft SQL Server\160\DAC\bin\SqlPackage.exe"
+        )
+        
+        $sqlPackagePath = $sqlPackagePaths | Where-Object { Test-Path $_ } | Select-Object -First 1
+        
+        if ($sqlPackagePath) {
+            Write-Log "Found SqlPackage at: $sqlPackagePath" -Level Debug
+        }
+    }
     
     if (-not $sqlPackagePath) {
-        throw "SqlPackage.exe not found. Please install SQL Server Data Tools or SqlPackage."
+        throw "SqlPackage not found. Install via: dotnet tool install -g microsoft.sqlpackage"
     }
     
     Write-Log "Using SqlPackage: $sqlPackagePath" -Level Debug
