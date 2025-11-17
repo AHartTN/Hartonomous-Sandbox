@@ -94,8 +94,8 @@ jobs:
           retention-days: 7
 
   deploy-database:
-    needs: build-database-dacpac
-    runs-on: windows-latest
+    needs: build-dacpac
+    runs-on: [self-hosted, windows, sql-server]
     environment: production
     steps:
       - name: Checkout code
@@ -120,7 +120,7 @@ jobs:
           path: ./scripts
 
       - name: Azure Login
-        uses: azure/login@v1
+        uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
@@ -155,8 +155,8 @@ jobs:
     environment: production
     
     env:
-      SQL_SERVER: ${{ secrets.SQL_SERVER }}
-      SQL_DATABASE: ${{ secrets.SQL_DATABASE }}
+      SQL_SERVER_NAME: ${{ secrets.SQL_SERVER_NAME }}
+      SQL_DATABASE_NAME: ${{ secrets.SQL_DATABASE_NAME }}
     
     steps:
       - name: Checkout code
@@ -196,8 +196,8 @@ jobs:
           $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\scaffold-entities.ps1"
           
           & $scriptPath `
-            -SqlServer "${{ env.SQL_SERVER }}" `
-            -Database "${{ env.SQL_DATABASE }}" `
+            -SqlServer "${{ env.SQL_SERVER_NAME }}" `
+            -Database "${{ env.SQL_DATABASE_NAME }}" `
             -UseAzureAD `
             -AccessToken $token
           
