@@ -198,20 +198,16 @@ function Deploy-Assembly {
 
     $hexString = ConvertTo-HexString -FilePath $FilePath
 
-    # Idempotent deployment: Use ALTER ASSEMBLY for updates, CREATE for new
+    # Idempotent deployment: Use DROP and CREATE for robust, repeatable deployments.
     $deploySql = @"
 IF EXISTS (SELECT * FROM sys.assemblies WHERE name = '$AssemblyName')
 BEGIN
-    ALTER ASSEMBLY [$AssemblyName]
-    FROM 0x$hexString
-    WITH PERMISSION_SET = UNSAFE;
-END
-ELSE
-BEGIN
-    CREATE ASSEMBLY [$AssemblyName]
-    FROM 0x$hexString
-    WITH PERMISSION_SET = UNSAFE;
-END
+    DROP ASSEMBLY [$AssemblyName];
+END;
+
+CREATE ASSEMBLY [$AssemblyName]
+FROM 0x$hexString
+WITH PERMISSION_SET = UNSAFE;
 "@
 
     try {

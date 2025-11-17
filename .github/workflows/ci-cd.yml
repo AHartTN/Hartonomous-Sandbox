@@ -156,52 +156,63 @@ jobs:
         run: |
           ./scripts/enable-clr.ps1 -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken "${{ steps.get_token.outputs.token }}"
 
-      - name: 'Step 2.2: Deploy External (Unsigned) CLR Assemblies'
-        shell: pwsh
+      - name: Step 2.2: Pre-DACPAC Cleanup (Idempotency)
+        id: pre_dacpac_cleanup
         run: |
-          ./scripts/deploy-clr-assemblies.ps1 `
-            -Server "${{ env.SQL_SERVER }}" `
-            -Database "${{ env.SQL_DATABASE }}" `
-            -DependenciesPath "./dependencies" `
-            -UseAzureAD `
-            -AccessToken "${{ steps.get_token.outputs.token }}"
+          $sqlScript = @"
+          -- This script ensures idempotency by dropping all CLR-dependent objects
+          -- before the DACPAC deployment. This prevents "object already exists" errors
+          -- and handles dependency chains correctly.
 
-      - name: 'Step 2.3: Pre-DACPAC Cleanup (Idempotency)'
-        shell: pwsh
-        run: |
-          Write-Host "Running dynamic SQL script to drop existing CLR-dependent objects for idempotency..."
-          $dropAssemblySql = @"
-          IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name LIKE 'Hartonomous%')
+          USE [${{ env.SQL_DATABASE }}];
+
+          -- Drop all functions that depend on the main CLR assembly
+          DECLARE @sql NVARCHAR(MAX) = N'';
+          SELECT @sql += 'DROP FUNCTION ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
+          FROM sys.assembly_modules am
+          JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
+          JOIN sys.objects o ON am.object_id = o.object_id
+          JOIN sys.schemas s ON o.schema_id = s.schema_id
+          WHERE a.name = 'Hartonomous.Clr';
+          EXEC sp_executesql @sql;
+          PRINT 'Dropped all CLR-dependent functions.';
+
+          -- Drop all aggregates that depend on the main CLR assembly
+          SET @sql = N'';
+          SELECT @sql += 'DROP AGGREGATE ' + QUOTENAME(s.name) + '.' + QUOTENAME(o.name) + ';' + CHAR(13)
+          FROM sys.assembly_modules am
+          JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
+          JOIN sys.objects o ON am.object_id = o.object_id
+          JOIN sys.schemas s ON o.schema_id = s.schema_id
+          WHERE a.name = 'Hartonomous.Clr' AND o.type = 'AF';
+          EXEC sp_executesql @sql;
+          PRINT 'Dropped all CLR-dependent aggregates.';
+
+          -- Drop all types that depend on the main CLR assembly
+          SET @sql = N'';
+          SELECT @sql += 'DROP TYPE ' + QUOTENAME(s.name) + '.' + QUOTENAME(t.name) + ';' + CHAR(13)
+          FROM sys.assembly_types at
+          JOIN sys.assemblies a ON at.assembly_id = a.assembly_id
+          JOIN sys.types t ON at.user_type_id = t.user_type_id
+          JOIN sys.schemas s ON t.schema_id = s.schema_id
+          WHERE a.name = 'Hartonomous.Clr';
+          EXEC sp_executesql @sql;
+          PRINT 'Dropped all CLR-dependent types.';
+
+          -- Finally, drop the main CLR assembly itself
+          IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = 'Hartonomous.Clr')
           BEGIN
-              -- Drop functions, procedures, and aggregates that depend on the assembly first
-              DECLARE @sql NVARCHAR(MAX) = N'';
-              SELECT @sql += 'DROP ' + CASE type WHEN 'AF' THEN 'AGGREGATE' WHEN 'PC' THEN 'PROCEDURE' ELSE 'FUNCTION' END + ' IF EXISTS ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
-              FROM sys.objects 
-              WHERE type IN ('AF', 'PC', 'FN', 'FS', 'FT', 'IF', 'TF')
-              AND object_id IN (SELECT object_id FROM sys.assembly_modules WHERE assembly_id IN 
-                  (SELECT assembly_id FROM sys.assemblies WHERE name LIKE 'Hartonomous%'));
-              
-              EXEC sp_executesql @sql;
-              
-              -- Now drop the assemblies
-              DECLARE @asmName NVARCHAR(255);
-              DECLARE asm_cursor CURSOR FOR 
-                  SELECT name FROM sys.assemblies WHERE name LIKE 'Hartonomous%' ORDER BY assembly_id DESC;
-              
-              OPEN asm_cursor;
-              FETCH NEXT FROM asm_cursor INTO @asmName;
-              WHILE @@FETCH_STATUS = 0
-              BEGIN
-                  PRINT 'Dropping assembly: ' + @asmName;
-                  EXEC('DROP ASSEMBLY [' + @asmName + ']');
-                  FETCH NEXT FROM asm_cursor INTO @asmName;
-              END
-              CLOSE asm_cursor;
-              DEALLOCATE asm_cursor;
+              DROP ASSEMBLY [Hartonomous.Clr];
+              PRINT 'Dropped Hartonomous.Clr assembly.';
           END
           "@
-          Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query $dropAssemblySql -AccessToken "${{ steps.get_token.outputs.token }}" -TrustServerCertificate
-          Write-Host "✓ Cleanup complete."
+          Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query $sqlScript -AccessToken "${{ steps.get_sql_token.outputs.token }}" -TrustServerCertificate
+        shell: pwsh
+
+      - name: Step 2.3: Deploy External (Unsigned) CLR Assemblies
+        id: deploy_external_assemblies
+        run: ./scripts/deploy-clr-assemblies.ps1 -Server "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -UseAzureAD -AccessToken "${{ steps.get_sql_token.outputs.token }}" -DependenciesPath ./dependencies
+        shell: pwsh
 
       - name: 'Step 2.4: Deploy DACPAC (Hartonomous.Clr + T-SQL Objects)'
         shell: pwsh
