@@ -211,7 +211,50 @@ stages:
       inputs:
         packageType: 'sdk'
         version: '$(dotnetSdkVersion)'
-        performMultiLevelLookup: true
+    
+    # Scaffold entities from deployed database
+    - task: PowerShell@2
+      displayName: 'Scaffold EF Core Entities'
+      inputs:
+        targetType: 'inline'
+        script: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Scaffolding entities from database..."
+          
+          cd src/Hartonomous.Data.Entities
+          
+          dotnet ef dbcontext scaffold `
+            "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;" `
+            Microsoft.EntityFrameworkCore.SqlServer `
+            --output-dir Entities `
+            --context-dir . `
+            --context HartonomousDbContext `
+            --force `
+            --no-build
+          
+          Write-Host "\u2713 Entities scaffolded"
+        pwsh: true
+
+# ============================================================================
+# STAGE 4: BUILD .NET SOLUTION
+# ============================================================================
+- stage: BuildDotNet
+  displayName: 'Build .NET Solution'
+  dependsOn: ScaffoldEntities
+  condition: succeeded()
+  jobs:
+  - job: BuildDotNetJob
+    displayName: 'Build .NET Solution + CLR'
+    pool:
+      name: 'Local Agent Pool'
+    steps:
+    # Install .NET 10 SDK
+    - task: UseDotNet@2
+      displayName: 'Install .NET 10 SDK'
+      inputs:
+        packageType: 'sdk'
+        version: '$(dotnetSdkVersion)'
 
     # Restore NuGet packages
     - task: DotNetCoreCLI@2
@@ -316,15 +359,15 @@ stages:
         publishLocation: 'pipeline'
 
 # ============================================================================
-# STAGE 4: BUILD .NET SOLUTION
+# STAGE 5: DEPLOY HARTONOMOUS.CLR ASSEMBLY
 # ============================================================================
-- stage: BuildDotNet
-  displayName: 'Build .NET Solution'
-  dependsOn: ScaffoldEntities
+- stage: DeployCLR
+  displayName: 'Deploy Hartonomous.Clr Assembly'
+  dependsOn: BuildDotNet
   condition: succeeded()
   jobs:
-  - deployment: DatabaseDeployment
-    displayName: 'Deploy to SQL Server'
+  - deployment: DeployCLRAssembly
+    displayName: 'Deploy CLR to SQL Server'
     environment: 'SQL-Server-Production'
     pool:
       name: 'Local Agent Pool'
@@ -332,100 +375,19 @@ stages:
       runOnce:
         deploy:
           steps:
-          # Download artifacts
+          # Download dotnet artifact
           - download: current
-            artifact: database
-          - download: current
-            artifact: dotnet
-
-          # Step 1: Enable CLR on master database
+            artifact: 'dotnet'
+          
+          # Deploy Hartonomous.Clr assembly
           - task: PowerShell@2
-            displayName: 'Step 1: Enable CLR Integration'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                Write-Host "Enabling CLR integration on SQL Server..."
-                
-                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
-                EXEC sp_configure 'show advanced options', 1;
-                RECONFIGURE;
-                EXEC sp_configure 'clr enabled', 1;
-                RECONFIGURE;
-                EXEC sp_configure 'clr strict security', 0;
-                RECONFIGURE;
-                PRINT 'CLR enabled successfully';
-                "@
-                
-                Write-Host "✓ CLR configuration complete"
-              pwsh: true
-
-          # Step 2: Deploy DACPAC
-          - task: PowerShell@2
-            displayName: 'Step 2: Deploy DACPAC with SqlPackage'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
-                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
-                
-                Write-Host "Deploying DACPAC: $dacpacPath"
-                
-                sqlpackage.exe `
-                  /Action:Publish `
-                  /SourceFile:"$dacpacPath" `
-                  /TargetConnectionString:"$connectionString" `
-                  /p:DropObjectsNotInSource=False `
-                  /p:BlockOnPossibleDataLoss=True `
-                  /p:IgnorePermissions=True `
-                  /p:IgnoreRoleMembership=True `
-                  /DiagnosticsFile:"$(Pipeline.Workspace)/dacpac-deployment.log"
-                
-                if ($LASTEXITCODE -eq 0) {
-                  Write-Host "✓ DACPAC deployed successfully"
-                } else {
-                  Write-Error "✗ DACPAC deployment failed with exit code $LASTEXITCODE"
-                  exit 1
-                }
-              pwsh: true
-
-          # Step 3: Set TRUSTWORTHY
-          - task: PowerShell@2
-            displayName: 'Step 3: Set Database TRUSTWORTHY ON'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                Write-Host "Setting TRUSTWORTHY ON for $(sqlDatabase)..."
-                
-                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
-                ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;
-                PRINT 'TRUSTWORTHY enabled';
-                "@
-                
-                Write-Host "✓ TRUSTWORTHY enabled"
-              pwsh: true
-
-          # Step 4: Deploy external CLR assemblies (16 DLLs)
-          - task: PowerShell@2
-            displayName: 'Step 4: Deploy External CLR Assemblies (16 DLLs)'
-            inputs:
-              targetType: 'filePath'
-              filePath: '$(Pipeline.Workspace)/dotnet/scripts/deploy-clr-assemblies.ps1'
-              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
-              pwsh: true
-              continueOnError: false
-
-          # Step 5: Deploy Hartonomous.Clr assembly
-          - task: PowerShell@2
-            displayName: 'Step 5: Deploy Hartonomous.Clr Assembly'
+            displayName: 'Deploy Hartonomous.Clr Assembly'
             inputs:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
                 
-                $dllPath = "$(Pipeline.Workspace)/dotnet/clr/Hartonomous.Clr.dll"
+                $dllPath = "$(Pipeline.Workspace)/dotnet/Hartonomous.Clr.dll"
                 if (-not (Test-Path $dllPath)) {
                   Write-Error "CLR assembly not found: $dllPath"
                   exit 1
@@ -450,99 +412,15 @@ stages:
                 "@
                 
                 $sql | sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E
-                Write-Host "✓ Hartonomous.Clr assembly deployed"
+                Write-Host "\u2713 Hartonomous.Clr assembly deployed"
               pwsh: true
-
-          # Step 6: Scaffold EF Core entities (Database-First)
-          # Note: Scaffolding skipped in pipeline - run locally during development
-          # Command: dotnet ef dbcontext scaffold "connection-string" Microsoft.EntityFrameworkCore.SqlServer
-
-          # Step 7: Deploy stored procedures
-          - task: PowerShell@2
-            displayName: 'Step 7: Deploy Stored Procedures'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                
-                $proceduresPath = "$(Pipeline.Workspace)/database/Procedures"
-                
-                if (Test-Path $proceduresPath) {
-                  Write-Host "Deploying stored procedures from $proceduresPath..."
-                  
-                  Get-ChildItem -Path $proceduresPath -Filter "*.sql" -Recurse | ForEach-Object {
-                    Write-Host "Deploying: $($_.Name)"
-                    sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -i "$($_.FullName)"
-                  }
-                  
-                  Write-Host "\u2713 All stored procedures deployed"
-                } else {
-                  Write-Host "No procedures directory found, skipping..."
-                }
-              pwsh: true
-              continueOnError: true
-
-          # Step 8: Validate deployment
-          - task: PowerShell@2
-            displayName: 'Step 8: Validate Database Deployment'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                
-                Write-Host "========================================"
-                Write-Host "  Database Deployment Validation"
-                Write-Host "========================================"
-                
-                # Verify CLR assemblies
-                Write-Host "`nCLR Assemblies:"
-                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q @"
-                SELECT name, permission_set_desc, is_visible, create_date
-                FROM sys.assemblies
-                WHERE is_user_defined = 1
-                ORDER BY name;
-                "@
-                
-                # Verify TRUSTWORTHY
-                Write-Host "`nTRUSTWORTHY Setting:"
-                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
-                SELECT name, is_trustworthy_on
-                FROM sys.databases
-                WHERE name = '$(sqlDatabase)';
-                "@
-                
-                # Verify CLR functions
-                Write-Host "`nCLR Functions:"
-                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q @"
-                SELECT SCHEMA_NAME(o.schema_id) AS SchemaName, 
-                       o.name AS FunctionName, 
-                       o.type_desc
-                FROM sys.objects o
-                INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
-                WHERE o.type IN ('FN', 'FS', 'FT', 'AF')
-                ORDER BY SchemaName, FunctionName;
-                "@
-                
-                Write-Host "`n\u2713 Validation complete"
-              pwsh: true
-                
-                Write-Host "`n\u2713 Validation complete"
-
-          # Publish deployment logs
-          - task: PublishPipelineArtifact@1
-            displayName: 'Publish Deployment Logs'
-            condition: always()
-            inputs:
-              targetPath: '$(Pipeline.Workspace)'
-              artifact: 'deployment-logs'
-              publishLocation: 'pipeline'
 
 # ============================================================================
-# STAGE 3: DEPLOY APPLICATIONS (Optional)
+# STAGE 6: DEPLOY APPLICATIONS (Optional)
 # ============================================================================
 - stage: DeployApplications
   displayName: 'Deploy .NET Applications'
-  dependsOn: DeployDatabase
+  dependsOn: Deploy CLR
   condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
   jobs:
   - deployment: AppDeployment
