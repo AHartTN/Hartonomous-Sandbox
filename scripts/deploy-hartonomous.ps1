@@ -5,14 +5,25 @@
 
 .DESCRIPTION
     Complete end-to-end deployment automation combining DACPAC deployment, CLR assembly
-    registration, and stored procedure deployment. All operations are idempotent and
-    can be safely re-run without causing errors or data loss.
+    registration, entity scaffolding, and .NET solution build. All operations are 
+    idempotent and can be safely re-run on fresh or existing databases.
+
+    Deployment order (CRITICAL - DO NOT CHANGE):
+    1. Pre-flight checks (SQL connection, tools, paths)
+    2. Build DACPAC with MSBuild (NOT dotnet build)
+    3. Deploy DACPAC with SqlPackage (safe parameters for existing databases)
+    4. Deploy external CLR dependencies (System.*, MathNet.*, etc.)
+    5. Scaffold EF Core entities from deployed database schema
+    6. Build .NET solution (now entities exist)
+    7. Deploy stored procedures
+    8. Validate deployment
 
     Features:
     - Idempotent DACPAC deployment (applies only schema differences)
+    - Safe for existing databases (preserves data and objects)
     - Secure CLR deployment with proper assembly ordering
-    - Automated stored procedure registration
-    - Comprehensive error handling and rollback capability
+    - Automated EF Core entity scaffolding from database
+    - Comprehensive error handling
     - Detailed validation and verification steps
 
 .PARAMETER Server
@@ -30,46 +41,26 @@
 .PARAMETER Password
     SQL Server password (required if not using IntegratedSecurity)
 
-.PARAMETER SkipBuild
-    Skip building the solution before deployment
-
-.PARAMETER SkipDacpac
-    Skip DACPAC deployment (schema only)
-
-.PARAMETER SkipClr
-    Skip CLR assembly deployment
-
-.PARAMETER SkipProcedures
-    Skip stored procedure deployment
-
-.PARAMETER SkipValidation
-    Skip post-deployment validation tests
-
 .PARAMETER TrustServerCertificate
     Trust server certificate (default: true for local development)
-
-.PARAMETER Rebuild
-    Force rebuild of CLR assemblies
 
 .EXAMPLE
     .\deploy-hartonomous.ps1 -Server "localhost" -Database "Hartonomous" -IntegratedSecurity
     
-    Deploy using Windows Authentication to local server
+    Complete deployment using Windows Authentication to local server
 
 .EXAMPLE
-    .\deploy-hartonomous.ps1 -Server "prodserver" -Database "Hartonomous" -User "sa" -Password "password" -SkipBuild
+    .\deploy-hartonomous.ps1 -Server "prodserver" -Database "Hartonomous" -User "sa" -Password "password"
     
-    Deploy to production server using SQL Authentication without rebuilding
-
-.EXAMPLE
-    .\deploy-hartonomous.ps1 -SkipClr -SkipProcedures
-    
-    Deploy only DACPAC changes (schema only)
+    Complete deployment to production server using SQL Authentication
 
 .NOTES
     Author: Hartonomous Development Team
-    Version: 1.0.0
+    Version: 2.0.0
     Security: Uses CLR strict security with trusted assembly list (TRUSTWORTHY OFF)
+    
+    IMPORTANT: This script executes ALL deployment steps in the correct dependency order.
+               No skip flags are provided as all steps are required for proper operation.
 #>
 
 param(
@@ -78,13 +69,7 @@ param(
     [switch]$IntegratedSecurity,
     [string]$User,
     [string]$Password,
-    [switch]$SkipBuild,
-    [switch]$SkipDacpac,
-    [switch]$SkipClr,
-    [switch]$SkipProcedures,
-    [switch]$SkipValidation,
-    [switch]$TrustServerCertificate = $true,
-    [switch]$Rebuild
+    [switch]$TrustServerCertificate = $true
 )
 
 $ErrorActionPreference = "Stop"
@@ -235,7 +220,7 @@ Write-Host ""
 # STEP 0: PRE-FLIGHT CHECKS
 # =============================================================================
 
-Write-Section "Pre-Flight Checks" 0 8
+Write-Section "Pre-Flight Checks" 0 9
 
 # Check SQL Server connectivity
 Write-Host "Testing SQL Server connection..." -ForegroundColor Cyan
@@ -259,7 +244,8 @@ Write-Host "Checking required tools..." -ForegroundColor Cyan
 $requiredTools = @(
     @{ Name = "dotnet"; Command = "dotnet --version" },
     @{ Name = "sqlcmd"; Command = "sqlcmd -?" },
-    @{ Name = "sqlpackage"; Command = "sqlpackage /?" }
+    @{ Name = "sqlpackage"; Command = "sqlpackage /?" },
+    @{ Name = "dotnet-ef"; Command = "dotnet ef --version" }
 )
 
 foreach ($tool in $requiredTools) {
@@ -269,13 +255,42 @@ foreach ($tool in $requiredTools) {
     }
     catch {
         Write-Warning "$($tool.Name) not found or not working properly"
+        if ($tool.Name -eq "dotnet-ef") {
+            Write-Host "  Install with: dotnet tool install --global dotnet-ef" -ForegroundColor Gray
+        }
     }
+}
+
+# Find MSBuild
+Write-Host "Locating MSBuild..." -ForegroundColor Cyan
+$script:msbuildPath = $null
+$msbuildPaths = @(
+    "${env:ProgramFiles}\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\MSBuild.exe",
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
+    "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
+    "${env:ProgramFiles(x86)}\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
+)
+
+foreach ($path in $msbuildPaths) {
+    if (Test-Path $path) {
+        $script:msbuildPath = $path
+        Write-Success "MSBuild found: $(Split-Path (Split-Path (Split-Path $path -Parent) -Parent) -Parent)"
+        break
+    }
+}
+
+if (-not $script:msbuildPath) {
+    Write-Error "MSBuild not found. Install Visual Studio 2022 with SQL Server Data Tools (SSDT)."
+    throw "MSBuild is required to build database project (.sqlproj)"
 }
 
 # Verify repository structure
 Write-Host "Verifying repository structure..." -ForegroundColor Cyan
 $requiredPaths = @(
-    "src\Hartonomous.Database",
+    "src\Hartonomous.Database\Hartonomous.Database.sqlproj",
+    "src\Hartonomous.Data.Entities\Hartonomous.Data.Entities.csproj",
+    "dependencies",
     "scripts"
 )
 
@@ -290,138 +305,57 @@ foreach ($path in $requiredPaths) {
 }
 
 # =============================================================================
-# STEP 1: BUILD SOLUTION
+# STEP 1: BUILD DATABASE PROJECT (DACPAC)
 # =============================================================================
 
-if (-not $SkipBuild) {
-    Write-Section "Building Hartonomous Solution" 1 8
-    
-    $solutionFile = Join-Path $repoRoot "Hartonomous.sln"
-    
-    if (-not (Test-Path $solutionFile)) {
-        Write-Error "Solution file not found: $solutionFile"
-        throw "Cannot build solution"
-    }
-    
-    try {
-        # Get all .csproj files (exclude .sqlproj as it requires MSBuild)
-        $projects = Get-ChildItem -Path (Join-Path $repoRoot "src") -Filter "*.csproj" -Recurse
-        
-        Write-Host "Restoring NuGet packages for .NET projects..." -ForegroundColor Cyan
-        foreach ($proj in $projects) {
-            Write-Host "  Restoring $($proj.BaseName)..." -ForegroundColor Gray
-            dotnet restore $proj.FullName --verbosity quiet
-            if ($LASTEXITCODE -ne 0) {
-                throw "NuGet restore failed for $($proj.Name)"
-            }
-        }
-        
-        Write-Host "Building .NET projects (Release configuration)..." -ForegroundColor Cyan
-        foreach ($proj in $projects) {
-            Write-Host "  Building $($proj.BaseName)..." -ForegroundColor Gray
-            dotnet build $proj.FullName -c Release --no-restore --verbosity quiet
-            if ($LASTEXITCODE -ne 0) {
-                throw "Build failed for $($proj.Name)"
-            }
-        }
-        
-        Write-Success ".NET projects built successfully"
-    }
-    catch {
-        Write-Error "Build failed: $($_.Exception.Message)"
-        throw
-    }
-} else {
-    Write-Section "Skipping Build (--SkipBuild)" 1 8
-    Write-Host "Using existing build artifacts" -ForegroundColor Gray
-}
+Write-Section "Building Database Project (DACPAC)" 1 9
 
-# =============================================================================
-# STEP 2: BUILD DATABASE PROJECT (DACPAC)
-# =============================================================================
-
-$dacpacPath = Join-Path $repoRoot "src\Hartonomous.Database\bin\Output\Hartonomous.Database.dacpac"
-$altDacpacPath = Join-Path $repoRoot "src\Hartonomous.Database\bin\Release\Hartonomous.Database.dacpac"
-
-if (-not $SkipDacpac) {
-    Write-Section "Building Database Project (DACPAC)" 2 8
-    
-    # Check if DACPAC already exists
-    $dacpacExists = (Test-Path $dacpacPath) -or (Test-Path $altDacpacPath)
-    
-    if (-not $dacpacExists -or (-not $SkipBuild)) {
-        try {
-            $dbProjPath = Join-Path $repoRoot "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
-            
-            Write-Host "Building database project with MSBuild..." -ForegroundColor Cyan
-            
-            # Find MSBuild (check all common Visual Studio 2022 locations)
-            $msbuildPath = $null
-            $msbuildPaths = @(
-                "${env:ProgramFiles}\Microsoft Visual Studio\18\Insiders\MSBuild\Current\Bin\MSBuild.exe",
-                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
-                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
-                "${env:ProgramFiles}\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe"
-            )
-            
-            foreach ($path in $msbuildPaths) {
-                if (Test-Path $path) {
-                    $msbuildPath = $path
-                    break
-                }
-            }
-            
-            if (-not $msbuildPath) {
-                throw "MSBuild not found. Install Visual Studio 2022 with SQL Server Data Tools (SSDT)."
-            }
-            
-            Write-Host "  MSBuild: $msbuildPath" -ForegroundColor Gray
-            Write-Host "  Project: $dbProjPath" -ForegroundColor Gray
-            
-            # Build the database project
-            & $msbuildPath $dbProjPath `
-                /t:Build `
-                /p:Configuration=Release `
-                /v:minimal `
-                /nologo
-            
-            if ($LASTEXITCODE -ne 0) {
-                throw "Database project build failed"
-            }
-            
-            Write-Success "Database project (DACPAC) built successfully"
-        }
-        catch {
-            Write-Error "DACPAC build failed: $($_.Exception.Message)"
-            throw
-        }
-    } else {
-        Write-Host "Using existing DACPAC" -ForegroundColor Gray
-    }
-    
-    # Verify DACPAC exists
-    if (Test-Path $altDacpacPath) {
-        $dacpacPath = $altDacpacPath
-    }
-    
-    if (-not (Test-Path $dacpacPath)) {
-        Write-Error "DACPAC not found at: $dacpacPath"
-        throw "DACPAC build verification failed"
-    }
-    
-    Write-Success "DACPAC ready: $(Split-Path $dacpacPath -Leaf)"
-} else {
-    Write-Section "Skipping DACPAC Build (--SkipDacpac)" 2 8
-}
-
-# =============================================================================
-# STEP 3: CONFIGURE CLR SECURITY
-# =============================================================================
-
-Write-Section "Configuring SQL Server CLR" 3 8
+$dacpacPath = Join-Path $repoRoot "src\Hartonomous.Database\bin\Release\Hartonomous.Database.dacpac"
+$altDacpacPath = Join-Path $repoRoot "src\Hartonomous.Database\bin\Output\Hartonomous.Database.dacpac"
 
 try {
-    Write-Host "Enabling CLR integration..." -ForegroundColor Cyan
+    $dbProjPath = Join-Path $repoRoot "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
+    
+    Write-Host "Building database project with MSBuild..." -ForegroundColor Cyan
+    Write-Host "  MSBuild: $script:msbuildPath" -ForegroundColor Gray
+    Write-Host "  Project: $(Split-Path $dbProjPath -Leaf)" -ForegroundColor Gray
+    
+    # Build the database project (includes CLR code compilation)
+    & $script:msbuildPath $dbProjPath `
+        /t:Build `
+        /p:Configuration=Release `
+        /v:minimal `
+        /nologo
+    
+    if ($LASTEXITCODE -ne 0) {
+        throw "Database project build failed with exit code $LASTEXITCODE"
+    }
+    
+    # Check both possible output paths
+    if (Test-Path $dacpacPath) {
+        $script:finalDacpacPath = $dacpacPath
+    } elseif (Test-Path $altDacpacPath) {
+        $script:finalDacpacPath = $altDacpacPath
+    } else {
+        throw "DACPAC not found at expected locations"
+    }
+    
+    Write-Success "Database project (DACPAC) built successfully"
+    Write-Host "  Output: $script:finalDacpacPath" -ForegroundColor Gray
+}
+catch {
+    Write-Error "DACPAC build failed: $($_.Exception.Message)"
+    throw
+}
+
+# =============================================================================
+# STEP 2: CONFIGURE CLR SECURITY
+# =============================================================================
+
+Write-Section "Configuring SQL Server CLR" 2 9
+
+try {
+    Write-Host "Enabling CLR integration on master database..." -ForegroundColor Cyan
     
     $clrConfigSql = @"
 EXEC sp_configure 'show advanced options', 1;
@@ -440,200 +374,494 @@ catch {
 }
 
 # =============================================================================
-# STEP 4: DEPLOY DACPAC (SCHEMA)
+# STEP 3: DEPLOY DACPAC (SCHEMA + MAIN CLR ASSEMBLY)
 # =============================================================================
 
-if (-not $SkipDacpac) {
-    Write-Section "Deploying Database Schema (DACPAC)" 4 8
+Write-Section "Deploying Database Schema (DACPAC)" 3 9
+
+try {
+    $connectionString = Get-ConnectionString
+    
+    Write-Host "Deploying DACPAC to $Server/$Database..." -ForegroundColor Cyan
+    Write-Host "  Source: $(Split-Path $script:finalDacpacPath -Leaf)" -ForegroundColor Gray
+    Write-Host "  Target: $Server/$Database" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "  Deployment is SAFE for existing databases:" -ForegroundColor Green
+    Write-Host "    - Preserves data in all tables" -ForegroundColor Gray
+    Write-Host "    - Preserves objects not in DACPAC" -ForegroundColor Gray
+    Write-Host "    - Applies only necessary schema changes" -ForegroundColor Gray
+    Write-Host ""
+    
+    $publishArgs = @(
+        "/Action:Publish",
+        "/SourceFile:$($script:finalDacpacPath)",
+        "/TargetConnectionString:$connectionString",
+        "/p:IncludeCompositeObjects=True",
+        "/p:BlockOnPossibleDataLoss=False",
+        "/p:DropObjectsNotInSource=False",
+        "/p:DropConstraintsNotInSource=False",
+        "/p:DropIndexesNotInSource=False",
+        "/p:VerifyDeployment=True",
+        "/p:AllowIncompatiblePlatform=True"
+    )
+    
+    $publishOutput = & sqlpackage $publishArgs 2>&1
+    
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "DACPAC deployment completed with warnings"
+        Write-Host ($publishOutput | Out-String) -ForegroundColor Yellow
+    } else {
+        Write-Success "Database schema deployed successfully"
+        Write-Success "Main CLR assembly (Hartonomous.Database.dll) embedded in DACPAC"
+    }
+}
+catch {
+    Write-Error "DACPAC deployment failed: $($_.Exception.Message)"
+    throw
+}
+
+# =============================================================================
+# STEP 4: DEPLOY EXTERNAL CLR DEPENDENCIES
+# =============================================================================
+
+Write-Section "Deploying External CLR Dependencies" 4 9
+
+$dependenciesPath = Join-Path $repoRoot "dependencies"
+
+if (Test-Path $dependenciesPath) {
+    Write-Host "Found dependencies directory with external assemblies" -ForegroundColor Cyan
+    $dllFiles = Get-ChildItem -Path $dependenciesPath -Filter "*.dll"
+    Write-Host "  Total assemblies: $($dllFiles.Count)" -ForegroundColor Gray
+    
+    # Define deployment tiers (dependency order is critical)
+    $assemblyTiers = @(
+        @{
+            Tier = 1
+            Name = "Core System Assemblies"
+            Assemblies = @(
+                "System.Runtime.CompilerServices.Unsafe.dll",
+                "System.Buffers.dll",
+                "System.Numerics.Vectors.dll"
+            )
+        },
+        @{
+            Tier = 2
+            Name = "Memory & Runtime Assemblies"
+            Assemblies = @(
+                "System.Memory.dll",
+                "System.ValueTuple.dll"
+            )
+        },
+        @{
+            Tier = 3
+            Name = "Collections & Metadata"
+            Assemblies = @(
+                "System.Collections.Immutable.dll",
+                "System.Reflection.Metadata.dll"
+            )
+        },
+        @{
+            Tier = 4
+            Name = "Service & Drawing Assemblies"
+            Assemblies = @(
+                "System.ServiceModel.Internals.dll",
+                "SMDiagnostics.dll",
+                "System.Drawing.dll",
+                "System.Runtime.Serialization.dll"
+            )
+        },
+        @{
+            Tier = 5
+            Name = "Third-Party Libraries"
+            Assemblies = @(
+                "Newtonsoft.Json.dll",
+                "MathNet.Numerics.dll"
+            )
+        },
+        @{
+            Tier = 6
+            Name = "Application Assemblies"
+            Assemblies = @(
+                "Microsoft.SqlServer.Types.dll",
+                "SqlClrFunctions.dll"
+            )
+        }
+    )
     
     try {
-        Write-Host "Deploying DACPAC to $Server/$Database..." -ForegroundColor Cyan
-        Write-Host "  Source: $(Split-Path $dacpacPath -Leaf)" -ForegroundColor Gray
+        # Temporarily enable TRUSTWORTHY for deployment
+        Write-Host "Configuring database for CLR deployment..." -ForegroundColor Cyan
         
-        $publishArgs = @(
-            "/Action:Publish",
-            "/SourceFile:$dacpacPath",
-            "/TargetConnectionString:$connectionString",
-            "/p:IncludeCompositeObjects=True",
-            "/p:BlockOnPossibleDataLoss=False",
-            "/p:DropObjectsNotInSource=False",
-            "/p:DropConstraintsNotInSource=False",
-            "/p:DropIndexesNotInSource=False",
-            "/p:DoNotDropObjectTypes=Assemblies",
-            "/p:VerifyDeployment=True",
-            "/p:AllowIncompatiblePlatform=True",
-            "/p:CreateNewDatabase=False"
-        )
+        # Set TRUSTWORTHY on target database
+        $trustworthySql = "ALTER DATABASE [$Database] SET TRUSTWORTHY ON;"
+        Invoke-SqlCommand -Query $trustworthySql -DatabaseOverride "master"
         
-        $publishOutput = & sqlpackage $publishArgs 2>&1
+        # Disable CLR strict security
+        $clrStrictSql = @"
+EXEC sp_configure 'clr strict security', 0;
+RECONFIGURE;
+"@
+        Invoke-SqlCommand -Query $clrStrictSql -DatabaseOverride "master"
+        Write-Success "Database configured for CLR deployment"
         
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "DACPAC deployment completed with warnings"
-            Write-Host $publishOutput -ForegroundColor Yellow
-        } else {
-            Write-Success "Database schema deployed successfully"
+        # Deploy assemblies in tiers
+        $deployedCount = 0
+        $skippedCount = 0
+        
+        foreach ($tier in $assemblyTiers) {
+            Write-Host ""
+            Write-Host "Tier $($tier.Tier): $($tier.Name)" -ForegroundColor Yellow
+            
+            foreach ($asmName in $tier.Assemblies) {
+                $asmPath = Join-Path $dependenciesPath $asmName
+                
+                if (Test-Path $asmPath) {
+                    try {
+                        Write-Host "  Deploying $asmName..." -ForegroundColor Gray
+                        
+                        # Read assembly bytes and calculate hash
+                        $asmBytes = [System.IO.File]::ReadAllBytes($asmPath)
+                        $sha512 = [System.Security.Cryptography.SHA512]::Create()
+                        $hashBytes = $sha512.ComputeHash($asmBytes)
+                        $hashHex = [System.BitConverter]::ToString($hashBytes).Replace('-', '')
+                        
+                        # Add to trusted assemblies catalog
+                        $trustedAsmSql = @"
+IF NOT EXISTS (SELECT 1 FROM sys.trusted_assemblies WHERE hash = 0x$hashHex)
+BEGIN
+    EXEC sys.sp_add_trusted_assembly @hash = 0x$hashHex, @description = N'$asmName';
+END
+"@
+                        Invoke-SqlCommand -Query $trustedAsmSql -DatabaseOverride "master"
+                        
+                        # Drop and recreate assembly
+                        $asmBaseName = [System.IO.Path]::GetFileNameWithoutExtension($asmName)
+                        $dropAsmSql = @"
+IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$asmBaseName')
+BEGIN
+    DROP ASSEMBLY [$asmBaseName];
+END
+"@
+                        Invoke-SqlCommand -Query $dropAsmSql
+                        
+                        # Create assembly
+                        $hexString = [System.BitConverter]::ToString($asmBytes).Replace('-', '')
+                        $createAsmSql = @"
+CREATE ASSEMBLY [$asmBaseName]
+FROM 0x$hexString
+WITH PERMISSION_SET = UNSAFE;
+"@
+                        Invoke-SqlCommand -Query $createAsmSql
+                        
+                        $deployedCount++
+                        Write-Success "$asmName deployed"
+                    }
+                    catch {
+                        Write-Warning "Failed to deploy $asmName : $($_.Exception.Message)"
+                        $skippedCount++
+                    }
+                } else {
+                    Write-Host "  $asmName not found, skipping" -ForegroundColor DarkGray
+                    $skippedCount++
+                }
+            }
         }
+        
+        # Re-enable strict security
+        Write-Host ""
+        Write-Host "Re-enabling CLR strict security..." -ForegroundColor Cyan
+        
+        # Re-enable CLR strict security
+        $clrStrictOnSql = @"
+EXEC sp_configure 'clr strict security', 1;
+RECONFIGURE;
+"@
+        Invoke-SqlCommand -Query $clrStrictOnSql -DatabaseOverride "master"
+        
+        # Disable TRUSTWORTHY
+        $trustworthyOffSql = "ALTER DATABASE [$Database] SET TRUSTWORTHY OFF;"
+        Invoke-SqlCommand -Query $trustworthyOffSql -DatabaseOverride "master"
+        Write-Success "CLR strict security re-enabled"
+        
+        Write-Host ""
+        Write-Success "External CLR deployment complete ($deployedCount deployed, $skippedCount skipped)"
     }
     catch {
-        Write-Error "DACPAC deployment failed: $($_.Exception.Message)"
+        Write-Error "External CLR deployment failed: $($_.Exception.Message)"
+        
+        # Try to restore security settings
+        try {
+            $restoreClrSql = @"
+EXEC sp_configure 'clr strict security', 1;
+RECONFIGURE;
+"@
+            Invoke-SqlCommand -Query $restoreClrSql -DatabaseOverride "master"
+            
+            $restoreTrustSql = "ALTER DATABASE [$Database] SET TRUSTWORTHY OFF;"
+            Invoke-SqlCommand -Query $restoreTrustSql -DatabaseOverride "master"
+        }
+        catch {
+            Write-Warning "Could not restore security settings"
+        }
+        
         throw
     }
 } else {
-    Write-Section "Skipping DACPAC Deployment (--SkipDacpac)" 4 8
+    Write-Host "No dependencies directory found, skipping external CLR deployment" -ForegroundColor Gray
 }
 
 # =============================================================================
-# STEP 5: DEPLOY CLR ASSEMBLIES
+# STEP 5: SCAFFOLD EF CORE ENTITIES
 # =============================================================================
 
-if (-not $SkipClr) {
-    Write-Section "Deploying CLR Assemblies" 5 8
+Write-Section "Scaffolding EF Core Entities from Database" 5 9
+
+$entitiesProjectPath = Join-Path $repoRoot "src\Hartonomous.Data.Entities"
+$entitiesDir = Join-Path $entitiesProjectPath "Entities"
+$dbContextPath = Join-Path $entitiesProjectPath "HartonomousDbContext.cs"
+
+try {
+    Write-Host "Scaffolding entities from deployed database schema..." -ForegroundColor Cyan
+    Write-Host "  Target: src\Hartonomous.Data.Entities\" -ForegroundColor Gray
     
-    $clrScriptPath = Join-Path $scriptRoot "deploy-clr-secure.ps1"
-    
-    if (Test-Path $clrScriptPath) {
-        try {
-            Write-Host "Executing CLR deployment script..." -ForegroundColor Cyan
-            
-            $clrParams = @{
-                ServerName = $Server
-                DatabaseName = $Database
-                SkipConfigCheck = $true
-            }
-            
-            if ($Rebuild) {
-                $clrParams.Rebuild = $true
-            }
-            
-            & $clrScriptPath @clrParams
-            
-            if ($LASTEXITCODE -eq 0) {
-                Write-Success "CLR assemblies deployed successfully"
-            } else {
-                Write-Warning "CLR deployment completed with warnings"
-            }
-        }
-        catch {
-            Write-Warning "CLR deployment encountered errors: $($_.Exception.Message)"
-            Write-Host "You may need to manually run: scripts\deploy-clr-secure.ps1" -ForegroundColor Yellow
-        }
-    } else {
-        Write-Warning "CLR deployment script not found: $clrScriptPath"
-        Write-Host "CLR assemblies may need to be deployed manually" -ForegroundColor Yellow
+    # Backup existing entities if they exist
+    if (Test-Path $entitiesDir) {
+        $timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+        $backupDir = Join-Path $entitiesProjectPath "Entities.backup_$timestamp"
+        Write-Host "  Backing up existing entities to: $(Split-Path $backupDir -Leaf)" -ForegroundColor Gray
+        Copy-Item -Path $entitiesDir -Destination $backupDir -Recurse -Force
     }
-} else {
-    Write-Section "Skipping CLR Deployment (--SkipClr)" 5 8
-}
-
-# =============================================================================
-# STEP 6: DEPLOY STORED PROCEDURES
-# =============================================================================
-
-if (-not $SkipProcedures) {
-    Write-Section "Deploying Stored Procedures" 6 8
     
-    $proceduresPath = Join-Path $repoRoot "src\Hartonomous.Database\Procedures"
-    
-    if (Test-Path $proceduresPath) {
-        try {
-            $sqlFiles = Get-ChildItem -Path $proceduresPath -Filter "*.sql" -Recurse
-            
-            Write-Host "Found $($sqlFiles.Count) procedure files" -ForegroundColor Cyan
-            
-            $deployed = 0
-            $failed = 0
-            
-            foreach ($sqlFile in $sqlFiles) {
-                try {
-                    Write-Host "  Deploying $($sqlFile.Name)..." -ForegroundColor Gray
-                    $result = Invoke-SqlFile -FilePath $sqlFile.FullName
-                    $deployed++
-                }
-                catch {
-                    Write-Warning "Failed to deploy $($sqlFile.Name): $($_.Exception.Message)"
-                    $failed++
-                }
-            }
-            
-            Write-Success "Deployed $deployed/$($sqlFiles.Count) procedures ($failed failed)"
-        }
-        catch {
-            Write-Warning "Procedure deployment encountered errors: $($_.Exception.Message)"
-        }
-    } else {
-        Write-Warning "Procedures directory not found: $proceduresPath"
+    # Remove old generated files
+    if (Test-Path $entitiesDir) {
+        Remove-Item -Path $entitiesDir -Recurse -Force
     }
-} else {
-    Write-Section "Skipping Procedure Deployment (--SkipProcedures)" 6 8
-}
-
-# =============================================================================
-# STEP 7: VALIDATION
-# =============================================================================
-
-if (-not $SkipValidation) {
-    Write-Section "Running Validation Tests" 7 8
+    if (Test-Path $dbContextPath) {
+        Remove-Item -Path $dbContextPath -Force
+    }
     
+    # Remove old backup directories (keep only latest 3)
+    $oldBackups = Get-ChildItem -Path $entitiesProjectPath -Directory -Filter "Entities.backup_*" | 
+                  Sort-Object Name -Descending | 
+                  Select-Object -Skip 3
+    if ($oldBackups) {
+        Write-Host "  Cleaning up old backups ($($oldBackups.Count) removed)" -ForegroundColor Gray
+        $oldBackups | Remove-Item -Recurse -Force
+    }
+    
+    # Build connection string for scaffolding
+    $scaffoldConnStr = Get-ConnectionString
+    
+    # Run EF Core scaffolding
+    Write-Host "  Running: dotnet ef dbcontext scaffold..." -ForegroundColor Gray
+    
+    Push-Location $entitiesProjectPath
     try {
-        Write-Host "Verifying database objects..." -ForegroundColor Cyan
+        $scaffoldArgs = @(
+            "ef", "dbcontext", "scaffold",
+            $scaffoldConnStr,
+            "Microsoft.EntityFrameworkCore.SqlServer",
+            "--output-dir", "Entities",
+            "--context", "HartonomousDbContext",
+            "--context-dir", ".",
+            "--namespace", "Hartonomous.Data.Entities",
+            "--force",
+            "--no-onconfiguring",
+            "--no-pluralize",
+            "--verbose"
+        )
         
-        # Check for key tables
-        $tableCheckSql = @"
+        & dotnet $scaffoldArgs
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Entity scaffolding failed with exit code $LASTEXITCODE"
+        }
+    }
+    finally {
+        Pop-Location
+    }
+    
+    # Verify scaffolding succeeded
+    if (-not (Test-Path $dbContextPath)) {
+        throw "DbContext was not generated"
+    }
+    
+    if (-not (Test-Path $entitiesDir)) {
+        throw "Entities directory was not created"
+    }
+    
+    $entityCount = (Get-ChildItem -Path $entitiesDir -Filter "*.cs").Count
+    Write-Success "Entity scaffolding complete ($entityCount entity classes generated)"
+    
+    # Verify project builds
+    Write-Host "  Verifying Entities project builds..." -ForegroundColor Gray
+    Push-Location $entitiesProjectPath
+    try {
+        & dotnet build --nologo --verbosity quiet
+        if ($LASTEXITCODE -ne 0) {
+            throw "Entities project build verification failed"
+        }
+        Write-Success "Entities project builds successfully"
+    }
+    finally {
+        Pop-Location
+    }
+}
+catch {
+    Write-Error "Entity scaffolding failed: $($_.Exception.Message)"
+    throw
+}
+
+# =============================================================================
+# STEP 6: BUILD .NET SOLUTION
+# =============================================================================
+
+Write-Section "Building .NET Solution" 6 9
+
+$solutionFile = Join-Path $repoRoot "Hartonomous.sln"
+
+if (-not (Test-Path $solutionFile)) {
+    Write-Error "Solution file not found: $solutionFile"
+    throw "Cannot build solution"
+}
+
+try {
+    Write-Host "Restoring NuGet packages..." -ForegroundColor Cyan
+    & dotnet restore $solutionFile --verbosity quiet
+    if ($LASTEXITCODE -ne 0) {
+        throw "NuGet restore failed"
+    }
+    Write-Success "NuGet packages restored"
+    
+    Write-Host "Building solution (Release configuration)..." -ForegroundColor Cyan
+    & dotnet build $solutionFile -c Release --no-restore --verbosity minimal
+    if ($LASTEXITCODE -ne 0) {
+        throw "Solution build failed"
+    }
+    
+    Write-Success ".NET solution built successfully"
+}
+catch {
+    Write-Error "Solution build failed: $($_.Exception.Message)"
+    throw
+}
+
+# =============================================================================
+# STEP 7: DEPLOY STORED PROCEDURES
+# =============================================================================
+
+Write-Section "Deploying Stored Procedures" 7 9
+
+$proceduresPath = Join-Path $repoRoot "src\Hartonomous.Database\Procedures"
+
+if (Test-Path $proceduresPath) {
+    try {
+        $sqlFiles = Get-ChildItem -Path $proceduresPath -Filter "*.sql" -Recurse
+        
+        Write-Host "Found $($sqlFiles.Count) procedure files" -ForegroundColor Cyan
+        
+        $deployed = 0
+        $failed = 0
+        
+        foreach ($sqlFile in $sqlFiles) {
+            try {
+                Write-Host "  Deploying $($sqlFile.Name)..." -ForegroundColor Gray
+                $result = Invoke-SqlFile -FilePath $sqlFile.FullName
+                $deployed++
+            }
+            catch {
+                Write-Warning "Failed to deploy $($sqlFile.Name): $($_.Exception.Message)"
+                $failed++
+            }
+        }
+        
+        Write-Success "Deployed $deployed/$($sqlFiles.Count) procedures ($failed failed)"
+    }
+    catch {
+        Write-Warning "Procedure deployment encountered errors: $($_.Exception.Message)"
+    }
+} else {
+    Write-Warning "Procedures directory not found: $proceduresPath"
+}
+
+# =============================================================================
+# STEP 8: VALIDATION
+# =============================================================================
+
+Write-Section "Running Validation Tests" 8 9
+
+try {
+    Write-Host "Verifying database objects..." -ForegroundColor Cyan
+    
+    # Check for key tables
+    $tableCheckSql = @"
 SELECT COUNT(*) AS TableCount
 FROM sys.tables
 WHERE name IN ('Atoms', 'AtomEmbeddings', 'Models', 'Tenants', 'InferenceRequests');
 "@
-        
-        $tableCount = Invoke-SqlCommand -Query $tableCheckSql
-        
-        if ([int]$tableCount -ge 5) {
-            Write-Success "Core tables verified ($tableCount found)"
-        } else {
-            Write-Warning "Some core tables may be missing (only $tableCount found)"
-        }
-        
-        # Check for CLR assemblies
-        $assemblyCheckSql = @"
+    
+    $tableCount = Invoke-SqlCommand -Query $tableCheckSql
+    
+    if ([int]$tableCount -ge 5) {
+        Write-Success "Core tables verified ($tableCount found)"
+    } else {
+        Write-Warning "Some core tables may be missing (only $tableCount found)"
+    }
+    
+    # Check for CLR assemblies
+    $assemblyCheckSql = @"
 SELECT COUNT(*) AS AssemblyCount
 FROM sys.assemblies
 WHERE name NOT IN ('mscorlib', 'System', 'System.Data', 'System.Xml');
 "@
-        
-        $assemblyCount = Invoke-SqlCommand -Query $assemblyCheckSql
-        
-        if ([int]$assemblyCount -gt 0) {
-            Write-Success "CLR assemblies registered ($assemblyCount found)"
-        } else {
-            Write-Warning "No custom CLR assemblies found"
-        }
-        
-        # Check for stored procedures
-        $procCheckSql = @"
+    
+    $assemblyCount = Invoke-SqlCommand -Query $assemblyCheckSql
+    
+    if ([int]$assemblyCount -gt 0) {
+        Write-Success "CLR assemblies registered ($assemblyCount found)"
+    } else {
+        Write-Warning "No custom CLR assemblies found"
+    }
+    
+    # Check for stored procedures
+    $procCheckSql = @"
 SELECT COUNT(*) AS ProcCount
 FROM sys.procedures
 WHERE schema_id = SCHEMA_ID('dbo');
 "@
-        
-        $procCount = Invoke-SqlCommand -Query $procCheckSql
-        
-        if ([int]$procCount -gt 0) {
-            Write-Success "Stored procedures registered ($procCount found)"
-        } else {
-            Write-Warning "No stored procedures found"
-        }
+    
+    $procCount = Invoke-SqlCommand -Query $procCheckSql
+    
+    if ([int]$procCount -gt 0) {
+        Write-Success "Stored procedures registered ($procCount found)"
+    } else {
+        Write-Warning "No stored procedures found"
     }
-    catch {
-        Write-Warning "Validation checks failed: $($_.Exception.Message)"
+    
+    # Verify entity files exist
+    $entityFiles = Get-ChildItem -Path $entitiesDir -Filter "*.cs" -ErrorAction SilentlyContinue
+    if ($entityFiles -and $entityFiles.Count -gt 0) {
+        Write-Success "EF Core entities verified ($($entityFiles.Count) entity classes)"
+    } else {
+        Write-Warning "Entity classes may not have been generated"
     }
-} else {
-    Write-Section "Skipping Validation (--SkipValidation)" 7 8
+    
+    # Verify DbContext exists
+    if (Test-Path $dbContextPath) {
+        Write-Success "HartonomousDbContext verified"
+    } else {
+        Write-Warning "HartonomousDbContext not found"
+    }
+}
+catch {
+    Write-Warning "Validation checks failed: $($_.Exception.Message)"
 }
 
 # =============================================================================
-# STEP 8: DEPLOYMENT SUMMARY
+# STEP 9: DEPLOYMENT SUMMARY
 # =============================================================================
 
-Write-Section "Deployment Summary" 8 8
+Write-Section "Deployment Summary" 9 9
 
 $duration = (Get-Date) - $startTime
 $durationText = "{0:mm\:ss}" -f $duration

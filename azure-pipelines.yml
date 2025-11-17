@@ -17,7 +17,7 @@ trigger:
       - LICENSE
 
 pool:
-  vmImage: 'windows-latest'
+  name: 'Local Agent Pool'
 
 variables:
   - name: buildConfiguration
@@ -25,11 +25,9 @@ variables:
   - name: dotnetSdkVersion
     value: '10.x'
   - name: sqlServer
-    value: 'your-sql-server.database.windows.net'
+    value: 'localhost'
   - name: sqlDatabase
     value: 'Hartonomous'
-  - name: azureServiceConnection
-    value: 'Azure-Service-Connection' # Azure service connection name
 
 stages:
 # ============================================================================
@@ -229,20 +227,15 @@ stages:
             artifact: dotnet
 
           # Step 1: Enable CLR on master database
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 1: Enable CLR Integration'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
                 Write-Host "Enabling CLR integration on SQL Server..."
                 
-                # Get Azure AD access token for SQL
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
-                
-                sqlcmd -S "$(sqlServer)" -d "master" -G -P $token -Q @"
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
                 EXEC sp_configure 'show advanced options', 1;
                 RECONFIGURE;
                 EXEC sp_configure 'clr enabled', 1;
@@ -253,29 +246,24 @@ stages:
                 "@
                 
                 Write-Host "✓ CLR configuration complete"
+              pwsh: true
 
           # Step 2: Deploy DACPAC
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 2: Deploy DACPAC with SqlPackage'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
                 $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
-                
-                # Get Azure AD access token
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
                 
                 Write-Host "Deploying DACPAC: $dacpacPath"
                 
                 sqlpackage.exe `
                   /Action:Publish `
                   /SourceFile:"$dacpacPath" `
-                  /TargetServerName:"$(sqlServer)" `
-                  /TargetDatabaseName:"$(sqlDatabase)" `
-                  /AccessToken:"$token" `
+                  /TargetConnectionString:"$connectionString" `
                   /p:DropObjectsNotInSource=False `
                   /p:BlockOnPossibleDataLoss=True `
                   /p:IgnorePermissions=True `
@@ -288,55 +276,42 @@ stages:
                   Write-Error "✗ DACPAC deployment failed with exit code $LASTEXITCODE"
                   exit 1
                 }
+              pwsh: true
 
           # Step 3: Set TRUSTWORTHY
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 3: Set Database TRUSTWORTHY ON'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
                 Write-Host "Setting TRUSTWORTHY ON for $(sqlDatabase)..."
                 
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
-                
-                sqlcmd -S "$(sqlServer)" -d "master" -G -P $token -Q @"
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
                 ALTER DATABASE [$(sqlDatabase)] SET TRUSTWORTHY ON;
                 PRINT 'TRUSTWORTHY enabled';
                 "@
                 
                 Write-Host "✓ TRUSTWORTHY enabled"
+              pwsh: true
 
           # Step 4: Deploy external CLR assemblies (16 DLLs)
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 4: Deploy External CLR Assemblies (16 DLLs)'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
-                $ErrorActionPreference = 'Stop'
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
-                
-                & "$(Pipeline.Workspace)/dotnet/scripts/deploy-clr-assemblies.ps1" `
-                  -Server "$(sqlServer)" `
-                  -Database "$(sqlDatabase)" `
-                  -UseAzureAD `
-                  -AccessToken $token `
-                  -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"
+              targetType: 'filePath'
+              filePath: '$(Pipeline.Workspace)/dotnet/scripts/deploy-clr-assemblies.ps1'
+              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
+              pwsh: true
+              continueOnError: false
 
           # Step 5: Deploy Hartonomous.Clr assembly
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 5: Deploy Hartonomous.Clr Assembly'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
                 
                 $dllPath = "$(Pipeline.Workspace)/dotnet/clr/Hartonomous.Clr.dll"
                 if (-not (Test-Path $dllPath)) {
@@ -362,8 +337,9 @@ stages:
                 PRINT 'Hartonomous.Clr deployed successfully';
                 "@
                 
-                $sql | sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token
+                $sql | sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E
                 Write-Host "✓ Hartonomous.Clr assembly deployed"
+              pwsh: true
 
           # Step 6: Scaffold EF Core entities (Database-First)
           - task: DotNetCoreCLI@2
@@ -373,16 +349,14 @@ stages:
               custom: 'tool'
               arguments: 'install --global dotnet-ef --version 10.*'
 
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 6b: Scaffold EF Core Entities (Database-First)'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
                 
-                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Authentication=Active Directory Default;"
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
                 
                 Write-Host "Scaffolding EF Core entities from database..."
                 
@@ -396,18 +370,16 @@ stages:
                   --no-onconfiguring
                 
                 Write-Host "✓ Entity scaffolding complete"
+              pwsh: true
             continueOnError: true
 
           # Step 7: Deploy stored procedures
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 7: Deploy Stored Procedures'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
                 
                 $proceduresPath = "$(Pipeline.Workspace)/database/Procedures"
                 
@@ -416,25 +388,23 @@ stages:
                   
                   Get-ChildItem -Path $proceduresPath -Filter "*.sql" -Recurse | ForEach-Object {
                     Write-Host "Deploying: $($_.Name)"
-                    sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token -i "$($_.FullName)"
+                    sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -i "$($_.FullName)"
                   }
                   
                   Write-Host "\u2713 All stored procedures deployed"
                 } else {
                   Write-Host "No procedures directory found, skipping..."
                 }
+              pwsh: true
               continueOnError: true
 
           # Step 8: Validate deployment
-          - task: AzureCLI@2
+          - task: PowerShell@2
             displayName: 'Step 8: Validate Database Deployment'
             inputs:
-              azureSubscription: '$(azureServiceConnection)'
-              scriptType: 'pscore'
-              scriptLocation: 'inlineScript'
-              inlineScript: |
+              targetType: 'inline'
+              script: |
                 $ErrorActionPreference = 'Stop'
-                $token = az account get-access-token --resource https://database.windows.net --query accessToken -o tsv
                 
                 Write-Host "========================================"
                 Write-Host "  Database Deployment Validation"
@@ -442,7 +412,7 @@ stages:
                 
                 # Verify CLR assemblies
                 Write-Host "`nCLR Assemblies:"
-                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token -Q @"
+                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q @"
                 SELECT name, permission_set_desc, is_visible, create_date
                 FROM sys.assemblies
                 WHERE is_user_defined = 1
@@ -451,7 +421,7 @@ stages:
                 
                 # Verify TRUSTWORTHY
                 Write-Host "`nTRUSTWORTHY Setting:"
-                sqlcmd -S "$(sqlServer)" -d "master" -G -P $token -Q @"
+                sqlcmd -S "$(sqlServer)" -d "master" -E -Q @"
                 SELECT name, is_trustworthy_on
                 FROM sys.databases
                 WHERE name = '$(sqlDatabase)';
@@ -459,7 +429,7 @@ stages:
                 
                 # Verify CLR functions
                 Write-Host "`nCLR Functions:"
-                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -G -P $token -Q @"
+                sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q @"
                 SELECT SCHEMA_NAME(o.schema_id) AS SchemaName, 
                        o.name AS FunctionName, 
                        o.type_desc
@@ -468,6 +438,9 @@ stages:
                 WHERE o.type IN ('FN', 'FS', 'FT', 'AF')
                 ORDER BY SchemaName, FunctionName;
                 "@
+                
+                Write-Host "`n\u2713 Validation complete"
+              pwsh: true
                 
                 Write-Host "`n\u2713 Validation complete"
 

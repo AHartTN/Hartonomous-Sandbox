@@ -69,10 +69,11 @@ if ($UseAzureAD) {
     if ([string]::IsNullOrEmpty($AccessToken)) {
         throw "AccessToken is required when UseAzureAD is specified"
     }
+    Write-Host "Using Azure AD authentication"
+} elseif (-not [string]::IsNullOrEmpty($Username) -and -not [string]::IsNullOrEmpty($Password)) {
+    Write-Host "Using SQL authentication"
 } else {
-    if ([string]::IsNullOrEmpty($Username) -or [string]::IsNullOrEmpty($Password)) {
-        throw "Username and Password are required when not using Azure AD authentication"
-    }
+    Write-Host "Using Windows integrated authentication"
 }
 
 # Tier structure based on dependency order
@@ -145,8 +146,10 @@ END
 
     if ($UseAzureAD) {
         $dropSql | sqlcmd -S $Server -d $Database -G -P $AccessToken -b
-    } else {
+    } elseif ($Username -and $Password) {
         $dropSql | sqlcmd -S $Server -U $Username -P $Password -d $Database -b
+    } else {
+        $dropSql | sqlcmd -S $Server -d $Database -E -b
     }
 
     # Create assembly with UNSAFE permission set
@@ -160,8 +163,10 @@ PRINT 'Assembly deployed: $AssemblyName';
 
     if ($UseAzureAD) {
         $createSql | sqlcmd -S $Server -d $Database -G -P $AccessToken -b
-    } else {
+    } elseif ($Username -and $Password) {
         $createSql | sqlcmd -S $Server -U $Username -P $Password -d $Database -b
+    } else {
+        $createSql | sqlcmd -S $Server -d $Database -E -b
     }
 
     if ($LASTEXITCODE -ne 0) {
