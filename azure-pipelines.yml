@@ -111,31 +111,79 @@ stages:
             artifact: database
 
           # Step 0: Grant Pipeline Agent Permissions (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Grant Agent Permissions'
+          - task: AzureCLI@2
+            displayName: 'Grant Agent Permissions (Service Principal Auth)'
             inputs:
-              targetType: 'filePath'
-              filePath: '$(Pipeline.Workspace)/database/scripts/grant-agent-permissions.ps1'
-              arguments: '-Server "$(sqlServer)"'
-              pwsh: true
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                
+                Write-Host "Retrieving access token for SQL Server authentication..."
+                $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+                
+                if (-not $token) {
+                    throw "Failed to retrieve access token"
+                }
+                
+                $scriptPath = "$(Pipeline.Workspace)/database/scripts/grant-agent-permissions.ps1"
+                & $scriptPath -Server "$(sqlServer)" -UseAzureAD -AccessToken $token
+                
+                if ($LASTEXITCODE -ne 0) { throw "Failed to grant agent permissions" }
 
           # Step 1: Enable CLR Integration (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Enable CLR Integration'
+          - task: AzureCLI@2
+            displayName: 'Enable CLR Integration (Service Principal Auth)'
             inputs:
-              targetType: 'filePath'
-              filePath: '$(Pipeline.Workspace)/database/scripts/enable-clr.ps1'
-              arguments: '-Server "$(sqlServer)"'
-              pwsh: true
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                
+                Write-Host "Retrieving access token for SQL Server authentication..."
+                $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+                
+                if (-not $token) {
+                    throw "Failed to retrieve access token"
+                }
+                
+                $scriptPath = "$(Pipeline.Workspace)/database/scripts/enable-clr.ps1"
+                & $scriptPath -Server "$(sqlServer)" -UseAzureAD -AccessToken $token
+                
+                if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
 
           # Step 2: Deploy External CLR Assemblies
-          - task: PowerShell@2
-            displayName: 'Deploy External CLR Assemblies'
+          - task: AzureCLI@2
+            displayName: 'Deploy External CLR Assemblies (Service Principal Auth)'
             inputs:
-              targetType: 'filePath'
-              filePath: '$(Pipeline.Workspace)/database/scripts/deploy-clr-assemblies.ps1'
-              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
-              pwsh: true
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                
+                # Get access token for SQL Server
+                Write-Host "Retrieving access token for SQL Server authentication..."
+                $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+                
+                if (-not $token) {
+                    throw "Failed to retrieve access token"
+                }
+                
+                Write-Host "Deploying 13 external CLR assemblies..."
+                $scriptPath = "$(Pipeline.Workspace)/database/scripts/deploy-clr-assemblies.ps1"
+                
+                & $scriptPath `
+                  -Server "$(sqlServer)" `
+                  -Database "$(sqlDatabase)" `
+                  -UseAzureAD `
+                  -AccessToken $token `
+                  -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"
+                
+                if ($LASTEXITCODE -ne 0) { throw "CLR assembly deployment failed" }
+                Write-Host "✓ All external CLR assemblies deployed successfully"
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
           - task: PowerShell@2
@@ -145,38 +193,65 @@ stages:
               filePath: '$(Pipeline.Workspace)/database/scripts/install-sqlpackage.ps1'
               pwsh: true
               
-          - task: PowerShell@2
-            displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
+          - task: AzureCLI@2
+            displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly (Service Principal Auth)'
             inputs:
-              targetType: 'inline'
-              script: |
+              azureSubscription: '$(azureServiceConnection)'  # Azure service connection with service principal
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
                 $ErrorActionPreference = 'Stop'
+                
+                # Get access token for Azure SQL using service principal from service connection
+                Write-Host "Retrieving access token for SQL Server authentication..."
+                $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+                
+                if (-not $token) {
+                    throw "Failed to retrieve access token"
+                }
+                
                 $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
-                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=False;User ID=$(sqlUsername);Password=$(sqlPassword);TrustServerCertificate=True;"
+                $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Encrypt=True;TrustServerCertificate=True;"
                 
                 Write-Host "Deploying DACPAC: $dacpacPath"
+                Write-Host "Target: $(sqlServer)/$(sqlDatabase)"
+                Write-Host "Authentication: Microsoft Entra Service Principal (via access token)"
                 Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
                 
+                # Deploy using SqlPackage with access token
                 sqlpackage /Action:Publish `
                   /SourceFile:"$dacpacPath" `
                   /TargetConnectionString:"$connectionString" `
+                  /AccessToken:$token `
                   /p:DropObjectsNotInSource=False `
                   /p:BlockOnPossibleDataLoss=True `
                   /p:IgnorePreDeployScript=True `
                   /p:IgnorePostDeployScript=True
                 
                 if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
-                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
-              pwsh: true
+                Write-Host "✓ DACPAC deployed successfully with Hartonomous.Clr assembly"
 
           # Step 4: Set TRUSTWORTHY ON (Idempotent)
-          - task: PowerShell@2
-            displayName: 'Set TRUSTWORTHY ON'
+          - task: AzureCLI@2
+            displayName: 'Set TRUSTWORTHY ON (Service Principal Auth)'
             inputs:
-              targetType: 'filePath'
-              filePath: '$(Pipeline.Workspace)/database/scripts/set-trustworthy.ps1'
-              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)"'
-              pwsh: true
+              azureSubscription: '$(azureServiceConnection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                
+                Write-Host "Retrieving access token for SQL Server authentication..."
+                $token = az account get-access-token --resource https://database.windows.net/ --query accessToken -o tsv
+                
+                if (-not $token) {
+                    throw "Failed to retrieve access token"
+                }
+                
+                $scriptPath = "$(Pipeline.Workspace)/database/scripts/set-trustworthy.ps1"
+                & $scriptPath -Server "$(sqlServer)" -Database "$(sqlDatabase)" -UseAzureAD -AccessToken $token
+                
+                if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
 
 # ============================================================================
 # STAGE 3: SCAFFOLD EF CORE ENTITIES

@@ -1,7 +1,13 @@
 #Requires -Version 7.0
 param(
     [Parameter(Mandatory=$true)]
-    [string]$Server
+    [string]$Server,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$UseAzureAD,
+    
+    [Parameter(Mandatory=$false)]
+    [string]$AccessToken
 )
 
 $ErrorActionPreference = 'Stop'
@@ -17,5 +23,12 @@ EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
 PRINT 'CLR integration enabled successfully';
 "@
 
-Invoke-Sqlcmd -Query $sql -ServerInstance $Server -Database "master" -TrustServerCertificate
+if ($UseAzureAD -and $AccessToken) {
+    Write-Host "Using Azure AD service principal authentication"
+    Invoke-Sqlcmd -Query $sql -ServerInstance $Server -Database "master" -AccessToken $AccessToken -TrustServerCertificate
+} else {
+    Write-Host "Using Windows integrated authentication"
+    Invoke-Sqlcmd -Query $sql -ServerInstance $Server -Database "master" -TrustServerCertificate
+}
+
 Write-Host "✓ CLR enabled"
