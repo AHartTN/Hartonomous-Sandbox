@@ -139,24 +139,10 @@ stages:
 
           # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
           - task: PowerShell@2
-            displayName: 'Install SqlPackage on Linux Agent'
+            displayName: 'Install SqlPackage'
             inputs:
-              targetType: 'inline'
-              script: |
-                if (!(Get-Command sqlpackage -ErrorAction SilentlyContinue)) {
-                  Write-Host "Installing SqlPackage..."
-                  $url = "https://aka.ms/sqlpackage-linux"
-                  $zipPath = "$env:AGENT_TEMPDIRECTORY/sqlpackage.zip"
-                  $extractPath = "$env:AGENT_TEMPDIRECTORY/sqlpackage"
-                  Invoke-WebRequest -Uri $url -OutFile $zipPath
-                  New-Item -ItemType Directory -Force -Path $extractPath | Out-Null
-                  Expand-Archive -Path $zipPath -DestinationPath $extractPath -Force
-                  chmod +x "$extractPath/sqlpackage"
-                  Write-Host "##vso[task.prependpath]$extractPath"
-                  Write-Host "SqlPackage installed to $extractPath"
-                } else {
-                  Write-Host "SqlPackage already available"
-                }
+              targetType: 'filePath'
+              filePath: '$(Pipeline.Workspace)/database/scripts/install-sqlpackage.ps1'
               pwsh: true
               
           - task: PowerShell@2
