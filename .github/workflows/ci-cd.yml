@@ -46,13 +46,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      # MSBuild is already installed with Visual Studio - no need for .NET SDK
       
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      
-      - name: Build DACPAC with MSBuild
+      - name: Build DACPACwith MSBuild
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
