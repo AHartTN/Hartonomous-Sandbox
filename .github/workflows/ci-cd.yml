@@ -137,10 +137,23 @@ jobs:
         id: get-token
         shell: pwsh
         run: |
-          # Use Arc machine's managed identity to get SQL token
-          $tokenEndpoint = "http://localhost:40342/metadata/identity/oauth2/token"
-          $response = Invoke-RestMethod -Uri "$tokenEndpoint?api-version=2020-06-01&resource=https://database.windows.net/" -Headers @{Metadata="true"}
-          $token = $response.access_token
+          # Arc HIMDS requires challenge token authentication
+          $apiVersion = "2020-06-01"
+          $resource = "https://database.windows.net/"
+          
+          # Initial request to get challenge token path
+          $response = Invoke-WebRequest -Uri "http://localhost:40342/metadata/identity/oauth2/token?api-version=$apiVersion&resource=$resource" `
+            -Headers @{Metadata="true"} -UseBasicParsing
+          
+          # Read challenge token from disk
+          $challengeTokenPath = ($response.Content | ConvertFrom-Json).challengeTokenPath
+          $challengeToken = Get-Content $challengeTokenPath -Raw
+          
+          # Request actual access token with challenge
+          $tokenResponse = Invoke-RestMethod -Uri "http://localhost:40342/metadata/identity/oauth2/token?api-version=$apiVersion&resource=$resource" `
+            -Headers @{Metadata="true"; Authorization="Basic $challengeToken"}
+          
+          $token = $tokenResponse.access_token
           echo "::add-mask::$token"
           "token=$token" >> $env:GITHUB_OUTPUT
       
