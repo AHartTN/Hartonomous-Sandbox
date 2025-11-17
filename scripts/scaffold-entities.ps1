@@ -52,7 +52,8 @@ if ($UseAzureAD) {
       --context-dir . `
       --context HartonomousDbContext `
       --force `
-      --no-onconfiguring
+      --no-onconfiguring `
+      --no-build
     
     if ($LASTEXITCODE -ne 0) {
         throw "EF Core scaffolding failed with exit code $LASTEXITCODE"
