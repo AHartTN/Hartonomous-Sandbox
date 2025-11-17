@@ -1,18 +1,57 @@
 /*
 ================================================================================
-Pre-Deployment Script - Minimal Setup
+Pre-Deployment Script - CLR and Service Broker Setup
+Idempotent: Safe to run multiple times
 ================================================================================
 */
 
 PRINT 'Starting pre-deployment setup...';
 GO
 
--- Ensure CLR is enabled (already done via Enable-CLR.sql but verify)
-IF NOT EXISTS (SELECT * FROM sys.configurations WHERE name = 'clr enabled' AND value_in_use = 1)
+-- ============================================================================
+-- Enable CLR Integration (runs every time, idempotent)
+-- ============================================================================
+USE [master];
+GO
+
+DECLARE @clrEnabled INT;
+SELECT @clrEnabled = CAST(value_in_use AS INT) FROM sys.configurations WHERE name = 'clr enabled';
+
+IF @clrEnabled = 0
 BEGIN
-    RAISERROR('ERROR: CLR not enabled. Run scripts\Enable-CLR.sql first', 16, 1);
-    RETURN;
+    PRINT 'Enabling CLR integration...';
+    EXEC sp_configure 'show advanced options', 1;
+    RECONFIGURE;
+    EXEC sp_configure 'clr enabled', 1;
+    RECONFIGURE;
+    PRINT 'CLR enabled.';
 END
+ELSE
+BEGIN
+    PRINT 'CLR already enabled.';
+END
+GO
+
+DECLARE @clrStrictSecurity INT;
+SELECT @clrStrictSecurity = CAST(value_in_use AS INT) FROM sys.configurations WHERE name = 'clr strict security';
+
+IF @clrStrictSecurity = 1
+BEGIN
+    PRINT 'Disabling CLR strict security for UNSAFE assemblies...';
+    EXEC sp_configure 'show advanced options', 1;
+    RECONFIGURE;
+    EXEC sp_configure 'clr strict security', 0;
+    RECONFIGURE;
+    PRINT 'CLR strict security disabled.';
+END
+ELSE
+BEGIN
+    PRINT 'CLR strict security already disabled.';
+END
+GO
+
+-- Return to target database
+USE [$(DatabaseName)];
 GO
 
 -- Ensure Service Broker is enabled for async message processing

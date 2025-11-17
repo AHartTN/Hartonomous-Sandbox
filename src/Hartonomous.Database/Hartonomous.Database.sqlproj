@@ -295,12 +295,15 @@
       <Value>$(SqlCmdVar__2)</Value>
     </SqlCmdVariable>
   </ItemGroup>
-  <!-- Pre/Post deployment scripts ignored via /p:IgnorePreDeployScript=True and /p:IgnorePostDeployScript=True -->
-  <!-- CLR configuration and Service Broker setup handled in pipeline for idempotent deployments -->
-  <!--
+  <!-- Pre/Post deployment scripts NOW ENABLED for idempotent CLR deployment -->
   <ItemGroup>
     <PreDeploy Include="Scripts\Pre-Deployment\Script.PreDeployment.sql" />
     <PostDeploy Include="Scripts\Post-Deployment\Script.PostDeployment.sql" />
+    <Build Remove="Scripts\Post-Deployment\Deploy-Assembly-Tier1.sql" />
+    <Build Remove="Scripts\Post-Deployment\Deploy-Assembly-Tier2.sql" />
+    <Build Remove="Scripts\Post-Deployment\Deploy-Assembly-Tier3.sql" />
+    <Build Remove="Scripts\Post-Deployment\Deploy-Assembly-Tier4.sql" />
+    <Build Remove="Scripts\Post-Deployment\Deploy-Assembly-Tier5.sql" />
+    <Build Remove="Scripts\Post-Deployment\Deploy-Assembly-Tier6.sql" />
   </ItemGroup>
-  -->
 </Project>

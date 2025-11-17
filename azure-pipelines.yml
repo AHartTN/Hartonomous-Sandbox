@@ -139,41 +139,24 @@ stages:
           - download: current
             artifact: database
 
-          # Step 1: Enable CLR Integration
+          # Deploy DACPAC with embedded pre/post-deployment scriptspts
+          # Pre-deployment: Enables CLR and sets TRUSTWORTHY
+          # DACPAC: Deploys Hartonomous.Clr.dll assembly + schema
+          # Post-deployment: Deploys 16 external CLR dependency assemblies
           - task: PowerShell@2
-            displayName: 'Enable CLR Integration'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                Write-Host "Enabling CLR integration..."
-                
-                sqlcmd -S "$(sqlServer)" -d "master" -E -C -i "$(Build.SourcesDirectory)/scripts/sql/enable-clr.sql"
-                
-                if ($LASTEXITCODE -ne 0) { throw "Failed to enable CLR" }
-                Write-Host "✓ CLR enabled"
-              pwsh: true          # Step 2: Deploy External CLR Dependencies (16 assemblies in dependency order)
-          - task: PowerShell@2
-            displayName: 'Deploy External CLR Assemblies'
-            inputs:
-              targetType: 'filePath'
-              filePath: '$(Build.SourcesDirectory)/scripts/deploy-clr-assemblies.ps1'
-              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
-              pwsh: true
-
-          # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
-          - task: PowerShell@2
-            displayName: 'Deploy DACPAC with Hartonomous.Clr Assembly'
+            displayName: 'Deploy Database with CLR (Idempotent)'
             inputs:
               targetType: 'inline'
               script: |
                 $ErrorActionPreference = 'Stop'
                 $dacpacPath = "$(Pipeline.Workspace)/database/Hartonomous.Database.dacpac"
                 $connectionString = "Server=$(sqlServer);Database=$(sqlDatabase);Integrated Security=True;TrustServerCertificate=True;"
+                $dependenciesPath = "$(Pipeline.Workspace)/database/dependencies"
                 
-                Write-Host "Deploying DACPAC: $dacpacPath"
-                Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
-                Write-Host "Pre/post deployment scripts ignored for idempotent schema deployment"
+                Write-Host "Deploying DACPAC with pre/post-deployment scripts..."
+                Write-Host "  DACPAC: $dacpacPath"
+                Write-Host "  Target: $(sqlServer)\$(sqlDatabase)"
+                Write-Host "  Dependencies: $dependenciesPath"
                 
                 sqlpackage.exe `
                   /Action:Publish `
@@ -181,23 +164,11 @@ stages:
                   /TargetConnectionString:"$connectionString" `
                   /p:DropObjectsNotInSource=False `
                   /p:BlockOnPossibleDataLoss=True `
-                  /p:IgnorePreDeployScript=True `
-                  /p:IgnorePostDeployScript=True
+                  /v:DependenciesPath="$dependenciesPath" `
+                  /v:DatabaseName="$(sqlDatabase)"
                 
                 if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
-                Write-Host "✓ DACPAC deployed with Hartonomous.Clr assembly"
-              pwsh: true
-
-          # Step 4: Set TRUSTWORTHY ON
-          - task: PowerShell@2
-            displayName: 'Set TRUSTWORTHY ON'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $ErrorActionPreference = 'Stop'
-                sqlcmd -S "$(sqlServer)" -d "master" -E -C -i "$(Build.SourcesDirectory)/scripts/sql/set-trustworthy.sql" -v DatabaseName="$(sqlDatabase)"
-                if ($LASTEXITCODE -ne 0) { throw "Failed to set TRUSTWORTHY" }
-                Write-Host "✓ TRUSTWORTHY enabled"
+                Write-Host "✓ Database deployed with CLR assemblies"
               pwsh: true
 
 # ============================================================================
