@@ -7,6 +7,13 @@
     Deploys the 16 external CLR DLL dependencies required by Hartonomous.Clr
     in 6 tiers to respect dependency order. Based on official Microsoft Docs
     guidance for SQL CLR assembly deployment.
+    
+    IMPORTANT: This script does NOT deploy Hartonomous.Clr.dll itself!
+               That assembly is embedded in the DACPAC as hex binary and is
+               deployed automatically by SqlPackage when publishing the DACPAC.
+               
+    This script only deploys the external dependency DLLs that have
+    <Private>False</Private> in the .sqlproj file (compile-time references).
 
 .PARAMETER Server
     SQL Server instance name (e.g., localhost or server.database.windows.net)
@@ -77,38 +84,54 @@ if ($UseAzureAD) {
 }
 
 # Tier structure based on dependency order
+# IMPORTANT: Hartonomous.Clr.dll is NOT deployed by this script!
+#            It's embedded in the DACPAC and deployed by SqlPackage.
+#            This script only deploys the 16 external dependency DLLs.
 $tiers = @(
     @{
-        Name     = "Tier 1: System.Numerics.Vectors"
-        Assemblies = @('System.Numerics.Vectors.dll')
-    },
-    @{
-        Name     = "Tier 2: System.Runtime.Intrinsics"
-        Assemblies = @('System.Runtime.Intrinsics.dll')
-    },
-    @{
-        Name     = "Tier 3: System.Memory + System.Buffers"
-        Assemblies = @('System.Memory.dll', 'System.Buffers.dll')
-    },
-    @{
-        Name     = "Tier 4: System.Runtime.CompilerServices.Unsafe + System.Text.Json"
-        Assemblies = @('System.Runtime.CompilerServices.Unsafe.dll', 'System.Text.Json.dll')
-    },
-    @{
-        Name     = "Tier 5: Third-party dependencies"
+        Name     = "Tier 1: System Core Dependencies"
         Assemblies = @(
-            'MathNet.Numerics.dll',
-            'Microsoft.ML.OnnxRuntime.dll',
-            'Microsoft.Extensions.AI.Abstractions.dll',
-            'Newtonsoft.Json.dll'
+            'System.Numerics.Vectors.dll',
+            'System.ValueTuple.dll'
         )
     },
     @{
-        Name     = "Tier 6: Application assemblies"
+        Name     = "Tier 2: System Runtime Extensions"
         Assemblies = @(
-            'Hartonomous.Core.dll',
-            'Hartonomous.Infrastructure.dll',
-            'Hartonomous.Clr.dll'
+            'System.Memory.dll',
+            'System.Buffers.dll',
+            'System.Runtime.CompilerServices.Unsafe.dll'
+        )
+    },
+    @{
+        Name     = "Tier 3: System Collections and Reflection"
+        Assemblies = @(
+            'System.Collections.Immutable.dll',
+            'System.Reflection.Metadata.dll'
+        )
+    },
+    @{
+        Name     = "Tier 4: System Services"
+        Assemblies = @(
+            'System.Runtime.Serialization.dll',
+            'System.ServiceModel.Internals.dll',
+            'SMDiagnostics.dll'
+        )
+    },
+    @{
+        Name     = "Tier 5: Third-party and SQL Server"
+        Assemblies = @(
+            'MathNet.Numerics.dll',
+            'Newtonsoft.Json.dll',
+            'Microsoft.SqlServer.Types.dll'
+        )
+    },
+    @{
+        Name     = "Tier 6: Application Support Libraries"
+        Assemblies = @(
+            'System.Drawing.dll',
+            'SqlClrFunctions.dll',
+            'Hartonomous.Database.dll'
         )
     }
 )
