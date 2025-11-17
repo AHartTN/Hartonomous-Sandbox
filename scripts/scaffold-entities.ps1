@@ -46,14 +46,13 @@ if ($UseAzureAD) {
     
     Write-Host "Access token available: $($env:AZURE_SQL_ACCESS_TOKEN.Length) characters"
     
-    # Create the design-time factory if it doesn't exist (idempotent)
+    # Create the design-time factory (idempotent - overwrites if exists)
     $projectDir = Split-Path $ProjectPath -Parent
     $factoryPath = Join-Path $projectDir "HartonomousDbContextFactory.cs"
     
-    if (-not (Test-Path $factoryPath)) {
-        Write-Host "Creating IDesignTimeDbContextFactory for design-time scaffolding..."
-        
-        $factoryCode = @'
+    Write-Host "Creating IDesignTimeDbContextFactory for design-time scaffolding..."
+    
+    $factoryCode = @'
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 using Microsoft.Data.SqlClient;
@@ -127,12 +126,9 @@ public class AccessTokenInterceptor : Microsoft.EntityFrameworkCore.Diagnostics.
     }
 }
 '@
-        
-        Set-Content -Path $factoryPath -Value $factoryCode -Encoding UTF8
-        Write-Host "✓ Created HartonomousDbContextFactory.cs"
-    } else {
-        Write-Host "Design-time factory already exists (idempotent)"
-    }
+    
+    Set-Content -Path $factoryPath -Value $factoryCode -Encoding UTF8
+    Write-Host "✓ Created/updated HartonomousDbContextFactory.cs"
     
     # Set environment variables for the factory to discover
     $env:SQL_SERVER = $Server
