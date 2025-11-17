@@ -103,7 +103,7 @@ jobs:
   # ============================================================================
   deploy-database:
     name: Deploy to ${{ inputs.environment || 'production' }}
-    runs-on: [self-hosted, windows, sql-server]  # Requires Windows for SQL Server access and SqlPackage
+    runs-on: [self-hosted, windows, sql-server]
     needs: build-dacpac
     environment: ${{ inputs.environment || 'production' }}
     
@@ -132,124 +132,117 @@ jobs:
         with:
           name: deployment-scripts
           path: ./scripts
-      
-      - name: Get SQL Access Token from Arc Machine Managed Identity
-        id: get-token
+
+      - name: 'Login to Azure with OIDC'
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: 'Get Azure AD Access Token for SQL'
+        id: get_token
         shell: pwsh
         run: |
-          $apiVersion = "2020-06-01"
-          $resource = "https://database.windows.net/"
-          $endpoint = "http://localhost:40342/metadata/identity/oauth2/token?api-version=$apiVersion&resource=$resource"
-          $secretFile = ""
-          
-          try {
-            Invoke-WebRequest -Method GET -Uri $endpoint -Headers @{Metadata='true'} -UseBasicParsing | Out-Null
+          $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
+          if (-not $token) {
+            throw "Failed to retrieve Azure AD token for SQL Server."
           }
-          catch {
-            $wwwAuth = $_.Exception.Response.Headers.GetEnumerator() | Where-Object { $_.Key -eq 'WWW-Authenticate' } | Select-Object -First 1
-            if ($wwwAuth.Value[0] -match 'Basic realm=(.+)') {
-              $secretFile = $matches[1]
-            }
-          }
-          
-          if (-not $secretFile) {
-            throw "Failed to get challenge token path from Arc HIMDS"
-          }
-          
-          $secret = Get-Content -Raw $secretFile
-          $tokenResponse = Invoke-RestMethod -Method GET -Uri $endpoint -Headers @{Metadata='true'; Authorization="Basic $secret"} -UseBasicParsing
-          
-          $token = $tokenResponse.access_token
           echo "::add-mask::$token"
-          "token=$token" >> $env:GITHUB_OUTPUT
-      
-      - name: Enable CLR Integration (Idempotent)
+          echo "token=$token" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: 'Step 2.1: Enable CLR & Configure Asymmetric Key Security'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
-          Write-Host "Enabling CLR integration..."
-          
-          $sql = @"
-          EXEC sp_configure 'show advanced options', 1; RECONFIGURE;
-          EXEC sp_configure 'clr enabled', 1; RECONFIGURE;
-          EXEC sp_configure 'clr strict security', 0; RECONFIGURE;
-          PRINT 'CLR integration enabled successfully';
+          ./scripts/enable-clr.ps1 -Server "${{ env.SQL_SERVER }}" -UseAzureAD -AccessToken "${{ steps.get_token.outputs.token }}"
+
+      - name: 'Step 2.2: Deploy External (Unsigned) CLR Assemblies'
+        shell: pwsh
+        run: |
+          ./scripts/deploy-clr-assemblies.ps1 `
+            -Server "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -DependenciesPath "./dependencies" `
+            -UseAzureAD `
+            -AccessToken "${{ steps.get_token.outputs.token }}"
+
+      - name: 'Step 2.3: Pre-DACPAC Cleanup (Idempotency)'
+        shell: pwsh
+        run: |
+          Write-Host "Running dynamic SQL script to drop existing CLR-dependent objects for idempotency..."
+          $dropAssemblySql = @"
+          IF EXISTS (SELECT 1 FROM sys.assemblies WHERE name LIKE 'Hartonomous%')
+          BEGIN
+              -- Drop functions, procedures, and aggregates that depend on the assembly first
+              DECLARE @sql NVARCHAR(MAX) = N'';
+              SELECT @sql += 'DROP ' + CASE type WHEN 'AF' THEN 'AGGREGATE' WHEN 'PC' THEN 'PROCEDURE' ELSE 'FUNCTION' END + ' IF EXISTS ' + QUOTENAME(SCHEMA_NAME(schema_id)) + '.' + QUOTENAME(name) + ';' + CHAR(13)
+              FROM sys.objects 
+              WHERE type IN ('AF', 'PC', 'FN', 'FS', 'FT', 'IF', 'TF')
+              AND object_id IN (SELECT object_id FROM sys.assembly_modules WHERE assembly_id IN 
+                  (SELECT assembly_id FROM sys.assemblies WHERE name LIKE 'Hartonomous%'));
+              
+              EXEC sp_executesql @sql;
+              
+              -- Now drop the assemblies
+              DECLARE @asmName NVARCHAR(255);
+              DECLARE asm_cursor CURSOR FOR 
+                  SELECT name FROM sys.assemblies WHERE name LIKE 'Hartonomous%' ORDER BY assembly_id DESC;
+              
+              OPEN asm_cursor;
+              FETCH NEXT FROM asm_cursor INTO @asmName;
+              WHILE @@FETCH_STATUS = 0
+              BEGIN
+                  PRINT 'Dropping assembly: ' + @asmName;
+                  EXEC('DROP ASSEMBLY [' + @asmName + ']');
+                  FETCH NEXT FROM asm_cursor INTO @asmName;
+              END
+              CLOSE asm_cursor;
+              DEALLOCATE asm_cursor;
+          END
           "@
-          
-          Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -Query $sql -AccessToken $token -TrustServerCertificate
-          Write-Host "✓ CLR enabled"
-      
-      - name: Deploy DACPAC with CLR Assemblies
+          Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query $dropAssemblySql -AccessToken "${{ steps.get_token.outputs.token }}" -TrustServerCertificate
+          Write-Host "✓ Cleanup complete."
+
+      - name: 'Step 2.4: Deploy DACPAC (Hartonomous.Clr + T-SQL Objects)'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
+          $dacpacPath = "./artifacts/database/Hartonomous.Database.dacpac"
           $connectionString = "Server=${{ env.SQL_SERVER }};Database=${{ env.SQL_DATABASE }};Encrypt=True;TrustServerCertificate=True;"
-          $dacpacPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\database\Hartonomous.Database.dacpac"
-          $dependenciesPath = Join-Path $env:GITHUB_WORKSPACE "dependencies"
           
-          Write-Host "Deploying DACPAC with CLR assemblies..."
-          Write-Host "  Target: ${{ env.SQL_SERVER }}\${{ env.SQL_DATABASE }}"
-          Write-Host "  Dependencies: $dependenciesPath"
+          Write-Host "Deploying DACPAC: $dacpacPath"
           
-          SqlPackage.exe /Action:Publish `
-            /SourceFile:$dacpacPath `
-            /TargetConnectionString:$connectionString `
-            /AccessToken:$token `
+          sqlpackage.exe /Action:Publish `
+            /SourceFile:"$dacpacPath" `
+            /TargetConnectionString:"$connectionString" `
+            /AccessToken:"${{ steps.get_token.outputs.token }}" `
             /p:BlockOnPossibleDataLoss=False `
-            /p:DropObjectsNotInSource=False `
-            /p:AllowIncompatiblePlatform=True `
-            /p:IncludeCompositeObjects=True `
-            /p:AllowDropBlockingAssemblies=True `
-            /p:NoAlterStatementsToChangeClrTypes=True `
-            /v:DependenciesPath=$dependenciesPath
+            /p:DropObjectsNotInSource=False
           
           if ($LASTEXITCODE -ne 0) {
             throw "DACPAC deployment failed with exit code $LASTEXITCODE"
           }
-          
-          Write-Host "✓ DACPAC deployed successfully with all CLR assemblies"
-      
-      - name: Set TRUSTWORTHY (Idempotent)
+          Write-Host "✓ DACPAC deployed successfully."
+
+      - name: 'Step 2.5: Set TRUSTWORTHY ON (Required for Unsigned Assemblies)'
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
-          
-          Write-Host "Setting TRUSTWORTHY..."
-          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\set-trustworthy.ps1"
-          
-          if (Test-Path $scriptPath) {
-            & $scriptPath `
-              -Server "${{ env.SQL_SERVER }}" `
-              -Database "${{ env.SQL_DATABASE }}" `
-              -UseAzureAD `
-              -AccessToken $token
-            Write-Host "✓ TRUSTWORTHY set"
-          }
+          ./scripts/set-trustworthy.ps1 -Server "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -UseAzureAD -AccessToken "${{ steps.get_token.outputs.token }}"
       
       - name: Validate Deployment
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $token = "${{ steps.get-token.outputs.token }}"
+          $token = "${{ steps.get_token.outputs.token }}"
           
           Write-Host "`n=== Deployment Validation ==="
           
           # Count assemblies
-          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "master" -Query "SELECT COUNT(*) as cnt FROM sys.assemblies WHERE is_user_defined = 1" -AccessToken $token -TrustServerCertificate
+          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.assemblies WHERE is_user_defined = 1" -AccessToken $token -TrustServerCertificate
           Write-Host "External Assemblies: $($count.cnt)"
           
           # Count functions
-          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT') AND is_ms_shipped = 0" -AccessToken $token -TrustServerCertificate
-          Write-Host "User-Defined Functions: $($count.cnt)"
-          
-          # Count CLR aggregates
-          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.objects WHERE type = 'AF'" -AccessToken $token -TrustServerCertificate
-          Write-Host "CLR Aggregates: $($count.cnt)"
+          $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.objects WHERE type IN ('FN', 'IF', 'TF', 'FS', 'FT', 'AF', 'PC') AND is_ms_shipped = 0" -AccessToken $token -TrustServerCertificate
+          Write-Host "User-Defined Functions/Procs/Aggregates: $($count.cnt)"
           
           # Count UDTs
           $count = Invoke-Sqlcmd -ServerInstance "${{ env.SQL_SERVER }}" -Database "${{ env.SQL_DATABASE }}" -Query "SELECT COUNT(*) as cnt FROM sys.types WHERE is_user_defined = 1 AND is_assembly_type = 1" -AccessToken $token -TrustServerCertificate
