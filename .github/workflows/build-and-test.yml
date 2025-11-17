@@ -45,13 +45,13 @@ jobs:
       - name: Restore NuGet packages
         run: |
           Write-Host "Restoring NuGet packages..."
-          dotnet restore Hartonomous.sln --verbosity minimal
+          dotnet restore Hartonomous.Tests.sln --verbosity minimal
         shell: pwsh
       
       - name: Build solution
         run: |
           Write-Host "Building solution in ${{ env.BUILD_CONFIGURATION }} mode..."
-          dotnet build Hartonomous.sln `
+          dotnet build Hartonomous.Tests.sln `
             --configuration ${{ env.BUILD_CONFIGURATION }} `
             --no-restore `
             --verbosity minimal
