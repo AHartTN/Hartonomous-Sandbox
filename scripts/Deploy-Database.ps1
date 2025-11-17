@@ -342,9 +342,9 @@ function Deploy-Dacpac {
     
     $sqlPackageArgs = @(
         "/Action:Publish",
-        "/SourceFile:`"$DacpacPath`"",
-        "/TargetConnectionString:`"$connectionString`"",
-        "/AccessToken:`"$AccessToken`"",
+        "/SourceFile:$DacpacPath",
+        "/TargetConnectionString:$connectionString",
+        "/AccessToken:$AccessToken",
         "/p:BlockOnPossibleDataLoss=False",
         "/p:DropObjectsNotInSource=False",
         "/p:AllowIncompatiblePlatform=True",
@@ -354,7 +354,7 @@ function Deploy-Dacpac {
         "/p:TreatVerificationErrorsAsWarnings=False",
         "/p:IgnorePermissions=False",
         "/p:IgnoreRoleMembership=False",
-        "/v:DependenciesPath=`"$DependenciesPath`""
+        "/v:DependenciesPath=$DependenciesPath"
     )
     
     if ($DryRun) {
