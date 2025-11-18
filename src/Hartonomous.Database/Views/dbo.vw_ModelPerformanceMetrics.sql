@@ -2,7 +2,8 @@
 -- vw_ModelPerformanceMetrics: Materialized view for AnalyticsController performance queries
 -- Replaces hard-coded SQL in AnalyticsController.GetModelPerformance (lines 171-193)
 -- WITH SCHEMABINDING enables indexed views - query optimizer materialization
--- Flattened with LEFT JOINs instead of subqueries for indexing support
+-- INNER JOIN required for indexed views (no OUTER joins allowed)
+-- Uses SUM/COUNT_BIG instead of AVG for indexed view compatibility
 -- =============================================
 CREATE VIEW [dbo].[vw_ModelPerformanceMetrics]
 WITH SCHEMABINDING
@@ -10,14 +11,14 @@ AS
 SELECT 
     m.ModelId,
     m.ModelName,
-    ISNULL(m.UsageCount, 0) AS TotalInferences,
+    m.UsageCount AS TotalInferences,
     m.LastUsed,
-    AVG(ml.AvgComputeTimeMs) AS AvgInferenceTimeMs,
-    AVG(ISNULL(ml.CacheHitRate, 0.0)) AS CacheHitRate,
-    CAST(0.0 AS FLOAT) AS AvgConfidenceScore,
-    CAST(0 AS BIGINT) AS TotalTokensGenerated
+    SUM(ISNULL(ml.AvgComputeTimeMs, 0.0)) AS SumInferenceTimeMs,
+    COUNT_BIG(ml.AvgComputeTimeMs) AS CountInferenceTimeMs,
+    SUM(ISNULL(ml.CacheHitRate, 0.0)) AS SumCacheHitRate,
+    COUNT_BIG(*) AS CountLayers
 FROM dbo.Model m
-LEFT JOIN dbo.ModelLayer ml ON ml.ModelId = m.ModelId
+INNER JOIN dbo.ModelLayer ml ON ml.ModelId = m.ModelId
 GROUP BY m.ModelId, m.ModelName, m.UsageCount, m.LastUsed;
 GO
 

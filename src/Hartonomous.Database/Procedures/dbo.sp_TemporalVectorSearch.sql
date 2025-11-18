@@ -23,15 +23,16 @@ BEGIN
         a.Modality,
         a.Subtype,
         a.SourceUri,
-        a.SourceType,
+        a.CanonicalText,
         1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS Similarity,
         a.CreatedAt,
         DATEDIFF(HOUR, a.CreatedAt, @EndTime) AS TemporalDistanceHours
-    FROM dbo.AtomEmbedding FOR SYSTEM_TIME FROM @StartTime TO @EndTime ae
+    FROM dbo.AtomEmbedding ae
     INNER JOIN dbo.Atom FOR SYSTEM_TIME FROM @StartTime TO @EndTime a 
         ON a.AtomId = ae.AtomId
     WHERE ae.EmbeddingVector IS NOT NULL
       AND ae.Dimension = @Dimension
+      AND ae.CreatedAt BETWEEN @StartTime AND @EndTime
       AND (@Modality IS NULL OR a.Modality = @Modality)
       AND (@EmbeddingType IS NULL OR ae.EmbeddingType = @EmbeddingType)
       AND (@ModelId IS NULL OR ae.ModelId = @ModelId)

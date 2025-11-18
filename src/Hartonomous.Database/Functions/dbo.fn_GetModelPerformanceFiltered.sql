@@ -22,7 +22,7 @@ RETURN
         CacheHitRate,
         TotalTokensGenerated,
         LastUsed
-    FROM dbo.vw_ModelPerformanceMetrics
+    FROM dbo.vw_ModelPerformance
     WHERE (@ModelId IS NULL OR ModelId = @ModelId)
       AND (@StartDate IS NULL OR LastUsed >= @StartDate)
       AND (@EndDate IS NULL OR LastUsed <= @EndDate)
