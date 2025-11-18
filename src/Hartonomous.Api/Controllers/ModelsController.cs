@@ -1,21 +1,12 @@
-using System.Collections.Generic;
 using System.Data;
-using System.IO;
-using System.Linq;
-using Hartonomous.Api.DTOs;
-using Hartonomous.Api.DTOs.Inference;
 using Hartonomous.Api.DTOs.Models;
-using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Data;
-using Hartonomous.Data.Entities;
 using Hartonomous.Shared.Contracts.Errors;
 using Hartonomous.Shared.Contracts.Requests.Paging;
 using Hartonomous.Shared.Contracts.Responses;
 using Hartonomous.Shared.Contracts.Results;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
-using Microsoft.EntityFrameworkCore;
 
 namespace Hartonomous.Api.Controllers;
 
@@ -23,20 +14,17 @@ namespace Hartonomous.Api.Controllers;
 public sealed class ModelsController : ApiControllerBase
 {
     private readonly IModelIngestionService _modelIngestionService;
-    private readonly IModelRepository _modelRepository;
     private readonly IIngestionStatisticsService _statisticsService;
     private readonly string _connectionString;
     private readonly ILogger<ModelsController> _logger;
 
     public ModelsController(
         IModelIngestionService modelIngestionService,
-        IModelRepository modelRepository,
         IIngestionStatisticsService statisticsService,
         IConfiguration configuration,
         ILogger<ModelsController> logger)
     {
         _modelIngestionService = modelIngestionService ?? throw new ArgumentNullException(nameof(modelIngestionService));
-        _modelRepository = modelRepository ?? throw new ArgumentNullException(nameof(modelRepository));
         _statisticsService = statisticsService ?? throw new ArgumentNullException(nameof(statisticsService));
         _connectionString = configuration.GetConnectionString("DefaultConnection") 
             ?? throw new InvalidOperationException("Connection string not configured");
@@ -63,30 +51,64 @@ public sealed class ModelsController : ApiControllerBase
             return BadRequest(Failure<PagedResult<ModelSummary>>(new[] { error }));
         }
 
-        var totalCount = await _modelRepository.GetCountAsync(cancellationToken).ConfigureAwait(false);
-        var allModels = await _modelRepository.GetAllAsync(cancellationToken).ConfigureAwait(false);
-
-        var ordered = allModels
-            .OrderByDescending(model => model.IngestionDate)
-            .ThenBy(model => model.ModelName, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        var skip = (paging.PageNumber - 1) * paging.PageSize;
-        var pagedModels = ordered
-            .Skip(skip)
-            .Take(paging.PageSize)
-            .Select(MapSummary)
-            .ToList();
-
-        var result = new PagedResult<ModelSummary>(pagedModels, paging.PageNumber, paging.PageSize, totalCount);
-
-        var metadata = new Dictionary<string, object?>
+        try
         {
-            ["returned"] = pagedModels.Count,
-            ["total"] = totalCount
-        };
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
 
-        return Ok(Success(result, metadata));
+            // Database does paging, sorting, counting in one efficient query
+            await using var command = new SqlCommand(@"
+                SELECT 
+                    ModelId,
+                    ModelName,
+                    ModelType,
+                    ParameterCount,
+                    IngestionDate,
+                    COUNT(*) OVER() AS TotalCount
+                FROM dbo.Models
+                ORDER BY IngestionDate DESC, ModelName
+                OFFSET @Offset ROWS
+                FETCH NEXT @PageSize ROWS ONLY",
+                connection);
+
+            command.Parameters.AddWithValue("@Offset", (paging.PageNumber - 1) * paging.PageSize);
+            command.Parameters.AddWithValue("@PageSize", paging.PageSize);
+
+            var models = new List<ModelSummary>();
+            int totalCount = 0;
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                if (totalCount == 0)
+                    totalCount = reader.GetInt32(reader.GetOrdinal("TotalCount"));
+
+                models.Add(new ModelSummary
+                {
+                    ModelId = reader.GetInt32(0),
+                    ModelName = reader.GetString(1),
+                    ModelType = reader.IsDBNull(2) ? null : reader.GetString(2),
+                    ParameterCount = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                    IngestionDate = reader.IsDBNull(4) ? null : reader.GetDateTime(4)
+                });
+            }
+
+            var result = new PagedResult<ModelSummary>(models, paging.PageNumber, paging.PageSize, totalCount);
+
+            return Ok(Success(result, new Dictionary<string, object?>
+            {
+                ["returned"] = models.Count,
+                ["total"] = totalCount
+            }));
+        }
+        catch (SqlException ex)
+        {
+            _logger.LogError(ex, "Database error retrieving models");
+            return StatusCode(500, Failure<PagedResult<ModelSummary>>(new[] 
+            { 
+                ErrorDetailFactory.InternalServerError("DATABASE_ERROR", ex.Message) 
+            }));
+        }
     }
 
     [HttpGet("{modelId:int}")]
@@ -99,21 +121,61 @@ public sealed class ModelsController : ApiControllerBase
             return BadRequest(Failure<ModelDetail>(new[] { ValidationError("Model identifier must be positive.", nameof(modelId)) }));
         }
 
-        var model = await _modelRepository.GetByIdAsync(modelId, cancellationToken).ConfigureAwait(false);
-        if (model is null)
+        try
         {
-            var error = ErrorDetailFactory.NotFound("model", modelId.ToString());
-            return NotFound(Failure<ModelDetail>(new[] { error }));
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
+
+            await using var command = new SqlCommand(@"
+                SELECT 
+                    m.ModelId, m.ModelName, m.ModelType, m.ParameterCount, 
+                    m.IngestionDate, m.Architecture,
+                    mm.SupportedTasks, mm.SupportedModalities,
+                    (SELECT COUNT(*) FROM dbo.ModelLayers WHERE ModelId = m.ModelId) AS LayerCount
+                FROM dbo.Models m
+                LEFT JOIN dbo.ModelMetadata mm ON mm.ModelId = m.ModelId
+                WHERE m.ModelId = @ModelId",
+                connection);
+
+            command.Parameters.AddWithValue("@ModelId", modelId);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
+            {
+                return NotFound(Failure<ModelDetail>(new[] 
+                { 
+                    ErrorDetailFactory.NotFound("model", modelId.ToString()) 
+                }));
+            }
+
+            var detail = new ModelDetail
+            {
+                ModelId = reader.GetInt32(0),
+                ModelName = reader.GetString(1),
+                ModelType = reader.IsDBNull(2) ? null : reader.GetString(2),
+                ParameterCount = reader.IsDBNull(3) ? null : reader.GetInt64(3),
+                IngestionDate = reader.IsDBNull(4) ? null : reader.GetDateTime(4),
+                Architecture = reader.IsDBNull(5) ? null : reader.GetString(5),
+                SupportedTasks = reader.IsDBNull(6) ? null : reader.GetString(6),
+                SupportedModalities = reader.IsDBNull(7) ? null : reader.GetString(7),
+                LayerCount = reader.IsDBNull(8) ? 0 : reader.GetInt32(8),
+                Layers = new List<ModelLayerInfo>() // Could load in second query if needed
+            };
+
+            return Ok(Success(detail, new Dictionary<string, object?>
+            {
+                ["layerCount"] = detail.LayerCount,
+                ["hasMetadata"] = !string.IsNullOrEmpty(detail.SupportedTasks)
+            }));
         }
-
-        var detail = MapDetail(model);
-        var metadata = new Dictionary<string, object?>
+        catch (SqlException ex)
         {
-            ["layerCount"] = detail.Layers.Count,
-            ["hasMetadata"] = detail.Metadata is not null
-        };
-
-        return Ok(Success(detail, metadata));
+            _logger.LogError(ex, "Database error retrieving model {ModelId}", modelId);
+            return StatusCode(500, Failure<ModelDetail>(new[] 
+            { 
+                ErrorDetailFactory.InternalServerError("DATABASE_ERROR", ex.Message) 
+            }));
+        }
     }
 
     [HttpGet("stats")]
@@ -158,23 +220,35 @@ public sealed class ModelsController : ApiControllerBase
                 .IngestAsync(tempFilePath, request.ModelName, cancellationToken)
                 .ConfigureAwait(false);
 
-            var model = await _modelRepository
-                .GetByIdAsync(modelId, cancellationToken)
-                .ConfigureAwait(false);
+            // Query fresh model details
+            await using var connection = new SqlConnection(_connectionString);
+            await connection.OpenAsync(cancellationToken);
 
-            if (model is null)
+            await using var command = new SqlCommand(@"
+                SELECT ModelId, ModelName, Architecture, ParameterCount, 
+                       (SELECT COUNT(*) FROM dbo.ModelLayers WHERE ModelId = @ModelId) AS LayerCount
+                FROM dbo.Models
+                WHERE ModelId = @ModelId",
+                connection);
+            
+            command.Parameters.AddWithValue("@ModelId", modelId);
+
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            if (!await reader.ReadAsync(cancellationToken))
             {
                 _logger.LogWarning("Model {ModelId} could not be loaded after ingestion.", modelId);
-                var error = ErrorDetailFactory.NotFound("model", modelId.ToString());
-                return StatusCode(StatusCodes.Status500InternalServerError, Failure<ModelIngestResponse>(new[] { error }));
+                return StatusCode(500, Failure<ModelIngestResponse>(new[] 
+                { 
+                    ErrorDetailFactory.InternalServerError("MODEL_NOT_FOUND", "Model ingested but not retrievable") 
+                }));
             }
 
             var response = new ModelIngestResponse(
-                model.ModelId,
-                model.ModelName,
-                model.Architecture ?? model.ModelType,
-                model.ParameterCount ?? 0,
-                model.ModelLayers?.Count ?? 0);
+                reader.GetInt32(0),
+                reader.GetString(1),
+                reader.IsDBNull(2) ? "unknown" : reader.GetString(2),
+                reader.IsDBNull(3) ? 0 : reader.GetInt64(3),
+                reader.IsDBNull(4) ? 0 : reader.GetInt32(4));
 
             return Ok(Success(response));
         }
@@ -222,52 +296,7 @@ public sealed class ModelsController : ApiControllerBase
         }
     }
 
-    private static ModelSummary MapSummary(Model model)
-        => new(model.ModelId, model.ModelName, model.ModelType, model.Architecture, model.ParameterCount, model.IngestionDate, model.LastUsed, (int)model.UsageCount);
 
-    private static ModelDetail MapDetail(Model model)
-    {
-        var layers = (model.ModelLayers ?? new List<ModelLayer>())
-            .OrderBy(layer => layer.LayerIdx)
-            .Select(layer => new ModelLayerInfo(
-                layer.LayerId,
-                layer.LayerIdx,
-                layer.LayerName,
-                layer.LayerType,
-                layer.ParameterCount,
-                layer.TensorShape,
-                layer.TensorDtype,
-                layer.QuantizationType,
-                layer.AvgComputeTimeMs))
-            .ToList();
-
-        var metadata = model.ModelMetadatum is null
-            ? null
-            : new ModelMetadataView(
-                model.ModelMetadatum.SupportedTasks,
-                model.ModelMetadatum.SupportedModalities,
-                model.ModelMetadatum.MaxInputLength,
-                model.ModelMetadatum.MaxOutputLength,
-                model.ModelMetadatum.EmbeddingDimension,
-                model.ModelMetadatum.PerformanceMetrics,
-                model.ModelMetadatum.TrainingDataset,
-                model.ModelMetadatum.TrainingDate?.ToDateTime(TimeOnly.MinValue),
-                model.ModelMetadatum.License,
-                model.ModelMetadatum.SourceUrl);
-
-        return new ModelDetail(
-            model.ModelId,
-            model.ModelName,
-            model.ModelType,
-            model.Architecture,
-            model.ParameterCount,
-            model.IngestionDate,
-            model.LastUsed,
-            (int)model.UsageCount,
-            model.Config,
-            metadata,
-            layers);
-    }
 
     [HttpPost("{modelId:int}/distill")]
     [ProducesResponseType(typeof(ApiResponse<JobSubmittedResponse>), StatusCodes.Status202Accepted)]
@@ -288,11 +317,22 @@ public sealed class ModelsController : ApiControllerBase
             return BadRequest(Failure<JobSubmittedResponse>(new[] { ValidationError("StudentName is required.", nameof(request.StudentName)) }));
         }
 
-        var parentModel = await _modelRepository.GetByIdAsync(modelId, cancellationToken).ConfigureAwait(false);
-        if (parentModel is null)
+        // Verify parent model exists
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+        
+        await using var checkCommand = new SqlCommand(
+            "SELECT COUNT(*) FROM dbo.Models WHERE ModelId = @ModelId",
+            connection);
+        checkCommand.Parameters.AddWithValue("@ModelId", modelId);
+        
+        var exists = (int)(await checkCommand.ExecuteScalarAsync(cancellationToken) ?? 0) > 0;
+        if (!exists)
         {
-            var error = ErrorDetailFactory.NotFound("parent model", modelId.ToString());
-            return NotFound(Failure<JobSubmittedResponse>(new[] { error }));
+            return NotFound(Failure<JobSubmittedResponse>(new[] 
+            { 
+                ErrorDetailFactory.NotFound("parent model", modelId.ToString()) 
+            }));
         }
 
         try
