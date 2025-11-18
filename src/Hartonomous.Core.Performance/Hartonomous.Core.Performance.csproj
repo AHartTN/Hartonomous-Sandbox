@@ -6,7 +6,6 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <LangVersion>latest</LangVersion>
-    <OutputType>Exe</OutputType>
   </PropertyGroup>
 
   <PropertyGroup>

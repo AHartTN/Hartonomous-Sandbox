@@ -1,7 +1,7 @@
 using Hartonomous.Infrastructure.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Infrastructure;
 
@@ -17,12 +17,13 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        // Register services by concern using focused extension methods (SOLID/DRY)
-        services.AddHartonomousPersistence(configuration);      // DbContext + Repositories
-        services.AddHartonomousCoreServices(configuration);     // Serialization, Messaging, Caching, Security, Billing
-        services.AddHartonomousResilience(configuration);       // Circuit breakers, Retry policies, HTTP resilience
-        services.AddHartonomousPipelines(configuration);        // Channel-based async processing + Workers
-        services.AddHartonomousAIServices();                    // Model ingestion, Inference, Generation, Autonomous
+        // TODO: Re-implement these using database-centric patterns (DbContext + stored procedures)
+        // Previously used deleted repository services
+        // services.AddHartonomousPersistence(configuration);      // DbContext + Repositories
+        // services.AddHartonomousCoreServices(configuration);     // Serialization, Messaging, Caching, Security, Billing
+        // services.AddHartonomousResilience(configuration);       // Circuit breakers, Retry policies, HTTP resilience
+        // services.AddHartonomousPipelines(configuration);        // Channel-based async processing + Workers
+        // services.AddHartonomousAIServices();                    // Model ingestion, Inference, Generation, Autonomous
 
         return services;
     }
@@ -44,6 +45,8 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        return Extensions.CoreServiceExtensions.AddHartonomousPiiRedaction(services, configuration);
+        // TODO: Re-implement - CoreServiceExtensions was deleted with orphaned repository services
+        // return Extensions.CoreServiceExtensions.AddHartonomousPiiRedaction(services, configuration);
+        return services;
     }
 }

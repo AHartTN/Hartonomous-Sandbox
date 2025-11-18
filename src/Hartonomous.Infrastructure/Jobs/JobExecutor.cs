@@ -1,6 +1,11 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using System;
+using System.Threading;
+using System.Threading.Tasks;
+using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data;
 using Hartonomous.Data.Entities;
@@ -49,7 +54,7 @@ public class JobExecutor
         var dbContext = scope.ServiceProvider.GetRequiredService<HartonomousDbContext>();
         
         var stopwatch = Stopwatch.StartNew();
-        BackgroundJobs? job = null;
+        BackgroundJob? job = null;
 
         try
         {
@@ -168,7 +173,7 @@ public class JobExecutor
     /// <summary>
     /// Marks a job as failed and schedules retry if attempts remain.
     /// </summary>
-    private async Task MarkJobFailedAsync(BackgroundJobs job, HartonomousDbContext context, Exception exception, CancellationToken cancellationToken)
+    private async Task MarkJobFailedAsync(BackgroundJob job, HartonomousDbContext context, Exception exception, CancellationToken cancellationToken)
     {
         job.Status = (int)JobStatus.Failed;
         job.ErrorMessage = exception.Message;
@@ -198,7 +203,7 @@ public class JobExecutor
     /// <summary>
     /// Moves a job to dead letter state with a reason.
     /// </summary>
-    private async Task DeadLetterJobAsync(BackgroundJobs job, HartonomousDbContext context, string reason, CancellationToken cancellationToken)
+    private async Task DeadLetterJobAsync(BackgroundJob job, HartonomousDbContext context, string reason, CancellationToken cancellationToken)
     {
         job.Status = (int)JobStatus.DeadLettered;
         job.ErrorMessage = reason;

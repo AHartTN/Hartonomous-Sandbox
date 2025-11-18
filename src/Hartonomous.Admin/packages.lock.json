@@ -517,6 +517,7 @@
         "type": "Project",
         "dependencies": {
           "Hartonomous.Data.Entities": "[1.0.0, )",
+          "Hartonomous.Shared.Contracts": "[1.0.0, )",
           "Microsoft.CodeAnalysis.CSharp": "[4.14.0, )",
           "Microsoft.Data.SqlClient": "[6.1.2, )",
           "Microsoft.EntityFrameworkCore": "[10.0.0, )",
@@ -574,6 +575,7 @@
           "Hartonomous.Core": "[1.0.0, )",
           "Hartonomous.Core.Performance": "[1.0.0, )",
           "Hartonomous.Data": "[1.0.0, )",
+          "Hartonomous.Data.Entities": "[1.0.0, )",
           "MathNet.Numerics": "[5.0.0, )",
           "Microsoft.Data.SqlClient": "[6.1.2, )",
           "Microsoft.EntityFrameworkCore": "[10.0.0, )",

@@ -1,6 +1,6 @@
 using System.Threading;
 using System.Threading.Tasks;
-using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Core.Interfaces;
 

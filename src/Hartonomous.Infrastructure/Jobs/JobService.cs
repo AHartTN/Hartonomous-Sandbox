@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Hartonomous.Data;
 using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Infrastructure.Jobs;
 
@@ -24,12 +25,12 @@ public interface IJobService
     /// <summary>
     /// Gets job status by ID.
     /// </summary>
-    Task<BackgroundJobs?> GetJobAsync(long jobId);
+    Task<BackgroundJob?> GetJobAsync(long jobId);
 
     /// <summary>
     /// Gets jobs by status with pagination.
     /// </summary>
-    Task<List<BackgroundJobs>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100);
+    Task<List<BackgroundJob>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100);
 
     /// <summary>
     /// Cancels a pending/scheduled job.
@@ -93,7 +94,7 @@ public class JobService : IJobService
     {
         options ??= new JobEnqueueOptions();
 
-        var job = new BackgroundJobs
+        var job = new BackgroundJob
         {
             JobType = jobType,
             Payload = JsonSerializer.Serialize(payload),
@@ -112,13 +113,13 @@ public class JobService : IJobService
         return job.JobId;
     }
 
-    public async Task<BackgroundJobs?> GetJobAsync(long jobId)
+    public async Task<BackgroundJob?> GetJobAsync(long jobId)
     {
         return await _context.BackgroundJobs
             .FirstOrDefaultAsync(j => j.JobId == jobId);
     }
 
-    public async Task<List<BackgroundJobs>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100)
+    public async Task<List<BackgroundJob>> GetJobsByStatusAsync(JobStatus status, int skip = 0, int take = 100)
     {
         return await _context.BackgroundJobs
             .Where(j => j.Status == (int)status)

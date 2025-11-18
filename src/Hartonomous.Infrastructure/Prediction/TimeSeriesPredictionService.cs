@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces;
 using Hartonomous.Infrastructure.Data;
 using Microsoft.Data.SqlClient;
-using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Infrastructure.Prediction;
 

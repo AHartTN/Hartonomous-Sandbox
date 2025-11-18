@@ -1,4 +1,4 @@
-using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Core.Models;
 

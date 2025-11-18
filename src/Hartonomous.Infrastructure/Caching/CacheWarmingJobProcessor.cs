@@ -4,6 +4,7 @@ using Hartonomous.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Infrastructure.Caching;
 
@@ -245,7 +246,7 @@ public class CacheWarmingJobProcessor : Infrastructure.Jobs.IJobProcessor<CacheW
             var cacheKey = $"embedding:{tenantPrefix}:{embedding.AtomEmbeddingId}";
             
             // Serialize the vector to byte array for caching
-            if (!embedding.EmbeddingVector.IsNull)
+            if (embedding.EmbeddingVector != null)
             {
                 var vectorBytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(embedding.EmbeddingVector);
                 await _cache.SetAsync(cacheKey, vectorBytes, TimeSpan.FromHours(2), cancellationToken);

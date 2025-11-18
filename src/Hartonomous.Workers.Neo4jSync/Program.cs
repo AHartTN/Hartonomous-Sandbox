@@ -1,4 +1,4 @@
-﻿using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Billing;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces;

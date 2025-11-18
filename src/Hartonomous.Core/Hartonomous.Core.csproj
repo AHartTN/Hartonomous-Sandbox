@@ -30,6 +30,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Hartonomous.Data.Entities\Hartonomous.Data.Entities.csproj" />
+    <ProjectReference Include="..\Hartonomous.Shared.Contracts\Hartonomous.Shared.Contracts.csproj" />
   </ItemGroup>
 
 </Project>

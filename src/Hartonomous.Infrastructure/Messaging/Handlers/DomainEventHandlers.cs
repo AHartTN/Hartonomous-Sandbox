@@ -1,7 +1,7 @@
 using Hartonomous.Infrastructure.Caching;
 using Hartonomous.Infrastructure.Messaging.Events;
 using Microsoft.Extensions.Logging;
-using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Infrastructure.Messaging.Handlers;
 

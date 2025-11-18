@@ -40,6 +40,7 @@
     <ProjectReference Include="..\Hartonomous.Core\Hartonomous.Core.csproj" />
     <ProjectReference Include="..\Hartonomous.Core.Performance\Hartonomous.Core.Performance.csproj" />
     <ProjectReference Include="..\Hartonomous.Data\Hartonomous.Data.csproj" />
+    <ProjectReference Include="..\Hartonomous.Data.Entities\Hartonomous.Data.Entities.csproj" />
   </ItemGroup>
 
 </Project>

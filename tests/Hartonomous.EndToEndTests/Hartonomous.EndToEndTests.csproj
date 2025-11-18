@@ -1,16 +1,24 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Hartonomous.EndToEndTests</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CliWrap" Version="3.6.6" />
-    <PackageReference Include="Microsoft.Playwright" Version="1.48.0" />
-    <PackageReference Include="Testcontainers" Version="4.2.0" />
-    <PackageReference Include="Testcontainers.MsSql" Version="4.2.0" />
-    <PackageReference Include="Testcontainers.Neo4j" Version="4.2.0" />
-    <PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.2" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="CliWrap" />
+    <PackageReference Include="Microsoft.Playwright" />
+    <PackageReference Include="Testcontainers" />
+    <PackageReference Include="Testcontainers.MsSql" />
+    <PackageReference Include="Testcontainers.Neo4j" />
+    <PackageReference Include="Microsoft.Data.SqlClient" />
   </ItemGroup>
 
   <ItemGroup>

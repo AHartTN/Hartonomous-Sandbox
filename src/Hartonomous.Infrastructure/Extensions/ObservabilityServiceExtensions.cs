@@ -1,12 +1,20 @@
 using System.Diagnostics.Metrics;
+using Hartonomous.Data.Entities;
 using Hartonomous.Core.Configuration;
+using Hartonomous.Data.Entities;
 using Hartonomous.Data;
+using Hartonomous.Data.Entities;
 using Hartonomous.Infrastructure.Lifecycle;
+using Hartonomous.Data.Entities;
 using Hartonomous.Infrastructure.RateLimiting;
+using Hartonomous.Data.Entities;
 using Microsoft.Extensions.Configuration;
+using Hartonomous.Data.Entities;
 using Microsoft.Extensions.DependencyInjection;
 using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
+using Hartonomous.Data.Entities;
 namespace Hartonomous.Infrastructure.Extensions;
 
 /// <summary>
@@ -58,3 +66,4 @@ public static class ObservabilityServiceExtensions
         return services;
     }
 }
+

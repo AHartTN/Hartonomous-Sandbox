@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Hartonomous.Data;
 using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 
 namespace Hartonomous.Infrastructure.Jobs.Processors;
 
@@ -184,7 +185,7 @@ public class CleanupJobProcessor : IJobProcessor<CleanupJobPayload>
     {
         // Delete old completed background jobs
         var jobs = await _context.Set<BackgroundJob>()
-            .Where(j => j.Status == JobStatus.Completed && j.CompletedAtUtc < cutoffDate)
+            .Where(j => j.Status == (int)JobStatus.Completed && j.CompletedAtUtc < cutoffDate)
             .OrderBy(j => j.CompletedAtUtc)
             .Take(batchSize)
             .ToListAsync(cancellationToken);
@@ -202,7 +203,7 @@ public class CleanupJobProcessor : IJobProcessor<CleanupJobPayload>
     {
         // Delete old failed/dead-lettered jobs
         var jobs = await _context.Set<BackgroundJob>()
-            .Where(j => (j.Status == JobStatus.Failed || j.Status == JobStatus.DeadLettered) &&
+            .Where(j => (j.Status == (int)JobStatus.Failed || j.Status == (int)JobStatus.DeadLettered) &&
                        j.CompletedAtUtc < cutoffDate)
             .OrderBy(j => j.CompletedAtUtc)
             .Take(batchSize)

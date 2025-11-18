@@ -3,7 +3,7 @@ using System.Linq;
 using Hartonomous.Admin.Operations;
 using Hartonomous.Core.Entities;
 using Hartonomous.Core.Interfaces;
-using Hartonomous.Data.Entities;
+using Hartonomous.Data.Entities.Entities;
 using Hartonomous.Infrastructure.Services;
 using Microsoft.Extensions.Logging;
 
