@@ -90,4 +90,22 @@ public static class ErrorDetailFactory
             ["statusCode"] = 429
         });
     }
+
+    public static ErrorDetail InternalServerError(string code, string message)
+    {
+        if (string.IsNullOrWhiteSpace(code))
+        {
+            throw new ArgumentException("Code cannot be null or whitespace.", nameof(code));
+        }
+
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            throw new ArgumentException("Message cannot be null or whitespace.", nameof(message));
+        }
+
+        return Create(code, message, null, new Dictionary<string, object?>
+        {
+            ["statusCode"] = 500
+        });
+    }
 }
