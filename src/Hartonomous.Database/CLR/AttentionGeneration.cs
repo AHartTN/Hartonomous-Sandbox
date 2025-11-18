@@ -300,7 +300,7 @@ ORDER BY ae.AtomId;
                         if (!reader.IsDBNull(1))
                         {
                             var embeddingJson = reader.GetString(1);
-                            var embedding = ParseVectorJson(embeddingJson);
+                            var embedding = BinaryConversions.ParseVectorJson(embeddingJson);
                             if (embedding != null)
                             {
                                 embeddings.Add(embedding);
@@ -328,7 +328,7 @@ ORDER BY CreatedAt DESC;
                 var result = command.ExecuteScalar();
                 if (result != null && result != DBNull.Value)
                 {
-                    return ParseVectorJson(result.ToString());
+                    return BinaryConversions.ParseVectorJson(result.ToString());
                 }
             }
 

@@ -33,5 +33,34 @@ namespace Hartonomous.Clr
 
             return new SqlSingle(result);
         }
+
+        /// <summary>
+        /// Parses a JSON array string into a float array.
+        /// Used by aggregates that receive vector data as JSON from SQL.
+        /// Format: "[1.0, 2.0, 3.0]"
+        /// </summary>
+        /// <param name="json">JSON array string</param>
+        /// <returns>Float array or null if parsing fails</returns>
+        public static float[] ParseVectorJson(string json)
+        {
+            if (string.IsNullOrWhiteSpace(json))
+                return null;
+
+            try
+            {
+                json = json.Trim();
+                if (!json.StartsWith("[") || !json.EndsWith("]"))
+                    return null;
+
+                return json.Substring(1, json.Length - 2)
+                    .Split(',')
+                    .Select(s => float.Parse(s.Trim()))
+                    .ToArray();
+            }
+            catch
+            {
+                return null;
+            }
+        }
     }
 }

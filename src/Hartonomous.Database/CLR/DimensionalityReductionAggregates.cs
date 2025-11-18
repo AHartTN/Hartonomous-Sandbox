@@ -229,39 +229,11 @@ namespace Hartonomous.Clr
             w.Write(vectors.Count);
             foreach (var vec in vectors)
                 foreach (var val in vec)
-                    w.Write(val);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
+            return jsonBuilder.ToString();
         }
     }
 
-    /// <summary>
-    /// T-SNE PROJECTION AGGREGATE
-    /// t-Distributed Stochastic Neighbor Embedding for 2D/3D visualization
-    /// 
-    /// SELECT dbo.TSNEProjection(embedding_vector, 2, 30.0)
-    /// FROM atoms
-    /// 
-    /// Returns: JSON with 2D/3D coordinates for each vector
-    /// USE CASE: Visualize high-dimensional embeddings in Scatter plots
-    /// </summary>
-    [Serializable]
-    [SqlUserDefinedAggregate(
-        Format.UserDefined,
-        IsInvariantToNulls = true,
-        IsInvariantToDuplicates = false,
+    /// <summary>ntToDuplicates = false,
         IsInvariantToOrder = true,
         MaxByteSize = -1)]
     public struct TSNEProjection : IBinarySerialize
