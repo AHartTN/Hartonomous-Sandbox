@@ -92,7 +92,7 @@ namespace Hartonomous.Clr.Core
         }
 
         /// <summary>
-        /// Computes the Euclidean distance between two vectors.
+        /// Computes the Euclidean distance between two vectors with SIMD acceleration.
         /// </summary>
         /// <param name="a">The first vector.</param>
         /// <param name="b">The second vector.</param>
@@ -103,11 +103,26 @@ namespace Hartonomous.Clr.Core
                 throw new ArgumentException("Vectors must have the same dimension");
 
             float sumSquares = 0;
-            for (int i = 0; i < a.Length; i++)
+            int i = 0;
+            int vectorSize = Vector<float>.Count;
+            int length = a.Length;
+
+            // Process in SIMD chunks
+            for (; i <= length - vectorSize; i += vectorSize)
+            {
+                var v1 = new Vector<float>(a, i);
+                var v2 = new Vector<float>(b, i);
+                var diff = v1 - v2;
+                sumSquares += Vector.Dot(diff, diff);
+            }
+
+            // Process remaining elements
+            for (; i < length; i++)
             {
                 float diff = a[i] - b[i];
                 sumSquares += diff * diff;
             }
+            
             return (float)Math.Sqrt(sumSquares);
         }
 

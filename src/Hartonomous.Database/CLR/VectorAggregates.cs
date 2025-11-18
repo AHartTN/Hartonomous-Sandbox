@@ -257,7 +257,7 @@ namespace Hartonomous.Clr
                 for (int idx = 0; idx < vectorArray.Length; idx++)
                 {
                     var vec = vectorArray[idx];
-                    double dist = EuclideanDistance(vec, estimate);
+                    float dist = (float)VectorUtilities.EuclideanDistance(vec, estimate);
                     if (dist < 1e-10)
                         continue;
 
@@ -274,7 +274,7 @@ namespace Hartonomous.Clr
                 for (int d = 0; d < dimension; d++)
                     newEstimate[d] = (float)(weightedSum[d] / sumWeights);
 
-                double change = EuclideanDistance(estimate, newEstimate);
+                double change = VectorUtilities.EuclideanDistance(estimate, newEstimate);
                 estimate = newEstimate;
 
                 if (change < tolerance)
@@ -308,17 +308,6 @@ namespace Hartonomous.Clr
                 : scratch[length / 2];
 
             return median;
-        }
-
-        private double EuclideanDistance(float[] a, float[] b)
-        {
-            double sum = 0;
-            for (int i = 0; i < a.Length && i < b.Length; i++)
-            {
-                double diff = a[i] - b[i];
-                sum += diff * diff;
-            }
-            return Math.Sqrt(sum);
         }
 
         public void Read(BinaryReader r)

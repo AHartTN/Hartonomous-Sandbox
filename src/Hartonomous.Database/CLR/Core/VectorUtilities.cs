@@ -47,7 +47,7 @@ internal static class VectorUtilities
     }
 
     /// <summary>
-    /// Computes cosine similarity between two vectors.
+    /// Computes cosine similarity between two vectors using SIMD-optimized VectorMath.
     /// Returns value in range [-1, 1] where 1 = identical direction, 0 = orthogonal, -1 = opposite.
     /// </summary>
     /// <param name="a">First vector.</param>
@@ -55,6 +55,7 @@ internal static class VectorUtilities
     /// <returns>Cosine similarity score, or 0 if either vector has zero norm.</returns>
     /// <remarks>
     /// Formula: cos(θ) = (A · B) / (||A|| * ||B||)
+    /// Delegates to VectorMath.CosineSimilarity for SIMD acceleration.
     /// Used in: TimeSeriesVectorAggregates, RecommenderAggregates, ReasoningFrameworkAggregates, GraphVectorAggregates
     /// </remarks>
     internal static double CosineSimilarity(float[] a, float[] b)
@@ -62,35 +63,24 @@ internal static class VectorUtilities
         if (a == null || b == null || a.Length == 0 || b.Length == 0)
             return 0;
 
-        double dotProduct = 0;
-        double normA = 0;
-        double normB = 0;
-
-        int minLength = Math.Min(a.Length, b.Length);
-
-        for (int i = 0; i < minLength; i++)
+        // Handle different lengths by padding shorter vector with zeros
+        if (a.Length != b.Length)
         {
-            dotProduct += a[i] * b[i];
-            normA += a[i] * a[i];
-            normB += b[i] * b[i];
+            int maxLength = Math.Max(a.Length, b.Length);
+            var paddedA = new float[maxLength];
+            var paddedB = new float[maxLength];
+            
+            Array.Copy(a, paddedA, a.Length);
+            Array.Copy(b, paddedB, b.Length);
+            
+            return VectorMath.CosineSimilarity(paddedA, paddedB);
         }
 
-        // Handle remaining dimensions if vectors have different lengths
-        for (int i = minLength; i < a.Length; i++)
-            normA += a[i] * a[i];
-
-        for (int i = minLength; i < b.Length; i++)
-            normB += b[i] * b[i];
-
-        // Avoid division by zero
-        if (normA == 0 || normB == 0)
-            return 0;
-
-        return dotProduct / (Math.Sqrt(normA) * Math.Sqrt(normB));
+        return VectorMath.CosineSimilarity(a, b);
     }
 
     /// <summary>
-    /// Computes Euclidean distance (L2 norm) between two vectors.
+    /// Computes Euclidean distance (L2 norm) between two vectors using SIMD-optimized VectorMath.
     /// Returns value >= 0 where 0 = identical vectors.
     /// </summary>
     /// <param name="a">First vector.</param>
@@ -98,6 +88,7 @@ internal static class VectorUtilities
     /// <returns>Euclidean distance.</returns>
     /// <remarks>
     /// Formula: sqrt(Σ(a[i] - b[i])²)
+    /// Delegates to VectorMath.EuclideanDistance for SIMD acceleration.
     /// Used in: ReasoningFrameworkAggregates, TimeSeriesVectorAggregates, AnomalyDetectionAggregates,
     ///          GraphVectorAggregates, AdvancedVectorAggregates
     /// </remarks>
@@ -106,24 +97,20 @@ internal static class VectorUtilities
         if (a == null || b == null || a.Length == 0 || b.Length == 0)
             return double.MaxValue;
 
-        double sum = 0;
-        int minLength = Math.Min(a.Length, b.Length);
-
-        for (int i = 0; i < minLength; i++)
+        // Handle different lengths by padding shorter vector with zeros
+        if (a.Length != b.Length)
         {
-            double diff = a[i] - b[i];
-            sum += diff * diff;
+            int maxLength = Math.Max(a.Length, b.Length);
+            var paddedA = new float[maxLength];
+            var paddedB = new float[maxLength];
+            
+            Array.Copy(a, paddedA, a.Length);
+            Array.Copy(b, paddedB, b.Length);
+            
+            return VectorMath.EuclideanDistance(paddedA, paddedB);
         }
 
-        // Handle remaining dimensions if vectors have different lengths
-        // (treat missing dimensions as 0)
-        for (int i = minLength; i < a.Length; i++)
-            sum += a[i] * a[i];
-
-        for (int i = minLength; i < b.Length; i++)
-            sum += b[i] * b[i];
-
-        return Math.Sqrt(sum);
+        return VectorMath.EuclideanDistance(a, b);
     }
 
     /// <summary>
@@ -161,13 +148,14 @@ internal static class VectorUtilities
     }
 
     /// <summary>
-    /// Computes dot product between two vectors.
+    /// Computes dot product between two vectors using SIMD-optimized VectorMath.
     /// </summary>
     /// <param name="a">First vector.</param>
     /// <param name="b">Second vector.</param>
     /// <returns>Dot product value.</returns>
     /// <remarks>
     /// Formula: Σ(a[i] * b[i])
+    /// Delegates to VectorMath.DotProduct for SIMD acceleration.
     /// Note: This is not normalized. For similarity use CosineSimilarity instead.
     /// </remarks>
     internal static double DotProduct(float[] a, float[] b)
@@ -175,19 +163,24 @@ internal static class VectorUtilities
         if (a == null || b == null || a.Length == 0 || b.Length == 0)
             return 0;
 
-        double sum = 0;
+        // Handle different lengths by only computing dot product for common dimensions
         int minLength = Math.Min(a.Length, b.Length);
-
-        for (int i = 0; i < minLength; i++)
+        if (a.Length == b.Length)
         {
-            sum += a[i] * b[i];
+            return VectorMath.DotProduct(a, b);
         }
 
-        return sum;
+        // Create truncated arrays for mismatched lengths
+        var truncatedA = new float[minLength];
+        var truncatedB = new float[minLength];
+        Array.Copy(a, truncatedA, minLength);
+        Array.Copy(b, truncatedB, minLength);
+        
+        return VectorMath.DotProduct(truncatedA, truncatedB);
     }
 
     /// <summary>
-    /// Computes L2 norm (magnitude) of a vector.
+    /// Computes L2 norm (magnitude) of a vector using SIMD-optimized VectorMath.
     /// </summary>
     /// <param name="vector">Input vector.</param>
     /// <returns>L2 norm (Euclidean length).</returns>
@@ -196,13 +189,7 @@ internal static class VectorUtilities
         if (vector == null || vector.Length == 0)
             return 0;
 
-        double sum = 0;
-        for (int i = 0; i < vector.Length; i++)
-        {
-            sum += vector[i] * vector[i];
-        }
-
-        return Math.Sqrt(sum);
+        return VectorMath.Norm(vector);
     }
 
     /// <summary>
