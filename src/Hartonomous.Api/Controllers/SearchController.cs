@@ -394,114 +394,35 @@ public sealed class SearchController : ApiControllerBase
         try
         {
             var stopwatch = Stopwatch.StartNew();
-            var results = new List<DTOs.Search.TemporalSearchResult>();
 
             await using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
 
-            // Temporal search modes: range, point_in_time, changes
-            var queryText = request.Mode switch
+            // Use database-centric stored procedure sp_TemporalVectorSearch
+            await using var command = new SqlCommand("dbo.sp_TemporalVectorSearch", connection)
             {
-                TemporalSearchMode.PointInTime => @"
-                    SELECT TOP (@topK)
-                        ae.AtomEmbeddingId,
-                        ae.AtomId,
-                        a.Modality,
-                        a.Subtype,
-                        a.SourceUri,
-                        a.SourceType,
-                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @queryVector) AS Similarity,
-                        a.CreatedAtUtc,
-                        DATEDIFF(HOUR, a.CreatedAtUtc, @startTime) AS TemporalDistanceHours
-                    FROM dbo.AtomEmbeddings ae FOR SYSTEM_TIME AS OF @startTime
-                    INNER JOIN dbo.Atoms a FOR SYSTEM_TIME AS OF @startTime ON a.AtomId = ae.AtomId
-                    WHERE ae.EmbeddingVector IS NOT NULL
-                      AND ae.Dimension = @dimension
-                      AND (@modality IS NULL OR a.Modality = @modality)
-                      AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
-                      AND (@modelId IS NULL OR ae.ModelId = @modelId)
-                    ORDER BY Similarity DESC;",
-                
-                TemporalSearchMode.Changes => @"
-                    SELECT TOP (@topK)
-                        ae.AtomEmbeddingId,
-                        ae.AtomId,
-                        a.Modality,
-                        a.Subtype,
-                        a.SourceUri,
-                        a.SourceType,
-                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @queryVector) AS Similarity,
-                        a.CreatedAtUtc,
-                        DATEDIFF(HOUR, a.CreatedAtUtc, @endTime) AS TemporalDistanceHours
-                    FROM dbo.AtomEmbeddings ae FOR SYSTEM_TIME FROM @startTime TO @endTime
-                    INNER JOIN dbo.Atoms a FOR SYSTEM_TIME FROM @startTime TO @endTime ON a.AtomId = ae.AtomId
-                    WHERE ae.EmbeddingVector IS NOT NULL
-                      AND ae.Dimension = @dimension
-                      AND (@modality IS NULL OR a.Modality = @modality)
-                      AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
-                      AND (@modelId IS NULL OR ae.ModelId = @modelId)
-                    ORDER BY Similarity DESC;",
-                
-                _ => @"
-                    SELECT TOP (@topK)
-                        ae.AtomEmbeddingId,
-                        ae.AtomId,
-                        a.Modality,
-                        a.Subtype,
-                        a.SourceUri,
-                        a.SourceType,
-                        1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @queryVector) AS Similarity,
-                        a.CreatedAtUtc,
-                        DATEDIFF(HOUR, a.CreatedAtUtc, @midpoint) AS TemporalDistanceHours
-                    FROM dbo.AtomEmbeddings ae
-                    INNER JOIN dbo.Atoms a ON a.AtomId = ae.AtomId
-                    WHERE ae.EmbeddingVector IS NOT NULL
-                      AND ae.Dimension = @dimension
-                      AND a.CreatedAtUtc >= @startTime
-                      AND a.CreatedAtUtc <= @endTime
-                      AND (@modality IS NULL OR a.Modality = @modality)
-                      AND (@embeddingType IS NULL OR ae.EmbeddingType = @embeddingType)
-                      AND (@modelId IS NULL OR ae.ModelId = @modelId)
-                    ORDER BY Similarity DESC;"
-            };
-
-            await using var command = new SqlCommand(queryText, connection)
-            {
-                CommandType = CommandType.Text,
+                CommandType = CommandType.StoredProcedure,
                 CommandTimeout = 60
             };
 
             var padded = Core.Utilities.VectorUtility.PadToSqlLength(request.QueryVector, out var actualDim);
-            var vectorParam = command.Parameters.AddWithValue("@queryVector", padded);
+            var vectorParam = command.Parameters.AddWithValue("@QueryVector", padded);
             vectorParam.SqlDbType = SqlDbType.Udt;
             vectorParam.UdtTypeName = "VECTOR(1998)";
 
-            command.Parameters.AddWithValue("@dimension", actualDim);
-            command.Parameters.AddWithValue("@topK", request.TopK);
-            command.Parameters.AddWithValue("@startTime", request.StartTimeUtc);
-            command.Parameters.AddWithValue("@endTime", request.EndTimeUtc);
-            command.Parameters.AddWithValue("@midpoint", request.StartTimeUtc.AddTicks((request.EndTimeUtc - request.StartTimeUtc).Ticks / 2));
-            command.Parameters.AddWithValue("@modality", request.Modality ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@embeddingType", request.EmbeddingType ?? (object)DBNull.Value);
-            command.Parameters.AddWithValue("@modelId", request.ModelId ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@TopK", request.TopK);
+            command.Parameters.AddWithValue("@StartTime", request.StartTimeUtc);
+            command.Parameters.AddWithValue("@EndTime", request.EndTimeUtc);
+            command.Parameters.AddWithValue("@Modality", request.Modality ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@EmbeddingType", request.EmbeddingType ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@ModelId", request.ModelId ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@Dimension", actualDim);
 
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
-
-            while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
-            {
-                results.Add(new DTOs.Search.TemporalSearchResult
-                {
-                    AtomEmbeddingId = reader.GetInt64(0),
-                    AtomId = reader.GetInt64(1),
-                    Modality = reader.IsDBNull(2) ? null : reader.GetString(2),
-                    Subtype = reader.IsDBNull(3) ? null : reader.GetString(3),
-                    SourceUri = reader.IsDBNull(4) ? null : reader.GetString(4),
-                    SourceType = reader.IsDBNull(5) ? null : reader.GetString(5),
-                    Similarity = reader.GetDouble(6),
-                    CreatedAtUtc = reader.GetDateTime(7),
-                    TemporalDistanceHours = reader.GetDouble(8)
-                });
-            }
+            // Stored procedure returns JSON - parse directly
+            var jsonResult = await command.ExecuteScalarAsync(cancellationToken).ConfigureAwait(false);
+            var results = jsonResult != null && jsonResult != DBNull.Value
+                ? System.Text.Json.JsonSerializer.Deserialize<List<DTOs.Search.TemporalSearchResult>>(jsonResult.ToString()!)
+                : new List<DTOs.Search.TemporalSearchResult>();
 
             stopwatch.Stop();
 

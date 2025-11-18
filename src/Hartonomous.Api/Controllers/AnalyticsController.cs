@@ -49,100 +49,36 @@ public class AnalyticsController : ControllerBase
             await using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
 
-            var query = @"
-                WITH TimeSeriesData AS (
-                    SELECT 
-                        CASE @GroupBy
-                            WHEN 'day' THEN CAST(DATEADD(DAY, DATEDIFF(DAY, 0, ir.CreatedAt), 0) AS DATETIME)
-                            WHEN 'week' THEN CAST(DATEADD(WEEK, DATEDIFF(WEEK, 0, ir.CreatedAt), 0) AS DATETIME)
-                            WHEN 'month' THEN CAST(DATEADD(MONTH, DATEDIFF(MONTH, 0, ir.CreatedAt), 0) AS DATETIME)
-                        END AS TimeBucket,
-                        COUNT(*) AS RequestCount,
-                        COUNT(DISTINCT ir.InferenceId) AS UniqueInferences,
-                        AVG(ISNULL(ir.TotalDurationMs, 0)) AS AvgDuration
-                    FROM dbo.InferenceRequests ir
-                    WHERE ir.CreatedAt BETWEEN @StartDate AND @EndDate
-                        AND (@Modality IS NULL OR ir.TaskType = @Modality)
-                    GROUP BY 
-                        CASE @GroupBy
-                            WHEN 'day' THEN CAST(DATEADD(DAY, DATEDIFF(DAY, 0, ir.CreatedAt), 0) AS DATETIME)
-                            WHEN 'week' THEN CAST(DATEADD(WEEK, DATEDIFF(WEEK, 0, ir.CreatedAt), 0) AS DATETIME)
-                            WHEN 'month' THEN CAST(DATEADD(MONTH, DATEDIFF(MONTH, 0, ir.CreatedAt), 0) AS DATETIME)
-                        END
-                )
-                SELECT 
-                    TimeBucket,
-                    RequestCount,
-                    UniqueInferences,
-                    0 AS DeduplicatedCount,
-                    0.0 AS DeduplicationRate,
-                    0 AS TotalBytes,
-                    AvgDuration
-                FROM TimeSeriesData
-                ORDER BY TimeBucket;
+            // Use database-centric stored procedure sp_GetUsageAnalytics
+            await using var command = new SqlCommand("dbo.sp_GetUsageAnalytics", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
 
-                -- Summary stats
-                SELECT 
-                    COUNT(*) AS TotalRequests,
-                    COUNT(DISTINCT InferenceId) AS TotalInferences,
-                    0 AS TotalDeduped,
-                    0.0 AS DeduplicationRate,
-                    0 AS TotalBytes,
-                    AVG(ISNULL(TotalDurationMs, 0)) AS AvgDuration
-                FROM dbo.InferenceRequests
-                WHERE CreatedAt BETWEEN @StartDate AND @EndDate
-                    AND (@Modality IS NULL OR TaskType = @Modality);";
-
-            await using var command = new SqlCommand(query, connection);
             command.Parameters.AddWithValue("@StartDate", request.StartDate);
             command.Parameters.AddWithValue("@EndDate", request.EndDate);
-            command.Parameters.AddWithValue("@Modality", request.Modality ?? (object)DBNull.Value);
             command.Parameters.AddWithValue("@GroupBy", request.GroupBy ?? "day");
+            command.Parameters.AddWithValue("@Modality", request.Modality ?? (object)DBNull.Value);
 
-            var dataPoints = new List<UsageDataPoint>();
-            var summary = new UsageSummary();
-
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            // Read time series data
-            while (await reader.ReadAsync(cancellationToken))
+            // Stored procedure returns JSON - parse directly
+            var jsonResult = await command.ExecuteScalarAsync(cancellationToken);
+            if (jsonResult == null || jsonResult == DBNull.Value)
             {
-                dataPoints.Add(new UsageDataPoint
+                return Ok(ApiResponse<UsageAnalyticsResponse>.Success(new UsageAnalyticsResponse
                 {
-                    Timestamp = reader.GetDateTime(0),
-                    TotalRequests = reader.GetInt32(1),
-                    UniqueAtoms = reader.GetInt32(2),
-                    DeduplicatedCount = reader.GetInt32(3),
-                    DeduplicationRate = reader.GetDouble(4),
-                    TotalBytesProcessed = reader.GetInt64(5),
-                    AvgResponseTimeMs = reader.GetDouble(6)
-                });
+                    DataPoints = new List<UsageDataPoint>(),
+                    Summary = new UsageSummary()
+                }));
             }
 
-            // Read summary
-            if (await reader.NextResultAsync(cancellationToken) && await reader.ReadAsync(cancellationToken))
-            {
-                summary = new UsageSummary
-                {
-                    TotalRequests = reader.GetInt32(0),
-                    TotalAtoms = reader.GetInt32(1),
-                    TotalDeduped = reader.GetInt32(2),
-                    OverallDeduplicationRate = reader.GetDouble(3),
-                    TotalBytesProcessed = reader.GetInt64(4),
-                    AvgResponseTimeMs = reader.GetDouble(5)
-                };
-            }
+            var response = System.Text.Json.JsonSerializer.Deserialize<UsageAnalyticsResponse>(jsonResult.ToString()!);
 
             _logger.LogInformation("Usage analytics retrieved: {DataPoints} data points, {TotalRequests} total requests",
-                dataPoints.Count, summary.TotalRequests);
+                response?.DataPoints?.Count ?? 0, response?.Summary?.TotalRequests ?? 0);
 
-            return Ok(ApiResponse<UsageAnalyticsResponse>.Ok(new UsageAnalyticsResponse
+            return Ok(ApiResponse<UsageAnalyticsResponse>.Ok(response!, new ApiMetadata
             {
-                DataPoints = dataPoints,
-                Summary = summary
-            }, new ApiMetadata
-            {
-                TotalCount = dataPoints.Count,
+                TotalCount = response?.DataPoints?.Count ?? 0,
                 Extra = new Dictionary<string, object>
                 {
                     ["dateRange"] = $"{request.StartDate:yyyy-MM-dd} to {request.EndDate:yyyy-MM-dd}",
@@ -173,48 +109,22 @@ public class AnalyticsController : ControllerBase
             await using var connection = new SqlConnection(_connectionString);
             await connection.OpenAsync(cancellationToken);
 
-            var query = @"
-                SELECT 
-                    m.ModelId,
-                    m.ModelName,
-                    ISNULL(m.UsageCount, 0) AS TotalInferences,
-                    AVG(ml.AvgComputeTimeMs) AS AvgInferenceTimeMs,
-                    0.0 AS AvgConfidenceScore,
-                    AVG(ISNULL(ml.CacheHitRate, 0)) AS CacheHitRate,
-                    0 AS TotalTokensGenerated,
-                    m.LastUsed,
-                    m.UsageCount
-                FROM dbo.Models m
-                LEFT JOIN dbo.ModelLayers ml ON ml.ModelId = m.ModelId
-                WHERE (@ModelId IS NULL OR m.ModelId = @ModelId)
-                    AND (@StartDate IS NULL OR m.LastUsed >= @StartDate)
-                    AND (@EndDate IS NULL OR m.LastUsed <= @EndDate)
-                GROUP BY m.ModelId, m.ModelName, m.UsageCount, m.LastUsed
-                ORDER BY m.UsageCount DESC;";
+            // Use database-centric stored procedure sp_GetModelPerformanceMetrics
+            await using var command = new SqlCommand("dbo.sp_GetModelPerformanceMetrics", connection)
+            {
+                CommandType = CommandType.StoredProcedure
+            };
 
-            await using var command = new SqlCommand(query, connection);
             command.Parameters.AddWithValue("@ModelId", request?.ModelId ?? (object)DBNull.Value);
             command.Parameters.AddWithValue("@StartDate", request?.StartDate ?? (object)DBNull.Value);
             command.Parameters.AddWithValue("@EndDate", request?.EndDate ?? (object)DBNull.Value);
+            command.Parameters.AddWithValue("@TopN", 100);
 
-            var metrics = new List<ModelPerformanceMetric>();
-            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                metrics.Add(new ModelPerformanceMetric
-                {
-                    ModelId = reader.GetInt32(0),
-                    ModelName = reader.GetString(1),
-                    TotalInferences = reader.GetInt64(2),
-                    AvgInferenceTimeMs = reader.IsDBNull(3) ? 0 : (double)reader.GetFloat(3),
-                    AvgConfidenceScore = reader.GetDouble(4),
-                    CacheHitRate = reader.IsDBNull(5) ? 0 : (double)reader.GetFloat(5),
-                    TotalTokensGenerated = reader.GetInt64(6),
-                    LastUsed = reader.IsDBNull(7) ? null : reader.GetDateTime(7),
-                    UsageCount = reader.IsDBNull(8) ? null : reader.GetInt32(8)
-                });
-            }
+            // Stored procedure returns JSON - parse directly
+            var jsonResult = await command.ExecuteScalarAsync(cancellationToken);
+            var metrics = jsonResult != null && jsonResult != DBNull.Value
+                ? System.Text.Json.JsonSerializer.Deserialize<List<ModelPerformanceMetric>>(jsonResult.ToString()!)
+                : new List<ModelPerformanceMetric>();
 
             _logger.LogInformation("Model performance metrics retrieved for {Count} models", metrics.Count);
 
