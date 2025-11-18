@@ -10,6 +10,8 @@
     <PackageVersion Include="FluentAssertions" Version="7.0.0" />
     <PackageVersion Include="Moq" Version="4.20.72" />
     <PackageVersion Include="BenchmarkDotNet" Version="0.14.0" />
+        <PackageVersion Include=\"DotNet.Testcontainers\" Version=\"3.9.0\" />
+    <PackageVersion Include="Respawn" Version="6.2.1" />
     
     <!-- Core Libraries -->
     <PackageVersion Include="Newtonsoft.Json" Version="13.0.3" />
