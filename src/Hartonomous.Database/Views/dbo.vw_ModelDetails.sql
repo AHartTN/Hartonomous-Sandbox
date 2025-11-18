@@ -20,7 +20,7 @@ SELECT
     mm.MaxInputLength,
     mm.MaxOutputLength,
     mm.EmbeddingDimension,
-    (SELECT COUNT_BIG(*) FROM dbo.ModelLayers ml WHERE ml.ModelId = m.ModelId) AS LayerCount
-FROM dbo.Models m
+    (SELECT COUNT_BIG(*) FROM dbo.ModelLayer ml WHERE ml.ModelId = m.ModelId) AS LayerCount
+FROM dbo.Model m
 LEFT JOIN dbo.ModelMetadata mm ON mm.ModelId = m.ModelId;
 GO

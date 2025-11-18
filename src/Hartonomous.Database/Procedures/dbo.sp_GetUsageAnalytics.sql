@@ -4,7 +4,7 @@
 -- T-SQL aggregations benefit from query optimizer, parallelism, columnstore indexes
 -- Returns JSON for easy API consumption
 -- =============================================
-CREATE OR ALTER PROCEDURE dbo.sp_GetUsageAnalytics
+CREATE PROCEDURE dbo.sp_GetUsageAnalytics
     @StartDate DATETIME2,
     @EndDate DATETIME2,
     @BucketInterval VARCHAR(10) = 'HOUR' -- 'HOUR', 'DAY', 'WEEK'
@@ -16,10 +16,10 @@ BEGIN
     
     -- Determine time bucketing function
     SET @BucketFunction = CASE @BucketInterval
-        WHEN 'HOUR' THEN 'DATEADD(HOUR, DATEDIFF(HOUR, 0, ir.CreatedAt), 0)'
-        WHEN 'DAY' THEN 'DATEADD(DAY, DATEDIFF(DAY, 0, ir.CreatedAt), 0)'
-        WHEN 'WEEK' THEN 'DATEADD(WEEK, DATEDIFF(WEEK, 0, ir.CreatedAt), 0)'
-        ELSE 'DATEADD(HOUR, DATEDIFF(HOUR, 0, ir.CreatedAt), 0)' -- Default to hour
+        WHEN 'HOUR' THEN 'DATEADD(HOUR, DATEDIFF(HOUR, 0, ir.RequestTimestamp), 0)'
+        WHEN 'DAY' THEN 'DATEADD(DAY, DATEDIFF(DAY, 0, ir.RequestTimestamp), 0)'
+        WHEN 'WEEK' THEN 'DATEADD(WEEK, DATEDIFF(WEEK, 0, ir.RequestTimestamp), 0)'
+        ELSE 'DATEADD(HOUR, DATEDIFF(HOUR, 0, ir.RequestTimestamp), 0)' -- Default to hour
     END;
 
     -- Build dynamic SQL for time bucketing
@@ -30,8 +30,8 @@ BEGIN
         AVG(ISNULL(ir.TotalDurationMs, 0)) AS AvgDurationMs,
         SUM(CASE WHEN ir.Status = ''Completed'' THEN 1 ELSE 0 END) AS SuccessCount,
         SUM(CASE WHEN ir.Status = ''Failed'' THEN 1 ELSE 0 END) AS FailureCount
-    FROM dbo.InferenceRequests ir
-    WHERE ir.CreatedAt BETWEEN @StartDate AND @EndDate
+    FROM dbo.InferenceRequest ir
+    WHERE ir.RequestTimestamp BETWEEN @StartDate AND @EndDate
     GROUP BY ' + @BucketFunction + '
     ORDER BY TimeBucket
     FOR JSON PATH;

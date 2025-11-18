@@ -15,8 +15,8 @@ SELECT
     m.Architecture,
     m.UsageCount,
     m.LastUsed,
-    (SELECT COUNT_BIG(*) FROM dbo.ModelLayers ml WHERE ml.ModelId = m.ModelId) AS LayerCount
-FROM dbo.Models m;
+    (SELECT COUNT_BIG(*) FROM dbo.ModelLayer ml WHERE ml.ModelId = m.ModelId) AS LayerCount
+FROM dbo.Model m;
 GO
 
 -- Optional: Create clustered index for materialized view (significant perf boost for large datasets)

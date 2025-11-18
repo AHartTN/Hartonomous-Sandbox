@@ -17,11 +17,11 @@ SELECT
     l.TensorDtype,
     l.CacheHitRate,
     l.AvgComputeTimeMs,
-    (SELECT COUNT_BIG(*) FROM dbo.TensorAtoms ta WHERE ta.LayerId = l.LayerId) AS TensorAtomCount,
+    (SELECT COUNT_BIG(*) FROM dbo.TensorAtom ta WHERE ta.LayerId = l.LayerId) AS TensorAtomCount,
     (SELECT AVG(CAST(ta2.ImportanceScore AS FLOAT)) 
-     FROM dbo.TensorAtoms ta2 
+     FROM dbo.TensorAtom ta2 
      WHERE ta2.LayerId = l.LayerId) AS AvgImportance
-FROM dbo.ModelLayers l;
+FROM dbo.ModelLayer l;
 GO
 
 -- Optional: Create clustered index for materialized view

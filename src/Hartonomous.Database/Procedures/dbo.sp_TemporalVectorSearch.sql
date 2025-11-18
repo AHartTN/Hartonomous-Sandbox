@@ -4,7 +4,7 @@
 -- SQL Server 2025 native VECTOR_DISTANCE outperforms CLR for set-based operations
 -- CLR is for per-row RBAR operations, T-SQL for set operations
 -- =============================================
-CREATE OR ALTER PROCEDURE dbo.sp_TemporalVectorSearch
+CREATE PROCEDURE dbo.sp_TemporalVectorSearch
     @QueryVector VECTOR(1998),
     @TopK INT = 10,
     @StartTime DATETIME2,
@@ -25,10 +25,10 @@ BEGIN
         a.SourceUri,
         a.SourceType,
         1.0 - VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @QueryVector) AS Similarity,
-        a.CreatedAtUtc,
-        DATEDIFF(HOUR, a.CreatedAtUtc, @EndTime) AS TemporalDistanceHours
-    FROM dbo.AtomEmbeddings FOR SYSTEM_TIME FROM @StartTime TO @EndTime ae
-    INNER JOIN dbo.Atoms FOR SYSTEM_TIME FROM @StartTime TO @EndTime a 
+        a.CreatedAt,
+        DATEDIFF(HOUR, a.CreatedAt, @EndTime) AS TemporalDistanceHours
+    FROM dbo.AtomEmbedding FOR SYSTEM_TIME FROM @StartTime TO @EndTime ae
+    INNER JOIN dbo.Atom FOR SYSTEM_TIME FROM @StartTime TO @EndTime a 
         ON a.AtomId = ae.AtomId
     WHERE ae.EmbeddingVector IS NOT NULL
       AND ae.Dimension = @Dimension

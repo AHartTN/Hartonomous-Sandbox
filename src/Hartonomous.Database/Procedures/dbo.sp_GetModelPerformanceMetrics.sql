@@ -4,7 +4,7 @@
 -- Query optimizer can use indexed view vw_ModelPerformanceMetrics
 -- Returns JSON for API consumption
 -- =============================================
-CREATE OR ALTER PROCEDURE dbo.sp_GetModelPerformanceMetrics
+CREATE PROCEDURE dbo.sp_GetModelPerformanceMetrics
     @ModelId INT = NULL,
     @StartDate DATETIME2 = NULL,
     @EndDate DATETIME2 = NULL,
@@ -21,13 +21,12 @@ BEGIN
         AvgConfidenceScore,
         CacheHitRate,
         TotalTokensGenerated,
-        LastUsed,
-        UsageCount
+        LastUsed
     FROM dbo.vw_ModelPerformanceMetrics
     WHERE (@ModelId IS NULL OR ModelId = @ModelId)
       AND (@StartDate IS NULL OR LastUsed >= @StartDate)
       AND (@EndDate IS NULL OR LastUsed <= @EndDate)
-    ORDER BY UsageCount DESC
+    ORDER BY TotalInferences DESC
     FOR JSON PATH;
 END;
 GO

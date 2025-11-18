@@ -13,17 +13,17 @@ SELECT
     m.LastUsed,
     -- Compute average inference time from model layers
     (SELECT AVG(ml2.AvgComputeTimeMs) 
-     FROM dbo.ModelLayers ml2 
+     FROM dbo.ModelLayer ml2 
      WHERE ml2.ModelId = m.ModelId) AS AvgInferenceTimeMs,
     -- Compute average cache hit rate
     (SELECT AVG(ISNULL(ml3.CacheHitRate, 0.0)) 
-     FROM dbo.ModelLayers ml3 
+     FROM dbo.ModelLayer ml3 
      WHERE ml3.ModelId = m.ModelId) AS CacheHitRate,
     -- Placeholder for confidence score (requires inference request data)
     CAST(0.0 AS FLOAT) AS AvgConfidenceScore,
     -- Placeholder for tokens (requires inference request data)
     CAST(0 AS BIGINT) AS TotalTokensGenerated
-FROM dbo.Models m;
+FROM dbo.Model m;
 GO
 
 -- Create indexed view for automatic materialization (MASSIVE perf boost)
