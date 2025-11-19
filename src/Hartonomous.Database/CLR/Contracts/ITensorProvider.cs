@@ -13,6 +13,6 @@ namespace Hartonomous.Clr.Contracts
         /// <param name="tensorName">The fully qualified name of the tensor (e.g., "transformer.layer.0.attention.qkv_proj.weight").</param>
         /// <param name="expectedSizeInBytes">The expected size of the tensor in bytes, for validation.</param>
         /// <returns>A float array containing the tensor weights, or null if not found.</returns>
-        float[] LoadWeights(string tensorName, int maxElements);
+        float[]? LoadWeights(string tensorName, int maxElements);
     }
 }

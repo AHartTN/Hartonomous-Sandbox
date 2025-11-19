@@ -35,8 +35,8 @@ namespace Hartonomous.Clr
     public struct VectorMeanVariance : IBinarySerialize
     {
         private long count;
-        private float[] mean;      // Component-wise running mean
-        private float[] m2;        // Component-wise sum of squared deviations
+        private float[]? mean;      // Component-wise running mean
+        private float[]? m2;        // Component-wise sum of squared deviations
         private int dimension;
 
         public void Init()
@@ -52,7 +52,7 @@ namespace Hartonomous.Clr
             if (vectorJson.IsNull)
                 return;
 
-            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
+            float[]? vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null)
                 return;
 
@@ -65,13 +65,14 @@ namespace Hartonomous.Clr
             else if (vec.Length != dimension)
                 return; // Skip mismatched dimensions
 
+            // mean and m2 are guaranteed non-null here due to dimension check
             count++;
             for (int i = 0; i < dimension; i++)
             {
-                float delta = vec[i] - mean[i];
+                float delta = vec[i] - mean![i];
                 mean[i] += delta / count;
                 float delta2 = vec[i] - mean[i];
-                m2[i] += delta * delta2;
+                m2![i] += delta * delta2;
             }
         }
 
@@ -93,12 +94,13 @@ namespace Hartonomous.Clr
                 return;
 
             // Parallel Welford merge (Chan's algorithm) applied component-wise
+            // After dimension checks, mean and m2 are guaranteed non-null
             long newCount = count + other.count;
             for (int i = 0; i < dimension; i++)
             {
-                float delta = other.mean[i] - mean[i];
+                float delta = other.mean![i] - mean![i];
                 float newMean = mean[i] + delta * other.count / newCount;
-                float newM2 = m2[i] + other.m2[i] + delta * delta * count * other.count / newCount;
+                float newM2 = m2![i] + other.m2![i] + delta * delta * count * other.count / newCount;
                 mean[i] = newMean;
                 m2[i] = newM2;
             }
@@ -107,7 +109,7 @@ namespace Hartonomous.Clr
 
         public SqlString Terminate()
         {
-            if (count == 0 || dimension == 0)
+            if (count == 0 || dimension == 0 || mean == null || m2 == null)
                 return SqlString.Null;
 
             float[] variance = new float[dimension];
@@ -135,13 +137,8 @@ namespace Hartonomous.Clr
             dimension = r.ReadInt32();
             if (dimension > 0)
             {
-                mean = new float[dimension];
-                m2 = new float[dimension];
-                for (int i = 0; i < dimension; i++)
-                {
-                    mean[i] = r.ReadSingle();
-                    m2[i] = r.ReadSingle();
-                }
+                mean = r.ReadFloatArray();
+                m2 = r.ReadFloatArray();
             }
         }
 
@@ -149,13 +146,10 @@ namespace Hartonomous.Clr
         {
             w.Write(count);
             w.Write(dimension);
-            if (dimension > 0)
+            if (dimension > 0 && mean != null && m2 != null)
             {
-                for (int i = 0; i < dimension; i++)
-                {
-                    w.Write(mean[i]);
-                    w.Write(m2[i]);
-                }
+                w.WriteFloatArray(mean);
+                w.WriteFloatArray(m2);
             }
         }
     }
@@ -195,7 +189,7 @@ namespace Hartonomous.Clr
             if (vectorJson.IsNull)
                 return;
 
-            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
+            float[]? vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null)
                 return;
 
@@ -323,10 +317,9 @@ namespace Hartonomous.Clr
             vectors.Reserve(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -337,9 +330,7 @@ namespace Hartonomous.Clr
             w.Write(arr.Length);
             for (int i = 0; i < arr.Length; i++)
             {
-                var vec = arr[i];
-                for (int j = 0; j < dimension; j++)
-                    w.Write(vec[j]);
+                w.WriteFloatArray(arr[i]);
             }
         }
     }
@@ -361,8 +352,8 @@ namespace Hartonomous.Clr
     public struct StreamingSoftmax : IBinarySerialize
     {
         private int dimension;
-        private float[] maxValues;  // Max per component
-        private double[] sumExp;    // Sum of exp(x - max)
+        private float[]? maxValues;  // Max per component
+        private double[]? sumExp;    // Sum of exp(x - max)
         private int count;
 
         public void Init()
@@ -378,7 +369,7 @@ namespace Hartonomous.Clr
             if (vectorJson.IsNull)
                 return;
 
-            float[] vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
+            float[]? vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null || vec.Length == 0)
                 return;
 
@@ -399,20 +390,21 @@ namespace Hartonomous.Clr
             if (vec.Length != dimension)
                 throw new ArgumentException($"Vector dimension mismatch: expected {dimension}, got {vec.Length}");
 
+            // maxValues and sumExp guaranteed non-null after dimension check
             for (int i = 0; i < dimension; i++)
             {
-                float currentMax = maxValues[i];
+                float currentMax = maxValues![i];
                 float value = vec[i];
 
                 if (value > currentMax)
                 {
                     double scale = Math.Exp(currentMax - value);
-                    sumExp[i] = sumExp[i] * scale + 1.0d;
+                    sumExp![i] = sumExp[i] * scale + 1.0d;
                     maxValues[i] = value;
                 }
                 else
                 {
-                    sumExp[i] += Math.Exp(value - currentMax);
+                    sumExp![i] += Math.Exp(value - currentMax);
                 }
             }
 
@@ -427,8 +419,8 @@ namespace Hartonomous.Clr
             if (dimension == 0)
             {
                 dimension = other.dimension;
-                maxValues = (float[])other.maxValues.Clone();
-                sumExp = (double[])other.sumExp.Clone();
+                maxValues = other.maxValues != null ? (float[])other.maxValues.Clone() : null;
+                sumExp = other.sumExp != null ? (double[])other.sumExp.Clone() : null;
                 count = other.count;
                 return;
             }
@@ -436,14 +428,15 @@ namespace Hartonomous.Clr
             if (other.dimension != dimension)
                 throw new ArgumentException($"Dimension mismatch in merge: {dimension} vs {other.dimension}");
 
+            // maxValues and sumExp guaranteed non-null after dimension checks
             for (int i = 0; i < dimension; i++)
             {
-                float currentMax = maxValues[i];
-                float otherMax = other.maxValues[i];
+                float currentMax = maxValues![i];
+                float otherMax = other.maxValues![i];
                 float finalMax = currentMax >= otherMax ? currentMax : otherMax;
 
-                double adjustedCurrent = sumExp[i] * Math.Exp(currentMax - finalMax);
-                double adjustedOther = other.sumExp[i] * Math.Exp(otherMax - finalMax);
+                double adjustedCurrent = sumExp![i] * Math.Exp(currentMax - finalMax);
+                double adjustedOther = other.sumExp![i] * Math.Exp(otherMax - finalMax);
 
                 sumExp[i] = adjustedCurrent + adjustedOther;
                 maxValues[i] = finalMax;
@@ -502,14 +495,8 @@ namespace Hartonomous.Clr
                 return;
             }
 
-            maxValues = new float[dimension];
-            sumExp = new double[dimension];
-
-            for (int i = 0; i < dimension; i++)
-                maxValues[i] = r.ReadSingle();
-
-            for (int i = 0; i < dimension; i++)
-                sumExp[i] = r.ReadDouble();
+            maxValues = r.ReadFloatArray();
+            sumExp = r.ReadDoubleArray();
         }
 
         public void Write(BinaryWriter w)
@@ -520,11 +507,8 @@ namespace Hartonomous.Clr
             if (dimension <= 0 || maxValues == null || sumExp == null)
                 return;
 
-            for (int i = 0; i < dimension; i++)
-                w.Write(maxValues[i]);
-
-            for (int i = 0; i < dimension; i++)
-                w.Write(sumExp[i]);
+            w.WriteFloatArray(maxValues);
+            w.WriteDoubleArray(sumExp);
         }
     }
 }

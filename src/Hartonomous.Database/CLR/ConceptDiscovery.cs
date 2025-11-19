@@ -224,7 +224,7 @@ namespace Hartonomous.Clr
 
         private class ConceptCandidate
         {
-            public byte[] Centroid { get; set; }
+            public byte[] Centroid { get; set; } = null!;
             public int AtomCount { get; set; }
             public double Coherence { get; set; }
             public int SpatialBucket { get; set; }
@@ -266,7 +266,7 @@ namespace Hartonomous.Clr
                 conn.Open();
 
                 // Step 1: Get atom embedding
-                byte[] atomEmbedding = null;
+                byte[]? atomEmbedding = null;
                 var getEmbeddingQuery = @"
                     SELECT EmbeddingVector
                     FROM dbo.AtomEmbeddings

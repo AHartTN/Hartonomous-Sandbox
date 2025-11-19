@@ -35,7 +35,7 @@ namespace Hartonomous.Clr.TensorOperations
             }
 
             var components = new List<AtomComponent>();
-            float[] total_layer = null;
+            float[]? total_layer = null;
 
             try
             {
@@ -78,7 +78,7 @@ namespace Hartonomous.Clr.TensorOperations
                     if (payload.IsNull) continue;
 
                     // Deserialize the payload into a float array.
-                    float[] atom_float_array = BytesToFloatArray(payload);
+                    float[]? atom_float_array = BytesToFloatArray(payload);
 
                     if (atom_float_array == null) continue;
 
@@ -118,7 +118,7 @@ namespace Hartonomous.Clr.TensorOperations
         /// <summary>
         /// Deserializes a SqlBytes object containing raw float data into a float array.
         /// </summary>
-        private static float[] BytesToFloatArray(SqlBytes bytes)
+        private static float[]? BytesToFloatArray(SqlBytes bytes)
         {
             if (bytes.IsNull || bytes.Length == 0)
             {

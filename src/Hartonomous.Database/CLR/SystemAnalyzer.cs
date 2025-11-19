@@ -29,7 +29,7 @@ namespace Hartonomous.Clr.Analysis
         /// </summary>
         /// <param name="targetArea">An optional area to focus the analysis on (for future use).</param>
         /// <returns>A single DTO containing the aggregated analysis results.</returns>
-        public ComprehensiveAnalysisResult PerformComprehensiveAnalysis(string targetArea)
+        public ComprehensiveAnalysisResult PerformComprehensiveAnalysis(string? targetArea)
         {
             var result = new ComprehensiveAnalysisResult
             {

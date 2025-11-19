@@ -1,9 +1,11 @@
 using Microsoft.SqlServer.Server;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Types;
+using Hartonomous.Clr.MachineLearning;
 
 /// <summary>
 /// Hilbert Curve spatial indexing for 3D semantic space
+/// SQL Server UDF wrappers for SpaceFillingCurves.cs algorithms
 /// Provides 1D ordering that preserves spatial locality
 /// </summary>
 public static partial class SpatialFunctions
@@ -11,6 +13,7 @@ public static partial class SpatialFunctions
     /// <summary>
     /// Computes Hilbert curve value for a 3D GEOMETRY point
     /// Uses 21-bit precision per dimension (63 total bits fitting in BIGINT)
+    /// Wraps SpaceFillingCurves.Hilbert3D for SQL Server
     /// </summary>
     [SqlFunction(
         IsDeterministic = true, 
@@ -32,64 +35,109 @@ public static partial class SpatialFunctions
         double minX = 0, minY = 0, minZ = 0;
         double rangeX = 1, rangeY = 1, rangeZ = 1;
 
-        int p = precision.IsNull ? 21 : precision.Value;
-        long maxCoord = (1L << p) - 1;
+        int order = precision.IsNull ? 21 : precision.Value;
+        uint maxCoord = (1u << order) - 1;
 
         // Normalize and scale to integer grid
-        long ix = (long)(((x - minX) / rangeX) * maxCoord);
-        long iy = (long)(((y - minY) / rangeY) * maxCoord);
-        long iz = (long)(((z - minZ) / rangeZ) * maxCoord);
+        uint ix = (uint)System.Math.Round(((x - minX) / rangeX) * maxCoord);
+        uint iy = (uint)System.Math.Round(((y - minY) / rangeY) * maxCoord);
+        uint iz = (uint)System.Math.Round(((z - minZ) / rangeZ) * maxCoord);
 
         // Clamp to valid range
-        ix = System.Math.Max(0, System.Math.Min(maxCoord, ix));
-        iy = System.Math.Max(0, System.Math.Min(maxCoord, iy));
-        iz = System.Math.Max(0, System.Math.Min(maxCoord, iz));
+        ix = System.Math.Min(maxCoord, ix);
+        iy = System.Math.Min(maxCoord, iy);
+        iz = System.Math.Min(maxCoord, iz);
 
-        return new SqlInt64(Hilbert3D(ix, iy, iz, p));
+        // Call pure SpaceFillingCurves algorithm
+        ulong hilbertIndex = SpaceFillingCurves.Hilbert3D(ix, iy, iz, order);
+
+        return new SqlInt64((long)hilbertIndex);
     }
 
     /// <summary>
-    /// Compact 3D Hilbert curve calculation
-    /// Based on public domain implementation by John Skilling
+    /// Computes Morton (Z-order) curve value for a 3D GEOMETRY point
+    /// Uses 21-bit precision per dimension (63 total bits fitting in BIGINT)
+    /// Morton curves are simpler than Hilbert but have slightly worse locality preservation
     /// </summary>
-    private static long Hilbert3D(long x, long y, long z, int bits)
+    [SqlFunction(
+        IsDeterministic = true, 
+        IsPrecise = false, 
+        DataAccess = DataAccessKind.None
+    )]
+    public static SqlInt64 clr_ComputeMortonValue(SqlGeometry spatialKey, SqlInt32 precision)
     {
-        long h = 0;
-        
-        for (int i = bits - 1; i >= 0; i--)
-        {
-            long q = 1L << i;
-            
-            long qa = (x & q) != 0 ? 1L : 0L;
-            long qb = (y & q) != 0 ? 1L : 0L;
-            long qc = (z & q) != 0 ? 1L : 0L;
+        if (spatialKey.IsNull || spatialKey.STIsEmpty().Value)
+            return SqlInt64.Null;
 
-            // Hilbert curve state machine
-            long qd = qa ^ qb;
-            
-            h = (h << 3) | ((qc << 2) | (qd << 1) | (qa ^ qd ^ qc));
+        // Extract coordinates
+        double x = spatialKey.STX.IsNull ? 0 : spatialKey.STX.Value;
+        double y = spatialKey.STY.IsNull ? 0 : spatialKey.STY.Value;
+        double z = spatialKey.Z.IsNull ? 0 : spatialKey.Z.Value;
 
-            // Rotate coordinates for next iteration
-            if (qc == 1)
-            {
-                long temp = x;
-                x = y;
-                y = temp;
-            }
-            
-            if (qd == 1)
-            {
-                x = x ^ ((1L << (i + 1)) - 1);
-                z = z ^ ((1L << (i + 1)) - 1);
-            }
-        }
+        // Normalization parameters
+        double minX = 0, minY = 0, minZ = 0;
+        double rangeX = 1, rangeY = 1, rangeZ = 1;
+
+        int bits = precision.IsNull ? 21 : precision.Value;
+        uint maxCoord = (1u << bits) - 1;
+
+        // Normalize and scale to integer grid
+        uint ix = (uint)System.Math.Round(((x - minX) / rangeX) * maxCoord);
+        uint iy = (uint)System.Math.Round(((y - minY) / rangeY) * maxCoord);
+        uint iz = (uint)System.Math.Round(((z - minZ) / rangeZ) * maxCoord);
+
+        // Clamp to valid range
+        ix = System.Math.Min(maxCoord, ix);
+        iy = System.Math.Min(maxCoord, iy);
+        iz = System.Math.Min(maxCoord, iz);
+
+        // Call pure SpaceFillingCurves algorithm
+        ulong mortonIndex = SpaceFillingCurves.Morton3D(ix, iy, iz, bits);
+
+        return new SqlInt64((long)mortonIndex);
+    }
+
+    /// <summary>
+    /// Inverse Morton - convert 1D Morton value back to 3D coordinates
+    /// </summary>
+    [SqlFunction(
+        IsDeterministic = true,
+        IsPrecise = false,
+        DataAccess = DataAccessKind.None
+    )]
+    public static SqlGeometry clr_InverseMorton(SqlInt64 mortonValue, SqlInt32 precision)
+    {
+        if (mortonValue.IsNull)
+            return SqlGeometry.Null;
+
+        ulong morton = (ulong)mortonValue.Value;
         
-        return h;
+        // Decode Morton value to coordinates
+        var (ix, iy, iz) = SpaceFillingCurves.InverseMorton3D(morton);
+
+        int bits = precision.IsNull ? 21 : precision.Value;
+        uint maxCoord = (1u << bits) - 1;
+
+        // Normalize back to [0, 1] space
+        double normX = (double)ix / maxCoord;
+        double normY = (double)iy / maxCoord;
+        double normZ = (double)iz / maxCoord;
+
+        // Return as GEOMETRY point
+        var builder = new SqlGeometryBuilder();
+        builder.SetSrid(0);
+        builder.BeginGeometry(OpenGisGeometryType.Point);
+        builder.BeginFigure(normX, normY, normZ, null);
+        builder.EndFigure();
+        builder.EndGeometry();
+
+        return builder.ConstructedGeometry;
     }
 
     /// <summary>
     /// Inverse Hilbert curve - convert 1D value back to 3D coordinates
-    /// Useful for visualization and debugging
+    /// NOTE: Currently uses SpaceFillingCurves.InverseHilbert2D (3D inverse not yet implemented)
+    /// TODO: Implement InverseHilbert3D in SpaceFillingCurves.cs for full round-trip
     /// </summary>
     [SqlFunction(
         IsDeterministic = true,
@@ -101,6 +149,8 @@ public static partial class SpatialFunctions
         if (hilbertValue.IsNull)
             return SqlGeometry.Null;
 
+        // TODO: This currently only works for 2D - need InverseHilbert3D
+        // For now, fallback to original algorithm until SpaceFillingCurves.InverseHilbert3D is added
         int p = precision.IsNull ? 21 : precision.Value;
         long h = hilbertValue.Value;
 

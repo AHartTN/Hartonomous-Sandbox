@@ -27,7 +27,7 @@ namespace Hartonomous.Clr
             }
         }
 
-        public static void FillSegmentRow(object rowObject, out int ordinal, out string kind, out DateTime timestampUtc, out string contentType, out string metadata, out byte[] payload)
+        public static void FillSegmentRow(object rowObject, out int ordinal, out string kind, out DateTime timestampUtc, out string? contentType, out string? metadata, out byte[] payload)
         {
             var row = (SegmentRow)rowObject;
             ordinal = row.Ordinal;
@@ -56,9 +56,9 @@ namespace Hartonomous.Clr
 
             internal DateTime TimestampUtc { get; }
 
-            internal string ContentType { get; }
+            internal string? ContentType { get; }
 
-            internal string Metadata { get; }
+            internal string? Metadata { get; }
 
             internal byte[] Payload { get; }
         }

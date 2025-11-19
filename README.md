@@ -16,6 +16,10 @@ Unlike traditional AI systems that rely on GPU clusters, vector indexes, and bla
 
 **This is not "AI in a database." This is computational geometry as the foundation of intelligence.**
 
+📊 **Current Status**: Production-ready documentation complete. See [PROJECT-STATUS.md](./PROJECT-STATUS.md) for deployment roadmap.  
+📚 **Documentation Hub**: [docs/rewrite-guide/INDEX.md](./docs/rewrite-guide/INDEX.md) (46 files, ~500,000 words)  
+🚀 **Quick Start**: [docs/rewrite-guide/QUICK-REFERENCE.md](./docs/rewrite-guide/QUICK-REFERENCE.md) (5-minute context load)
+
 ---
 
 ## Core Innovation
@@ -262,19 +266,25 @@ See **[QUICKSTART.md](./QUICKSTART.md)** for detailed setup instructions.
 ## Documentation
 
 ### For Developers
+
 - **[Rewrite Guide](./docs/rewrite-guide/)** - Complete technical specification (start here)
   - [Quick Reference](./docs/rewrite-guide/QUICK-REFERENCE.md) - 5-minute overview
   - [Core Innovation](./docs/rewrite-guide/00.5-The-Core-Innovation.md) - The fundamental breakthrough
   - [Complete Stack](./docs/rewrite-guide/00.6-Advanced-Spatial-Algorithms-and-Complete-Stack.md) - Full technology stack
 - **[Architecture](./ARCHITECTURE.md)** - High-level system architecture
+- **[CLR Refactor](./CLR-REFACTOR-COMPREHENSIVE.md)** - 49 CLR functions (225K lines) implementation catalog
+- **[Project Status](./PROJECT-STATUS.md)** - Current deployment roadmap and validation status
 - **[Setup Guides](./docs/setup/)** - Installation and configuration
 - **[API Reference](./docs/api/)** - REST and T-SQL procedure documentation
 
 ### For Operators
+
 - **[Operations](./docs/operations/)** - Runbooks, monitoring, troubleshooting
 - **[Deployment](./docs/setup/deployment.md)** - Production deployment guide
+- **[Project Status](./PROJECT-STATUS.md)** - Sprint roadmap, prerequisites, known issues
 
 ### For Users
+
 - **[User Guides](./docs/guides/)** - Tutorials and examples
 - **[Cross-Modal Examples](./docs/rewrite-guide/22-Cross-Modal-Generation-Examples.md)** - Synthesis across modalities
 

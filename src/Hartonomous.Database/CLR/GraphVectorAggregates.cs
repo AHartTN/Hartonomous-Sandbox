@@ -144,10 +144,9 @@ namespace Hartonomous.Clr
                 int dim = r.ReadInt32();
                 for (int i = 0; i < vecCount; i++)
                 {
-                    float[] vec = new float[dim];
-                    for (int j = 0; j < dim; j++)
-                        vec[j] = r.ReadSingle();
-                    vectors.Add(vec);
+                    float[]? vec = r.ReadFloatArray();
+                    if (vec != null)
+                        vectors.Add(vec);
                 }
             }
 
@@ -168,8 +167,7 @@ namespace Hartonomous.Clr
             {
                 w.Write(vectors[0].Length);
                 foreach (var vec in vectors)
-                    foreach (var val in vec)
-                        w.Write(val);
+                    w.WriteFloatArray(vec);
             }
 
             w.Write(spatialPoints.Count);
@@ -453,10 +451,9 @@ namespace Hartonomous.Clr
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                snapshots.Add((timestamp, vec));
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    snapshots.Add((timestamp, vec));
             }
         }
 
@@ -467,8 +464,7 @@ namespace Hartonomous.Clr
             foreach (var (timestamp, vec) in snapshots)
             {
                 w.Write(timestamp.ToBinary());
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
             }
         }
     }

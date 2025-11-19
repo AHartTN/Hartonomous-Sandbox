@@ -29,7 +29,7 @@ namespace Hartonomous.Clr
                 yield break;
 
             // Get FILESTREAM path from database
-            string filestreamPath = null;
+            string? filestreamPath = null;
             using (var connection = new SqlConnection("context connection=true"))
             {
                 connection.Open();
@@ -95,7 +95,7 @@ namespace Hartonomous.Clr
                 return SqlBytes.Null;
 
             // Get FILESTREAM path
-            string filestreamPath = null;
+            string? filestreamPath = null;
             using (var connection = new SqlConnection("context connection=true"))
             {
                 connection.Open();
@@ -441,9 +441,9 @@ namespace Hartonomous.Clr
 
         private class GGUFTensorInfo
         {
-            public string TensorName { get; set; }
-            public string DataType { get; set; }
-            public string Shape { get; set; }
+            public string TensorName { get; set; } = null!;
+            public string DataType { get; set; } = null!;
+            public string Shape { get; set; } = null!;
             public int ShapeRank { get; set; }
             public long ElementCount { get; set; }
             public long ByteOffset { get; set; }

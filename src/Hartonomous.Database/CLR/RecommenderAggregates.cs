@@ -6,6 +6,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 using Hartonomous.Clr.Core;
+using Hartonomous.Clr.MachineLearning;
 
 namespace Hartonomous.Clr
 {
@@ -88,51 +89,14 @@ namespace Hartonomous.Clr
             if (userItems.Count == 0 || dimension == 0 || topN == 0)
                 return SqlString.Null;
 
-            // Compute user centroids (average item vector per user)
-            var userCentroids = new Dictionary<string, float[]>();
-            foreach (var kvp in userItems)
-            {
-                float[] centroid = new float[dimension];
-                foreach (var vec in kvp.Value)
-                    for (int i = 0; i < dimension; i++)
-                        centroid[i] += vec[i];
-                for (int i = 0; i < dimension; i++)
-                    centroid[i] /= kvp.Value.Count;
-                userCentroids[kvp.Key] = centroid;
-            }
+            // Use extracted collaborative filtering algorithm
+            var recommendations = CollaborativeFiltering.RecommendItems(userItems, topN);
 
-            // Aggregate all items with weighted voting
-            var itemScores = new Dictionary<string, double>();
-            var itemVectors = new Dictionary<string, float[]>();
-
-            foreach (var kvp in userItems)
-            {
-                string user = kvp.Key;
-                foreach (var itemVec in kvp.Value)
-                {
-                    string itemKey = string.Join(",", itemVec.Take(10).Select(v => v.ToString("G4")));
-                    
-                    if (!itemVectors.ContainsKey(itemKey))
-                    {
-                        itemVectors[itemKey] = itemVec;
-                        itemScores[itemKey] = 0;
-                    }
-
-                    // Weight by user importance (number of items)
-                    itemScores[itemKey] += kvp.Value.Count;
-                }
-            }
-
-            // Get top N items by score
-            var topItems = itemScores.OrderByDescending(kvp => kvp.Value)
-                .Take(topN)
-                .Select(kvp => itemVectors[kvp.Key])
-                .ToList();
-
-            var recommendationItems = topItems.Select((vec, idx) => new
+            var recommendationItems = recommendations.Select((item, idx) => new
             {
                 rank = idx + 1,
-                vector = vec
+                vector = item.Vector,
+                score = item.Score
             });
 
             return new SqlString(JsonConvert.SerializeObject(new
@@ -156,10 +120,9 @@ namespace Hartonomous.Clr
                 
                 for (int j = 0; j < itemCount; j++)
                 {
-                    float[] vec = new float[dimension];
-                    for (int k = 0; k < dimension; k++)
-                        vec[k] = r.ReadSingle();
-                    items.Add(vec);
+                    float[]? vec = r.ReadFloatArray();
+                    if (vec != null)
+                        items.Add(vec);
                 }
                 
                 userItems[userId] = items;
@@ -177,8 +140,7 @@ namespace Hartonomous.Clr
                 w.Write(kvp.Key);
                 w.Write(kvp.Value.Count);
                 foreach (var vec in kvp.Value)
-                    foreach (var val in vec)
-                        w.Write(val);
+                    w.WriteFloatArray(vec);
             }
         }
     }
@@ -246,35 +208,13 @@ namespace Hartonomous.Clr
             if (items.Count == 0 || dimension == 0)
                 return SqlString.Null;
 
-            // Weighted centroid of preferred items
-            float[] profile = new float[dimension];
-            double totalWeight = items.Sum(item => Math.Abs(item.Weight));
-
-            foreach (var (vec, weight) in items)
-            {
-                double normalizedWeight = weight / totalWeight;
-                for (int i = 0; i < dimension; i++)
-                    profile[i] += (float)(vec[i] * normalizedWeight);
-            }
-
-            // Also compute variance (diversity metric)
-            float[] variance = new float[dimension];
-            foreach (var (vec, weight) in items)
-            {
-                double normalizedWeight = weight / totalWeight;
-                for (int i = 0; i < dimension; i++)
-                {
-                    float diff = vec[i] - profile[i];
-                    variance[i] += (float)(diff * diff * normalizedWeight);
-                }
-            }
-
-            double avgVariance = variance.Average();
+            // Use extracted content-based filtering algorithm
+            var (profile, diversity) = CollaborativeFiltering.ComputeUserProfile(items);
 
             var result = new
             {
                 user_profile = profile,
-                preference_diversity = avgVariance,
+                preference_diversity = diversity,
                 num_items = items.Count
             };
             return new SqlString(JsonConvert.SerializeObject(result));
@@ -289,11 +229,10 @@ namespace Hartonomous.Clr
             
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
+                float[]? vec = r.ReadFloatArray();
                 double weight = r.ReadDouble();
-                items.Add((vec, weight));
+                if (vec != null)
+                    items.Add((vec, weight));
             }
         }
 
@@ -305,8 +244,7 @@ namespace Hartonomous.Clr
             
             foreach (var (vec, weight) in items)
             {
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
                 w.Write(weight);
             }
         }
@@ -552,47 +490,8 @@ namespace Hartonomous.Clr
             if (candidates.Count == 0 || dimension == 0 || topN == 0)
                 return SqlString.Null;
 
-            // Maximal Marginal Relevance (MMR) algorithm
-            var selected = new List<(float[] Vector, double Relevance, double DiversityScore)>();
-            var remaining = new List<(float[] Vector, double Relevance)>(candidates);
-
-            while (selected.Count < topN && remaining.Count > 0)
-            {
-                int bestIdx = -1;
-                double bestScore = double.NegativeInfinity;
-
-                for (int i = 0; i < remaining.Count; i++)
-                {
-                    var (vec, relevance) = remaining[i];
-
-                    // Compute max similarity to already selected items
-                    double maxSim = 0;
-                    if (selected.Count > 0)
-                    {
-                        maxSim = selected.Max(s => VectorUtilities.CosineSimilarity(vec, s.Vector));
-                    }
-
-                    // MMR score: lambda * relevance - (1-lambda) * similarity
-                    double mmrScore = lambda * relevance - (1 - lambda) * maxSim;
-
-                    if (mmrScore > bestScore)
-                    {
-                        bestScore = mmrScore;
-                        bestIdx = i;
-                    }
-                }
-
-                if (bestIdx >= 0)
-                {
-                    var (vec, relevance) = remaining[bestIdx];
-                    selected.Add((vec, relevance, bestScore));
-                    remaining.RemoveAt(bestIdx);
-                }
-                else
-                {
-                    break;
-                }
-            }
+            // Use extracted MMR algorithm for diversity-aware recommendations
+            var selected = CollaborativeFiltering.SelectDiverseRecommendations(candidates, topN, lambda);
 
             var json = "{\"recommendations\":[" +
                 string.Join(",",
@@ -616,11 +515,10 @@ namespace Hartonomous.Clr
             
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
+                float[]? vec = r.ReadFloatArray();
                 double relevance = r.ReadDouble();
-                candidates.Add((vec, relevance));
+                if (vec != null)
+                    candidates.Add((vec, relevance));
             }
         }
 
@@ -633,8 +531,7 @@ namespace Hartonomous.Clr
             
             foreach (var (vec, relevance) in candidates)
             {
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
                 w.Write(relevance);
             }
         }

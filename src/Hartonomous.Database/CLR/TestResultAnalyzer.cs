@@ -44,7 +44,7 @@ namespace Hartonomous.Clr.Analysis
                                 TestSuite = reader.GetString(0),
                                 TestName = reader.GetString(1),
                                 FailureCount = reader.GetInt32(2),
-                                LastError = reader.IsDBNull(3) ? null : reader.GetString(3)
+                                LastError = reader.IsDBNull(3) ? string.Empty : reader.GetString(3)
                             });
                         }
                     }

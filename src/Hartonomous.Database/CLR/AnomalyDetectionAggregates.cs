@@ -6,6 +6,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 using Hartonomous.Clr.Core;
+using Hartonomous.Clr.MachineLearning;
 
 namespace Hartonomous.Clr
 {
@@ -71,32 +72,12 @@ namespace Hartonomous.Clr
             if (vectors.Count < 2 || dimension == 0)
                 return SqlString.Null;
 
-            // Isolation forest approximation: measure average path length to isolate each point
-            // Uses position in sorted order as proxy for tree depth (efficient for SQL CLR)
-
-            int numTrees = Math.Min(10, vectors.Count / 2);
-            double[] avgPathLengths = new double[vectors.Count];
-
-            for (int tree = 0; tree < numTrees; tree++)
-            {
-                // Random feature and split
-                int feature = random.Next(dimension);
-                
-                // Sort by this feature
-                var sorted = vectors.Select((v, idx) => (Vector: v, Index: idx, Value: v[feature]))
-                    .OrderBy(x => x.Value)
-                    .ToList();
-
-                // Isolation depth is position in sorted order
-                for (int i = 0; i < sorted.Count; i++)
-                {
-                    avgPathLengths[sorted[i].Index] += i;
-                }
-            }
-
-            // Normalize and invert (lower depth = more isolated = higher anomaly score)
-            double maxDepth = vectors.Count * numTrees;
-            var scores = avgPathLengths.Select(d => 1.0 - (d / maxDepth)).Select(s => (float)s).ToArray();
+            // Use extracted IsolationForest algorithm
+            var scores = IsolationForest.ComputeAnomalyScores(
+                vectors.ToArray(),
+                numTrees: Math.Min(10, vectors.Count / 2),
+                randomSeed: 42
+            );
 
             return new SqlString(JsonConvert.SerializeObject(scores));
         }
@@ -108,10 +89,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
             random = new Random(42);
         }
@@ -121,8 +101,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
         }
     }
 
@@ -185,45 +164,11 @@ namespace Hartonomous.Clr
             if (vectors.Count < k + 1 || dimension == 0 || k == 0)
                 return SqlString.Null;
 
-            // Compute LOF for each vector
-            double[] lofScores = new double[vectors.Count];
-
-            for (int i = 0; i < vectors.Count; i++)
-            {
-                // Find k nearest neighbors
-                var distances = new List<(int Index, double Distance)>();
-                for (int j = 0; j < vectors.Count; j++)
-                {
-                    if (i != j)
-                    {
-                        double dist = VectorUtilities.EuclideanDistance(vectors[i], vectors[j]);
-                        distances.Add((j, dist));
-                    }
-                }
-
-                var neighbors = distances.OrderBy(d => d.Distance).Take(k).ToList();
-
-                // Compute local reachability density
-                double avgReachDist = 0;
-                foreach (var (idx, dist) in neighbors)
-                {
-                    // Reachability distance is max(k-distance of neighbor, actual distance)
-                    avgReachDist += dist;
-                }
-                avgReachDist /= k;
-
-                double lrd = 1.0 / (avgReachDist + 1e-10); // Local reachability density
-
-                // LOF is ratio of neighbor densities to own density
-                double sumNeighborLrd = 0;
-                foreach (var (idx, _) in neighbors)
-                {
-                    // Simplified: assume similar LRD for neighbors
-                    sumNeighborLrd += lrd;
-                }
-
-                lofScores[i] = (sumNeighborLrd / k) / (lrd + 1e-10);
-            }
+            // Use extracted LOF algorithm with Euclidean metric (default for aggregate)
+            var lofScores = MachineLearning.LocalOutlierFactor.Compute(
+                vectors.ToArray(),
+                k,
+                new Core.EuclideanDistance());
 
             var scores = lofScores.Select(s => (float)s).ToArray();
             return new SqlString(JsonConvert.SerializeObject(scores));
@@ -237,10 +182,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -250,8 +194,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
         }
     }
 
@@ -319,74 +262,16 @@ namespace Hartonomous.Clr
             if (vectors.Count == 0 || dimension == 0 || epsilon == 0 || minPoints == 0)
                 return SqlString.Null;
 
-            // DBSCAN algorithm
-            int[] clusterIds = new int[vectors.Count];
-            for (int i = 0; i < clusterIds.Length; i++)
-                clusterIds[i] = -1; // Unvisited
-
-            int clusterId = 0;
-
-            for (int i = 0; i < vectors.Count; i++)
-            {
-                if (clusterIds[i] != -1) continue; // Already processed
-
-                // Find neighbors
-                var neighbors = FindNeighbors(i, epsilon);
-
-                if (neighbors.Count < minPoints)
-                {
-                    clusterIds[i] = -2; // Noise
-                }
-                else
-                {
-                    // Expand cluster
-                    ExpandCluster(i, neighbors, clusterId, clusterIds);
-                    clusterId++;
-                }
-            }
+            // Use extracted DBSCAN algorithm
+            int[] clusterIds = DBSCANClustering.Cluster(
+                vectors.ToArray(),
+                epsilon,
+                minPoints
+            );
 
             // Return cluster assignments
             var json = "[" + string.Join(",", clusterIds) + "]";
             return new SqlString(json);
-        }
-
-        private List<int> FindNeighbors(int pointIdx, double eps)
-        {
-            var neighbors = new List<int>();
-            for (int i = 0; i < vectors.Count; i++)
-            {
-                if (VectorUtilities.EuclideanDistance(vectors[pointIdx], vectors[i]) <= eps)
-                    neighbors.Add(i);
-            }
-            return neighbors;
-        }
-
-        private void ExpandCluster(int pointIdx, List<int> neighbors, int clusterId, int[] clusterIds)
-        {
-            clusterIds[pointIdx] = clusterId;
-
-            var queue = new Queue<int>(neighbors);
-            while (queue.Count > 0)
-            {
-                int current = queue.Dequeue();
-                
-                if (clusterIds[current] == -2) // Was noise, now border point
-                    clusterIds[current] = clusterId;
-
-                if (clusterIds[current] != -1) continue; // Already processed
-
-                clusterIds[current] = clusterId;
-
-                var currentNeighbors = FindNeighbors(current, epsilon);
-                if (currentNeighbors.Count >= minPoints)
-                {
-                    foreach (var neighbor in currentNeighbors)
-                    {
-                        if (clusterIds[neighbor] == -1 || clusterIds[neighbor] == -2)
-                            queue.Enqueue(neighbor);
-                    }
-                }
-            }
         }
 
         public void Read(BinaryReader r)
@@ -398,10 +283,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -412,8 +296,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
         }
     }
 
@@ -438,7 +321,7 @@ namespace Hartonomous.Clr
     public struct MahalanobisDistance : IBinarySerialize
     {
         private List<float[]> vectors;
-        private float[] referenceVector;
+        private float[]? referenceVector;
         private int dimension;
 
         public void Init()
@@ -522,19 +405,16 @@ namespace Hartonomous.Clr
             bool hasReference = r.ReadBoolean();
             if (hasReference)
             {
-                referenceVector = new float[dimension];
-                for (int i = 0; i < dimension; i++)
-                    referenceVector[i] = r.ReadSingle();
+                referenceVector = r.ReadFloatArray();
             }
 
             int count = r.ReadInt32();
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -545,14 +425,12 @@ namespace Hartonomous.Clr
             w.Write(referenceVector != null);
             if (referenceVector != null)
             {
-                foreach (var val in referenceVector)
-                    w.Write(val);
+                w.WriteFloatArray(referenceVector);
             }
 
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
         }
     }
 }

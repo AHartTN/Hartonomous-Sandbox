@@ -384,7 +384,7 @@ namespace Hartonomous.Clr
         /// </summary>
         private class ShellOutputRow
         {
-            public string OutputLine { get; set; }
+            public string OutputLine { get; set; } = null!;
             public bool IsError { get; set; }
         }
     }

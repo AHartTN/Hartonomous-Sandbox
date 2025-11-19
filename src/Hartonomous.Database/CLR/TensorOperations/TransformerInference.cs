@@ -284,7 +284,7 @@ namespace Hartonomous.Clr.TensorOperations
 
                 // 4. Run the inference process.
                 // Parameters like embeddingDim, numHeads, etc., could be loaded from model metadata.
-                var resultEmbedding = inferenceEngine.GenerateEmbedding(tokenIds);
+                var resultEmbedding = inferenceEngine.GenerateEmbedding(tokenIds!);
 
                 // 5. Serialize the result and return it.
                 return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(resultEmbedding));

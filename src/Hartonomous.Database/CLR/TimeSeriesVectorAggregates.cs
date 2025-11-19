@@ -6,6 +6,7 @@ using System.Text;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 using Hartonomous.Clr.Core;
+using Hartonomous.Clr.MachineLearning;
 
 namespace Hartonomous.Clr
 {
@@ -37,13 +38,6 @@ namespace Hartonomous.Clr
         private PooledList<TimestampedVector> sequence;
         private int patternLength;
         private int dimension;
-
-        private struct PatternResult
-        {
-            public int StartIndex;
-            public double AvgSimilarity;
-            public int Occurrences;
-        }
 
         public void Init()
         {
@@ -99,62 +93,18 @@ namespace Hartonomous.Clr
 
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
             var entries = sequence.ToArray();
-            int total = entries.Length;
 
-            PooledList<PatternResult> patterns = default;
+            // Use extracted pattern discovery algorithm
+            var patterns = TimeSeriesForecasting.DiscoverPatterns(entries, patternLength, 0.8);
 
-            for (int i = 0; i <= total - patternLength; i++)
-            {
-                int occurrences = 0;
-                double totalSimilarity = 0;
-
-                for (int j = i + patternLength; j <= total - patternLength; j++)
-                {
-                    double windowSim = 0;
-                    for (int k = 0; k < patternLength; k++)
-                    {
-                        windowSim += VectorUtilities.CosineSimilarity(
-                            entries[i + k].Vector,
-                            entries[j + k].Vector);
-                    }
-                    windowSim /= patternLength;
-
-                    if (windowSim > 0.8)
-                    {
-                        occurrences++;
-                        totalSimilarity += windowSim;
-                    }
-                }
-
-                if (occurrences > 0)
-                {
-                    patterns.Add(new PatternResult
-                    {
-                        StartIndex = i,
-                        AvgSimilarity = totalSimilarity / occurrences,
-                        Occurrences = occurrences + 1
-                    });
-                }
-            }
-
-            var patternSpan = patterns.ToArray();
-            if (patternSpan.Length == 0)
+            if (patterns.Length == 0)
             {
                 sequence.Clear(clearItems: true);
-                patterns.Clear();
                 return new SqlString("{\"patterns\":[]}");
             }
 
-            PatternResult[] ordered = patternSpan;
-            Array.Sort(ordered, (a, b) =>
-            {
-                int cmp = b.Occurrences.CompareTo(a.Occurrences);
-                if (cmp != 0)
-                    return cmp;
-                return b.AvgSimilarity.CompareTo(a.AvgSimilarity);
-            });
-
-            int take = Math.Min(5, ordered.Length);
+            // Format top 5 patterns as JSON
+            int take = Math.Min(5, patterns.Length);
             var builder = new StringBuilder();
             builder.Append("{\"patterns\":[");
             for (int idx = 0; idx < take; idx++)
@@ -162,7 +112,7 @@ namespace Hartonomous.Clr
                 if (idx > 0)
                     builder.Append(',');
 
-                var item = ordered[idx];
+                var item = patterns[idx];
                 builder.Append("{\"start_index\":");
                 builder.Append(item.StartIndex);
                 builder.Append(",\"similarity\":");
@@ -174,7 +124,6 @@ namespace Hartonomous.Clr
             builder.Append("]}");
 
             sequence.Clear(clearItems: true);
-            patterns.Clear();
             return new SqlString(builder.ToString());
         }
 
@@ -193,10 +142,9 @@ namespace Hartonomous.Clr
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                sequence.Add(new TimestampedVector(timestamp, vec));
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    sequence.Add(new TimestampedVector(timestamp, vec));
             }
         }
 
@@ -209,9 +157,7 @@ namespace Hartonomous.Clr
             for (int i = 0; i < entries.Length; i++)
             {
                 w.Write(entries[i].Timestamp.ToBinary());
-                var vec = entries[i].Vector;
-                for (int j = 0; j < dimension; j++)
-                    w.Write(vec[j]);
+                w.WriteFloatArray(entries[i].Vector);
             }
         }
     }
@@ -294,31 +240,14 @@ namespace Hartonomous.Clr
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
             var entries = sequence.ToArray();
 
-            // Simple AR model: weighted average of last N vectors
-            float[] forecast = new float[dimension];
-            double[] weights = new double[order];
-            double weightSum = 0;
-
-            // Exponential weights (recent = more important)
-            for (int i = 0; i < order; i++)
-            {
-                weights[i] = Math.Exp(i); // More recent = higher weight
-                weightSum += weights[i];
-            }
-            for (int i = 0; i < order; i++)
-                weights[i] /= weightSum;
-
-            // Compute forecast
-            for (int i = 0; i < order; i++)
-            {
-                var vec = entries[entries.Length - order + i].Vector;
-                for (int d = 0; d < dimension; d++)
-                {
-                    forecast[d] += (float)(vec[d] * weights[i]);
-                }
-            }
+            // Use extracted AR forecasting algorithm
+            var forecast = TimeSeriesForecasting.ARForecast(entries, order, dimension);
 
             sequence.Clear(clearItems: true);
+            
+            if (forecast == null)
+                return SqlString.Null;
+
             return new SqlString(JsonConvert.SerializeObject(forecast));
         }
 
@@ -335,10 +264,9 @@ namespace Hartonomous.Clr
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                sequence.Add(new TimestampedVector(timestamp, vec));
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    sequence.Add(new TimestampedVector(timestamp, vec));
             }
         }
 
@@ -351,9 +279,7 @@ namespace Hartonomous.Clr
             for (int i = 0; i < entries.Length; i++)
             {
                 w.Write(entries[i].Timestamp.ToBinary());
-                var vec = entries[i].Vector;
-                for (int j = 0; j < dimension; j++)
-                    w.Write(vec[j]);
+                w.WriteFloatArray(entries[i].Vector);
             }
         }
     }
@@ -432,30 +358,10 @@ namespace Hartonomous.Clr
             if (sequence1.Count == 0 || sequence2.Count == 0 || dimension == 0)
                 return SqlDouble.Null;
 
-            // DTW algorithm
-            int n = sequence1.Count;
-            int m = sequence2.Count;
+            // Use extracted DTW algorithm
+            double distance = DTWAlgorithm.ComputeDistance(sequence1.ToArray(), sequence2.ToArray());
 
-            // Initialize cost matrix (use smaller window for efficiency)
-            double[,] dtw = new double[n + 1, m + 1];
-            
-            for (int i = 0; i <= n; i++)
-                dtw[i, 0] = double.PositiveInfinity;
-            for (int j = 0; j <= m; j++)
-                dtw[0, j] = double.PositiveInfinity;
-            dtw[0, 0] = 0;
-
-            // Fill matrix
-            for (int i = 1; i <= n; i++)
-            {
-                for (int j = 1; j <= m; j++)
-                {
-                    double cost = VectorUtilities.EuclideanDistance(sequence1[i - 1], sequence2[j - 1]);
-                    dtw[i, j] = cost + Math.Min(Math.Min(dtw[i - 1, j], dtw[i, j - 1]), dtw[i - 1, j - 1]);
-                }
-            }
-
-            var result = new SqlDouble(dtw[n, m]);
+            var result = new SqlDouble(distance);
 
             sequence1.Clear(clearItems: true);
             sequence2.Clear(clearItems: true);
@@ -474,10 +380,9 @@ namespace Hartonomous.Clr
                 sequence1.Reserve(count1);
                 for (int i = 0; i < count1; i++)
                 {
-                    float[] vec = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        vec[j] = r.ReadSingle();
-                    sequence1.Add(vec);
+                    float[]? vec = r.ReadFloatArray();
+                    if (vec != null)
+                        sequence1.Add(vec);
                 }
             }
 
@@ -487,10 +392,9 @@ namespace Hartonomous.Clr
                 sequence2.Reserve(count2);
                 for (int i = 0; i < count2; i++)
                 {
-                    float[] vec = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        vec[j] = r.ReadSingle();
-                    sequence2.Add(vec);
+                    float[]? vec = r.ReadFloatArray();
+                    if (vec != null)
+                        sequence2.Add(vec);
                 }
             }
         }
@@ -502,18 +406,14 @@ namespace Hartonomous.Clr
             w.Write(span1.Length);
             for (int i = 0; i < span1.Length; i++)
             {
-                var vec = span1[i];
-                for (int j = 0; j < dimension; j++)
-                    w.Write(vec[j]);
+                w.WriteFloatArray(span1[i]);
             }
 
             var span2 = sequence2.ToArray();
             w.Write(span2.Length);
             for (int i = 0; i < span2.Length; i++)
             {
-                var vec = span2[i];
-                for (int j = 0; j < dimension; j++)
-                    w.Write(vec[j]);
+                w.WriteFloatArray(span2[i]);
             }
         }
     }
@@ -542,13 +442,6 @@ namespace Hartonomous.Clr
         private PooledList<TimestampedVector> sequence;
         private double threshold;
         private int dimension;
-
-        private struct ChangePointRecord
-        {
-            public int Index;
-            public DateTime Timestamp;
-            public double Score;
-        }
 
         public void Init()
         {
@@ -605,95 +498,47 @@ namespace Hartonomous.Clr
             sequence.Sort((a, b) => a.Timestamp.CompareTo(b.Timestamp));
             var entries = sequence.ToArray();
 
-            // CUSUM algorithm for change point detection
-            PooledList<ChangePointRecord> changePoints = default;
+            // Use extracted CUSUM algorithm for change point detection
+            var vectors = new float[entries.Length][];
+            for (int i = 0; i < entries.Length; i++)
+                vectors[i] = entries[i].Vector;
 
-            // Compute cumulative deviation from mean
-            float[] overallMean = new float[dimension];
-            for (int idx = 0; idx < entries.Length; idx++)
-            {
-                var vec = entries[idx].Vector;
-                for (int i = 0; i < dimension; i++)
-                    overallMean[i] += vec[i];
-            }
-            for (int i = 0; i < dimension; i++)
-                overallMean[i] /= entries.Length;
-
-            // Sliding window approach
-            int windowSize = Math.Max(10, entries.Length / 10);
-            for (int i = windowSize; i < entries.Length - windowSize; i++)
-            {
-                // Compute means before and after
-                float[] meanBefore = new float[dimension];
-                float[] meanAfter = new float[dimension];
-
-                for (int j = i - windowSize; j < i; j++)
-                    for (int d = 0; d < dimension; d++)
-                        meanBefore[d] += entries[j].Vector[d];
-                
-                for (int j = i; j < i + windowSize; j++)
-                    for (int d = 0; d < dimension; d++)
-                        meanAfter[d] += entries[j].Vector[d];
-
-                for (int d = 0; d < dimension; d++)
-                {
-                    meanBefore[d] /= windowSize;
-                    meanAfter[d] /= windowSize;
-                }
-
-                // Compute difference magnitude
-                double diff = 0;
-                for (int d = 0; d < dimension; d++)
-                {
-                    double delta = meanAfter[d] - meanBefore[d];
-                    diff += delta * delta;
-                }
-                diff = Math.Sqrt(diff);
-
-                if (diff > threshold)
-                {
-                    changePoints.Add(new ChangePointRecord
-                    {
-                        Index = i,
-                        Timestamp = entries[i].Timestamp,
-                        Score = diff
-                    });
-                }
-            }
+            var changePoints = CUSUMDetector.DetectChangePointsMultivariate(vectors, threshold);
 
             // Return top change points
-            var changeSpan = changePoints.ToArray();
-            if (changeSpan.Length == 0)
+            if (changePoints.Count == 0)
             {
                 sequence.Clear(clearItems: true);
-                changePoints.Clear();
                 return new SqlString("{\"change_points\":[]}");
             }
 
-            ChangePointRecord[] ordered = changeSpan;
-            Array.Sort(ordered, (a, b) => b.Score.CompareTo(a.Score));
+            // Sort by score descending
+            changePoints.Sort((a, b) => b.Score.CompareTo(a.Score));
 
-            int take = Math.Min(5, ordered.Length);
+            int take = Math.Min(5, changePoints.Count);
             var builder = new StringBuilder();
-            builder.Append("{\"change_points\":[");
+            JsonFormatter.BeginObject(builder);
+            builder.Append("\"change_points\":");
+            JsonFormatter.BeginArray(builder);
+            
             for (int i = 0; i < take; i++)
             {
-                if (i > 0)
-                    builder.Append(',');
+                if (i > 0) builder.Append(',');
 
-                var cp = ordered[i];
-                builder.Append("{\"index\":");
-                builder.Append(cp.Index);
-                builder.Append(",\"timestamp\":\"");
-                builder.Append(cp.Timestamp.ToString("O"));
-                builder.Append("\",\"score\":");
-                builder.Append(cp.Score.ToString("G6", CultureInfo.InvariantCulture));
-                builder.Append('}');
+                var cp = changePoints[i];
+                JsonFormatter.BeginObject(builder);
+                JsonFormatter.AppendProperty(builder, "index", cp.Index);
+                JsonFormatter.AppendProperty(builder, "timestamp", entries[cp.Index].Timestamp.ToString("O"));
+                JsonFormatter.AppendProperty(builder, "score", cp.Score);
+                JsonFormatter.AppendProperty(builder, "mean_before", cp.MeanBefore);
+                JsonFormatter.AppendProperty(builder, "mean_after", cp.MeanAfter, true);
+                JsonFormatter.EndObject(builder);
             }
-            builder.Append("]}");
+            
+            JsonFormatter.EndArray(builder);
+            JsonFormatter.EndObject(builder);
 
             sequence.Clear(clearItems: true);
-            changePoints.Clear();
             return new SqlString(builder.ToString());
         }
 
@@ -710,10 +555,9 @@ namespace Hartonomous.Clr
             for (int i = 0; i < count; i++)
             {
                 var timestamp = DateTime.FromBinary(r.ReadInt64());
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                sequence.Add(new TimestampedVector(timestamp, vec));
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    sequence.Add(new TimestampedVector(timestamp, vec));
             }
         }
 
@@ -726,9 +570,7 @@ namespace Hartonomous.Clr
             for (int i = 0; i < entries.Length; i++)
             {
                 w.Write(entries[i].Timestamp.ToBinary());
-                var vec = entries[i].Vector;
-                for (int j = 0; j < dimension; j++)
-                    w.Write(vec[j]);
+                w.WriteFloatArray(entries[i].Vector);
             }
         }
     }

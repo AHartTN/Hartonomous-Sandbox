@@ -79,7 +79,7 @@ namespace Hartonomous.Clr.ModelParsers
             {
                 var key = ReadGGUFString(reader);
                 var type = (GGUFValueType)reader.ReadUInt32();
-                metadata[key] = ReadGGUFValue(reader, type);
+                metadata[key] = ReadGGUFValue(reader, type)!;
             }
             return metadata;
         }
@@ -180,9 +180,9 @@ namespace Hartonomous.Clr.ModelParsers
 
         private static long AlignPosition(long position, int alignment) => (position + (alignment - 1)) & ~((long)alignment - 1);
         private static string ReadGGUFString(BinaryReader reader) { var len = reader.ReadUInt64(); return len == 0 ? string.Empty : Encoding.UTF8.GetString(reader.ReadBytes((int)len)); }
-        private static object ReadGGUFValue(BinaryReader reader, GGUFValueType type) { /* Omitted for brevity, same as before */ return null; }
+        private static object? ReadGGUFValue(BinaryReader reader, GGUFValueType type) { /* Omitted for brevity, same as before */ return null; }
         private struct GGUFHeader { public uint Magic, Version; public ulong TensorCount, MetadataKVCount; }
-        private class GGUFTensorInfo { public string Name; public uint NumDims; public ulong[] Shape; public GGUFType Type; public ulong Offset; }
+        private class GGUFTensorInfo { public string Name = string.Empty; public uint NumDims; public ulong[] Shape = Array.Empty<ulong>(); public GGUFType Type; public ulong Offset; }
         private enum GGUFValueType : uint { UINT8 = 0, INT8 = 1, UINT16 = 2, INT16 = 3, UINT32 = 4, INT32 = 5, FLOAT32 = 6, BOOL = 7, STRING = 8, ARRAY = 9 }
     }
 }

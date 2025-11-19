@@ -16,9 +16,9 @@ namespace Hartonomous.Clr.ModelParsers
     {
         private class TensorMetadata
         {
-            public string DType { get; set; }
-            public List<long> Shape { get; set; }
-            public List<long> DataOffsets { get; set; }
+            public string? DType { get; set; }
+            public List<long>? Shape { get; set; }
+            public List<long>? DataOffsets { get; set; }
         }
 
         public static IEnumerable<object[]> Parse(Stream stream)
@@ -43,20 +43,20 @@ namespace Hartonomous.Clr.ModelParsers
 
                 // 3. Iterate through tensors and read data
                 int layerIndex = 0;
-                foreach (var item in metadata)
+                foreach (var item in metadata!)
                 {
                     if (item.Key == "__metadata__") continue;
 
                     var tensorInfo = item.Value.ToObject<TensorMetadata>();
-                    if (tensorInfo.DataOffsets == null || tensorInfo.DataOffsets.Count != 2)
+                    if (tensorInfo == null || tensorInfo.DataOffsets == null || tensorInfo.DataOffsets.Count != 2)
                         continue;
 
-                    long start = tensorInfo.DataOffsets[0];
+                    long start = tensorInfo.DataOffsets![0];
                     long end = tensorInfo.DataOffsets[1];
                     long tensorByteLength = end - start;
                     
                     long numElements = 1;
-                    foreach (var dim in tensorInfo.Shape)
+                    foreach (var dim in tensorInfo.Shape!)
                     {
                         numElements *= dim;
                     }

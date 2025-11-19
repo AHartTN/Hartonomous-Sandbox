@@ -196,7 +196,7 @@ namespace Hartonomous.Clr
             byte[] embeddingBinary,
             string modelsJson,
             int topPerModel,
-            string modality)
+            string? modality)
         {
             using (var command = connection.CreateCommand())
             {
@@ -317,7 +317,7 @@ WHERE CanonicalText IS NOT NULL AND LTRIM(RTRIM(CanonicalText)) <> '';
             return prepared;
         }
 
-        private static CandidateAggregate SelectCandidate(
+        private static CandidateAggregate? SelectCandidate(
             List<CandidateAggregate> candidates,
             Random random,
             double temperature)
@@ -369,7 +369,7 @@ WHERE CanonicalText IS NOT NULL AND LTRIM(RTRIM(CanonicalText)) <> '';
             return candidates[candidates.Count - 1];
         }
 
-        private static byte[] LoadAtomEmbedding(SqlConnection connection, long atomId)
+        private static byte[]? LoadAtomEmbedding(SqlConnection connection, long atomId)
         {
             using (var command = connection.CreateCommand())
             {
@@ -422,10 +422,10 @@ ORDER BY ae.CreatedAt DESC;
 
         private sealed class CandidateAggregate
         {
-            internal CandidateAggregate(long atomId, string token)
+            internal CandidateAggregate(long atomId, string? token)
             {
                 AtomId = atomId;
-                Token = token;
+                Token = token ?? string.Empty;
                 ModelIds = new HashSet<int>();
             }
 

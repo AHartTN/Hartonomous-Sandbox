@@ -396,7 +396,7 @@ namespace Hartonomous.Clr
             public double SpatialX { get; set; }
             public double SpatialY { get; set; }
             public double SpatialZ { get; set; }
-            public SqlGeometry Patch { get; set; }
+            public SqlGeometry Patch { get; set; } = null!;
         }
 
         /// <summary>
@@ -549,7 +549,7 @@ namespace Hartonomous.Clr
             public int PatchY { get; set; }
             public int PatchWidth { get; set; }
             public int PatchHeight { get; set; }
-            public SqlGeometry PatchGeometry { get; set; }
+            public SqlGeometry PatchGeometry { get; set; } = null!;
             public double MeanR { get; set; }
             public double MeanG { get; set; }
             public double MeanB { get; set; }

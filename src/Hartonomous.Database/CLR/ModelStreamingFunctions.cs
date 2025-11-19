@@ -372,8 +372,8 @@ public static partial class ModelStreamingFunctions
 
     private class TensorInfo
     {
-        public string Name { get; set; }
-        public long[] Shape { get; set; }
+        public string Name { get; set; } = null!;
+        public long[] Shape { get; set; } = null!;
         public uint GGMLType { get; set; }
         public long Offset { get; set; }
         public long ElementCount { get; set; }

@@ -7,7 +7,7 @@ namespace Hartonomous.Clr.Analysis
     public class SlowQueryInfo
     {
         public long QueryId { get; set; }
-        public string QueryText { get; set; }
+        public string QueryText { get; set; } = null!;
         public double AvgDurationMs { get; set; }
         public long ExecutionCount { get; set; }
         public double TotalDurationMs { get; set; }
@@ -15,16 +15,16 @@ namespace Hartonomous.Clr.Analysis
 
     public class FailedTestInfo
     {
-        public string TestSuite { get; set; }
-        public string TestName { get; set; }
+        public string TestSuite { get; set; } = null!;
+        public string TestName { get; set; } = null!;
         public int FailureCount { get; set; }
-        public string LastError { get; set; }
+        public string LastError { get; set; } = null!;
     }
 
     public class CostHotspotInfo
     {
-        public string TenantId { get; set; }
-        public string Operation { get; set; }
+        public string TenantId { get; set; } = null!;
+        public string Operation { get; set; } = null!;
         public decimal TotalCost { get; set; }
         public long RequestCount { get; set; }
         public decimal AvgCost { get; set; }
@@ -33,10 +33,10 @@ namespace Hartonomous.Clr.Analysis
     public class ComprehensiveAnalysisResult
     {
         public string AnalysisType => "comprehensive_analysis";
-        public List<SlowQueryInfo> SlowQueries { get; set; }
-        public List<FailedTestInfo> FailedTests { get; set; }
-        public List<CostHotspotInfo> CostHotspots { get; set; }
-        public string TargetArea { get; set; }
+        public List<SlowQueryInfo> SlowQueries { get; set; } = null!;
+        public List<FailedTestInfo> FailedTests { get; set; } = null!;
+        public List<CostHotspotInfo> CostHotspots { get; set; } = null!;
+        public string? TargetArea { get; set; }
         public System.DateTime AnalyzedAt { get; set; }
     }
 

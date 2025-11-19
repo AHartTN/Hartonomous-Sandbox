@@ -179,7 +179,7 @@ namespace Hartonomous.Clr.NaturalLanguage
         /// NOTE: This method should be called from SQL CLR context where SqlConnection is available.
         /// Bridge library provides the algorithm; SQL CLR provides the data access.
         /// </summary>
-        public static Dictionary<string, int> LoadVocabularyFromJson(SqlConnection connection, string jsonData)
+        public static Dictionary<string, int> LoadVocabularyFromJson(SqlConnection connection, string? jsonData)
         {
             if (connection == null)
                 throw new ArgumentNullException(nameof(connection));
@@ -228,19 +228,19 @@ namespace Hartonomous.Clr.NaturalLanguage
         /// NOTE: This method should be called from SQL CLR context.
         /// Bridge library provides the algorithm; SQL CLR provides the data access.
         /// </summary>
-        public static List<(string, string)> LoadMergesFromText(string mergesText)
+        public static List<(string, string)> LoadMergesFromText(string? mergesText)
         {
             var merges = new List<(string, string)>();
 
             if (!string.IsNullOrEmpty(mergesText))
             {
-                var lines = mergesText.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+                var lines = mergesText!.Split(new[] { '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
 
                 foreach (var line in lines)
                 {
                     var parts = line.Split(' ');
                     if (parts.Length == 2)
-                        merges.Add((parts[0], parts[1]));
+                        merges.Add((parts[0]!, parts[1]!));
                 }
             }
 

@@ -53,7 +53,7 @@ namespace Hartonomous.Clr
             if (numComponents == 0)
                 numComponents = nComponents.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -128,12 +128,10 @@ namespace Hartonomous.Clr
                 {
                     float[] newVec = new float[dimension];
                     
-                    // Multiply by covariance matrix (A^T * A * v)
+                    // Multiply by covariance matrix (A^T * A * v) using SIMD-optimized DotProduct
                     foreach (var centeredVec in residualData)
                     {
-                        double dot = 0;
-                        for (int i = 0; i < dimension; i++)
-                            dot += eigenvec[i] * centeredVec[i];
+                        double dot = VectorMath.DotProduct(eigenvec, centeredVec);
                         
                         for (int i = 0; i < dimension; i++)
                             newVec[i] += (float)(dot * centeredVec[i]);
@@ -215,10 +213,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -228,12 +225,25 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-            return jsonBuilder.ToString();
+                w.WriteFloatArray(vec);
         }
     }
 
-    /// <summary>ntToDuplicates = false,
+    /// <summary>
+    /// T-SNE DIMENSIONALITY REDUCTION AGGREGATE
+    /// Project high-dimensional vectors into 2D/3D space while preserving local structure
+    /// 
+    /// SELECT dbo.TSNEProjection(vector_json, 2, 30.0)
+    /// FROM embeddings
+    /// 
+    /// Returns: Low-dimensional projection suitable for visualization
+    /// USE CASE: Visualize embedding clusters, explore semantic space
+    /// </summary>
+    [Serializable]
+    [SqlUserDefinedAggregate(
+        Format.UserDefined,
+        IsInvariantToNulls = true,
+        IsInvariantToDuplicates = false,
         IsInvariantToOrder = true,
         MaxByteSize = -1)]
     public struct TSNEProjection : IBinarySerialize
@@ -261,7 +271,7 @@ namespace Hartonomous.Clr
             if (perplexity == 0 && !perplexityParam.IsNull)
                 perplexity = perplexityParam.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -324,10 +334,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -338,22 +347,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            try
-            {
-                json = json.Trim();
-                if (!json.StartsWith("[") || !json.EndsWith("]")) return null;
-                return json.Substring(1, json.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-            }
-            catch { return null; }
+                w.WriteFloatArray(vec);
         }
     }
 
@@ -399,7 +393,7 @@ namespace Hartonomous.Clr
             if (seed == 0 && !randomSeed.IsNull)
                 seed = randomSeed.Value;
 
-            var vec = ParseVectorJson(vectorJson.Value);
+            var vec = VectorUtilities.ParseVectorJson(vectorJson.Value);
             if (vec == null) return;
 
             if (dimension == 0)
@@ -480,10 +474,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -494,13 +487,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
-        }
-
-        private static float[] ParseVectorJson(string json)
-        {
-            return Hartonomous.Clr.Core.VectorUtilities.ParseVectorJson(json);
+                w.WriteFloatArray(vec);
         }
     }
 }

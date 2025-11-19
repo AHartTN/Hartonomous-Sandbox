@@ -37,4 +37,6 @@ using System.Security.Permissions;
 // Without this, DACPAC deployment fails with:
 // "CREATE ASSEMBLY failed because assembly was compiled with /UNSAFE option,
 //  but the assembly was not registered with the required PERMISSION_SET = UNSAFE option."
+#pragma warning disable CS0618 // Type or member is obsolete - required for SQL CLR
 [assembly: PermissionSet(SecurityAction.RequestMinimum, Unrestricted = true)]
+#pragma warning restore CS0618

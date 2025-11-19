@@ -43,8 +43,8 @@ namespace Hartonomous.Clr
         {
             public int StepNumber;
             public StepType Type;
-            public float[] QueryVector;
-            public float[] ResultVector;
+            public float[]? QueryVector;
+            public float[]? ResultVector;
             public double Confidence;
             public List<string> Citations;
             public int ParentStep;
@@ -61,7 +61,7 @@ namespace Hartonomous.Clr
 
         private Dictionary<int, ResearchStep> steps;
         private int dimension;
-        private float[] originalQueryVector;
+        private float[]? originalQueryVector;
 
         public void Init()
         {
@@ -256,9 +256,7 @@ namespace Hartonomous.Clr
             bool hasOriginalQuery = r.ReadBoolean();
             if (hasOriginalQuery)
             {
-                originalQueryVector = new float[dimension];
-                for (int i = 0; i < dimension; i++)
-                    originalQueryVector[i] = r.ReadSingle();
+                originalQueryVector = r.ReadFloatArray();
             }
 
             int stepCount = r.ReadInt32();
@@ -279,17 +277,13 @@ namespace Hartonomous.Clr
                 bool hasQuery = r.ReadBoolean();
                 if (hasQuery)
                 {
-                    step.QueryVector = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        step.QueryVector[j] = r.ReadSingle();
+                    step.QueryVector = r.ReadFloatArray();
                 }
 
                 bool hasResult = r.ReadBoolean();
                 if (hasResult)
                 {
-                    step.ResultVector = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        step.ResultVector[j] = r.ReadSingle();
+                    step.ResultVector = r.ReadFloatArray();
                 }
 
                 int citationCount = r.ReadInt32();
@@ -311,8 +305,7 @@ namespace Hartonomous.Clr
             w.Write(originalQueryVector != null);
             if (originalQueryVector != null)
             {
-                for (int i = 0; i < dimension; i++)
-                    w.Write(originalQueryVector[i]);
+                w.WriteFloatArray(originalQueryVector);
             }
 
             w.Write(steps.Count);
@@ -329,15 +322,13 @@ namespace Hartonomous.Clr
                 w.Write(step.QueryVector != null);
                 if (step.QueryVector != null)
                 {
-                    for (int j = 0; j < dimension; j++)
-                        w.Write(step.QueryVector[j]);
+                    w.WriteFloatArray(step.QueryVector);
                 }
 
                 w.Write(step.ResultVector != null);
                 if (step.ResultVector != null)
                 {
-                    for (int j = 0; j < dimension; j++)
-                        w.Write(step.ResultVector[j]);
+                    w.WriteFloatArray(step.ResultVector);
                 }
 
                 w.Write(step.Citations.Count);
@@ -376,9 +367,9 @@ namespace Hartonomous.Clr
         private class ToolExecution
         {
             public int Order;
-            public string ToolName;
-            public float[] InputVector;
-            public float[] OutputVector;
+            public string? ToolName;
+            public float[]? InputVector;
+            public float[]? OutputVector;
             public bool Success;
             public long ExecutionTimeMs;
             public double SemanticTransformation; // How much did the vector change
@@ -484,7 +475,7 @@ namespace Hartonomous.Clr
             
             sb.Append("\"tool_usage\":[");
             sb.Append(string.Join(",", toolStats.Select(t =>
-                $"{{\"tool\":\"{t.Tool.Replace("\"", "\\\"")}\"," +
+                $"{{\"tool\":\"{t.Tool!.Replace("\"", "\\\"")}\"," +
                 $"\"count\":{t.Count}," +
                 $"\"success_rate\":{t.SuccessRate:G6}," +
                 $"\"avg_time_ms\":{t.AvgTime:G3}," +
@@ -494,7 +485,7 @@ namespace Hartonomous.Clr
 
             sb.Append("\"bottlenecks\":[");
             sb.Append(string.Join(",", bottlenecks.Select(b =>
-                $"{{\"tool\":\"{b.ToolName.Replace("\"", "\\\"")}\"," +
+                $"{{\"tool\":\"{b.ToolName!.Replace("\"", "\\\"")}\"," +
                 $"\"order\":{b.Order}," +
                 $"\"time_ms\":{b.ExecutionTimeMs}}}"
             )));
@@ -523,17 +514,13 @@ namespace Hartonomous.Clr
                 bool hasInput = r.ReadBoolean();
                 if (hasInput)
                 {
-                    exec.InputVector = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        exec.InputVector[j] = r.ReadSingle();
+                    exec.InputVector = r.ReadFloatArray() ?? Array.Empty<float>();
                 }
 
                 bool hasOutput = r.ReadBoolean();
                 if (hasOutput)
                 {
-                    exec.OutputVector = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        exec.OutputVector[j] = r.ReadSingle();
+                    exec.OutputVector = r.ReadFloatArray() ?? Array.Empty<float>();
                 }
 
                 executions.Add(exec);
@@ -548,7 +535,7 @@ namespace Hartonomous.Clr
             foreach (var exec in executions)
             {
                 w.Write(exec.Order);
-                w.Write(exec.ToolName);
+                w.Write(exec.ToolName ?? string.Empty);
                 w.Write(exec.Success);
                 w.Write(exec.ExecutionTimeMs);
                 w.Write(exec.SemanticTransformation);
@@ -556,15 +543,13 @@ namespace Hartonomous.Clr
                 w.Write(exec.InputVector != null);
                 if (exec.InputVector != null)
                 {
-                    for (int j = 0; j < dimension; j++)
-                        w.Write(exec.InputVector[j]);
+                    w.WriteFloatArray(exec.InputVector);
                 }
 
                 w.Write(exec.OutputVector != null);
                 if (exec.OutputVector != null)
                 {
-                    for (int j = 0; j < dimension; j++)
-                        w.Write(exec.OutputVector[j]);
+                    w.WriteFloatArray(exec.OutputVector);
                 }
             }
         }

@@ -111,7 +111,7 @@ namespace Hartonomous.Clr.MachineLearning
             float[][] userFactors,
             float[][] itemFactors,
             int topN,
-            int[] excludeItems = null)
+            int[]? excludeItems = null)
         {
             if (userId < 0 || userId >= userFactors.Length)
                 throw new ArgumentException($"Invalid user ID: {userId}");

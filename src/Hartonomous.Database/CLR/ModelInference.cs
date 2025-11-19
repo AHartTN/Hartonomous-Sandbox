@@ -65,7 +65,7 @@ namespace Hartonomous.Clr
             }
         }
 
-        private static ModelArchitecture LoadModelArchitecture(SqlConnection conn, int modelId)
+        private static ModelArchitecture? LoadModelArchitecture(SqlConnection conn, int modelId)
         {
             var query = @"
                 SELECT 
@@ -159,7 +159,9 @@ namespace Hartonomous.Clr
             // Apply activation function
             if (!string.IsNullOrEmpty(layer.ActivationFunction))
             {
-                output = ApplyActivation(output, layer.ActivationFunction);
+                var activation = layer.ActivationFunction;
+                if (activation != null)
+                    output = ApplyActivation(output, activation);
             }
 
             return output;
@@ -196,7 +198,7 @@ namespace Hartonomous.Clr
             return output;
         }
 
-        private static float[,] LoadLayerWeights(SqlConnection conn, int layerId, int inputDim, int outputDim)
+        private static float[,]? LoadLayerWeights(SqlConnection conn, int layerId, int inputDim, int outputDim)
         {
             // Query LayerTensorSegments for weight matrix
             var query = @"
@@ -254,12 +256,12 @@ namespace Hartonomous.Clr
             return weights;
         }
 
-        private static float[] LoadLayerBias(SqlConnection conn, int layerId, int outputDim)
+        private static float[]? LoadLayerBias(SqlConnection conn, int layerId, int outputDim)
         {
             return LoadLayerParameter(conn, layerId, "bias", outputDim);
         }
 
-        private static float[] LoadLayerParameter(SqlConnection conn, int layerId, string tensorName, int expectedDim)
+        private static float[]? LoadLayerParameter(SqlConnection conn, int layerId, string tensorName, int expectedDim)
         {
             var query = @"
                 SELECT 
@@ -493,7 +495,7 @@ namespace Hartonomous.Clr
             return maxIdx;
         }
 
-        private static float[] BytesToVector(byte[] bytes)
+        private static float[]? BytesToVector(byte[] bytes)
         {
             if (bytes == null || bytes.Length == 0 || bytes.Length % 4 != 0)
                 return null;
@@ -505,18 +507,18 @@ namespace Hartonomous.Clr
 
         private class ModelArchitecture
         {
-            public List<LayerDefinition> Layers { get; set; }
+            public List<LayerDefinition> Layers { get; set; } = null!;
         }
 
         private class LayerDefinition
         {
             public int LayerId { get; set; }
             public int LayerIndex { get; set; }
-            public string LayerType { get; set; }
+            public string LayerType { get; set; } = string.Empty;
             public int InputDimension { get; set; }
             public int OutputDimension { get; set; }
-            public string ActivationFunction { get; set; }
-            public string Config { get; set; }
+            public string? ActivationFunction { get; set; }
+            public string? Config { get; set; }
         }
     }
 }

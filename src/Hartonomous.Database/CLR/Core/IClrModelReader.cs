@@ -19,6 +19,6 @@ namespace Hartonomous.Clr.Core
         /// <param name="reader">A BinaryReader positioned at the start of the model stream.</param>
         /// <param name="tensorName">The name of the tensor to extract.</param>
         /// <returns>A float array containing the dequantized tensor data, or null if the tensor is not found.</returns>
-        float[] ReadTensor(BinaryReader reader, string tensorName);
+        float[]? ReadTensor(BinaryReader reader, string tensorName);
     }
 }

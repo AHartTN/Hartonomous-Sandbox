@@ -14,7 +14,7 @@ namespace Hartonomous.Clr.ModelReaders
     {
         public string FormatName => "GGUF";
 
-        public float[] ReadTensor(BinaryReader reader, string tensorName)
+        public float[]? ReadTensor(BinaryReader reader, string tensorName)
         {
             // 1. Read Header
             var header = ReadHeader(reader);
@@ -26,7 +26,7 @@ namespace Hartonomous.Clr.ModelReaders
             var tensorInfos = ReadTensorInfos(reader, header.TensorCount);
 
             // 4. Find the target tensor
-            GGUFTensorInfo targetTensor = null;
+            GGUFTensorInfo? targetTensor = null;
             foreach (var info in tensorInfos)
             {
                 if (info.Name == tensorName)
@@ -91,8 +91,9 @@ namespace Hartonomous.Clr.ModelReaders
             {
                 var key = ReadGgufString(reader);
                 var type = (GGUFValueType)reader.ReadUInt32();
-                object value = ReadGgufValue(reader, type);
-                metadata[key] = value;
+                object? value = ReadGgufValue(reader, type);
+                if (value != null)
+                    metadata[key] = value;
             }
             return metadata;
         }
@@ -124,7 +125,7 @@ namespace Hartonomous.Clr.ModelReaders
             return Encoding.UTF8.GetString(bytes);
         }
 
-        private object ReadGgufValue(BinaryReader reader, GGUFValueType type)
+        private object? ReadGgufValue(BinaryReader reader, GGUFValueType type)
         {
             switch (type)
             {
@@ -211,11 +212,11 @@ namespace Hartonomous.Clr.ModelReaders
 
         private class GGUFTensorInfo
         {
-            public string Name;
-            public ulong[] Shape;
+            public string Name = string.Empty;
+            public ulong[] Shape = Array.Empty<ulong>();
             public GGUFType Type;
             public ulong Offset;
-            public ulong NumElements => Shape[0] * Shape[1] * Shape[2] * Shape[3];
+            public ulong NumElements => Shape.Length >= 4 ? Shape[0] * Shape[1] * Shape[2] * Shape[3] : 0;
         }
 
         private enum GGUFValueType : uint

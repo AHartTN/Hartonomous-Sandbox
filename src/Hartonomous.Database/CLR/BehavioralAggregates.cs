@@ -40,8 +40,8 @@ namespace Hartonomous.Clr
         private class JourneyStep
         {
             public DateTime Timestamp;
-            public float[] PageVector;
-            public string ActionType; // view, click, scroll, convert, exit
+            public float[]? PageVector;
+            public string? ActionType; // view, click, scroll, convert, exit
             public int DurationSeconds;
             public double ConversionValue;
         }
@@ -104,9 +104,12 @@ namespace Hartonomous.Clr
             for (int i = 1; i < steps.Count; i++)
             {
                 // Coherence: how related is this page to the previous
-                double similarity = VectorMath.CosineSimilarity(
-                    steps[i].PageVector, steps[i - 1].PageVector);
-                semanticCoherence += similarity;
+                if (steps[i].PageVector != null && steps[i - 1].PageVector != null)
+                {
+                    double similarity = VectorMath.CosineSimilarity(
+                        steps[i].PageVector!, steps[i - 1].PageVector!);
+                    semanticCoherence += similarity;
+                }
             }
             semanticCoherence /= Math.Max(1, steps.Count - 1);
 
@@ -183,12 +186,9 @@ namespace Hartonomous.Clr
                     Timestamp = DateTime.FromBinary(r.ReadInt64()),
                     ActionType = r.ReadString(),
                     DurationSeconds = r.ReadInt32(),
-                    ConversionValue = r.ReadDouble()
+                    ConversionValue = r.ReadDouble(),
+                    PageVector = r.ReadFloatArray()
                 };
-
-                step.PageVector = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    step.PageVector[j] = r.ReadSingle();
 
                 steps.Add(step);
             }
@@ -205,9 +205,7 @@ namespace Hartonomous.Clr
                 w.Write(step.ActionType);
                 w.Write(step.DurationSeconds);
                 w.Write(step.ConversionValue);
-
-                for (int j = 0; j < dimension; j++)
-                    w.Write(step.PageVector[j]);
+                w.WriteFloatArray(step.PageVector);
             }
         }
     }
@@ -406,10 +404,9 @@ namespace Hartonomous.Clr
                 int vectorCount = r.ReadInt32();
                 for (int j = 0; j < vectorCount; j++)
                 {
-                    var vec = new float[dimension];
-                    for (int k = 0; k < dimension; k++)
-                        vec[k] = r.ReadSingle();
-                    data.OutcomeVectors.Add(vec);
+                    var vec = r.ReadFloatArray();
+                    if (vec != null)
+                        data.OutcomeVectors.Add(vec);
                 }
 
                 int conversionCount = r.ReadInt32();
@@ -435,10 +432,7 @@ namespace Hartonomous.Clr
 
                 w.Write(kvp.Value.OutcomeVectors.Count);
                 foreach (var vec in kvp.Value.OutcomeVectors)
-                {
-                    for (int k = 0; k < dimension; k++)
-                        w.Write(vec[k]);
-                }
+                    w.WriteFloatArray(vec);
 
                 w.Write(kvp.Value.Conversions.Count);
                 foreach (var conv in kvp.Value.Conversions)
@@ -474,8 +468,8 @@ namespace Hartonomous.Clr
     {
         private class UserData
         {
-            public string UserId;
-            public float[] ActivityVector;
+            public string? UserId;
+            public float[]? ActivityVector;
             public int DaysSinceLastActivity;
             public double EngagementScore;
             public double ChurnRisk; // Computed
@@ -552,7 +546,7 @@ namespace Hartonomous.Clr
                     if (activeUsers.Count > 0)
                     {
                         var avgSimilarity = activeUsers.Average(au =>
-                            VectorMath.CosineSimilarity(user.ActivityVector, au.ActivityVector));
+                            VectorMath.CosineSimilarity(user.ActivityVector!, au.ActivityVector!));
                         patternRisk = 1.0 - avgSimilarity;
                     }
                 }
@@ -599,9 +593,7 @@ namespace Hartonomous.Clr
                 bool hasVector = r.ReadBoolean();
                 if (hasVector)
                 {
-                    user.ActivityVector = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        user.ActivityVector[j] = r.ReadSingle();
+                    user.ActivityVector = r.ReadFloatArray();
                 }
 
                 users.Add(user);
@@ -623,8 +615,7 @@ namespace Hartonomous.Clr
                 w.Write(user.ActivityVector != null);
                 if (user.ActivityVector != null)
                 {
-                    for (int j = 0; j < dimension; j++)
-                        w.Write(user.ActivityVector[j]);
+                    w.WriteFloatArray(user.ActivityVector);
                 }
             }
         }

@@ -924,8 +924,8 @@ namespace Hartonomous.Clr
     /// </summary>
     public sealed class CapabilityResult
     {
-        public string SupportedTasks { get; set; }
-        public string SupportedModalities { get; set; }
+        public string SupportedTasks { get; set; } = null!;
+        public string SupportedModalities { get; set; } = null!;
         public int MaxTokens { get; set; }
         public int MaxContextWindow { get; set; }
         public int? EmbeddingDimension { get; set; }
@@ -961,7 +961,7 @@ namespace Hartonomous.Clr
     public sealed class EmbeddingPattern
     {
         public long AtomId { get; set; }
-        public string Modality { get; set; }
+        public string Modality { get; set; } = null!;
         public int ClusterSize { get; set; }
     }
 
@@ -970,8 +970,8 @@ namespace Hartonomous.Clr
     /// </summary>
     public sealed class Hypothesis
     {
-        public string HypothesisId { get; set; }
-        public string HypothesisType { get; set; }
+        public string HypothesisId { get; set; } = null!;
+        public string HypothesisType { get; set; } = null!;
         public int Priority { get; set; }
     }
 
@@ -980,10 +980,10 @@ namespace Hartonomous.Clr
     /// </summary>
     public sealed class ActionResult
     {
-        public string HypothesisId { get; set; }
-        public string HypothesisType { get; set; }
-        public string ActionStatus { get; set; }
-        public string ExecutedActions { get; set; }
+        public string HypothesisId { get; set; } = null!;
+        public string HypothesisType { get; set; } = null!;
+        public string ActionStatus { get; set; } = null!;
+        public string ExecutedActions { get; set; } = null!;
         public int ExecutionTimeMs { get; set; }
     }
 }

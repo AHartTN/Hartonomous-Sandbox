@@ -236,7 +236,7 @@ namespace Hartonomous.Clr
             return Math.Max(MinTemperature, Math.Min(MaxTemperature, value));
         }
 
-        private static ModelInfo LoadModel(SqlConnection connection, int modelId)
+        private static ModelInfo? LoadModel(SqlConnection connection, int modelId)
         {
             using (var command = connection.CreateCommand())
             {
@@ -313,7 +313,7 @@ ORDER BY ae.AtomId;
             return embeddings;
         }
 
-        private static float[] LoadAtomEmbedding(SqlConnection connection, long atomId)
+        private static float[]? LoadAtomEmbedding(SqlConnection connection, long atomId)
         {
             using (var command = connection.CreateCommand())
             {
@@ -333,35 +333,6 @@ ORDER BY CreatedAt DESC;
             }
 
             return null;
-        }
-
-        private static float[] ParseVectorJson(string vectorJson)
-        {
-            // Parse JSON array: "[0.1, 0.2, 0.3, ...]"
-            if (string.IsNullOrWhiteSpace(vectorJson))
-            {
-                return null;
-            }
-
-            try
-            {
-                var trimmed = vectorJson.Trim();
-                if (!trimmed.StartsWith("[") || !trimmed.EndsWith("]"))
-                {
-                    return null;
-                }
-
-                var values = trimmed.Substring(1, trimmed.Length - 2)
-                    .Split(',')
-                    .Select(s => float.Parse(s.Trim()))
-                    .ToArray();
-
-                return values;
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         private static float[] ComputeMultiHeadAttention(
@@ -445,7 +416,7 @@ ORDER BY CreatedAt DESC;
         /// Load tensor weights from GEOMETRY representation via STPointN() queries.
         /// This is the core "queryable tensors" implementation.
         /// </summary>
-        private static float[] LoadTensorWeightsFromGeometry(
+        private static float[]? LoadTensorWeightsFromGeometry(
             SqlConnection connection,
             string tensorNamePattern,
             int maxDimension)
@@ -480,12 +451,12 @@ ORDER BY ta.ElementCount DESC;
 
                     // Extract weights from GEOMETRY using STPointN()
                     var weights = new List<float>();
-                    var pointCount = geometry.STNumPoints().Value;
+                    var pointCount = geometry.STNumPoints().IsNull ? 0 : geometry.STNumPoints().Value;
 
                     for (int i = 1; i <= pointCount && weights.Count < maxDimension; i++)
                     {
                         var point = geometry.STPointN(i);
-                        if (!point.IsNull)
+                        if (!point.IsNull && !point.STY.IsNull)
                         {
                             // Y coordinate is the weight value
                             var value = point.STY.Value;
@@ -784,7 +755,7 @@ WHERE AtomId = @atomId;
                     return false;
                 }
 
-                var trimmed = text.Trim();
+                var trimmed = text!.Trim();
                 return trimmed.Equals("[EOS]", StringComparison.OrdinalIgnoreCase) ||
                        trimmed.Equals("</s>", StringComparison.OrdinalIgnoreCase) ||
                        trimmed.Equals("<|endoftext|>", StringComparison.Ordinal);
@@ -834,18 +805,18 @@ VALUES (
         private class ModelInfo
         {
             public int ModelId { get; set; }
-            public string ModelName { get; set; }
-            public string ModelType { get; set; }
-            public string Architecture { get; set; }
-            public string Config { get; set; }
+            public string ModelName { get; set; } = string.Empty;
+            public string ModelType { get; set; } = string.Empty;
+            public string? Architecture { get; set; }
+            public string Config { get; set; } = "{}";
             public int EmbeddingDimension { get; set; }
         }
 
         private class Candidate
         {
             public long AtomId { get; set; }
-            public string Modality { get; set; }  // NEW: Support cross-modal candidates
-            public string Text { get; set; }
+            public string Modality { get; set; } = string.Empty;  // NEW: Support cross-modal candidates
+            public string? Text { get; set; }
             public double Distance { get; set; }
             public double Score { get; set; }
         }

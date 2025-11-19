@@ -6,6 +6,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 using Hartonomous.Clr.Core;
+using Hartonomous.Clr.MachineLearning;
 
 namespace Hartonomous.Clr
 {
@@ -35,23 +36,12 @@ namespace Hartonomous.Clr
         MaxByteSize = -1)]
     public struct TreeOfThought : IBinarySerialize
     {
-        private class ReasoningNode
-        {
-            public int StepNumber;
-            public float[] Vector;
-            public double Confidence;
-            public int ParentStep;
-            public List<int> Children = new List<int>();
-            public double CumulativeScore;
-            public double PathDiversity;
-        }
-
-        private Dictionary<int, ReasoningNode> nodes;
+        private Dictionary<int, MachineLearning.TreeOfThought.ReasoningNode> nodes;
         private int dimension;
 
         public void Init()
         {
-            nodes = new Dictionary<int, ReasoningNode>();
+            nodes = new Dictionary<int, MachineLearning.TreeOfThought.ReasoningNode>();
             dimension = 0;
         }
 
@@ -69,7 +59,7 @@ namespace Hartonomous.Clr
                 return;
 
             int step = stepNumber.Value;
-            var node = new ReasoningNode
+            var node = new MachineLearning.TreeOfThought.ReasoningNode
             {
                 StepNumber = step,
                 Vector = vec,
@@ -103,70 +93,30 @@ namespace Hartonomous.Clr
             if (nodes.Count == 0 || dimension == 0)
                 return SqlString.Null;
 
-            // Build tree structure
-            var roots = nodes.Values.Where(n => n.ParentStep < 0).ToList();
-            if (roots.Count == 0)
-                roots = nodes.Values.Take(1).ToList(); // Fallback
+            // Use extracted TreeOfThought algorithm
+            var result = MachineLearning.TreeOfThought.FindBestPath(
+                nodes,
+                VectorUtilities.CosineSimilarity,
+                VectorUtilities.EuclideanDistance);
 
-            // Compute cumulative scores via DFS
-            var localNodes = nodes; // Copy to local variable for lambda access
-            void ComputeScores(ReasoningNode node, double parentScore, float[] parentVector)
-            {
-                // Score = confidence + semantic coherence with parent
-                double coherence = 1.0;
-                if (parentVector != null)
-                {
-                    coherence = VectorUtilities.CosineSimilarity(node.Vector, parentVector);
-                }
-
-                node.CumulativeScore = parentScore + (node.Confidence * coherence);
-                node.PathDiversity = parentVector != null 
-                    ? Math.Sqrt(VectorUtilities.EuclideanDistance(node.Vector, parentVector))
-                    : 0;
-
-                foreach (int childStep in node.Children)
-                {
-                    if (localNodes.ContainsKey(childStep))
-                        ComputeScores(localNodes[childStep], node.CumulativeScore, node.Vector);
-                }
-            }
-
-            foreach (var root in roots)
-            {
-                ComputeScores(root, 0, null);
-            }
-
-            // Find best leaf path (highest cumulative score)
-            var leaves = nodes.Values.Where(n => n.Children.Count == 0).ToList();
-            var bestLeaf = leaves.OrderByDescending(n => n.CumulativeScore).FirstOrDefault();
-
-            if (bestLeaf == null)
+            if (result == null)
                 return SqlString.Null;
 
-            // Trace back best path
-            var bestPath = new List<ReasoningNode>();
-            var current = bestLeaf;
-            while (current != null)
-            {
-                bestPath.Insert(0, current);
-                current = current.ParentStep >= 0 && nodes.ContainsKey(current.ParentStep)
-                    ? nodes[current.ParentStep]
-                    : null;
-            }
+            var r = result.Value;
 
             // Build JSON
             var json = "{" +
-                $"\"best_path_score\":{bestLeaf.CumulativeScore:G6}," +
-                $"\"path_length\":{bestPath.Count}," +
-                $"\"total_nodes_explored\":{nodes.Count}," +
-                $"\"branching_factor\":{(double)nodes.Count / Math.Max(1, bestPath.Count):G3}," +
+                $"\"best_path_score\":{r.BestPathScore:G6}," +
+                $"\"path_length\":{r.PathLength}," +
+                $"\"total_nodes_explored\":{r.TotalNodesExplored}," +
+                $"\"branching_factor\":{r.BranchingFactor:G3}," +
                 "\"path\":[" +
                 string.Join(",",
-                    bestPath.Select((n, idx) =>
-                        $"{{\"step\":{n.StepNumber}," +
-                        $"\"confidence\":{n.Confidence:G6}," +
-                        $"\"cumulative_score\":{n.CumulativeScore:G6}," +
-                        $"\"diversity\":{n.PathDiversity:G6}}}"
+                    r.Path.Select(p =>
+                        $"{{\"step\":{p.Step}," +
+                        $"\"confidence\":{p.Confidence:G6}," +
+                        $"\"cumulative_score\":{p.CumulativeScore:G6}," +
+                        $"\"diversity\":{p.Diversity:G6}}}"
                     )
                 ) + "]}";
 
@@ -177,11 +127,11 @@ namespace Hartonomous.Clr
         {
             dimension = r.ReadInt32();
             int count = r.ReadInt32();
-            nodes = new Dictionary<int, ReasoningNode>(count);
+            nodes = new Dictionary<int, MachineLearning.TreeOfThought.ReasoningNode>(count);
 
             for (int i = 0; i < count; i++)
             {
-                var node = new ReasoningNode
+                var node = new MachineLearning.TreeOfThought.ReasoningNode
                 {
                     StepNumber = r.ReadInt32(),
                     Confidence = r.ReadDouble(),
@@ -249,9 +199,9 @@ namespace Hartonomous.Clr
         private class ReflexionAttempt
         {
             public int AttemptNumber;
-            public float[] ReasoningVector;
+            public float[]? ReasoningVector;
             public double OutcomeScore;
-            public float[] ReflectionVector;
+            public float[]? ReflectionVector;
         }
 
         private List<ReflexionAttempt> attempts;
@@ -276,7 +226,7 @@ namespace Hartonomous.Clr
             else if (reasoningVec.Length != dimension)
                 return;
 
-            float[] reflectionVec = null;
+            float[]? reflectionVec = null;
             if (!reflectionJson.IsNull)
             {
                 reflectionVec = VectorUtilities.ParseVectorJson(reflectionJson.Value);
@@ -316,7 +266,7 @@ namespace Hartonomous.Clr
                 
                 // Compute divergence from previous attempt
                 double divergence = 0;
-                if (i > 0)
+                if (i > 0 && attempt.ReasoningVector != null && attempts[i - 1].ReasoningVector != null)
                 {
                     divergence = Math.Sqrt(VectorUtilities.EuclideanDistance(
                         attempt.ReasoningVector,
@@ -326,7 +276,7 @@ namespace Hartonomous.Clr
 
                 // Compute reflection alignment (how well reflection predicted next move)
                 double reflectionAlignment = 0;
-                if (i > 0 && attempts[i - 1].ReflectionVector != null)
+                if (i > 0 && attempt.ReasoningVector != null && attempts[i - 1].ReflectionVector != null)
                 {
                     reflectionAlignment = VectorUtilities.CosineSimilarity(
                         attempt.ReasoningVector,
@@ -401,19 +351,14 @@ namespace Hartonomous.Clr
                 var attempt = new ReflexionAttempt
                 {
                     AttemptNumber = r.ReadInt32(),
-                    OutcomeScore = r.ReadDouble()
+                    OutcomeScore = r.ReadDouble(),
+                    ReasoningVector = r.ReadFloatArray()
                 };
-
-                attempt.ReasoningVector = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    attempt.ReasoningVector[j] = r.ReadSingle();
 
                 bool hasReflection = r.ReadBoolean();
                 if (hasReflection)
                 {
-                    attempt.ReflectionVector = new float[dimension];
-                    for (int j = 0; j < dimension; j++)
-                        attempt.ReflectionVector[j] = r.ReadSingle();
+                    attempt.ReflectionVector = r.ReadFloatArray();
                 }
 
                 attempts.Add(attempt);
@@ -429,15 +374,12 @@ namespace Hartonomous.Clr
             {
                 w.Write(attempt.AttemptNumber);
                 w.Write(attempt.OutcomeScore);
-
-                foreach (var val in attempt.ReasoningVector)
-                    w.Write(val);
+                w.WriteFloatArray(attempt.ReasoningVector);
 
                 w.Write(attempt.ReflectionVector != null);
                 if (attempt.ReflectionVector != null)
                 {
-                    foreach (var val in attempt.ReflectionVector)
-                        w.Write(val);
+                    w.WriteFloatArray(attempt.ReflectionVector);
                 }
             }
         }
@@ -466,8 +408,8 @@ namespace Hartonomous.Clr
     {
         private class ReasoningSample
         {
-            public float[] PathVector;
-            public float[] AnswerVector;
+            public float[]? PathVector;
+            public float[]? AnswerVector;
             public double Confidence;
         }
 
@@ -546,7 +488,8 @@ namespace Hartonomous.Clr
                 else
                 {
                     // Create new cluster
-                    clusters.Add((sample.AnswerVector, new List<ReasoningSample> { sample }, sample.Confidence));
+                    if (sample.AnswerVector != null)
+                        clusters.Add((sample.AnswerVector, new List<ReasoningSample> { sample }, sample.Confidence));
                 }
             }
 
@@ -562,7 +505,7 @@ namespace Hartonomous.Clr
                 double weight = sample.Confidence;
                 totalWeight += weight;
                 for (int i = 0; i < dimension; i++)
-                    consensusAnswer[i] += (float)(sample.AnswerVector[i] * weight);
+                    consensusAnswer[i] += (float)(sample.AnswerVector![i] * weight);
             }
             for (int i = 0; i < dimension; i++)
                 consensusAnswer[i] /= (float)totalWeight;
@@ -577,7 +520,7 @@ namespace Hartonomous.Clr
             {
                 for (int i = 0; i < dimension; i++)
                 {
-                    double diff = sample.AnswerVector[i] - consensusAnswer[i];
+                    double diff = sample.AnswerVector![i] - consensusAnswer[i];
                     diversity += diff * diff;
                 }
             }
@@ -606,16 +549,10 @@ namespace Hartonomous.Clr
             {
                 var sample = new ReasoningSample
                 {
-                    Confidence = r.ReadDouble()
+                    Confidence = r.ReadDouble(),
+                    PathVector = r.ReadFloatArray(),
+                    AnswerVector = r.ReadFloatArray()
                 };
-
-                sample.PathVector = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    sample.PathVector[j] = r.ReadSingle();
-
-                sample.AnswerVector = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    sample.AnswerVector[j] = r.ReadSingle();
 
                 samples.Add(sample);
             }
@@ -629,12 +566,10 @@ namespace Hartonomous.Clr
             foreach (var sample in samples)
             {
                 w.Write(sample.Confidence);
-
-                foreach (var val in sample.PathVector)
-                    w.Write(val);
-
-                foreach (var val in sample.AnswerVector)
-                    w.Write(val);
+                if (sample.PathVector != null)
+                    w.WriteFloatArray(sample.PathVector);
+                if (sample.AnswerVector != null)
+                    w.WriteFloatArray(sample.AnswerVector);
             }
         }
     }
@@ -663,7 +598,7 @@ namespace Hartonomous.Clr
         private class ReasoningStep
         {
             public int Order;
-            public float[] Vector;
+            public float[]? Vector;
         }
 
         private List<ReasoningStep> steps;
@@ -761,12 +696,9 @@ namespace Hartonomous.Clr
             {
                 var step = new ReasoningStep
                 {
-                    Order = r.ReadInt32()
+                    Order = r.ReadInt32(),
+                    Vector = r.ReadFloatArray() ?? Array.Empty<float>()
                 };
-
-                step.Vector = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    step.Vector[j] = r.ReadSingle();
 
                 steps.Add(step);
             }
@@ -780,8 +712,14 @@ namespace Hartonomous.Clr
             foreach (var step in steps)
             {
                 w.Write(step.Order);
-                foreach (var val in step.Vector)
-                    w.Write(val);
+                if (step.Vector != null)
+                {
+                    w.WriteFloatArray(step.Vector);
+                }
+                else
+                {
+                    w.WriteFloatArray(Array.Empty<float>());
+                }
             }
         }
     }

@@ -39,7 +39,7 @@ namespace Hartonomous.SqlClr
                 conn.Open();
 
                 // Step 1: Load atom canonical text
-                string content = null;
+                string? content = null;
                 var contentQuery = @"
                     SELECT TOP 1 CanonicalText
                     FROM dbo.Atoms
@@ -58,8 +58,8 @@ namespace Hartonomous.SqlClr
                 }
 
                 // Step 2: Load model configuration
-                string modelType = null;
-                string apiEndpoint = null;
+                string? modelType = null;
+                string? apiEndpoint = null;
                 
                 var modelQuery = @"
                     SELECT ModelType, JSON_VALUE(Config, '$.apiEndpoint') AS ApiEndpoint
@@ -80,13 +80,13 @@ namespace Hartonomous.SqlClr
                 }
 
                 // Step 3: Generate embedding based on model type
-                byte[] embedding = null;
+                byte[]? embedding = null;
                 
-                if (modelType == "Transformer" && !string.IsNullOrEmpty(apiEndpoint))
+                if (modelType == "Transformer" && !string.IsNullOrEmpty(apiEndpoint) && content != null)
                 {
                     embedding = CallLocalTransformerEmbedding(content, apiEndpoint);
                 }
-                else if (modelType == "Local")
+                else if (modelType == "Local" && content != null)
                 {
                     embedding = GenerateLocalEmbedding(content);
                 }
@@ -209,7 +209,7 @@ namespace Hartonomous.SqlClr
         /// Loads transformer model weights from SQL Server GEOMETRY/FILESTREAM,
         /// runs forward pass with proper attention/MLP layers, returns embedding vector.
         /// </summary>
-        private static byte[] CallLocalTransformerEmbedding(string content, string modelIdentifier)
+        private static byte[] CallLocalTransformerEmbedding(string content, string? modelIdentifier)
         {
             // Use provided model identifier or default
             if (string.IsNullOrEmpty(modelIdentifier))
@@ -259,7 +259,7 @@ namespace Hartonomous.SqlClr
                 }
                 
                 // STEP 2: Tokenize input text (using stored tokenizer vocabulary from TensorAtoms)
-                var tokens = TokenizeUsingVocabulary(conn, content, modelIdentifier);
+                var tokens = TokenizeUsingVocabulary(conn, content, modelIdentifier!);
                 
                 // STEP 3: Run transformer forward pass using YOUR weights
                 var embedding = RunTransformerInference(modelTensors, tokens, embeddingDimension);
@@ -300,7 +300,7 @@ namespace Hartonomous.SqlClr
                 conn.Open();
                 
                 // Get local embedding model endpoint from Models table
-                string localEndpoint = null;
+                string? localEndpoint = null;
                 var configQuery = @"
                     SELECT JSON_VALUE(Config, '$.apiEndpoint')
                     FROM dbo.Models
@@ -328,8 +328,8 @@ namespace Hartonomous.SqlClr
         private static long[] TokenizeUsingVocabulary(SqlConnection conn, string text, string modelIdentifier)
         {
             // Query vocabulary JSON from TensorAtoms
-            string vocabJson = null;
-            string mergesText = null;
+            string? vocabJson = null;
+            string? mergesText = null;
 
             using (var command = conn.CreateCommand())
             {

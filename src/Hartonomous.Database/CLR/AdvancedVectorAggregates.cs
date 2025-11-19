@@ -33,7 +33,7 @@ namespace Hartonomous.Clr
     {
         private long count;
         private int dimension;
-        private float[] sum;
+        private float[]? sum;
 
         public void Init()
         {
@@ -60,8 +60,11 @@ namespace Hartonomous.Clr
             else if (vec.Length != dimension)
                 return; // Skip mismatched dimensions
 
-            for (int i = 0; i < dimension; i++)
-                sum[i] += vec[i];
+            if (sum != null)
+            {
+                for (int i = 0; i < dimension; i++)
+                    sum[i] += vec[i];
+            }
 
             count++;
         }
@@ -115,9 +118,7 @@ namespace Hartonomous.Clr
 
             if (dimension > 0 && count > 0)
             {
-                sum = new float[dimension];
-                for (int i = 0; i < dimension; i++)
-                    sum[i] = r.ReadSingle();
+                sum = r.ReadFloatArray();
             }
             else
             {
@@ -131,8 +132,7 @@ namespace Hartonomous.Clr
             w.Write(count);
             if (dimension > 0 && sum != null)
             {
-                for (int i = 0; i < dimension; i++)
-                    w.Write(sum[i]);
+                w.WriteFloatArray(sum);
             }
         }
     }
@@ -369,11 +369,12 @@ namespace Hartonomous.Clr
             counts = new List<int>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] centroid = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    centroid[j] = r.ReadSingle();
-                centroids.Add(centroid);
-                counts.Add(r.ReadInt32());
+                float[]? centroid = r.ReadFloatArray();
+                if (centroid != null)
+                {
+                    centroids.Add(centroid);
+                    counts.Add(r.ReadInt32());
+                }
             }
         }
 
@@ -384,8 +385,7 @@ namespace Hartonomous.Clr
             w.Write(centroids.Count);
             for (int i = 0; i < centroids.Count; i++)
             {
-                foreach (var val in centroids[i])
-                    w.Write(val);
+                w.WriteFloatArray(centroids[i]);
                 w.Write(counts[i]);
             }
         }
@@ -509,10 +509,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -521,8 +520,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
         }
     }
 }

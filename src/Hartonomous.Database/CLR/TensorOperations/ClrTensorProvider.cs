@@ -23,7 +23,7 @@ namespace Hartonomous.Clr.TensorOperations
         /// Loads tensor weights by querying the database for the corresponding tensor atom
         /// and retrieving its payload from FILESTREAM storage.
         /// </summary>
-        public float[] LoadWeights(string tensorName, int maxElements)
+        public float[]? LoadWeights(string tensorName, int maxElements)
         {
             try
             {

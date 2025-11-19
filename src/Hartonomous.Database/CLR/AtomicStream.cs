@@ -19,7 +19,7 @@ namespace Hartonomous.Clr
         private SqlString _scope;
         private SqlString _model;
         private SqlString _metadata;
-        private List<Segment> _segments;
+        private List<Segment>? _segments;
 
         internal IEnumerable<AtomicStreamSegmentSnapshot> EnumerateSegments()
         {
@@ -98,7 +98,7 @@ namespace Hartonomous.Clr
                 metadata.IsNull ? null : metadata.Value,
                 clone);
 
-            _segments.Add(segment);
+            _segments?.Add(segment);
         }
 
         [SqlMethod(IsDeterministic = false, IsPrecise = false)]
@@ -263,15 +263,18 @@ namespace Hartonomous.Clr
 
             for (int index = 0; index < count; index++)
             {
-                var segment = _segments[index];
-                writer.Write((byte)segment.Kind);
-                writer.Write(segment.TimestampTicks);
-                WriteOptionalString(writer, segment.ContentType);
-                WriteOptionalString(writer, segment.Metadata);
+                if (_segments != null)
+                {
+                    var segment = _segments[index];
+                    writer.Write((byte)segment.Kind);
+                    writer.Write(segment.TimestampTicks);
+                    WriteOptionalString(writer, segment.ContentType);
+                    WriteOptionalString(writer, segment.Metadata);
 
-                var payload = segment.Payload ?? Array.Empty<byte>();
-                writer.Write(payload.Length);
-                writer.Write(payload);
+                    var payload = segment.Payload ?? Array.Empty<byte>();
+                    writer.Write(payload.Length);
+                    writer.Write(payload);
+                }
             }
         }
 
@@ -389,7 +392,7 @@ namespace Hartonomous.Clr
             return hasValue ? new SqlString(reader.ReadString()) : SqlString.Null;
         }
 
-        private static void WriteOptionalString(BinaryWriter writer, string value)
+        private static void WriteOptionalString(BinaryWriter writer, string? value)
         {
             var hasValue = !string.IsNullOrEmpty(value);
             writer.Write(hasValue);
@@ -399,7 +402,7 @@ namespace Hartonomous.Clr
             }
         }
 
-        private static string ReadOptionalString(BinaryReader reader)
+        private static string? ReadOptionalString(BinaryReader reader)
         {
             var hasValue = reader.ReadBoolean();
             return hasValue ? reader.ReadString() : null;
@@ -434,8 +437,8 @@ namespace Hartonomous.Clr
                 int ordinal,
                 AtomicStreamSegmentKind kind,
                 long timestampTicks,
-                string contentType,
-                string metadata,
+                string? contentType,
+                string? metadata,
                 byte[] payload)
             {
                 Ordinal = ordinal;
@@ -452,16 +455,16 @@ namespace Hartonomous.Clr
 
             internal long TimestampTicks { get; }
 
-            internal string ContentType { get; }
+            internal string? ContentType { get; }
 
-            internal string Metadata { get; }
+            internal string? Metadata { get; }
 
             internal byte[] Payload { get; }
         }
 
         private sealed class Segment
         {
-            internal Segment(AtomicStreamSegmentKind kind, long timestampTicks, string contentType, string metadata, byte[] payload)
+                    public Segment(AtomicStreamSegmentKind kind, long timestampTicks, string? contentType, string? metadata, byte[] payload)
             {
                 Kind = kind;
                 TimestampTicks = timestampTicks;
@@ -474,9 +477,9 @@ namespace Hartonomous.Clr
 
             internal long TimestampTicks { get; }
 
-            internal string ContentType { get; }
+            internal string? ContentType { get; }
 
-            internal string Metadata { get; }
+            internal string? Metadata { get; }
 
             internal byte[] Payload { get; }
         }

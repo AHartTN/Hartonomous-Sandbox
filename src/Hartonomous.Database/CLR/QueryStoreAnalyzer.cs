@@ -40,7 +40,7 @@ namespace Hartonomous.Clr.Analysis
                             results.Add(new SlowQueryInfo
                             {
                                 QueryId = reader.GetInt64(0),
-                                QueryText = reader.IsDBNull(1) ? null : reader.GetString(1),
+                                QueryText = reader.IsDBNull(1) ? string.Empty : reader.GetString(1),
                                 AvgDurationMs = reader.GetDouble(2),
                                 ExecutionCount = reader.GetInt64(3),
                                 TotalDurationMs = reader.GetDouble(4)

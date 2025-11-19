@@ -10,7 +10,7 @@ namespace Hartonomous.Clr.Core;
 internal struct PooledList<T>
 {
     private const int DefaultCapacity = 8;
-    private T[] _items;
+    private T[]? _items;
     private int _count;
 
     internal int Count => _count;
@@ -37,7 +37,8 @@ internal struct PooledList<T>
     internal void Add(T item)
     {
         EnsureCapacity(_count + 1);
-        _items[_count++] = item;
+        if (_items != null)
+            _items[_count++] = item;
     }
 
     internal void AddRange(T[] items)
@@ -46,8 +47,11 @@ internal struct PooledList<T>
             return;
 
         EnsureCapacity(_count + items.Length);
-        Array.Copy(items, 0, _items, _count, items.Length);
-        _count += items.Length;
+        if (_items != null)
+        {
+            Array.Copy(items, 0, _items, _count, items.Length);
+            _count += items.Length;
+        }
     }
 
     internal void Reserve(int size) => EnsureCapacity(size);
@@ -58,10 +62,13 @@ internal struct PooledList<T>
             throw new ArgumentOutOfRangeException(nameof(index));
 
         _count--;
-        if (index < _count)
-            Array.Copy(_items, index + 1, _items, index, _count - index);
+        if (_items != null)
+        {
+            if (index < _count)
+                Array.Copy(_items, index + 1, _items, index, _count - index);
 
-        _items[_count] = default(T);
+            _items[_count] = default(T)!;
+        }
     }
 
     internal void RemoveLast()
@@ -69,7 +76,8 @@ internal struct PooledList<T>
         if (_count == 0)
             return;
         _count--;
-        _items[_count] = default(T);
+        if (_items != null)
+            _items[_count] = default(T)!;
     }
 
     internal void Sort(Comparison<T> comparison)

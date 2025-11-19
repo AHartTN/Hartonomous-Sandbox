@@ -13,7 +13,7 @@ namespace Hartonomous.Clr
                 return Array.Empty<byte>();
             }
 
-            byte[] buffer;
+            byte[]? buffer;
             try
             {
                 buffer = value.Buffer;

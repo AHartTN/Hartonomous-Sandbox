@@ -1,5 +1,6 @@
 using System;
 using System.Data.SqlTypes;
+using System.Linq;
 using Microsoft.SqlServer.Server;
 
 namespace Hartonomous.Clr
@@ -41,7 +42,7 @@ namespace Hartonomous.Clr
         /// </summary>
         /// <param name="json">JSON array string</param>
         /// <returns>Float array or null if parsing fails</returns>
-        public static float[] ParseVectorJson(string json)
+        public static float[]? ParseVectorJson(string json)
         {
             if (string.IsNullOrWhiteSpace(json))
                 return null;

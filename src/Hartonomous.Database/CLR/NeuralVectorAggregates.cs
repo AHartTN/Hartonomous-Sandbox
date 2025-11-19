@@ -175,18 +175,15 @@ namespace Hartonomous.Clr
             values = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] q = new float[dimension];
-                float[] k = new float[dimension];
-                float[] v = new float[dimension];
-                for (int j = 0; j < dimension; j++)
+                float[]? q = r.ReadFloatArray();
+                float[]? k = r.ReadFloatArray();
+                float[]? v = r.ReadFloatArray();
+                if (q != null && k != null && v != null)
                 {
-                    q[j] = r.ReadSingle();
-                    k[j] = r.ReadSingle();
-                    v[j] = r.ReadSingle();
+                    queries.Add(q);
+                    keys.Add(k);
+                    values.Add(v);
                 }
-                queries.Add(q);
-                keys.Add(k);
-                values.Add(v);
             }
         }
 
@@ -197,9 +194,9 @@ namespace Hartonomous.Clr
             w.Write(queries.Count);
             for (int i = 0; i < queries.Count; i++)
             {
-                foreach (var val in queries[i]) w.Write(val);
-                foreach (var val in keys[i]) w.Write(val);
-                foreach (var val in values[i]) w.Write(val);
+                w.WriteFloatArray(queries[i]);
+                w.WriteFloatArray(keys[i]);
+                w.WriteFloatArray(values[i]);
             }
         }
 
@@ -307,10 +304,9 @@ namespace Hartonomous.Clr
             vectors = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] vec = new float[sourceDim];
-                for (int j = 0; j < sourceDim; j++)
-                    vec[j] = r.ReadSingle();
-                vectors.Add(vec);
+                float[]? vec = r.ReadFloatArray();
+                if (vec != null)
+                    vectors.Add(vec);
             }
         }
 
@@ -320,8 +316,7 @@ namespace Hartonomous.Clr
             w.Write(sourceDim);
             w.Write(vectors.Count);
             foreach (var vec in vectors)
-                foreach (var val in vec)
-                    w.Write(val);
+                w.WriteFloatArray(vec);
         }
     }
 
@@ -434,10 +429,9 @@ namespace Hartonomous.Clr
             gradients = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                float[] grad = new float[dimension];
-                for (int j = 0; j < dimension; j++)
-                    grad[j] = r.ReadSingle();
-                gradients.Add(grad);
+                float[]? grad = r.ReadFloatArray();
+                if (grad != null)
+                    gradients.Add(grad);
             }
         }
 
@@ -446,8 +440,7 @@ namespace Hartonomous.Clr
             w.Write(dimension);
             w.Write(gradients.Count);
             foreach (var grad in gradients)
-                foreach (var val in grad)
-                    w.Write(val);
+                w.WriteFloatArray(grad);
         }
     }
 

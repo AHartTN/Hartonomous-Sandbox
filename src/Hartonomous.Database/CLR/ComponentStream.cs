@@ -13,7 +13,7 @@ public struct ComponentStream : INullable, IBinarySerialize
     private const int SerializerVersion = 1;
 
     private bool _isNull;
-    private List<ComponentRun> _runs;
+    private List<ComponentRun>? _runs;
     private long _totalCount;
 
     public bool IsNull => _isNull;
@@ -183,9 +183,12 @@ public struct ComponentStream : INullable, IBinarySerialize
 
         for (var index = 0; index < count; index++)
         {
-            var run = _runs[index];
-            writer.Write(run.AtomId);
-            writer.Write(run.Count);
+            if (_runs != null)
+            {
+                var run = _runs[index];
+                writer.Write(run.AtomId);
+                writer.Write(run.Count);
+            }
         }
     }
 
@@ -255,7 +258,7 @@ public struct ComponentStream : INullable, IBinarySerialize
 
     private void AppendRun(long atomId, int count)
     {
-        if (_runs.Count > 0)
+        if (_runs != null && _runs.Count > 0)
         {
             var last = _runs[_runs.Count - 1];
             if (last.AtomId == atomId)
@@ -266,7 +269,7 @@ public struct ComponentStream : INullable, IBinarySerialize
             }
         }
 
-        _runs.Add(new ComponentRun(atomId, count));
+        _runs?.Add(new ComponentRun(atomId, count));
         _totalCount += count;
     }
 
