@@ -15,7 +15,7 @@ BEGIN
         STDEV(CAST(ImportanceScore AS FLOAT)) AS stdev_importance,
         MIN(ImportanceScore) AS min_importance,
         MAX(ImportanceScore) AS max_importance
-    FROM dbo.TensorAtoms
+    FROM dbo.TensorAtom
     WHERE ModelId = @ModelAId
 
     UNION ALL
@@ -28,7 +28,7 @@ BEGIN
         STDEV(CAST(ImportanceScore AS FLOAT)) AS stdev_importance,
         MIN(ImportanceScore) AS min_importance,
         MAX(ImportanceScore) AS max_importance
-    FROM dbo.TensorAtoms
+    FROM dbo.TensorAtom
     WHERE ModelId = @ModelBId;
 
     SELECT
@@ -40,8 +40,8 @@ BEGIN
         b.ParameterCount AS model_b_parameters,
         a.TensorShape AS model_a_shape,
         b.TensorShape AS model_b_shape
-    FROM dbo.ModelLayers AS a
-    FULL OUTER JOIN dbo.ModelLayers AS b
+    FROM dbo.ModelLayer AS a
+    FULL OUTER JOIN dbo.ModelLayer AS b
         ON a.LayerIdx = b.LayerIdx
        AND a.ModelId = @ModelAId
        AND b.ModelId = @ModelBId
@@ -63,8 +63,8 @@ BEGIN
             AVG(CAST(tc.Coefficient AS FLOAT)) AS avg_value,
             MAX(tc.Coefficient) AS max_value,
             MIN(tc.Coefficient) AS min_value
-        FROM dbo.TensorAtoms AS ta
-        LEFT JOIN dbo.TensorAtomCoefficients AS tc ON tc.TensorAtomId = ta.TensorAtomId
+        FROM dbo.TensorAtom AS ta
+        LEFT JOIN dbo.TensorAtomCoefficient AS tc ON tc.TensorAtomId = ta.TensorAtomId
         WHERE ta.ModelId IN (@ModelAId, @ModelBId)
         GROUP BY ta.ModelId
     ) AS stats

@@ -11,7 +11,7 @@ CREATE TABLE [dbo].[TensorAtomCoefficient] (
     [PositionZ]       INT            NOT NULL DEFAULT 0,
     
     -- Computed spatial key for XYZM queries: X=Pos, Y=Pos, Z=Pos, M=Layer
-    [SpatialKey]      AS (GEOMETRY::Point([PositionX], [PositionY], 0)) PERSISTED,
+    [SpatialKey]      AS (geometry::Point([PositionX], [PositionY], 0)) PERSISTED,
     
     -- DEPRECATED COLUMNS (for backward compatibility during migration)
     [TensorAtomCoefficientId] BIGINT  NULL,  -- DEPRECATED: No identity column in v5

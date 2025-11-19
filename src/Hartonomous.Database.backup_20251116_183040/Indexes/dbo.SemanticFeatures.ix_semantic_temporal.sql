@@ -1,1 +1,0 @@
-CREATE INDEX ix_semantic_temporal ON dbo.SemanticFeatures(TemporalRelevance) WHERE TemporalRelevance > 0.5;

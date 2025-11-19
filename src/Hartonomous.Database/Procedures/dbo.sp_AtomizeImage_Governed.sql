@@ -174,7 +174,7 @@ BEGIN
                     @ParentAtomId,
                     pta.[AtomId],
                     cp.[SequenceIndex],
-                    GEOMETRY::Point(
+                    [sys].[geometry]::Point(
                         cp.[PositionX],  -- X = Pixel X
                         cp.[PositionY],  -- Y = Pixel Y
                         0                -- Z = unused (could be used for layers/channels)

@@ -1,1 +1,0 @@
-CREATE INDEX ix_semantic_sentiment ON dbo.SemanticFeatures(SentimentScore);

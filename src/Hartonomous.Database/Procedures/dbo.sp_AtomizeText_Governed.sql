@@ -155,7 +155,7 @@ BEGIN
                     @ParentAtomId,
                     tta.[AtomId],
                     ct.[SequenceIndex],
-                    GEOMETRY::Point(
+                    [sys].[geometry]::Point(
                         ct.[SequenceIndex],  -- X = Position
                         tta.[AtomId] % 10000, -- Y = Value (modulo for scaling)
                         0                     -- Z = unused

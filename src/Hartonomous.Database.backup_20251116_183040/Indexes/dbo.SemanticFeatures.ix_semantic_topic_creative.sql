@@ -1,1 +1,0 @@
-CREATE INDEX ix_semantic_topic_creative ON dbo.SemanticFeatures(TopicCreative) WHERE TopicCreative > 0.5;

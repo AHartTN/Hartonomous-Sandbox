@@ -1,1 +1,0 @@
-CREATE QUEUE AnalyzeQueue WITH STATUS = ON;

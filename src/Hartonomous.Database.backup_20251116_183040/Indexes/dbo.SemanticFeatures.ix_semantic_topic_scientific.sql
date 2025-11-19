@@ -1,1 +1,0 @@
-CREATE INDEX ix_semantic_topic_scientific ON dbo.SemanticFeatures(TopicScientific) WHERE TopicScientific > 0.5;

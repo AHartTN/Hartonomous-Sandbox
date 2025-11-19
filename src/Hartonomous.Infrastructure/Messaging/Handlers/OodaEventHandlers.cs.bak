@@ -1,3 +1,0 @@
-// BACKUP OF OODA EVENT HANDLERS - TO BE IMPLEMENTED AFTER REPOSITORY INTERFACES ARE CREATED
-// These require: IVectorSearchRepository, IConceptDiscoveryRepository, IAutonomousAnalysisRepository, IAutonomousActionRepository
-// See original file for full implementation

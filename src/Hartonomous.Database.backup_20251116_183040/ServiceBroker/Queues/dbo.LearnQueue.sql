@@ -1,1 +1,0 @@
-CREATE QUEUE LearnQueue WITH STATUS = ON;

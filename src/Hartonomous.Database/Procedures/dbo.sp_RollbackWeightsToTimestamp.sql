@@ -40,9 +40,9 @@ BEGIN
         tac_target.Coefficient AS TargetCoefficient,
         tac_target.Coefficient - tac_current.Coefficient AS Delta
     FROM 
-        dbo.TensorAtomCoefficients tac_current
-        INNER JOIN dbo.TensorAtoms ta ON tac_current.TensorAtomId = ta.TensorAtomId
-        INNER JOIN dbo.TensorAtomCoefficients FOR SYSTEM_TIME AS OF @TargetDateTime tac_target 
+        dbo.TensorAtomCoefficient tac_current
+        INNER JOIN dbo.TensorAtom ta ON tac_current.TensorAtomId = ta.TensorAtomId
+        INNER JOIN dbo.TensorAtomCoefficient FOR SYSTEM_TIME AS OF @TargetDateTime tac_target 
             ON tac_current.TensorAtomCoefficientId = tac_target.TensorAtomCoefficientId
     WHERE 
         (@ModelId IS NULL OR ta.ModelId = @ModelId)
@@ -109,7 +109,7 @@ BEGIN
             
             UPDATE tac
             SET tac.Coefficient = rb.TargetCoefficient
-            FROM dbo.TensorAtomCoefficients tac
+            FROM dbo.TensorAtomCoefficient tac
             INNER JOIN #RollbackWeights rb ON tac.TensorAtomCoefficientId = rb.TensorAtomCoefficientId;
             
             COMMIT TRANSACTION;

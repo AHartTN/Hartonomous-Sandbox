@@ -1,1 +1,0 @@
-CREATE INDEX ix_semantic_topic_business ON dbo.SemanticFeatures(TopicBusiness) WHERE TopicBusiness > 0.5;

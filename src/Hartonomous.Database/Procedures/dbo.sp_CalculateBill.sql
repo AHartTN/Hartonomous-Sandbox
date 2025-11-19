@@ -49,7 +49,7 @@ BEGIN
         
         IF @GenerateInvoice = 1
         BEGIN
-            INSERT INTO dbo.BillingInvoices (
+            INSERT INTO dbo.BillingInvoice (
                 TenantId,
                 InvoiceNumber,
                 BillingPeriodStart,

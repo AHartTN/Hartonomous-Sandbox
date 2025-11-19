@@ -36,7 +36,9 @@
     <Folder Include="CLR\MachineLearning\" />
     <Folder Include="CLR\NaturalLanguage\" />
     <Folder Include="CLR\Core\" />
+    <Folder Include="CLR\Enums\" />
     <Folder Include="CLR\Contracts\" />
+    <Folder Include="CLR\Models\" />
     <Folder Include="CLR\Properties\" />
   </ItemGroup>
   <PropertyGroup>
@@ -49,6 +51,7 @@
     <AssemblyName>Hartonomous.Clr</AssemblyName>
     <ModelCollation>1033,CI</ModelCollation>
     <DefaultFileStructure>BySchemaAndSchemaType</DefaultFileStructure>
+    <Nullable>enable</Nullable>
     <DeployToDatabase>True</DeployToDatabase>
     <TargetLanguage>CS</TargetLanguage>
     <AppDesignerFolder>Properties</AppDesignerFolder>
@@ -165,6 +168,43 @@
     <Build Remove="Functions\dbo.fn_EstimateResponseTime.sql" />
   </ItemGroup>
   <ItemGroup>
+    <!-- Enums (int-backed for SQL Server CLR performance) -->
+    <Compile Include="CLR\Enums\ModelFormat.cs" />
+    <Compile Include="CLR\Enums\TensorDtype.cs" />
+    <Compile Include="CLR\Enums\LayerType.cs" />
+    <Compile Include="CLR\Enums\ActivationFunction.cs" />
+    <Compile Include="CLR\Enums\QuantizationType.cs" />
+    <Compile Include="CLR\Enums\HypothesisType.cs" />
+    <Compile Include="CLR\Enums\SpatialIndexStrategy.cs" />
+    <Compile Include="CLR\Enums\DistillationStrategy.cs" />
+    <Compile Include="CLR\Enums\PruningStrategy.cs" />
+    <Compile Include="CLR\Enums\GGMLType.cs" />
+    <!-- Contracts (interfaces for strategy patterns) -->
+    <Compile Include="CLR\Contracts\IModelFormatReader.cs" />
+    <Compile Include="CLR\Contracts\IActivationFunction.cs" />
+    <Compile Include="CLR\Contracts\IDequantizer.cs" />
+    <Compile Include="CLR\Contracts\ISpaceFillingCurve.cs" />
+    <Compile Include="CLR\Contracts\ITensorOperation.cs" />
+    <Compile Include="CLR\Contracts\IReasoningStrategy.cs" />
+    <!-- Models (unified value objects) -->
+    <Compile Include="CLR\Models\TensorInfo.cs" />
+    <Compile Include="CLR\Models\TensorShape.cs" />
+    <Compile Include="CLR\Models\VectorBatch.cs" />
+    <Compile Include="CLR\Models\SpatialCandidate.cs" />
+    <Compile Include="CLR\Models\ReasoningStep.cs" />
+    <Compile Include="CLR\Models\ModelMetadata.cs" />
+    <Compile Include="CLR\Models\QuantizationConfig.cs" />
+    <!-- Core -->
+    <Compile Include="CLR\Core\DistanceMetrics.cs" />
+    <Compile Include="CLR\Core\ActivationFunctions.cs" />
+    <Compile Include="CLR\Core\Dequantizers.cs" />
+    <Compile Include="CLR\Core\EnumHelper.cs" />
+    <Compile Include="CLR\Core\ModelFormatDetector.cs" />
+    <!-- MachineLearning -->
+    <Compile Include="CLR\MachineLearning\LocalOutlierFactor.cs" />
+    <Compile Include="CLR\MachineLearning\ComputationalGeometry.cs" />
+    <Compile Include="CLR\MachineLearning\NumericalMethods.cs" />
+    <Compile Include="CLR\MachineLearning\SpaceFillingCurves.cs" />
     <Compile Include="CLR\ImagePixelExtractor.cs" />
     <Compile Include="CLR\AudioFrameExtractor.cs" />
     <Compile Include="CLR\AtomicStream.cs" />
@@ -175,8 +215,13 @@
     <Compile Include="CLR\SpatialOperations.cs" />
     <Compile Include="CLR\SVDGeometryFunctions.cs" />
     <Compile Include="CLR\ModelWeightExtractor.cs" />
+    <!-- ModelParsers (multi-format model support) -->
     <Compile Include="CLR\ModelParsers\GGUFParser.cs" />
     <Compile Include="CLR\ModelParsers\SafeTensorsParser.cs" />
+    <Compile Include="CLR\ModelParsers\ONNXParser.cs" />
+    <Compile Include="CLR\ModelParsers\PyTorchParser.cs" />
+    <Compile Include="CLR\ModelParsers\TensorFlowParser.cs" />
+    <Compile Include="CLR\ModelParsers\StableDiffusionParser.cs" />
     <Compile Include="CLR\ModelStreamingFunctions.cs" />
     <Compile Include="CLR\ModelIngestionFunctions.cs" />
     <Compile Include="CLR\ModelInference.cs" />
@@ -223,6 +268,7 @@
     <Compile Include="CLR\EmbeddingFunctions.cs" />
     <Compile Include="CLR\FileSystemFunctions.cs" />
     <Compile Include="CLR\PrimeNumberSearch.cs" />
+    <Compile Include="CLR\Core\BinarySerializationHelpers.cs" />
     <Compile Include="CLR\Core\VectorUtilities.cs" />
     <Compile Include="CLR\Core\VectorMath.cs" />
     <Compile Include="CLR\Core\TimestampedVector.cs" />
@@ -232,6 +278,16 @@
     <Compile Include="CLR\Core\LandmarkProjection.cs" />
     <Compile Include="CLR\Core\IClrModelReader.cs" />
     <Compile Include="CLR\Core\GpuAccelerator.cs" />
+    <Compile Include="CLR\Core\JsonFormatter.cs" />
+    <Compile Include="CLR\Core\AggregateBase.cs" />
+    <Compile Include="CLR\MachineLearning\DTWAlgorithm.cs" />
+    <Compile Include="CLR\MachineLearning\CUSUMDetector.cs" />
+    <Compile Include="CLR\MachineLearning\IsolationForest.cs" />
+    <Compile Include="CLR\MachineLearning\DBSCANClustering.cs" />
+    <Compile Include="CLR\MachineLearning\CollaborativeFiltering.cs" />
+    <Compile Include="CLR\MachineLearning\TimeSeriesForecasting.cs" />
+    <Compile Include="CLR\MachineLearning\TreeOfThought.cs" />
+    <Compile Include="CLR\MachineLearning\GraphAlgorithms.cs" />
     <Compile Include="CLR\Contracts\ITensorProvider.cs" />
     <Compile Include="CLR\IAnalyzers.cs" />
     <Compile Include="CLR\Properties\AssemblyInfo.cs" />
@@ -302,4 +358,11 @@
     <PostDeploy Include="Scripts\Post-Deployment\Script.PostDeployment.sql" />
   </ItemGroup>
   -->
+  <ItemGroup>
+    <ArtifactReference Include="$(DacPacRootPath)\Extensions\Microsoft\SQLDB\Extensions\SqlServer\150\SqlSchemas\master.dacpac">
+      <HintPath>$(DacPacRootPath)\Extensions\Microsoft\SQLDB\Extensions\SqlServer\150\SqlSchemas\master.dacpac</HintPath>
+      <SuppressMissingDependenciesErrors>False</SuppressMissingDependenciesErrors>
+      <DatabaseVariableLiteralValue>master</DatabaseVariableLiteralValue>
+    </ArtifactReference>
+  </ItemGroup>
 </Project>

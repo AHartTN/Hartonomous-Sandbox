@@ -20,11 +20,11 @@ BEGIN
         mlParent.LayerIdx AS ParentLayerIdx,
         coeff.TensorRole,
         coeff.Coefficient
-    FROM dbo.TensorAtoms AS ta
-    INNER JOIN dbo.ModelLayers AS ml ON ml.LayerId = ta.LayerId
+    FROM dbo.TensorAtom AS ta
+    INNER JOIN dbo.ModelLayer AS ml ON ml.LayerId = ta.LayerId
     INNER JOIN dbo.Atom AS a ON a.AtomId = ta.AtomId
-    LEFT JOIN dbo.TensorAtomCoefficients AS coeff ON coeff.TensorAtomId = ta.TensorAtomId
-    LEFT JOIN dbo.ModelLayers AS mlParent ON mlParent.LayerId = coeff.ParentLayerId
+    LEFT JOIN dbo.TensorAtomCoefficient AS coeff ON coeff.TensorAtomId = ta.TensorAtomId
+    LEFT JOIN dbo.ModelLayer AS mlParent ON mlParent.LayerId = coeff.ParentLayerId
     WHERE ta.ModelId = @ModelId
       AND (@LayerIdx IS NULL OR ml.LayerIdx = @LayerIdx)
       AND (@atom_type IS NULL OR ta.AtomType = @atom_type)

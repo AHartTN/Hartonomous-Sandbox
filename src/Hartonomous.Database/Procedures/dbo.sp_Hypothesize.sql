@@ -195,8 +195,8 @@ BEGIN
             DECLARE @PruneThreshold FLOAT = 0.01; -- Define a threshold for low importance
             DECLARE @PruneableAtoms NVARCHAR(MAX) = (
                 SELECT ta.TensorAtomId, tac.Coefficient
-                FROM dbo.TensorAtoms ta
-                JOIN dbo.TensorAtomCoefficients tac ON ta.TensorAtomId = tac.TensorAtomId
+                FROM dbo.TensorAtom ta
+                JOIN dbo.TensorAtomCoefficient tac ON ta.TensorAtomId = tac.TensorAtomId
                 WHERE tac.Coefficient < @PruneThreshold
                 FOR JSON PATH
             );
@@ -216,7 +216,7 @@ BEGIN
             -- HYPOTHESIS 6: Refactor code based on duplicate AST signatures
             DECLARE @DuplicateCodeAtoms NVARCHAR(MAX) = (
                 SELECT TOP 10 SpatialSignature.ToString() AS Signature, COUNT(*) AS DuplicateCount
-                FROM dbo.CodeAtoms
+                FROM dbo.CodeAtom
                 GROUP BY SpatialSignature.ToString()
                 HAVING COUNT(*) > 1
                 ORDER BY COUNT(*) DESC
