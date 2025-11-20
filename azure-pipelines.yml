@@ -47,6 +47,15 @@ stages:
         version: '$(dotnetSdkVersion)'
         performMultiLevelLookup: true
     
+    # Initialize CLR Signing Certificate (idempotent)
+    - task: PowerShell@2
+      displayName: 'Initialize CLR Signing Certificate'
+      inputs:
+        targetType: 'filePath'
+        filePath: 'scripts/Initialize-CLRSigning.ps1'
+        pwsh: true
+      continueOnError: false
+    
     # Build DACPAC using msbuild (agent must have MSBuild or Visual Studio)
     - task: PowerShell@2
       displayName: 'Build SQL Database Project with MSBuild'
@@ -55,6 +64,16 @@ stages:
         filePath: 'scripts/build-dacpac.ps1'
         arguments: '-ProjectPath "src/Hartonomous.Database/Hartonomous.Database.sqlproj" -OutputDir "$(Build.ArtifactStagingDirectory)/database/" -Configuration $(buildConfiguration)'
         pwsh: true
+    
+    # Sign CLR Assemblies (auto-discovers DLLs, filters Microsoft assemblies)
+    - task: PowerShell@2
+      displayName: 'Sign CLR Assemblies'
+      inputs:
+        targetType: 'filePath'
+        filePath: 'scripts/Sign-CLRAssemblies.ps1'
+        arguments: '-Configuration $(buildConfiguration) -Verbose'
+        pwsh: true
+      continueOnError: false
         
     # Verify DACPAC
     - task: PowerShell@2
@@ -110,7 +129,17 @@ stages:
           - download: current
             artifact: database
 
-          # Step 0: Grant Pipeline Agent Permissions (Idempotent)
+          # Step 0: Deploy CLR Signing Certificate to SQL Server (Production Mode)
+          - task: PowerShell@2
+            displayName: 'Deploy CLR Signing Certificate to SQL Server'
+            inputs:
+              targetType: 'filePath'
+              filePath: '$(Pipeline.Workspace)/database/scripts/Deploy-CLRCertificate.ps1'
+              arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -EnableStrictSecurity $true'
+              pwsh: true
+            continueOnError: false
+
+          # Step 1: Grant Pipeline Agent Permissions (Idempotent)
           - task: PowerShell@2
             displayName: 'Grant Agent Permissions (Integrated Windows Auth)'
             inputs:
@@ -119,7 +148,7 @@ stages:
               arguments: '-Server "$(sqlServer)"'
               pwsh: true
 
-          # Step 1: Enable CLR Integration (Idempotent)
+          # Step 2: Enable CLR Integration (Idempotent)
           - task: PowerShell@2
             displayName: 'Enable CLR Integration (Integrated Windows Auth)'
             inputs:
@@ -128,7 +157,7 @@ stages:
               arguments: '-Server "$(sqlServer)"'
               pwsh: true
 
-          # Step 2: Deploy External CLR Assemblies
+          # Step 3: Deploy External CLR Assemblies
           - task: PowerShell@2
             displayName: 'Deploy External CLR Assemblies (Integrated Windows Auth)'
             inputs:
@@ -137,7 +166,7 @@ stages:
               arguments: '-Server "$(sqlServer)" -Database "$(sqlDatabase)" -DependenciesPath "$(Pipeline.Workspace)/database/dependencies"'
               pwsh: true
 
-          # Step 3: Deploy DACPAC (includes Hartonomous.Clr.dll)
+          # Step 4: Deploy DACPAC (includes Hartonomous.Clr.dll)
           - task: PowerShell@2
             displayName: 'Install SqlPackage'
             inputs:
@@ -173,7 +202,69 @@ stages:
                 Write-Host "✓ DACPAC deployed successfully with Hartonomous.Clr assembly"
               pwsh: true
 
-          # Step 4: Set TRUSTWORTHY ON (Idempotent)
+          # Step 5: Verify CLR Assembly Signatures and Security (Production Validation)
+          - task: PowerShell@2
+            displayName: 'Verify CLR Assembly Signatures and Security'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $ErrorActionPreference = 'Stop'
+                
+                Write-Host "Verifying CLR assembly signatures and security configuration..."
+                
+                # Query to verify signatures and CLR Strict Security
+                $query = @"
+                -- Check CLR Strict Security (should be 1 in production)
+                SELECT name, CAST(value AS int) AS value, CAST(value_in_use AS int) AS value_in_use
+                FROM sys.configurations 
+                WHERE name = 'clr strict security';
+                
+                -- Check all assemblies and their signatures
+                SELECT 
+                  a.name AS AssemblyName,
+                  CASE a.permission_set 
+                    WHEN 1 THEN 'SAFE'
+                    WHEN 2 THEN 'EXTERNAL_ACCESS'
+                    WHEN 3 THEN 'UNSAFE_ACCESS'
+                  END AS PermissionSet,
+                  CASE 
+                    WHEN c.name IS NOT NULL THEN 'SIGNED (via Certificate)'
+                    WHEN ak.name IS NOT NULL THEN 'SIGNED (via Asymmetric Key)'
+                    ELSE 'UNSIGNED'
+                  END AS SignatureStatus,
+                  c.name AS CertificateName,
+                  ak.name AS AsymmetricKeyName
+                FROM sys.assemblies a
+                LEFT JOIN sys.assembly_files af ON a.assembly_id = af.assembly_id
+                LEFT JOIN sys.certificates c ON c.thumbprint = af.content
+                LEFT JOIN sys.asymmetric_keys ak ON ak.thumbprint = af.content
+                WHERE a.name NOT IN ('master', 'model', 'msdb', 'tempdb')
+                ORDER BY a.name;
+                "@
+                
+                $result = sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q $query -W -s "," -h -1
+                
+                Write-Host "`n=== CLR Security Verification Results ==="
+                Write-Host $result
+                
+                # Check for unsigned assemblies (fail if any found in production)
+                if ($result -match 'UNSIGNED') {
+                  Write-Host "`n❌ ERROR: Unsigned assemblies detected in production mode!"
+                  Write-Host "All assemblies must be signed for ISO-certification compliance."
+                  exit 1
+                }
+                
+                # Check CLR Strict Security is enabled
+                if ($result -match 'clr strict security.*,0,') {
+                  Write-Host "`n⚠️ WARNING: CLR Strict Security is DISABLED!"
+                  Write-Host "Enabling CLR Strict Security for production..."
+                  sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q "EXEC sp_configure 'clr strict security', 1; RECONFIGURE;"
+                }
+                
+                Write-Host "`n✓ CLR security verification complete - all assemblies signed"
+              pwsh: true
+
+          # Step 6: Set TRUSTWORTHY ON (Idempotent - only if needed for legacy compatibility)
           - task: PowerShell@2
             displayName: 'Set TRUSTWORTHY ON (Integrated Windows Auth)'
             inputs:

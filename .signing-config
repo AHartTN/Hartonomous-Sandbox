@@ -1,0 +1,9 @@
+{
+  "ExpiryDate": "2035-11-19 22:35:32",
+  "CerPath": "D:\\Repositories\\Hartonomous\\certificates\\HartonomousCLR.cer",
+  "CertificateSubject": "CN=Hartonomous CLR Code Signing, O=Hartonomous, OU=Engineering",
+  "PfxPassword": "Hartonomous-CLR-Signing-2025",
+  "PfxPath": "D:\\Repositories\\Hartonomous\\certificates\\HartonomousCLR.pfx",
+  "CertificateThumbprint": "82ACB7D63F2EDE4234D4B7069EAF3E248A8153D2",
+  "CreatedDate": "2025-11-19 22:35:33"
+}

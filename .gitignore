@@ -89,5 +89,12 @@ tools/**/model_cache/
 
 # Generated deployment files
 scripts/clr-deploy-generated.sql
+scripts/Deploy-CLRCertificate-Generated.sql
 deploy/SqlClrFunctions.dll
 *.dacpac
+
+# CLR Signing (certificates and private keys - exclude PFX/CER but allow config)
+certificates/*.pfx
+certificates/*.cer
+*.pfx
+*.snk
