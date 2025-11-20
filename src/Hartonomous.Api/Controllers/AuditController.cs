@@ -1,3 +1,8 @@
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.Audit;
+using Hartonomous.Api.DTOs.Common;
+using Hartonomous.Api.DTOs.Provenance;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hartonomous.Api.Controllers;
@@ -6,11 +11,17 @@ namespace Hartonomous.Api.Controllers;
 /// Audit and compliance controller - showcases enterprise governance capabilities.
 /// These endpoints are placeholders for functionality coming with CLR/SQL refactor.
 /// </summary>
-public class AuditController : ApiControllerBase
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
+[Authorize(Policy = "Admin")]
+public class AuditController : ControllerBase
 {
+    private readonly ILogger<AuditController> _logger;
+
     public AuditController(ILogger<AuditController> logger)
-        : base(logger)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -27,7 +38,7 @@ public class AuditController : ApiControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        Logger.LogInformation("Audit: Getting logs (eventType: {EventType}, user: {UserId}) (DEMO MODE)", 
+        _logger.LogInformation("Audit: Getting logs (eventType: {EventType}, user: {UserId}) (DEMO MODE)", 
             eventType, userId);
 
         var response = new AuditLogsResponse
@@ -115,7 +126,7 @@ public class AuditController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -126,7 +137,7 @@ public class AuditController : ApiControllerBase
     [ProducesResponseType(typeof(GovernanceResponse), StatusCodes.Status200OK)]
     public IActionResult GetGovernance()
     {
-        Logger.LogInformation("Audit: Getting governance status (DEMO MODE)");
+        _logger.LogInformation("Audit: Getting governance status (DEMO MODE)");
 
         var response = new GovernanceResponse
         {
@@ -202,7 +213,7 @@ public class AuditController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -214,7 +225,7 @@ public class AuditController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetAuditTrail(string resourceId, [FromQuery] int depth = 5)
     {
-        Logger.LogInformation("Audit: Getting trail for {ResourceId} with depth {Depth} (DEMO MODE)", 
+        _logger.LogInformation("Audit: Getting trail for {ResourceId} with depth {Depth} (DEMO MODE)", 
             resourceId, depth);
 
         var response = new AuditTrailResponse
@@ -286,107 +297,6 @@ public class AuditController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 }
-
-#region Response Models
-
-public class AuditLogsResponse
-{
-    public List<AuditLog> Logs { get; set; } = new();
-    public PaginationInfo Pagination { get; set; } = new();
-    public bool DemoMode { get; set; }
-}
-
-public class AuditLog
-{
-    public Guid LogId { get; set; }
-    public DateTime Timestamp { get; set; }
-    public string EventType { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string Action { get; set; } = string.Empty;
-    public string Resource { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string Details { get; set; } = string.Empty;
-    public string IpAddress { get; set; } = string.Empty;
-    public string UserAgent { get; set; } = string.Empty;
-    public string Severity { get; set; } = string.Empty;
-}
-
-public class PaginationInfo
-{
-    public int CurrentPage { get; set; }
-    public int PageSize { get; set; }
-    public int TotalRecords { get; set; }
-    public int TotalPages { get; set; }
-}
-
-public class GovernanceResponse
-{
-    public List<ComplianceFramework> ComplianceFrameworks { get; set; } = new();
-    public List<PolicyStatus> Policies { get; set; } = new();
-    public bool DemoMode { get; set; }
-}
-
-public class ComplianceFramework
-{
-    public string Framework { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public DateTime LastAudit { get; set; }
-    public DateTime NextAudit { get; set; }
-    public List<ControlStatus> Controls { get; set; } = new();
-}
-
-public class ControlStatus
-{
-    public string Control { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string Evidence { get; set; } = string.Empty;
-}
-
-public class PolicyStatus
-{
-    public string PolicyName { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public DateTime LastUpdated { get; set; }
-    public string Summary { get; set; } = string.Empty;
-}
-
-public class AuditTrailResponse
-{
-    public string ResourceId { get; set; } = string.Empty;
-    public string ResourceType { get; set; } = string.Empty;
-    public List<AuditEvent> Timeline { get; set; } = new();
-    public List<RelatedResource> RelatedResources { get; set; } = new();
-    public TrailStatistics Statistics { get; set; } = new();
-    public bool DemoMode { get; set; }
-}
-
-public class AuditEvent
-{
-    public DateTime Timestamp { get; set; }
-    public string Action { get; set; } = string.Empty;
-    public string UserId { get; set; } = string.Empty;
-    public string Details { get; set; } = string.Empty;
-    public string VersionHash { get; set; } = string.Empty;
-    public string? PreviousVersionHash { get; set; }
-}
-
-public class RelatedResource
-{
-    public string ResourceId { get; set; } = string.Empty;
-    public string Relationship { get; set; } = string.Empty;
-    public int Distance { get; set; }
-}
-
-public class TrailStatistics
-{
-    public int TotalEvents { get; set; }
-    public int UniqueUsers { get; set; }
-    public int VersionCount { get; set; }
-    public int DaysSinceCreation { get; set; }
-    public int AccessCount { get; set; }
-}
-
-#endregion

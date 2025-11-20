@@ -73,7 +73,7 @@ IF @StdDevSegments IS NOT NULL AND EXISTS (
 - ⚠️ **Hardcoded validation mapping** - PASS=1.0, WARN=0.7, FAIL=0.0
 - ⚠️ **ProvenanceStream.IsNull** - Uses CLR UDT method (dependency)
 - ⚠️ **No authorization** - Any user can audit any scope
-- ⚠️ **TOP 100 limit** - Detailed operations truncated (should be parameter)
+- ⚠️ **TOP 100 limit** - Detailed operations truncated (MUST be parameter)
 
 **Performance:**
 - LEFT JOIN to validation results (efficient)
@@ -84,14 +84,14 @@ IF @StdDevSegments IS NOT NULL AND EXISTS (
 - 🔴 No TenantId filtering (cross-tenant data visibility)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering throughout (CRITICAL security)
-2. **Priority 2:** Use @MinValidationScore parameter or remove it
-3. **Priority 3:** Add authorization check (scope access control)
-4. **Priority 4:** Make TOP 100 a parameter (@MaxDetailedResults)
-5. **Priority 5:** Load validation score mapping from configuration table
-6. **Priority 6:** Add anomaly severity levels
-7. **Priority 7:** Consider pagination for large audits
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering throughout (CRITICAL security)
+2. **URGENT:** Use @MinValidationScore parameter or remove it
+3. **REQUIRED:** Add authorization check (scope access control)
+4. **IMPLEMENT:** Make TOP 100 a parameter (@MaxDetailedResults)
+5. **IMPLEMENT:** Load validation score mapping from configuration table
+6. **IMPLEMENT:** Add anomaly severity levels
+7. **IMPLEMENT:** IMPLEMENT pagination for large audits
 
 ---
 
@@ -161,32 +161,32 @@ IF @EntityType = 'Atom'
 **Weaknesses:**
 - 🔴 **Simulated external call** - Returns mock JSON, doesn't actually call Neo4j
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering in queries
-- ⚠️ **Hardcoded endpoint** - bolt://localhost:7687 should be config
+- ⚠️ **Hardcoded endpoint** - bolt://localhost:7687 MUST be config
 - ⚠️ **XML parsing** - Uses XML instead of JSON (more verbose)
 - ⚠️ **Schema mismatches** - Uses ContentType, ContentHash (Atom table has different schema)
 - ⚠️ **No retry logic** - Failed syncs not retried
-- ⚠️ **No batching** - Processes 1 message at a time (could batch)
+- ⚠️ **No batching** - Processes 1 message at a time (MUST batch)
 - ⚠️ **Assumes AtomRelationId** - Comment says "Assuming EntityId maps to..."
 
 **Performance:**
 - TIMEOUT 1000ms is reasonable
-- TOP(1) message at a time (could optimize with batching)
+- TOP(1) message at a time (MUST optimize with batching)
 - No external call latency (simulated)
 
 **Security:**
-- ⚠️ No TenantId filtering (could sync cross-tenant data)
+- ⚠️ No TenantId filtering (MUST sync cross-tenant data)
 - ⚠️ Hardcoded endpoint (no authentication shown)
 
-### Improvement Recommendations
-1. **Priority 1:** Implement actual Neo4j REST/Bolt API call (remove simulation)
-2. **Priority 2:** Add TenantId filtering to all entity queries
-3. **Priority 3:** Load Neo4j endpoint from configuration table
-4. **Priority 4:** Switch from XML to JSON message format
-5. **Priority 5:** Fix schema references (ContentType → Modality, etc.)
-6. **Priority 6:** Add retry logic for failed syncs
-7. **Priority 7:** Implement batching (RECEIVE TOP(N))
-8. **Priority 8:** Add Neo4j authentication/encryption
-9. **Priority 9:** Verify AtomRelationId mapping assumption
+### REQUIRED FIXES
+1. **CRITICAL:** Implement actual Neo4j REST/Bolt API call (remove simulation)
+2. **URGENT:** Add TenantId filtering to all entity queries
+3. **REQUIRED:** Load Neo4j endpoint from configuration table
+4. **IMPLEMENT:** Switch from XML to JSON message format
+5. **IMPLEMENT:** Fix schema references (ContentType → Modality, etc.)
+6. **IMPLEMENT:** Add retry logic for failed syncs
+7. **IMPLEMENT:** Implement batching (RECEIVE TOP(N))
+8. **IMPLEMENT:** Add Neo4j authentication/encryption
+9. **IMPLEMENT:** Verify AtomRelationId mapping assumption
 
 ---
 
@@ -239,7 +239,7 @@ SEND ON CONVERSATION @ConversationHandle
 **Weaknesses:**
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **No validation** - EntityType, EntityId not validated
-- ⚠️ **XML format** - Could use JSON (more modern)
+- ⚠️ **XML format** - MUST use JSON (more modern)
 - ⚠️ **No return value** - Doesn't indicate success/failure
 - ⚠️ **Encryption OFF** - WITH ENCRYPTION = OFF (security concern)
 - ⚠️ **No multi-tenancy** - Missing TenantId parameter
@@ -251,17 +251,17 @@ SEND ON CONVERSATION @ConversationHandle
 
 **Security:**
 - ⚠️ No encryption
-- ⚠️ No TenantId (could sync other tenant's entities)
+- ⚠️ No TenantId (MUST sync other tenant's entities)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId parameter
-2. **Priority 2:** Add error handling (TRY/CATCH)
-3. **Priority 3:** Validate EntityType, EntityId, SyncType
-4. **Priority 4:** Enable encryption (remove WITH ENCRYPTION = OFF)
-5. **Priority 5:** Switch to JSON message format
-6. **Priority 6:** Return success indicator
-7. **Priority 7:** Add authorization check (user can sync entity?)
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId parameter
+2. **URGENT:** Add error handling (TRY/CATCH)
+3. **REQUIRED:** Validate EntityType, EntityId, SyncType
+4. **IMPLEMENT:** Enable encryption (remove WITH ENCRYPTION = OFF)
+5. **IMPLEMENT:** Switch to JSON message format
+6. **IMPLEMENT:** Return success indicator
+7. **IMPLEMENT:** Add authorization check (user can sync entity?)
 
 ---
 
@@ -299,7 +299,7 @@ ELSE
 
 ### Dependencies
 - Tables: `AtomEmbedding`, `Atom`, `SemanticFeatures`
-- Functions: Should use NLP/ML functions (not implemented)
+- Functions: MUST use NLP/ML functions (not implemented)
 
 ### Quality Assessment
 
@@ -316,24 +316,24 @@ ELSE
 - ⚠️ **@embedding_vector declared unused** - Variable declared but never populated
 - ⚠️ **CanonicalText unused** - Retrieved but not used for computation
 - ⚠️ **No validation** - Doesn't check embedding exists
-- ⚠️ **MERGE would be cleaner** - Could use MERGE instead of IF EXISTS
+- ⚠️ **MERGE would be cleaner** - MUST use MERGE instead of IF EXISTS
 
 **Performance:**
 - EXISTS check before UPDATE/INSERT (efficient)
 - Single row operation (fast)
 
 **Security:**
-- ⚠️ No TenantId filtering (could compute features for other tenant's atoms)
+- ⚠️ No TenantId filtering (MUST compute features for other tenant's atoms)
 
-### Improvement Recommendations
-1. **Priority 1:** Implement actual semantic feature computation (NLP models)
-2. **Priority 2:** Add TenantId filtering
-3. **Priority 3:** Use @embedding_vector and @canonical_text for computation
-4. **Priority 4:** Use MERGE instead of IF EXISTS + UPDATE/INSERT
-5. **Priority 5:** Add validation (check embedding exists)
-6. **Priority 6:** Compute sentiment from text (NLTK/transformers)
-7. **Priority 7:** Compute topic scores via classification
-8. **Priority 8:** Add complexity metrics (readability, vocab diversity)
+### REQUIRED FIXES
+1. **CRITICAL:** Implement actual semantic feature computation (NLP models)
+2. **URGENT:** Add TenantId filtering
+3. **REQUIRED:** Use @embedding_vector and @canonical_text for computation
+4. **IMPLEMENT:** Use MERGE instead of IF EXISTS + UPDATE/INSERT
+5. **IMPLEMENT:** Add validation (check embedding exists)
+6. **IMPLEMENT:** Compute sentiment from text (NLTK/transformers)
+7. **IMPLEMENT:** Compute topic scores via classification
+8. **IMPLEMENT:** Add complexity metrics (readability, vocab diversity)
 
 ---
 
@@ -396,19 +396,19 @@ ORDER BY VECTOR_DISTANCE('cosine', ae.EmbeddingVector, @SourceEmbedding) ASC;
 
 **Performance:**
 - VECTOR_DISTANCE computed twice per row (unnecessary)
-- Should benefit from vector index
+- MUST benefit from vector index
 - INNER JOIN is efficient
 
 **Security:**
 - ✅ Multi-tenant safe (TenantId filtering)
 - ⚠️ No authorization (atom-level access control)
 
-### Improvement Recommendations
-1. **Priority 1:** Use CTE to compute VECTOR_DISTANCE once
-2. **Priority 2:** Fix schema references (ContentType → Modality/Subtype)
-3. **Priority 3:** Add vector dimension validation
-4. **Priority 4:** Add authorization check (user can access atom)
-5. **Priority 5:** Add query hint for vector index
+### REQUIRED FIXES
+1. **CRITICAL:** Use CTE to compute VECTOR_DISTANCE once
+2. **URGENT:** Fix schema references (ContentType → Modality/Subtype)
+3. **REQUIRED:** Add vector dimension validation
+4. **IMPLEMENT:** Add authorization check (user can access atom)
+5. **IMPLEMENT:** Add query hint for vector index
 
 ---
 

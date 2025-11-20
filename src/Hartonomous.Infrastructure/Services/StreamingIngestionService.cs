@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Hartonomous.Core.Enums;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Atomizers;
 using Microsoft.AspNetCore.SignalR;
@@ -34,20 +35,26 @@ public class StreamingIngestionService
         AudioStreamAtomizer audioAtomizer,
         ILogger<StreamingIngestionService> logger)
     {
-        _hubContext = hubContext;
-        _atomBulkInsertService = atomBulkInsertService;
-        _telemetryAtomizer = telemetryAtomizer;
-        _videoAtomizer = videoAtomizer;
-        _audioAtomizer = audioAtomizer;
-        _logger = logger;
+        _hubContext = hubContext ?? throw new ArgumentNullException(nameof(hubContext));
+        _atomBulkInsertService = atomBulkInsertService ?? throw new ArgumentNullException(nameof(atomBulkInsertService));
+        _telemetryAtomizer = telemetryAtomizer ?? throw new ArgumentNullException(nameof(telemetryAtomizer));
+        _videoAtomizer = videoAtomizer ?? throw new ArgumentNullException(nameof(videoAtomizer));
+        _audioAtomizer = audioAtomizer ?? throw new ArgumentNullException(nameof(audioAtomizer));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public StreamingSession StartSession(string sessionId, StreamType streamType, string connectionId)
     {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            throw new ArgumentException("Session ID cannot be null or whitespace.", nameof(sessionId));
+        if (string.IsNullOrWhiteSpace(connectionId))
+            throw new ArgumentException("Connection ID cannot be null or whitespace.", nameof(connectionId));
+
         var session = new StreamingSession
         {
             SessionId = sessionId,
             StreamType = streamType,
+            State = SessionState.Starting,
             ConnectionId = connectionId,
             StartTime = DateTime.UtcNow,
             CancellationTokenSource = new CancellationTokenSource()
@@ -58,6 +65,7 @@ public class StreamingIngestionService
             throw new InvalidOperationException($"Session {sessionId} already exists");
         }
 
+        session.State = SessionState.Active;
         _logger.LogInformation("Started streaming session {SessionId} of type {StreamType}", sessionId, streamType);
         return session;
     }
@@ -228,18 +236,24 @@ public class StreamingIngestionService
 
     public async Task<SessionSummary> StopSessionAsync(string sessionId)
     {
+        if (string.IsNullOrWhiteSpace(sessionId))
+            throw new ArgumentException("Session ID cannot be null or whitespace.", nameof(sessionId));
+
         if (!_activeSessions.TryRemove(sessionId, out var session))
         {
             throw new InvalidOperationException($"Session {sessionId} not found");
         }
 
+        session.State = SessionState.Stopping;
         session.CancellationTokenSource.Cancel();
         session.EndTime = DateTime.UtcNow;
+        session.State = SessionState.Completed;
 
         var summary = new SessionSummary
         {
             SessionId = sessionId,
             StreamType = session.StreamType,
+            State = session.State,
             StartTime = session.StartTime,
             EndTime = session.EndTime.Value,
             TotalAtoms = session.TotalAtoms,
@@ -270,11 +284,12 @@ public class StreamingIngestionService
         {
             SessionId = sessionId,
             StreamType = session.StreamType,
+            State = session.State,
             StartTime = session.StartTime,
             TotalAtoms = session.TotalAtoms,
             TotalCompositions = session.TotalCompositions,
             DurationSeconds = (DateTime.UtcNow - session.StartTime).TotalSeconds,
-            IsActive = true
+            IsActive = session.State == SessionState.Active
         };
     }
 
@@ -284,11 +299,12 @@ public class StreamingIngestionService
         {
             SessionId = s.SessionId,
             StreamType = s.StreamType,
+            State = s.State,
             StartTime = s.StartTime,
             TotalAtoms = s.TotalAtoms,
             TotalCompositions = s.TotalCompositions,
             DurationSeconds = (DateTime.UtcNow - s.StartTime).TotalSeconds,
-            IsActive = true
+            IsActive = s.State == SessionState.Active
         });
     }
 }
@@ -297,6 +313,7 @@ public class StreamingSession
 {
     public required string SessionId { get; set; }
     public required StreamType StreamType { get; set; }
+    public required SessionState State { get; set; }
     public required string ConnectionId { get; set; }
     public required DateTime StartTime { get; set; }
     public DateTime? EndTime { get; set; }
@@ -310,6 +327,7 @@ public class SessionSummary
 {
     public required string SessionId { get; set; }
     public required StreamType StreamType { get; set; }
+    public required SessionState State { get; set; }
     public required DateTime StartTime { get; set; }
     public required DateTime EndTime { get; set; }
     public required long TotalAtoms { get; set; }
@@ -321,6 +339,7 @@ public class SessionStatus
 {
     public required string SessionId { get; set; }
     public required StreamType StreamType { get; set; }
+    public required SessionState State { get; set; }
     public required DateTime StartTime { get; set; }
     public required long TotalAtoms { get; set; }
     public required long TotalCompositions { get; set; }

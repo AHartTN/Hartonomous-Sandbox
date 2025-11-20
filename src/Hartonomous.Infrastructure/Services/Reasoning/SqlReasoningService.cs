@@ -13,34 +13,28 @@ namespace Hartonomous.Infrastructure.Services.Reasoning;
 
 /// <summary>
 /// Production SQL Server implementation of reasoning services using Arc-enabled managed identity authentication.
+/// Inherits from ReasoningServiceBase for standardized validation and telemetry.
 /// </summary>
-public sealed class SqlReasoningService : IReasoningService
+public sealed class SqlReasoningService : ReasoningServiceBase<SqlReasoningService>
 {
-    private readonly ILogger<SqlReasoningService> _logger;
     private readonly string _connectionString;
     private readonly TokenCredential _credential;
 
     public SqlReasoningService(
         ILogger<SqlReasoningService> logger,
         IOptions<DatabaseOptions> options)
+        : base(logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        
         var databaseOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
         _connectionString = databaseOptions.HartonomousDb;
         _credential = new DefaultAzureCredential();
     }
 
-    public async Task<ReasoningResult> ExecuteChainOfThoughtAsync(
+    protected override async Task<ReasoningResult> ExecuteChainOfThoughtInternalAsync(
         long sessionId,
         string prompt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sessionId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
-
-        _logger.LogInformation("Executing Chain-of-Thought reasoning for session {SessionId}", sessionId);
-
         var parameters = new Dictionary<string, object> { { "operation", "ChainOfThought" } };
         var resultJson = await ExecuteReasoningOperationAsync("ChainOfThought", prompt, parameters, cancellationToken);
         
@@ -57,18 +51,12 @@ public sealed class SqlReasoningService : IReasoningService
         return result;
     }
 
-    public async Task<ReasoningResult> ExecuteTreeOfThoughtAsync(
+    protected override async Task<ReasoningResult> ExecuteTreeOfThoughtInternalAsync(
         long sessionId,
         string prompt,
-        int maxBranches = 3,
-        CancellationToken cancellationToken = default)
+        int maxBranches,
+        CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sessionId);
-        ArgumentException.ThrowIfNullOrWhiteSpace(prompt);
-
-        _logger.LogInformation("Executing Tree-of-Thought reasoning for session {SessionId} with {MaxBranches} branches", 
-            sessionId, maxBranches);
-
         var parameters = new Dictionary<string, object> 
         { 
             { "operation", "TreeOfThought" },
@@ -89,14 +77,10 @@ public sealed class SqlReasoningService : IReasoningService
         return result;
     }
 
-    public async Task<IEnumerable<ReasoningResult>> GetSessionHistoryAsync(
+    protected override async Task<IEnumerable<ReasoningResult>> GetSessionHistoryInternalAsync(
         long sessionId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sessionId);
-
-        _logger.LogInformation("Retrieving reasoning history for session {SessionId}", sessionId);
-
         await using var connection = new SqlConnection(_connectionString);
 
         var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);

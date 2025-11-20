@@ -1,8 +1,11 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.Reasoning;
 using Hartonomous.Infrastructure.Atomizers;
 using Hartonomous.Infrastructure.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 
@@ -11,16 +14,21 @@ namespace Hartonomous.Api.Controllers;
 /// <summary>
 /// Real-time streaming ingestion API using SignalR.
 /// </summary>
-public class StreamingIngestionController : ApiControllerBase
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/streaming")]
+[Authorize(Policy = "DataIngestion")]
+public class StreamingIngestionController : ControllerBase
 {
     private readonly StreamingIngestionService _streamingService;
+    private readonly ILogger<StreamingIngestionController> _logger;
 
     public StreamingIngestionController(
         StreamingIngestionService streamingService,
         ILogger<StreamingIngestionController> logger)
-        : base(logger)
     {
-        _streamingService = streamingService;
+        _streamingService = streamingService ?? throw new ArgumentNullException(nameof(streamingService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -49,8 +57,8 @@ public class StreamingIngestionController : ApiControllerBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to start streaming session");
-            return ErrorResult(ex.Message, 500);
+            _logger.LogError(ex, "Failed to start streaming session");
+            throw new InvalidOperationException(ex.Message);
         }
     }
 
@@ -80,12 +88,12 @@ public class StreamingIngestionController : ApiControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return ErrorResult(ex.Message, 404);
+            return NotFound(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to ingest telemetry for session {SessionId}", sessionId);
-            return ErrorResult(ex.Message, 500);
+            _logger.LogError(ex, "Failed to ingest telemetry for session {SessionId}", sessionId);
+            throw new InvalidOperationException(ex.Message);
         }
     }
 
@@ -116,12 +124,12 @@ public class StreamingIngestionController : ApiControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return ErrorResult(ex.Message, 404);
+            return NotFound(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to ingest video frame for session {SessionId}", sessionId);
-            return ErrorResult(ex.Message, 500);
+            _logger.LogError(ex, "Failed to ingest video frame for session {SessionId}", sessionId);
+            throw new InvalidOperationException(ex.Message);
         }
     }
 
@@ -152,12 +160,12 @@ public class StreamingIngestionController : ApiControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return ErrorResult(ex.Message, 404);
+            return NotFound(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to ingest audio buffer for session {SessionId}", sessionId);
-            return ErrorResult(ex.Message, 500);
+            _logger.LogError(ex, "Failed to ingest audio buffer for session {SessionId}", sessionId);
+            throw new InvalidOperationException(ex.Message);
         }
     }
 
@@ -169,7 +177,7 @@ public class StreamingIngestionController : ApiControllerBase
     {
         var status = _streamingService.GetSessionStatus(sessionId);
         if (status == null)
-            return ErrorResult($"Session {sessionId} not found", 404);
+            return NotFound($"Session {sessionId} not found");
 
         return Ok(status);
     }
@@ -197,12 +205,12 @@ public class StreamingIngestionController : ApiControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return ErrorResult(ex.Message, 404);
+            return NotFound(ex.Message);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to stop session {SessionId}", sessionId);
-            return ErrorResult(ex.Message, 500);
+            _logger.LogError(ex, "Failed to stop session {SessionId}", sessionId);
+            throw new InvalidOperationException(ex.Message);
         }
     }
 }

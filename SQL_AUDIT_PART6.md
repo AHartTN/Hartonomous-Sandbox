@@ -51,7 +51,7 @@ CREATE TABLE dbo.CodeAtom (
 1. **❌ Violates Atomic Decomposition**
    - Stores entire code snippets instead of AST nodes
    - `Code TEXT` field unlimited (violates 64-byte atomic limit)
-   - Should be: Each Roslyn SyntaxNode = ONE Atom row
+   - MUST be: Each Roslyn SyntaxNode = ONE Atom row
 
 2. **❌ Breaks Modality Pattern**
    - Separate table for code instead of `Atom` with `Modality='code'`
@@ -70,12 +70,12 @@ CREATE TABLE dbo.CodeAtom (
 
 5. **❌ Deprecated Data Type**
    - `Code TEXT` is deprecated SQL Server type
-   - Should be `NVARCHAR(MAX)` for Unicode support
+   - MUST be `NVARCHAR(MAX)` for Unicode support
    - TEXT type removed in future SQL Server versions
 
 6. **❌ Breaks Normalization**
    - `Embedding GEOMETRY` directly on table
-   - Should be in `AtomEmbedding` join table
+   - MUST be in `AtomEmbedding` join table
    - Prevents multiple embeddings per code snippet (e.g., different models)
 
 7. **❌ Duplicate Deduplication**
@@ -85,12 +85,12 @@ CREATE TABLE dbo.CodeAtom (
 
 8. **❌ No AST Hierarchy**
    - No structure tracking (parent-child relationships)
-   - Should use `AtomRelation` with `RelationType='AST_CONTAINS'`
+   - MUST use `AtomRelation` with `RelationType='AST_CONTAINS'`
    - Cannot query: "Find all methods in this class"
 
 9. **❌ Inconsistent Metadata**
    - `Language`, `Framework`, `CodeType` as separate columns
-   - Should be in `Atom.Metadata` JSON for extensibility
+   - MUST be in `Atom.Metadata` JSON for extensibility
    - `QualityScore`, `UsageCount` also belong in Metadata
 
 10. **❌ No CASCADE Cleanup**
@@ -169,7 +169,7 @@ SELECT
   - ✅ Normalized embeddings (multiple models per code)
   - ✅ 30-40% storage reduction (shared code across projects)
 
-**Recommendation:** **MIGRATE IMMEDIATELY**
+**IMPLEMENT:** **MIGRATE IMMEDIATELY**
 
 - Priority: HIGH
 - Blocks: Cross-modal semantic search, multi-tenant code isolation
@@ -231,7 +231,7 @@ WHERE a.AtomId IN (
 **Issues:**
 1. ❌ Inserts into deprecated CodeAtom table
 2. ❌ No AST decomposition (stores entire code snippet)
-3. ❌ Missing Roslyn integration (should walk SyntaxTree)
+3. ❌ Missing Roslyn integration (MUST walk SyntaxTree)
 4. ✅ Gram-Schmidt orthogonalization present (good)
 5. ✅ AST-as-GEOMETRY concept correct (implementation needs fix)
 
@@ -385,7 +385,7 @@ Existing from Parts 1-5:
 
 ---
 
-## RECOMMENDATIONS (Priority Order)
+## REQUIRED FIXES (Priority Order)
 
 ### Immediate (This Week)
 

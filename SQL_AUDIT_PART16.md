@@ -78,28 +78,28 @@ END
 - ⚠️ **No residual connections** - Real transformers have skip connections
 - ⚠️ **No layer normalization** - Missing key transformer component
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering
-- ⚠️ **Race condition** - SELECT TOP 1 from AttentionGenerationLog by time (could get wrong record)
+- ⚠️ **Race condition** - SELECT TOP 1 from AttentionGenerationLog by time (MUST get wrong record)
 - ⚠️ **FeedForwardDim unused** - Parameter not used in logic
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **Hardcoded MaxTokens=1** - Attention limited to single token per layer
 
 **Performance:**
 - WHILE loop with EXEC is slow (N layer executions)
-- TOP 1 ORDER BY CreatedAt could miss records in high concurrency
+- TOP 1 ORDER BY CreatedAt MUST miss records in high concurrency
 - No batching of layer operations
 
 **Security:**
 - ⚠️ No TenantId filtering on model or logs
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering throughout
-2. **Priority 2:** Capture sp_GenerateWithAttention output directly (avoid time-based SELECT)
-3. **Priority 3:** Implement actual feed-forward network (not text generation proxy)
-4. **Priority 4:** Add residual connections (input + output per layer)
-5. **Priority 5:** Add layer normalization
-6. **Priority 6:** Use FeedForwardDim parameter or remove it
-7. **Priority 7:** Add error handling (TRY/CATCH)
-8. **Priority 8:** Consider exposing MaxTokens per layer
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering throughout
+2. **URGENT:** Capture sp_GenerateWithAttention output directly (avoid time-based SELECT)
+3. **REQUIRED:** Implement actual feed-forward network (not text generation proxy)
+4. **IMPLEMENT:** Add residual connections (input + output per layer)
+5. **IMPLEMENT:** Add layer normalization
+6. **IMPLEMENT:** Use FeedForwardDim parameter or remove it
+7. **IMPLEMENT:** Add error handling (TRY/CATCH)
+8. **IMPLEMENT:** IMPLEMENT exposing MaxTokens per layer
 
 ---
 
@@ -176,27 +176,27 @@ END
 - ⚠️ **Naive convergence** - LEN(@GeneratedAtoms) < 10 too simplistic
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering
 - ⚠️ **No capture of sp_GenerateWithAttention return value** - Relies on log lookup
-- ⚠️ **Context concatenation** - String concat could break atom ID list format
-- ⚠️ **Hardcoded confidence** - 0.8 for all steps (should compute)
+- ⚠️ **Context concatenation** - String concat MUST break atom ID list format
+- ⚠️ **Hardcoded confidence** - 0.8 for all steps (MUST compute)
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **No query in context JSON** - Query string in JSON but not used for retrieval
 
 **Performance:**
 - WHILE loop with EXEC per step (slow for many steps)
 - Time-based log lookup per step
-- String concatenation for context (could be inefficient)
+- String concatenation for context (MUST be inefficient)
 
 **Security:**
 - ⚠️ No TenantId filtering
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering
-2. **Priority 2:** Capture generation stream ID directly from sp_GenerateWithAttention (avoid log lookup)
-3. **Priority 3:** Improve convergence detection (use semantic similarity or end-of-reasoning token)
-4. **Priority 4:** Compute actual confidence scores per step
-5. **Priority 5:** Add error handling
-6. **Priority 6:** Validate context concatenation (ensure proper CSV format)
-7. **Priority 7:** Use query in retrieval/ranking logic
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering
+2. **URGENT:** Capture generation stream ID directly from sp_GenerateWithAttention (avoid log lookup)
+3. **REQUIRED:** Improve convergence detection (use semantic similarity or end-of-reasoning token)
+4. **IMPLEMENT:** Compute actual confidence scores per step
+5. **IMPLEMENT:** Add error handling
+6. **IMPLEMENT:** Validate context concatenation (ensure proper CSV format)
+7. **IMPLEMENT:** Use query in retrieval/ranking logic
 
 ---
 
@@ -253,30 +253,30 @@ WHERE a.ModelId = @ModelAId OR b.ModelId = @ModelBId
 - ✅ **No side effects** - Read-only queries
 
 **Weaknesses:**
-- ⚠️ **No multi-tenancy** - Missing TenantId filtering (could compare across tenants)
+- ⚠️ **No multi-tenancy** - Missing TenantId filtering (MUST compare across tenants)
 - ⚠️ **Hardcoded column casts** - CAST(ImportanceScore AS FLOAT) implies wrong datatype
-- ⚠️ **Coefficient join** - LEFT JOIN could miss coefficients
+- ⚠️ **Coefficient join** - LEFT JOIN MUST miss coefficients
 - ⚠️ **No model validation** - Doesn't check if models exist
-- ⚠️ **UNION ALL** - Could use single query with GROUPING SETS
+- ⚠️ **UNION ALL** - MUST use single query with GROUPING SETS
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **PRINT statements** - Debug output in production
 
 **Performance:**
-- Multiple aggregations could be slow for large models
+- Multiple aggregations MUST be slow for large models
 - No indexes specified
-- LEFT JOIN to TensorAtomCoefficient could be expensive
+- LEFT JOIN to TensorAtomCoefficient MUST be expensive
 
 **Security:**
 - ⚠️ Cross-tenant model comparison possible (security issue)
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (ensure models belong to same tenant)
-2. **Priority 2:** Validate models exist and are accessible
-3. **Priority 3:** Fix ImportanceScore datatype (shouldn't need CAST)
-4. **Priority 4:** Add error handling
-5. **Priority 5:** Consider GROUPING SETS for cleaner aggregation
-6. **Priority 6:** Add indexes on ModelId, LayerIdx
-7. **Priority 7:** Remove PRINT statements or make conditional
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (ensure models belong to same tenant)
+2. **URGENT:** Validate models exist and are accessible
+3. **REQUIRED:** Fix ImportanceScore datatype (shouldn't need CAST)
+4. **IMPLEMENT:** Add error handling
+5. **IMPLEMENT:** IMPLEMENT GROUPING SETS for cleaner aggregation
+6. **IMPLEMENT:** Add indexes on ModelId, LayerIdx
+7. **IMPLEMENT:** Remove PRINT statements or make conditional
 
 ---
 
@@ -330,27 +330,27 @@ WITH Lineage AS (
 - ⚠️ **CSV format unused** - Parameter accepts CSV but not implemented
 - ⚠️ **GraphML simplified** - Not full GraphML spec (missing nodes, attributes)
 - ⚠️ **ContentType column** - Atom table doesn't have ContentType (schema mismatch)
-- ⚠️ **No cycle detection** - Recursive CTE could loop if graph has cycles
-- ⚠️ **Depth = 50 hardcoded** - Should be parameter
+- ⚠️ **No cycle detection** - Recursive CTE MUST loop if graph has cycles
+- ⚠️ **Depth = 50 hardcoded** - MUST be parameter
 - ⚠️ **No authorization** - Any user can export any atom's provenance
 
 **Performance:**
 - Recursive CTE is efficient with proper indexes
 - Depth limit prevents runaway queries
-- Nested JSON subquery per row (could be slow)
+- Nested JSON subquery per row (MUST be slow)
 
 **Security:**
 - ✅ TenantId filtering present
 - ⚠️ No authorization check (user access to atom)
 
-### Improvement Recommendations
-1. **Priority 1:** Fix ContentType column reference (use actual schema)
-2. **Priority 2:** Implement CSV format or remove from parameters
-3. **Priority 3:** Add cycle detection in CTE (track visited nodes)
-4. **Priority 4:** Make max depth a parameter
-5. **Priority 5:** Implement full GraphML spec (nodes + edges + attributes)
-6. **Priority 6:** Add authorization check
-7. **Priority 7:** Optimize nested JSON subquery (use single CTE)
+### REQUIRED FIXES
+1. **CRITICAL:** Fix ContentType column reference (use actual schema)
+2. **URGENT:** Implement CSV format or remove from parameters
+3. **REQUIRED:** Add cycle detection in CTE (track visited nodes)
+4. **IMPLEMENT:** Make max depth a parameter
+5. **IMPLEMENT:** Implement full GraphML spec (nodes + edges + attributes)
+6. **IMPLEMENT:** Add authorization check
+7. **IMPLEMENT:** Optimize nested JSON subquery (use single CTE)
 
 ---
 
@@ -406,7 +406,7 @@ WHERE NOT EXISTS (
 - ⚠️ **No parent validation** - Doesn't check if parent atoms exist
 - ⚠️ **No child validation** - Doesn't check if child atom exists
 - ⚠️ **No TenantId validation** - Doesn't verify atoms belong to tenant
-- ⚠️ **No cycle detection** - Could create circular dependencies
+- ⚠️ **No cycle detection** - MUST create circular dependencies
 - ⚠️ **DependencyType not validated** - Accepts any string
 
 **Performance:**
@@ -415,15 +415,15 @@ WHERE NOT EXISTS (
 - Batch INSERT is optimal
 
 **Security:**
-- ⚠️ No validation that atoms belong to TenantId (could link cross-tenant)
+- ⚠️ No validation that atoms belong to TenantId (MUST link cross-tenant)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Validate parent and child atoms exist and belong to TenantId
-2. **Priority 2:** Add cycle detection (prevent A→B→C→A)
-3. **Priority 3:** Validate DependencyType against allowed values
-4. **Priority 4:** Add authorization check
-5. **Priority 5:** Consider MERGE instead of INSERT with NOT EXISTS (simpler)
+### REQUIRED FIXES
+1. **CRITICAL:** Validate parent and child atoms exist and belong to TenantId
+2. **URGENT:** Add cycle detection (prevent A→B→C→A)
+3. **REQUIRED:** Validate DependencyType against allowed values
+4. **IMPLEMENT:** Add authorization check
+5. **IMPLEMENT:** IMPLEMENT MERGE instead of INSERT with NOT EXISTS (simpler)
 
 ---
 

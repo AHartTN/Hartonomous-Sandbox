@@ -78,13 +78,13 @@ CREATE NONCLUSTERED INDEX [IX_GenerationStreamSegments_SegmentKind]
 
 1. **⚠️ No Unique Constraint on (GenerationStreamId, SegmentOrdinal)**
    - Allows duplicate segment ordinals per stream
-   - Could corrupt stream order
+   - MUST corrupt stream order
    - **Impact:** MEDIUM - Data integrity risk
 
 2. **⚠️ Metadata Column Not Validated**
    - No `CHECK (ISJSON(Metadata) = 1)`
    - Invalid JSON possible
-   - **Impact:** LOW - Application should validate
+   - **Impact:** LOW - Application MUST validate
 
 3. **⚠️ No Index on TenantId**
    - Multi-tenant queries need index
@@ -103,7 +103,7 @@ CREATE NONCLUSTERED INDEX [IX_GenerationStreamSegments_SegmentKind]
    - Auto-deletes segments when stream deleted
    - Referential integrity maintained
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Data Integrity):**
 - Add unique constraint:
@@ -166,14 +166,14 @@ CREATE TABLE dbo.StreamFusionResults (
 
 1. **⚠️ No JSON Validation**
    - `StreamIds` and `Weights` are JSON but no CHECK constraint
-   - **Impact:** LOW - Application should validate
+   - **Impact:** LOW - Application MUST validate
 
 2. **⚠️ No TenantId Column**
    - Missing multi-tenancy support
    - **Impact:** MEDIUM - Cross-tenant data access possible
 
 3. **⚠️ Generic Column Name "Id"**
-   - Should be `FusionResultId` for clarity
+   - MUST be `FusionResultId` for clarity
    - **Impact:** LOW - Naming convention inconsistency
 
 4. **⚠️ No Index on ComponentCount**
@@ -188,7 +188,7 @@ CREATE TABLE dbo.StreamFusionResults (
    - FusionType index for filtering by algorithm
    - CreatedAt DESC for recent results
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Multi-Tenancy):**
 - Add tenant support:
@@ -256,11 +256,11 @@ CREATE TABLE dbo.StreamOrchestrationResults (
    - **Impact:** MEDIUM - Cross-tenant data access possible
 
 2. **⚠️ Generic Column Name "Id"**
-   - Should be `OrchestrationResultId`
+   - MUST be `OrchestrationResultId`
    - **Impact:** LOW - Naming convention inconsistency
 
 3. **⚠️ No Validation on AggregationLevel**
-   - Should be CHECK constraint or FK to reference table
+   - MUST be CHECK constraint or FK to reference table
    - **Impact:** LOW - Invalid values possible
 
 4. **✅ EXCELLENT: Time Window Index**
@@ -271,7 +271,7 @@ CREATE TABLE dbo.StreamOrchestrationResults (
    - SensorType, AggregationLevel clearly defined
    - Time window tracking
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Multi-Tenancy):**
 - Add tenant support:
@@ -337,14 +337,14 @@ CREATE TABLE dbo.OperationProvenance (
    - **Impact:** LOW - Wasted storage/write performance
 
 4. **⚠️ Generic Column Name "Id"**
-   - Should be `ProvenanceId`
+   - MUST be `ProvenanceId`
    - **Impact:** LOW - Naming inconsistency
 
 5. **✅ Good: UNIQUEIDENTIFIER for OperationId**
    - Distributed operation tracking
    - Cross-system correlation
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (CRITICAL - Define UDT):**
 - Create AtomicStream CLR type:
@@ -404,7 +404,7 @@ CREATE TABLE dbo.ProvenanceAuditResults (
 
 1. **⚠️ No JSON Validation on Anomalies**
    - No CHECK constraint for JSON
-   - **Impact:** LOW - Application should validate
+   - **Impact:** LOW - Application MUST validate
 
 2. **⚠️ No TenantId Column**
    - Cross-tenant audit aggregation
@@ -424,7 +424,7 @@ CREATE TABLE dbo.ProvenanceAuditResults (
    - Composite index on audit period
    - Supports temporal queries
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Validation):**
 - Add constraints:
@@ -439,7 +439,7 @@ CREATE TABLE dbo.ProvenanceAuditResults (
   ```
 
 **Priority 2 (Multi-Tenancy):**
-- Add TenantId if audits should be tenant-scoped
+- Add TenantId if audits MUST be tenant-scoped
 
 ---
 
@@ -478,7 +478,7 @@ CREATE TABLE dbo.ProvenanceValidationResults (
 
 1. **⚠️ No JSON Validation**
    - `ValidationResults` JSON not validated
-   - **Impact:** LOW - Application should validate
+   - **Impact:** LOW - Application MUST validate
 
 2. **⚠️ No CHECK Constraint on OverallStatus**
    - Comment says 'PASS', 'WARN', 'FAIL' but not enforced
@@ -497,7 +497,7 @@ CREATE TABLE dbo.ProvenanceValidationResults (
    - Index on OverallStatus (filtering)
    - Index on ValidatedAt (temporal queries)
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Validation):**
 - Add constraints:
@@ -559,7 +559,7 @@ CREATE TABLE [provenance].[GenerationStreams] (
 
 3. **⚠️ No JSON Validation**
    - `ContextMetadata` JSON not validated
-   - **Impact:** LOW - Application should validate
+   - **Impact:** LOW - Application MUST validate
 
 4. **⚠️ Column Name Confusion**
    - `Model` column (NVARCHAR) vs `ModelId` (INT FK)
@@ -572,7 +572,7 @@ CREATE TABLE [provenance].[GenerationStreams] (
 6. **✅ Good: Foreign Key to Model**
    - Links generation to model metadata
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Indexes):**
 - Add critical indexes:
@@ -634,7 +634,7 @@ AS EXTERNAL NAME [Hartonomous.Clr].[Hartonomous.Clr.AtomicStream].[Create];
 1. **❌ CRITICAL: CLR Assembly Not Verified**
    - No evidence assembly deployed
    - Function stub exists but implementation unknown
-   - **Impact:** CRITICAL - Function may not exist at runtime
+   - **Impact:** CRITICAL - Function will not exist at runtime
 
 2. **❌ CRITICAL: AtomicStream UDT Not Found**
    - Return type `dbo.AtomicStream` not found
@@ -837,7 +837,7 @@ AS EXTERNAL NAME [Hartonomous.Clr].[Hartonomous.Clr.AtomicStreamFunctions].[Enum
 - **3 CLR functions:** Stubs exist, implementation unverified
 
 **Blocking Impact:**
-- ❌ `OperationProvenance` table may fail to create (depends on UDT)
+- ❌ `OperationProvenance` table will fail to create (depends on UDT)
 - ❌ `fn_DecompressComponents` cannot be implemented (needs CLR)
 - ❌ `fn_GetComponentCount` cannot be implemented (needs CLR)
 - ❌ `fn_GetTimeWindow` cannot be implemented (needs CLR)
@@ -876,7 +876,7 @@ No `CHECK (ISJSON(...) = 1)` on:
 
 ---
 
-## RECOMMENDATIONS FOR NEXT STEPS
+## REQUIRED FIXES FOR NEXT STEPS
 
 ### CRITICAL (Immediate - Blocks Everything)
 

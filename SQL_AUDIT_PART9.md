@@ -79,9 +79,9 @@ END;
    - Single expression, no loops
    - Inlineable by query optimizer
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Add temperature validation:
   ```sql
   CREATE FUNCTION dbo.fn_SoftmaxTemperature(...)
@@ -149,7 +149,7 @@ RETURNS @models TABLE
 2. **⚠️ No Index Hints**
    - Query against Model, ModelMetadata tables
    - No index optimization hints
-   - **Impact:** LOW - Query optimizer should handle it
+   - **Impact:** LOW - Query optimizer MUST handle it
 
 3. **⚠️ Weight Normalization Division by Zero**
    - `UPDATE @models SET Weight = Weight / @total;`
@@ -173,10 +173,10 @@ RETURNS @models TABLE
    - Ensures weights sum to 1.0
    - Allows custom weight overrides
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Maintainability):**
-- Consider splitting into smaller helper functions:
+- IMPLEMENT splitting into smaller helper functions:
   ```sql
   -- fn_SelectModelsByIds(@model_ids)
   -- fn_SelectModelsByTask(@task_type)
@@ -184,7 +184,7 @@ RETURNS @models TABLE
   -- fn_NormalizeWeights(@models)
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add query optimization hints for common patterns:
   ```sql
   FROM dbo.Model m WITH (INDEX(IX_Model_ModelType))
@@ -248,27 +248,27 @@ END;
 2. **⚠️ String Pattern Matching**
    - Uses `LIKE '%transformer%'` - case-sensitive
    - No normalization (LOWER/UPPER)
-   - **Impact:** LOW - May miss model types with different casing
+   - **Impact:** LOW - will miss model types with different casing
 
 3. **⚠️ No Input Validation**
    - No check for `@inputSize <= 0`
-   - Returns 0 for zero input (should be error)
+   - Returns 0 for zero input (MUST be error)
    - **Impact:** LOW - Garbage in, garbage out
 
 4. **✅ Good: Comment Explains Big-O**
    - Documents O(n²), O(n) complexity
    - Clear intent
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Add input validation:
   ```sql
   IF @inputSize <= 0 OR @inputSize IS NULL
       RETURN NULL;  -- Invalid input
   ```
 
-**Priority 2:**
+**URGENT:**
 - Improve complexity model:
   ```sql
   -- Account for sequence length squared for transformers
@@ -277,7 +277,7 @@ END;
   ELSE IF ...
   ```
 
-**Priority 3:**
+**REQUIRED:**
 - Case-insensitive matching:
   ```sql
   DECLARE @normalizedType NVARCHAR(100) = LOWER(@modelType);
@@ -334,7 +334,7 @@ END;
 
 2. **⚠️ No NULL Handling**
    - Returns NULL for NULL input
-   - Could be explicit: `IF @complexity IS NULL RETURN 'unknown'`
+   - MUST be explicit: `IF @complexity IS NULL RETURN 'unknown'`
    - **Impact:** LOW - NULL propagates
 
 3. **✅ EXCELLENT: Clear SLA Tiers**
@@ -345,7 +345,7 @@ END;
    - Single IF/ELSE chain
    - No table lookups
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Configurability):**
 - Create SLA configuration table:
@@ -429,7 +429,7 @@ END;
 
 2. **⚠️ Hardcoded Base Times**
    - Same issue as fn_DetermineSla (50, 500, 5000, 30000)
-   - Should use SlaThresholds table
+   - MUST use SlaThresholds table
    - **Impact:** LOW - Difficult to tune
 
 3. **⚠️ Division Truncation**
@@ -440,7 +440,7 @@ END;
 4. **✅ Good: Default SLA Handling**
    - `ELSE 10000` for unknown SLA tiers
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Fix Comment or Implementation):**
 - Either fix comment to say "linear" OR implement logarithmic:
@@ -449,13 +449,13 @@ END;
   DECLARE @adjustedTime INT = @baseTime + CAST(LOG10(@complexity + 1) * 1000 AS INT);
   ```
 
-**Priority 2:**
+**URGENT:**
 - Use FLOAT division for precision:
   ```sql
   DECLARE @adjustedTime INT = @baseTime + CAST((@complexity / 100.0) AS INT);
   ```
 
-**Priority 3:**
+**REQUIRED:**
 - Join SlaThresholds table instead of CASE statement
 
 ---
@@ -510,8 +510,8 @@ RETURN
    - **Impact:** MEDIUM - Slower than spatial index optimal query
 
 2. **⚠️ No Result Limit**
-   - Could return millions of atoms if threshold too high
-   - **Impact:** LOW - Caller should use TOP
+   - MUST return millions of atoms if threshold too high
+   - **Impact:** LOW - Caller MUST use TOP
 
 3. **✅ EXCELLENT: Multi-Tenancy**
    - Filters by `TenantId`
@@ -526,7 +526,7 @@ RETURN
    - Returns `DistanceFromCentroid` for ranking
    - Useful for threshold tuning
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Performance):**
 - Use spatial index-friendly query:
@@ -540,7 +540,7 @@ RETURN
   ORDER BY ae.SpatialKey.STDistance(@concept_centroid);  -- Rank results
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add TOP parameter:
   ```sql
   CREATE FUNCTION fn_BindAtomsToCentroid(..., @max_results INT = 100)
@@ -614,7 +614,7 @@ RETURN
    - `WHERE ae.SpatialKey IS NOT NULL`
    - Avoids AVG issues with NULLs
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Multi-Tenancy):**
 - Add tenant parameter:
@@ -695,14 +695,14 @@ END;
 
 3. **⚠️ Fixed SRID = 0**
    - Hardcoded spatial reference ID = 0 (Cartesian)
-   - Should be parameterizable
+   - MUST be parameterizable
    - **Impact:** LOW - Embedding space is Cartesian anyway
 
 4. **✅ Good: Handles 2D and 3D**
    - Optional Z parameter
    - Creates 2D point if Z is NULL
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Modernize):**
 - Use `geometry::Point` constructor:
@@ -722,7 +722,7 @@ END;
   END;
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add validation for NaN/Infinity:
   ```sql
   IF @x <> @x OR @y <> @y OR @z <> @z  -- NaN check
@@ -788,9 +788,9 @@ RETURN
    - Decouples controller from view schema
    - Can swap view implementation without changing API
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Fix vw_ModelLayersWithStats (Part 8 recommendation):
   - Rewrite with LEFT JOIN + GROUP BY instead of correlated subqueries
   - Enable indexed view for materialization
@@ -858,7 +858,7 @@ WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[TensorAtomCoefficients_Hist
 2. **⚠️ Composite Primary Key (6 columns)**
    - PK on `(TensorAtomId, ModelId, LayerIdx, PositionX, PositionY, PositionZ)`
    - Very wide key, slower index lookups
-   - **Impact:** LOW - Necessary for uniqueness, but consider surrogate key
+   - **Impact:** LOW - Necessary for uniqueness, but IMPLEMENT surrogate key
 
 3. **⚠️ SpatialKey Only Uses X, Y (Not Z)**
    - `geometry::Point([PositionX], [PositionY], 0)`
@@ -882,7 +882,7 @@ WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[TensorAtomCoefficients_Hist
    - Weight IS the atom (`TensorAtomId → Atom.AtomicValue`)
    - Correct modality pattern
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Remove Deprecated Columns):**
 - After migration complete, drop deprecated columns:
@@ -909,8 +909,8 @@ WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[TensorAtomCoefficients_Hist
   -- 3. Use compound key: (X, Y, Z) separately
   ```
 
-**Priority 3:**
-- Consider adding surrogate key for FK references:
+**REQUIRED:**
+- IMPLEMENT adding surrogate key for FK references:
   ```sql
   ALTER TABLE TensorAtomCoefficient ADD TensorCoefficientId BIGINT IDENTITY;
   CREATE UNIQUE INDEX UX_TensorCoefficient_Id ON TensorAtomCoefficient(TensorCoefficientId);
@@ -972,7 +972,7 @@ CREATE NONCLUSTERED INDEX [IX_TensorAtomCoefficients_History_Period]
    - All columns from main table present
    - Includes deprecated columns for historical accuracy
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Add Clustered Index):**
 - Add clustered index for performance:
@@ -982,7 +982,7 @@ CREATE NONCLUSTERED INDEX [IX_TensorAtomCoefficients_History_Period]
   ```
 
 **Priority 2 (Partition for Large History):**
-- Consider partitioning by ValidTo for archival:
+- IMPLEMENT partitioning by ValidTo for archival:
   ```sql
   -- Partition by year
   CREATE PARTITION FUNCTION PF_TensorHistory_Year(DATETIME2)
@@ -1058,7 +1058,7 @@ CREATE TABLE [dbo].[AutonomousComputeJobs] (
 6. **✅ Good: Multi-Tenancy**
    - TenantId column for isolation
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Performance - Job Queue):**
 - Add job queue index:
@@ -1075,7 +1075,7 @@ CREATE TABLE [dbo].[AutonomousComputeJobs] (
   ON AutonomousComputeJobs(TenantId, Status, Priority DESC);
   ```
 
-**Priority 3:**
+**REQUIRED:**
 - Add correlation ID index:
   ```sql
   CREATE INDEX IX_AutonomousComputeJobs_CorrelationId
@@ -1142,7 +1142,7 @@ CREATE TABLE [dbo].[SessionPaths] (
 6. **✅ Good: Conversion Tracking**
    - `ConversionEvent` column for funnel analysis
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Performance):**
 - Add critical indexes:
@@ -1240,7 +1240,7 @@ CREATE QUEUE HypothesizeQueue WITH STATUS = ON;
 
 3. **fn_BindAtomsToCentroid Inefficient Spatial Query**
    - Uses `STDistance` in WHERE (not spatial index optimal)
-   - Should use `STWithin` with buffered centroid
+   - MUST use `STWithin` with buffered centroid
    - **Impact:** MEDIUM - Slower than optimal
 
 4. **TensorAtomCoefficients_History No Clustered Index**
@@ -1279,7 +1279,7 @@ CREATE QUEUE HypothesizeQueue WITH STATUS = ON;
 1. **Deprecated Columns in Production**
    - TensorAtomCoefficient: 4 DEPRECATED columns still present
    - Comments say "backward compatibility during migration"
-   - **Migration should be complete, drop columns**
+   - **Migration MUST be complete, drop columns**
 
 2. **Missing Function Validation**
    - fn_SoftmaxTemperature: No division by zero check (@temperature = 0)
@@ -1289,7 +1289,7 @@ CREATE QUEUE HypothesizeQueue WITH STATUS = ON;
 3. **Hardcoded SLA Thresholds**
    - fn_DetermineSla: Magic numbers (1000, 10000, 100000)
    - fn_EstimateResponseTime: Magic numbers (50, 500, 5000, 30000)
-   - **Should use SlaThresholds configuration table**
+   - **MUST use SlaThresholds configuration table**
 
 4. **Misleading Comments**
    - fn_EstimateResponseTime: Says "logarithmic scaling", implements linear
@@ -1333,7 +1333,7 @@ CREATE QUEUE HypothesizeQueue WITH STATUS = ON;
 
 ---
 
-## RECOMMENDATIONS FOR NEXT STEPS
+## REQUIRED FIXES FOR NEXT STEPS
 
 ### Immediate Actions (This Week)
 

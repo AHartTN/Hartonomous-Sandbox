@@ -91,9 +91,9 @@ INSERT INTO dbo.AttentionGenerationLog (...) VALUES (...);
 
 5. **⚠️ No Result Verification**
    - Checks `@GenerationStreamId` for NULL but doesn't verify stream contents
-   - **Impact:** LOW - Could return empty stream as success
+   - **Impact:** LOW - MUST return empty stream as success
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING):**
 - Create `dbo.fn_GenerateWithAttention` CLR function
@@ -116,7 +116,7 @@ INSERT INTO dbo.AttentionGenerationLog (...) VALUES (...);
   );
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add tenant validation:
   ```sql
   IF NOT EXISTS (SELECT 1 FROM Atom WHERE AtomId IN (
@@ -190,9 +190,9 @@ WHERE AtomId = @AtomId AND TenantId = @TenantId;
    - Uses `JSON_MODIFY` to append extracted metadata
    - Preserves existing metadata via `ISNULL(Metadata, '{}')`
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Implement image metadata extraction:
   ```sql
   IF @Modality = 'image'
@@ -211,7 +211,7 @@ WHERE AtomId = @AtomId AND TenantId = @TenantId;
   END
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add language detection for text (call CLR function or external service)
 - Improve word count algorithm (handle multiple spaces, newlines)
 
@@ -264,13 +264,13 @@ END;
    - **Impact:** CRITICAL - Procedure fails on final aggregation
 
 2. **❌ BLOCKING: Missing Child Procedure**
-   - Calls `sp_ComputeSemanticFeatures` which may not exist
+   - Calls `sp_ComputeSemanticFeatures` which will not exist
    - Need to verify existence and schema
    - **Impact:** CRITICAL - Cursor loop fails
 
 3. **⚠️ Performance: CURSOR Pattern**
    - Uses CURSOR for batch processing (row-by-row)
-   - Could be replaced with set-based INSERT...SELECT
+   - MUST be replaced with set-based INSERT...SELECT
    - **Impact:** HIGH - Slow for large datasets (100K+ embeddings)
 
 4. **⚠️ No Error Handling**
@@ -286,7 +286,7 @@ END;
    - Correctly filters `WHERE a.Modality = 'text'`
    - Uses atomic decomposition pattern
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING):**
 - Create `dbo.SemanticFeatures` table:
@@ -305,7 +305,7 @@ END;
   );
   ```
 
-**Priority 2:**
+**URGENT:**
 - Replace CURSOR with set-based operation:
   ```sql
   INSERT INTO SemanticFeatures (AtomEmbeddingId, TopicTechnical, ...)
@@ -317,7 +317,7 @@ END;
   WHERE a.Modality = 'text' AND a.AtomicValue IS NOT NULL;
   ```
 
-**Priority 3:**
+**REQUIRED:**
 - Add error handling with TRY/CATCH
 - Log failed embedding IDs to error table
 
@@ -368,7 +368,7 @@ SELECT @tokenIdsJson = (
 ### Issues Found
 
 1. **⚠️ Missing TokenVocabulary Table**
-   - References `dbo.TokenVocabulary` which may not exist
+   - References `dbo.TokenVocabulary` which will not exist
    - Need to verify table schema
    - **Impact:** MEDIUM - Procedure fails if table missing
 
@@ -391,9 +391,9 @@ SELECT @tokenIdsJson = (
    - Returns `'[]'` for empty input
    - Handles NULL gracefully
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Verify `TokenVocabulary` table exists, or create:
   ```sql
   CREATE TABLE dbo.TokenVocabulary (
@@ -404,7 +404,7 @@ SELECT @tokenIdsJson = (
   );
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add unknown token handling:
   ```sql
   DECLARE @UNK_TOKEN_ID INT = 0;  -- Reserved for unknown tokens
@@ -418,9 +418,9 @@ SELECT @tokenIdsJson = (
   );
   ```
 
-**Priority 3:**
+**REQUIRED:**
 - Improve normalization (preserve contractions, URLs)
-- Consider subword tokenization (BPE, WordPiece) for OOV handling
+- IMPLEMENT subword tokenization (BPE, WordPiece) for OOV handling
 
 ---
 
@@ -509,16 +509,16 @@ END;
    - Retrieves `@TenantId` from job
    - Inserts atoms with `TenantId` for isolation
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Replace whitespace tokenization with CLR tokenizer:
   ```sql
   -- Call CLR function for proper tokenization
   EXEC dbo.clr_TokenizeText @ChunkText, @TokensTable OUTPUT;
   ```
 
-**Priority 2:**
+**URGENT:**
 - Improve spatial key generation:
   ```sql
   -- Use hash-based Y dimension for better distribution
@@ -529,7 +529,7 @@ END;
   )
   ```
 
-**Priority 3:**
+**REQUIRED:**
 - Add parallel chunk processing (Service Broker queue)
 - Add resumability testing (simulate failures mid-job)
 
@@ -554,8 +554,8 @@ CREATE PROCEDURE [dbo].[sp_ReconstructText]
 
 **Dependencies:**
 - ✅ `dbo.Atom` table - EXISTS
-- ✅ `dbo.AtomCompositions` table - **SHOULD BE** `AtomComposition` (singular) ❌
-- ⚠️ Uses `DimensionX` column - **DEPRECATED** (should use `SequenceIndex`)
+- ✅ `dbo.AtomCompositions` table - **MUST BE** `AtomComposition` (singular) ❌
+- ⚠️ Uses `DimensionX` column - **DEPRECATED** (MUST use `SequenceIndex`)
 
 **Implementation Pattern:**
 ```sql
@@ -598,7 +598,7 @@ ORDER BY ac.DimensionX;
    - Supports `@startPosition` and `@length` for substring extraction
    - Useful for large documents
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING):**
 - Fix schema to match AtomComposition:
@@ -615,7 +615,7 @@ ORDER BY ac.DimensionX;
   ORDER BY ac.SequenceIndex;
   ```
 
-**Priority 2:**
+**URGENT:**
 - Remove inefficient windowing, use simple `STRING_AGG`:
   ```sql
   SELECT STRING_AGG(a.CanonicalText, '') WITHIN GROUP (ORDER BY ac.SequenceIndex) AS Text
@@ -644,14 +644,14 @@ CREATE PROCEDURE [dbo].[sp_ReconstructImage]
 
 **Dependencies:**
 - ✅ `dbo.Atom` table - EXISTS
-- ✅ `dbo.AtomCompositions` table - **WRONG** (should be `AtomComposition`)
+- ✅ `dbo.AtomCompositions` table - **WRONG** (MUST be `AtomComposition`)
 - ❌ `dbo.AtomicPixels` table - **MISSING** ❌
 - ⚠️ Uses `DimensionX`, `DimensionY`, `ComponentType` - **DEPRECATED**
 
 ### Issues Found
 
 1. **❌ CRITICAL: Wrong Table Names**
-   - References `AtomCompositions` (plural) - should be `AtomComposition`
+   - References `AtomCompositions` (plural) - MUST be `AtomComposition`
    - References `AtomicPixels` table which doesn't exist
    - **Impact:** CRITICAL - Procedure fails at runtime
 
@@ -667,10 +667,10 @@ CREATE PROCEDURE [dbo].[sp_ReconstructImage]
 
 4. **⚠️ Inefficient Pixel Storage**
    - Expects separate `AtomicPixels` table for pixel data
-   - Violates atomic pattern (pixels should be in `Atom.AtomicValue`)
+   - Violates atomic pattern (pixels MUST be in `Atom.AtomicValue`)
    - **Impact:** HIGH - Architectural violation (like CodeAtom)
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING):**
 - Rewrite to use correct schema:
@@ -692,9 +692,9 @@ CREATE PROCEDURE [dbo].[sp_ReconstructImage]
   ORDER BY ac.SpatialKey.STY, ac.SpatialKey.STX;  -- Row-major order
   ```
 
-**Priority 2:**
+**URGENT:**
 - Delete `AtomicPixels` table if it exists (architectural violation)
-- All pixel data should be in `Atom.AtomicValue` (max 64 bytes = 16 pixels RGBA)
+- All pixel data MUST be in `Atom.AtomicValue` (max 64 bytes = 16 pixels RGBA)
 
 ---
 
@@ -734,7 +734,7 @@ FROM dbo.vw_ModelPerformanceMetrics;
 ### Issues Found
 
 1. **⚠️ Missing Base View**
-   - References `dbo.vw_ModelPerformanceMetrics` which may not exist
+   - References `dbo.vw_ModelPerformanceMetrics` which will not exist
    - Need to verify indexed view exists
    - **Impact:** MEDIUM - View fails if base missing
 
@@ -752,13 +752,13 @@ FROM dbo.vw_ModelPerformanceMetrics;
    - Controllers use this view, not the base indexed view directly
    - Correct separation of concerns
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Verify `vw_ModelPerformanceMetrics` exists, or create materialized view
 - Implement missing metrics (AvgConfidenceScore, TotalTokensGenerated)
 
-**Priority 2:**
+**URGENT:**
 - Add view documentation:
   ```sql
   -- Purpose: Consumer-friendly model performance metrics
@@ -800,7 +800,7 @@ LEFT JOIN dbo.ModelMetadata mm ON mm.ModelId = m.ModelId;
 ### Issues Found
 
 1. **⚠️ Missing ModelMetadata Table**
-   - LEFT JOINs `dbo.ModelMetadata` which may not exist
+   - LEFT JOINs `dbo.ModelMetadata` which will not exist
    - Need to verify table schema
    - **Impact:** MEDIUM - Metadata columns will be NULL if table missing
 
@@ -818,9 +818,9 @@ LEFT JOIN dbo.ModelMetadata mm ON mm.ModelId = m.ModelId;
    - Uses LEFT JOIN for optional metadata
    - Models without metadata still appear in results
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Verify `ModelMetadata` table exists, or create:
   ```sql
   CREATE TABLE dbo.ModelMetadata (
@@ -834,7 +834,7 @@ LEFT JOIN dbo.ModelMetadata mm ON mm.ModelId = m.ModelId;
   );
   ```
 
-**Priority 2:**
+**URGENT:**
 - Optimize layer count (if view becomes indexed):
   ```sql
   -- Option 1: Indexed view with GROUP BY
@@ -886,7 +886,7 @@ END;
 
 1. **❌ BLOCKING: SQL Server 2025 Dependency**
    - Uses `VECTOR(1998)` data type (SQL Server 2025+)
-   - Hartonomous may be targeting SQL Server 2019/2022
+   - Hartonomous will be targeting SQL Server 2019/2022
    - **Impact:** CRITICAL - Function won't compile on older versions
 
 2. **⚠️ No Vector Validation**
@@ -903,7 +903,7 @@ END;
    - Avoids T-SQL loops for vector math
    - Correct conversion: `1.0 - cosine_distance = cosine_similarity`
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING):**
 - Verify SQL Server version compatibility
@@ -918,7 +918,7 @@ END;
   -- Implement in CLR using optimized SIMD
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add version comment:
   ```sql
   -- REQUIRES: SQL Server 2025+ for VECTOR data type
@@ -970,7 +970,7 @@ END
    - `@Y * 100` → 100 buckets per dimension
    - `@Z * 100` → 100 buckets per dimension
    - Total: 1,000,000 buckets
-   - **Impact:** LOW - May be insufficient for dense embeddings (1,998D)
+   - **Impact:** LOW - will be insufficient for dense embeddings (1,998D)
 
 2. **⚠️ Assumes Normalized Input**
    - Expects X, Y, Z in [0, 1] range
@@ -991,17 +991,17 @@ END
    - Comments explain bucket size (0.01 units = 1%)
    - Clear formula
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1:**
+**CRITICAL:**
 - Add input validation:
   ```sql
   IF @X < 0 OR @X > 1 OR @Y < 0 OR @Y > 1 OR @Z < 0 OR @Z > 1
       RETURN NULL;  -- Out of range
   ```
 
-**Priority 2:**
-- Consider adaptive bucket size based on data distribution:
+**URGENT:**
+- IMPLEMENT adaptive bucket size based on data distribution:
   ```sql
   -- For high-dimensional embeddings, use finer granularity
   -- Buckets are 0.001 units (0.1%)
@@ -1055,7 +1055,7 @@ END
 
 5. **fn_VectorCosineSimilarity (1 blocker)**
    - Requires SQL Server 2025+ for `VECTOR` data type
-   - May not compile on SQL Server 2019/2022
+   - will not compile on SQL Server 2019/2022
 
 **Total Blockers This Part:** 10
 
@@ -1084,13 +1084,13 @@ END
    - Separate table for pixel RGBA data
    - **SAME ANTI-PATTERN AS CodeAtom**
    - Violates atomic decomposition pattern
-   - **Should use:** `Atom.AtomicValue` (4 bytes RGBA)
+   - **MUST use:** `Atom.AtomicValue` (4 bytes RGBA)
    - **Impact:** Breaks modality uniformity, prevents cross-modal queries
 
 2. **Schema Drift**
    - Multiple procedures use deprecated schema:
-     - `AtomCompositions` (plural) → Should be `AtomComposition`
-     - `DimensionX/Y/Z`, `SourceAtomId`, `ComponentType` → Should be `SequenceIndex`, `ParentAtomId`
+     - `AtomCompositions` (plural) → MUST be `AtomComposition`
+     - `DimensionX/Y/Z`, `SourceAtomId`, `ComponentType` → MUST be `SequenceIndex`, `ParentAtomId`
    - **Root Cause:** Incomplete schema migration (likely 2-3 schema versions exist)
    - **Impact:** HIGH - Procedures fail at runtime
 
@@ -1104,7 +1104,7 @@ END
 5. `dbo.TokenVocabulary` (table) - Token → TokenId mapping (verify)
 6. `dbo.ModelMetadata` (table) - Extended model attributes (verify)
 7. `dbo.vw_ModelPerformanceMetrics` (view) - Base indexed view (verify)
-8. `dbo.AtomicPixels` (table) - **SHOULD NOT EXIST** (architectural violation)
+8. `dbo.AtomicPixels` (table) - **MUST NOT EXIST** (architectural violation)
 
 **Cumulative Missing Objects:**
 - CLR Functions: 16+ (added fn_GenerateWithAttention)
@@ -1117,12 +1117,12 @@ END
 
 1. **Cursor Usage**
    - sp_ComputeAllSemanticFeatures uses CURSOR for batch processing
-   - **Alternative:** Set-based INSERT...SELECT
+   - **required implementation:** Set-based INSERT...SELECT
    - **Impact:** O(N) vs O(N²) for large datasets
 
 2. **Correlated Subqueries**
    - vw_ModelDetails: `(SELECT COUNT_BIG(*) FROM ModelLayer WHERE ...)`
-   - **Alternative:** LEFT JOIN + GROUP BY for indexed views
+   - **required implementation:** LEFT JOIN + GROUP BY for indexed views
    - **Impact:** MEDIUM - Executes once per row
 
 3. **SQL Server 2025 VECTOR**
@@ -1149,7 +1149,7 @@ END
 
 ---
 
-## RECOMMENDATIONS FOR NEXT STEPS
+## REQUIRED FIXES FOR NEXT STEPS
 
 ### Immediate Actions (This Week)
 
@@ -1257,7 +1257,7 @@ VALUES ('text', 'token', @token, HASHBYTES('SHA2_256', @token), @TenantId);
 SELECT * FROM AtomicPixels WHERE PixelHash = ...;
 ```
 
-**✅ SHOULD BE:**
+**✅ MUST BE:**
 ```sql
 -- Pixel data in Atom.AtomicValue (4 bytes RGBA)
 SELECT AtomicValue FROM Atom 

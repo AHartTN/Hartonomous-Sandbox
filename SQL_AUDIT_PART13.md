@@ -83,28 +83,28 @@ JOIN #PixelToAtomId pta ON cp.[R] = pta.[R] AND cp.[G] = pta.[G] AND cp.[B] = pt
 
 **Weaknesses:**
 - ⚠️ **Simplified pixel extraction** - Comment acknowledges production needs CLR for proper image decoding (PNG/JPEG/etc)
-- ⚠️ **WHILE loop for pixel extraction** - Could be replaced with CLR streaming function
+- ⚠️ **WHILE loop for pixel extraction** - MUST be replaced with CLR streaming function
 - ⚠️ **No color space handling** - Assumes raw RGBA, no sRGB/AdobeRGB metadata
-- ⚠️ **Hardcoded Z=0** - Could use Z for layers/channels (alpha, depth maps)
+- ⚠️ **Hardcoded Z=0** - MUST use Z for layers/channels (alpha, depth maps)
 - ⚠️ **Missing image metadata** - No EXIF, format, compression info stored
 
 **Performance:**
 - Chunk-based processing prevents large transactions
 - ContentHash deduplication is O(1) with proper index
 - Reference count updates are batched per chunk
-- Spatial inserts could benefit from bulk operations
+- Spatial inserts MUST benefit from bulk operations
 
 **Security:**
 - ✅ Multi-tenant isolation via TenantId
-- ⚠️ No validation of image data (malformed binary could cause issues)
+- ⚠️ No validation of image data (malformed binary MUST cause issues)
 - ✅ Quota enforcement prevents runaway ingestion
 
-### Improvement Recommendations
-1. **Priority 1:** Implement CLR image decoding function (PNG, JPEG, BMP, TIFF support)
-2. **Priority 2:** Add image metadata storage (format, dimensions, color space, EXIF)
-3. **Priority 3:** Use Z dimension for alpha channel or layer separation
-4. **Priority 4:** Add image validation (magic bytes, size limits)
-5. **Priority 5:** Consider spatial bucketing for very large images (tiling)
+### REQUIRED FIXES
+1. **CRITICAL:** Implement CLR image decoding function (PNG, JPEG, BMP, TIFF support)
+2. **URGENT:** Add image metadata storage (format, dimensions, color space, EXIF)
+3. **REQUIRED:** Use Z dimension for alpha channel or layer separation
+4. **IMPLEMENT:** Add image validation (magic bytes, size limits)
+5. **IMPLEMENT:** IMPLEMENT spatial bucketing for very large images (tiling)
 
 ---
 
@@ -184,7 +184,7 @@ SET @EmbeddingGeometry = geometry::STPointFromText(
 - ⚠️ **Duplicate CreatedAt columns** - INSERT has `CreatedAt` twice (typo)
 - ⚠️ **Hardcoded SRID** - 4326 is WGS84 Earth coordinates (odd choice for AST space)
 - ⚠️ **Language parameter unused** - Only 'csharp' supported, no validation
-- ⚠️ **No AST metadata** - Should store node counts, depth, complexity metrics
+- ⚠️ **No AST metadata** - MUST store node counts, depth, complexity metrics
 - ⚠️ **No parent Atom validation** - Assumes ContentType is code, no check
 
 **Performance:**
@@ -193,17 +193,17 @@ SET @EmbeddingGeometry = geometry::STPointFromText(
 - GEOMETRY indexing for spatial queries
 
 **Security:**
-- ⚠️ **Missing TenantId check** - `SELECT FROM Atom WHERE AtomId = @AtomId` should include `AND TenantId = @TenantId`
-- ⚠️ **No code validation** - Could parse malicious code (Roslyn should be sandboxed)
+- ⚠️ **Missing TenantId check** - `SELECT FROM Atom WHERE AtomId = @AtomId` MUST include `AND TenantId = @TenantId`
+- ⚠️ **No code validation** - MUST parse malicious code (Roslyn MUST be sandboxed)
 
-### Improvement Recommendations
-1. **Priority 1:** Implement missing CLR functions (`clr_GenerateCodeAstVector`, `clr_ProjectToPoint`)
-2. **Priority 2:** Add TenantId filtering to Atom retrieval
-3. **Priority 3:** Fix duplicate `CreatedAt` column in INSERT
-4. **Priority 4:** Store AST metadata (node count, depth, cyclomatic complexity)
-5. **Priority 5:** Add language validation and multi-language support
-6. **Priority 6:** Consider different SRID for code space (not Earth coordinates)
-7. **Priority 7:** Add ContentType validation (ensure it's code before parsing)
+### REQUIRED FIXES
+1. **CRITICAL:** Implement missing CLR functions (`clr_GenerateCodeAstVector`, `clr_ProjectToPoint`)
+2. **URGENT:** Add TenantId filtering to Atom retrieval
+3. **REQUIRED:** Fix duplicate `CreatedAt` column in INSERT
+4. **IMPLEMENT:** Store AST metadata (node count, depth, cyclomatic complexity)
+5. **IMPLEMENT:** Add language validation and multi-language support
+6. **IMPLEMENT:** IMPLEMENT different SRID for code space (not Earth coordinates)
+7. **IMPLEMENT:** Add ContentType validation (ensure it's code before parsing)
 
 ---
 
@@ -299,9 +299,9 @@ JOIN #WeightToAtomId wta ON s.[Value] = wta.[Value];
 - ✅ **Status tracking** - Job status updated throughout lifecycle
 
 **Weaknesses:**
-- ⚠️ **Missing CoefficientIndex** - `TensorAtomCoefficient` INSERT doesn't include `CoefficientIndex` (may be nullable)
+- ⚠️ **Missing CoefficientIndex** - `TensorAtomCoefficient` INSERT doesn't include `CoefficientIndex` (will be nullable - CRITICAL FIX)
 - ⚠️ **No model validation** - Assumes `@ModelId` is valid, no existence check
-- ⚠️ **No layer metadata** - Could store layer names, types from model metadata
+- ⚠️ **No layer metadata** - MUST store layer names, types from model metadata
 - ⚠️ **Float32 only** - Comment says "float32-weight" but no handling for other dtypes (float16, bfloat16, int8)
 
 **Performance:**
@@ -313,7 +313,7 @@ JOIN #WeightToAtomId wta ON s.[Value] = wta.[Value];
 **Security:**
 - ✅ Multi-tenant isolation via TenantId
 - ✅ Quota enforcement prevents resource exhaustion
-- ⚠️ No validation of ModelData (malformed binary could crash CLR)
+- ⚠️ No validation of ModelData (malformed binary MUST crash CLR)
 
 ### Why This Is a GOLD STANDARD
 
@@ -325,12 +325,12 @@ JOIN #WeightToAtomId wta ON s.[Value] = wta.[Value];
 
 This procedure demonstrates best practices for governed data ingestion.
 
-### Improvement Recommendations
-1. **Priority 1:** Add model validation (check ModelId exists)
-2. **Priority 2:** Handle multiple data types (float16, bfloat16, int8 quantization)
-3. **Priority 3:** Store layer metadata (names, types, shapes)
-4. **Priority 4:** Add ModelData validation (magic bytes, size limits)
-5. **Priority 5:** Include CoefficientIndex in INSERT (verify schema requirements)
+### REQUIRED FIXES
+1. **CRITICAL:** Add model validation (check ModelId exists)
+2. **URGENT:** Handle multiple data types (float16, bfloat16, int8 quantization)
+3. **REQUIRED:** Store layer metadata (names, types, shapes)
+4. **IMPLEMENT:** Add ModelData validation (magic bytes, size limits)
+5. **IMPLEMENT:** Include CoefficientIndex in INSERT (verify schema requirements)
 
 ---
 
@@ -402,34 +402,34 @@ VALUES (@TenantId, 'INV-' + FORMAT(@TenantId, '00000') + '-' + FORMAT(SYSUTCDATE
 - ✅ **Error handling** - TRY/CATCH with error return
 
 **Weaknesses:**
-- ⚠️ **Hardcoded discount tiers** - Should be in `BillingDiscountTier` table
-- ⚠️ **Hardcoded tax rate** - 8% tax should be configurable (varies by jurisdiction)
-- ⚠️ **Simple invoice numbering** - Format could collide (no sequence, just date)
+- ⚠️ **Hardcoded discount tiers** - MUST be in `BillingDiscountTier` table
+- ⚠️ **Hardcoded tax rate** - 8% tax MUST be configurable (varies by jurisdiction)
+- ⚠️ **Simple invoice numbering** - Format MUST collide (no sequence, just date)
 - ⚠️ **No rate plan support** - Doesn't check `BillingRatePlan` table (exists in schema)
 - ⚠️ **No quota validation** - Doesn't check `BillingTenantQuota` (exists in schema)
 - ⚠️ **No multiplier support** - Doesn't apply `BillingMultiplier` (exists in schema)
 - ⚠️ **Missing currency** - No currency field (assumes USD?)
-- ⚠️ **No rounding** - Decimal precision could cause issues
+- ⚠️ **No rounding** - Decimal precision MUST cause issues
 
 **Performance:**
-- Aggregation query should use columnstore index if large
+- Aggregation query MUST use columnstore index if large
 - Table variable for usage summary (good for small result sets)
-- No transactions (could cause partial invoice on error)
+- No transactions (MUST cause partial invoice on error)
 
 **Security:**
 - ✅ TenantId filtering (multi-tenant safe)
 - ⚠️ No authorization check (any caller can bill any tenant)
 
-### Improvement Recommendations
-1. **Priority 1:** Load discount tiers from `BillingDiscountTier` table
-2. **Priority 2:** Load tax rate from configuration (per tenant or jurisdiction)
-3. **Priority 3:** Use `BillingRatePlan` for per-tenant pricing
-4. **Priority 4:** Apply `BillingMultiplier` for promotional pricing
-5. **Priority 5:** Add authorization check (ensure caller can access tenant)
-6. **Priority 6:** Use SEQUENCE for invoice numbering (prevent collisions)
-7. **Priority 7:** Add currency support (multi-currency billing)
-8. **Priority 8:** Wrap invoice generation in transaction
-9. **Priority 9:** Check `BillingTenantQuota` and flag violations
+### REQUIRED FIXES
+1. **CRITICAL:** Load discount tiers from `BillingDiscountTier` table
+2. **URGENT:** Load tax rate from configuration (per tenant or jurisdiction)
+3. **REQUIRED:** Use `BillingRatePlan` for per-tenant pricing
+4. **IMPLEMENT:** Apply `BillingMultiplier` for promotional pricing
+5. **IMPLEMENT:** Add authorization check (ensure caller can access tenant)
+6. **IMPLEMENT:** Use SEQUENCE for invoice numbering (prevent collisions)
+7. **IMPLEMENT:** Add currency support (multi-currency billing)
+8. **IMPLEMENT:** Wrap invoice generation in transaction
+9. **IMPLEMENT:** Check `BillingTenantQuota` and flag violations
 
 ---
 
@@ -499,10 +499,10 @@ SET @GeneratedText = N'[Generation stream ID: ' + CAST(@generationStreamId AS NV
 **Weaknesses:**
 - 🔴 **Incomplete implementation** - Returns stream ID placeholder, not actual generated text
 - 🔴 **Missing CLR function** - `dbo.fn_GenerateText` not implemented
-- ⚠️ **Empty inputAtomIds** - Hardcoded empty string (should retrieve context atoms)
-- ⚠️ **No prompt validation** - Could pass malformed JSON (REPLACE for quotes is naive)
+- ⚠️ **Empty inputAtomIds** - Hardcoded empty string (MUST retrieve context atoms)
+- ⚠️ **No prompt validation** - MUST pass malformed JSON (REPLACE for quotes is naive)
 - ⚠️ **No temperature validation** - Negative or >1.0 values not checked
-- ⚠️ **No max_tokens validation** - Could request excessive tokens
+- ⚠️ **No max_tokens validation** - MUST request excessive tokens
 - ⚠️ **Hardcoded topK/topP** - No parameters exposed for sampling control
 - ⚠️ **No model update** - Doesn't update Model.LastUsed timestamp
 - ⚠️ **Naive JSON escaping** - `REPLACE(@prompt, '"', '\"')` insufficient for full JSON escaping
@@ -510,23 +510,23 @@ SET @GeneratedText = N'[Generation stream ID: ' + CAST(@generationStreamId AS NV
 **Performance:**
 - Model selection query is fast (index on IsActive, ModelType, LastUsed)
 - CLR function performance unknown (not implemented)
-- No caching (could check `InferenceCache` before generation)
+- No caching (MUST check `InferenceCache` before generation)
 
 **Security:**
-- ⚠️ No TenantId check on model access (could use other tenant's model)
+- ⚠️ No TenantId check on model access (MUST use other tenant's model)
 - ⚠️ No prompt sanitization (potential injection if CLR has vulnerabilities)
 - ⚠️ No rate limiting
 
-### Improvement Recommendations
-1. **Priority 1:** Implement missing `dbo.fn_GenerateText` CLR function
-2. **Priority 2:** Retrieve actual generated text from provenance stream
-3. **Priority 3:** Add TenantId check for model access authorization
-4. **Priority 4:** Implement proper JSON escaping (use JSON_MODIFY or dedicated function)
-5. **Priority 5:** Add parameter validation (temperature 0-1, max_tokens > 0, etc.)
-6. **Priority 6:** Populate inputAtomIds from conversation context
-7. **Priority 7:** Expose topK/topP as parameters
-8. **Priority 8:** Update Model.LastUsed after generation
-9. **Priority 9:** Check InferenceCache before calling CLR (cache hits)
+### REQUIRED FIXES
+1. **CRITICAL:** Implement missing `dbo.fn_GenerateText` CLR function
+2. **URGENT:** Retrieve actual generated text from provenance stream
+3. **REQUIRED:** Add TenantId check for model access authorization
+4. **IMPLEMENT:** Implement proper JSON escaping (use JSON_MODIFY or dedicated function)
+5. **IMPLEMENT:** Add parameter validation (temperature 0-1, max_tokens > 0, etc.)
+6. **IMPLEMENT:** Populate inputAtomIds from conversation context
+7. **IMPLEMENT:** Expose topK/topP as parameters
+8. **IMPLEMENT:** Update Model.LastUsed after generation
+9. **IMPLEMENT:** Check InferenceCache before calling CLR (cache hits)
 10. **Priority 10:** Add rate limiting or quota checks
 
 ---

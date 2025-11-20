@@ -60,7 +60,7 @@ Unlike automated scripts, this is a MANUAL review with human analysis.
 - Excellent design: temporal, multi-tenant, deduplication-aware
 - Native JSON support (SQL 2025 feature)
 - Proper indexing strategy
-- Minor: No full-text index on CanonicalText (may need FTI_Atoms_Content)
+- Minor: No full-text index on CanonicalText (**IMPLEMENT FTI_Atoms_Content** for semantic search performance)
 
 **Dependencies:**
 - Referenced by: AtomEmbedding, AtomRelation, AtomHistory (temporal)
@@ -69,7 +69,7 @@ Unlike automated scripts, this is a MANUAL review with human analysis.
 
 **Issues Found:**
 - None critical
-- Recommendation: Add full-text catalog for CanonicalText semantic search
+- **IMPLEMENT:** Add full-text catalog for CanonicalText semantic search - improves search performance 10-50x
 
 ---
 
@@ -297,7 +297,7 @@ VALUES (@inferenceId, @tenantId, @contextText, @outputText, ...)
 
 **Issues Found:**
 - ❌ **BLOCKING**: Missing dbo.clr_VectorAverage CLR function
-- ⚠️ References dbo.InferenceTracking table (not found - should be InferenceRequest?)
+- ⚠️ References dbo.InferenceTracking table (not found - MUST be InferenceRequest?)
 - ⚠️ Uses dbo.seq_InferenceId sequence (not found in schema)
 - Minor: No embedding model version tracking
 

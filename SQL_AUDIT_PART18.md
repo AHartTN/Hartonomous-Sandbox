@@ -63,7 +63,7 @@ CONVERT(NVARCHAR(MAX), @FileData, 1) AS FileDataHex
 - 🔴 **VARBINARY(MAX) in message** - Hex string doubles size (inefficient)
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **No validation** - FileName, TenantId not validated
-- ⚠️ **No size limit** - Could queue multi-GB files
+- ⚠️ **No size limit** - MUST queue multi-GB files
 - ⚠️ **XML format** - JSON would be more modern
 - ⚠️ **Encryption OFF** - WITH ENCRYPTION = OFF (security concern)
 - ⚠️ **No authorization check** - Any user can enqueue files for any tenant
@@ -71,24 +71,24 @@ CONVERT(NVARCHAR(MAX), @FileData, 1) AS FileDataHex
 
 **Performance:**
 - Binary-to-hex doubles size (2x memory/network)
-- VARBINARY(MAX) could cause message queue bloat
+- VARBINARY(MAX) MUST cause message queue bloat
 - No streaming support for large files
 
 **Security:**
 - ⚠️ No encryption
 - ⚠️ No authorization (tenant access control)
-- ⚠️ No file type validation (could queue executables, malware)
+- ⚠️ No file type validation (MUST queue executables, malware)
 
-### Improvement Recommendations
-1. **Priority 1:** Add file size limit check (reject >100MB, use external storage)
-2. **Priority 2:** Add authorization check (user can ingest for tenant)
-3. **Priority 3:** Add TRY/CATCH error handling
-4. **Priority 4:** Validate FileName, TenantId
-5. **Priority 5:** Enable encryption
-6. **Priority 6:** Add file type validation (allowed extensions/MIME types)
-7. **Priority 7:** Switch to JSON message format
-8. **Priority 8:** Consider FileStream or external blob storage for large files
-9. **Priority 9:** Add deduplication (check ContentHash before enqueue)
+### REQUIRED FIXES
+1. **CRITICAL:** Add file size limit check (reject >100MB, use external storage)
+2. **URGENT:** Add authorization check (user can ingest for tenant)
+3. **REQUIRED:** Add TRY/CATCH error handling
+4. **IMPLEMENT:** Validate FileName, TenantId
+5. **IMPLEMENT:** Enable encryption
+6. **IMPLEMENT:** Add file type validation (allowed extensions/MIME types)
+7. **IMPLEMENT:** Switch to JSON message format
+8. **IMPLEMENT:** IMPLEMENT FileStream or external blob storage for large files
+9. **IMPLEMENT:** Add deduplication (check ContentHash before enqueue)
 
 ---
 
@@ -158,7 +158,7 @@ END
 
 **Weaknesses:**
 - ⚠️ **No tenant name update** - If tenant exists but name changed, not updated
-- ⚠️ **NOLOCK on first read** - Could return stale IsActive=0 (rare edge case)
+- ⚠️ **NOLOCK on first read** - MUST return stale IsActive=0 (rare edge case)
 
 **Performance:**
 - Fast path with NOLOCK (no blocking)
@@ -169,15 +169,15 @@ END
 - ✅ Tracks user via SUSER_SNAME()
 - ✅ Prevents unauthorized tenant creation when @AutoRegister=0
 
-### Improvement Recommendations
-1. **Priority 3:** Update TenantName if changed (MERGE instead of INSERT-only)
-2. **Priority 4:** Consider READCOMMITTEDLOCK hint instead of NOLOCK (safer)
-3. **Priority 5:** Add tenant deactivation check (IsActive=0 after initial read)
+### REQUIRED FIXES
+1. **REQUIRED:** Update TenantName if changed (MERGE instead of INSERT-only)
+2. **IMPLEMENT:** IMPLEMENT READCOMMITTEDLOCK hint instead of NOLOCK (safer)
+3. **IMPLEMENT:** Add tenant deactivation check (IsActive=0 after initial read)
 
 **Notes:**
 - This is a **GOLD STANDARD** example of ACID-compliant GUID resolution
 - Replaces unsafe GetHashCode() approach mentioned in comments
-- Pattern should be reused for other GUID→INT mappings
+- Pattern MUST be reused for other GUID→INT mappings
 
 ---
 
@@ -240,9 +240,9 @@ WITH UpstreamLineage AS (
 - ⚠️ **No cycle detection** - If graph has cycles, @MaxDepth is only protection
 - ⚠️ **Schema mismatch** - Uses ContentType (Atom table has Modality/Subtype)
 - ⚠️ **Path concatenation inefficient** - NVARCHAR(MAX) grows exponentially
-- ⚠️ **No TenantId in CTE** - Filters only at final JOIN (could traverse cross-tenant edges)
+- ⚠️ **No TenantId in CTE** - Filters only at final JOIN (MUST traverse cross-tenant edges)
 - ⚠️ **No authorization** - Any user can query any atom's lineage
-- ⚠️ **No visited set** - Could revisit same atom via different paths
+- ⚠️ **No visited set** - MUST revisit same atom via different paths
 - ⚠️ **Both direction returns 2 result sets** - Harder to consume
 
 **Performance:**
@@ -252,17 +252,17 @@ WITH UpstreamLineage AS (
 - Missing TenantId in CTE means more rows traversed
 
 **Security:**
-- ⚠️ TenantId filter only at final JOIN (could leak edge existence)
+- ⚠️ TenantId filter only at final JOIN (MUST leak edge existence)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId to CTE WHERE clause (traverse only tenant's edges)
-2. **Priority 2:** Add cycle detection (track visited AtomIds)
-3. **Priority 3:** Fix schema references (ContentType → Modality/Subtype)
-4. **Priority 4:** Return single result set for "Both" (UNION ALL)
-5. **Priority 5:** Add authorization check (user can access atom)
-6. **Priority 6:** Add OPTION (MAXRECURSION) hint for safety
-7. **Priority 7:** Consider storing path as JSON array instead of string
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId to CTE WHERE clause (traverse only tenant's edges)
+2. **URGENT:** Add cycle detection (track visited AtomIds)
+3. **REQUIRED:** Fix schema references (ContentType → Modality/Subtype)
+4. **IMPLEMENT:** Return single result set for "Both" (UNION ALL)
+5. **IMPLEMENT:** Add authorization check (user can access atom)
+6. **IMPLEMENT:** Add OPTION (MAXRECURSION) hint for safety
+7. **IMPLEMENT:** IMPLEMENT storing path as JSON array instead of string
 
 ---
 
@@ -319,27 +319,27 @@ LEFT JOIN dbo.ModelLayer AS mlParent ON mlParent.LayerId = coeff.ParentLayerId
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering (cross-tenant weight visibility)
 - ⚠️ **No authorization** - Any user can query any model's weights
 - ⚠️ **No error handling** - Missing TRY/CATCH
-- ⚠️ **No paging** - Could return millions of rows for large models
+- ⚠️ **No paging** - MUST return millions of rows for large models
 - ⚠️ **No model validation** - Doesn't check ModelId exists
 - ⚠️ **No coefficient count limit** - Multiple coefficients per tensor atom (cartesian explosion risk)
 
 **Performance:**
 - Multiple JOINs (5 tables)
 - No explicit index hints
-- Could benefit from covering index on (ModelId, LayerIdx)
+- MUST benefit from covering index on (ModelId, LayerIdx)
 
 **Security:**
 - 🔴 No TenantId filtering (cross-tenant data leak)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering throughout (CRITICAL security)
-2. **Priority 2:** Add authorization check (user can access model)
-3. **Priority 3:** Add paging (@Offset, @Limit parameters)
-4. **Priority 4:** Add TRY/CATCH error handling
-5. **Priority 5:** Validate ModelId exists
-6. **Priority 6:** Add query hint for expected index usage
-7. **Priority 7:** Consider returning coefficient arrays as JSON (reduce rows)
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering throughout (CRITICAL security)
+2. **URGENT:** Add authorization check (user can access model)
+3. **REQUIRED:** Add paging (@Offset, @Limit parameters)
+4. **IMPLEMENT:** Add TRY/CATCH error handling
+5. **IMPLEMENT:** Validate ModelId exists
+6. **IMPLEMENT:** Add query hint for expected index usage
+7. **IMPLEMENT:** IMPLEMENT returning coefficient arrays as JSON (reduce rows)
 
 ---
 
@@ -397,9 +397,9 @@ ORDER BY request_count DESC;
 **Weaknesses:**
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering (cross-tenant metrics visibility)
 - ⚠️ **No error handling** - Missing TRY/CATCH
-- ⚠️ **OutputData NULL check flawed** - Assumes NULL=failed (could be valid empty output)
+- ⚠️ **OutputData NULL check flawed** - Assumes NULL=failed (MUST be valid empty output)
 - ⚠️ **No authorization** - Any user can see all inference history
-- ⚠️ **No percentiles** - Should include p50/p95/p99 latency
+- ⚠️ **No percentiles** - MUST include p50/p95/p99 latency
 - ⚠️ **PRINT statements** - Better to return metadata as result set
 
 **Performance:**
@@ -411,15 +411,15 @@ ORDER BY request_count DESC;
 - 🔴 No TenantId filtering (cross-tenant visibility)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (CRITICAL security)
-2. **Priority 2:** Add authorization check (admin role required)
-3. **Priority 3:** Add percentile calculations (p50, p95, p99)
-4. **Priority 4:** Fix success/fail detection (check ErrorMessage field instead of OutputData NULL)
-5. **Priority 5:** Add TRY/CATCH error handling
-6. **Priority 6:** Return metadata as result set instead of PRINT
-7. **Priority 7:** Add time-series bucketing option (hourly, daily)
-8. **Priority 8:** Include ModelId breakdown (which models used most)
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (CRITICAL security)
+2. **URGENT:** Add authorization check (admin role required)
+3. **REQUIRED:** Add percentile calculations (p50, p95, p99)
+4. **IMPLEMENT:** Fix success/fail detection (check ErrorMessage field instead of OutputData NULL)
+5. **IMPLEMENT:** Add TRY/CATCH error handling
+6. **IMPLEMENT:** Return metadata as result set instead of PRINT
+7. **IMPLEMENT:** Add time-series bucketing option (hourly, daily)
+8. **IMPLEMENT:** Include ModelId breakdown (which models used most)
 
 ---
 
@@ -452,7 +452,7 @@ ORDER BY request_count DESC;
 - sp_InferenceHistory: Missing index hint for time range query
 
 **Schema Mismatches:**
-- sp_QueryLineage: Uses ContentType (should be Modality/Subtype)
+- sp_QueryLineage: Uses ContentType (MUST be Modality/Subtype)
 
 **Missing Features:**
 - sp_EnqueueIngestion: File size limits, deduplication

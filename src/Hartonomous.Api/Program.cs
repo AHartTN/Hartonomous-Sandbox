@@ -240,9 +240,8 @@ if (!string.IsNullOrEmpty(appInsightsConnection))
 // Register DbContext and business services (Scoped lifetime)
 builder.Services.AddBusinessServices();
 
-// Register mock services for marketing/demo environment
-// TODO: Switch to AddHartonomousInfrastructure() for production
-builder.Services.AddHartonomousMockServices();
+// Register production infrastructure services (DbContext, Neo4j, Health Checks)
+builder.Services.AddHartonomousInfrastructure();
 
 // Register data ingestion services (atomizers, file detection, bulk insert)
 builder.Services.AddIngestionServices();

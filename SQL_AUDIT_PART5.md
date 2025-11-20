@@ -75,12 +75,12 @@
    - **BLOCKING** - INSERT will fail
 3. **CALLS sp_FindNearestAtoms AS FUNCTION** (line 140-148)
    - But sp_FindNearestAtoms is PROCEDURE, not function
-   - Should be: `INSERT INTO @candidates EXEC sp_FindNearestAtoms @queryVector=..., @topK=...`
+   - MUST be: `INSERT INTO @candidates EXEC sp_FindNearestAtoms @queryVector=..., @topK=...`
    - **BLOCKING** - this syntax won't work
 4. **NO CACHING:** Doesn't check InferenceCache before expensive computation
-5. **RANDOM SEED:** NEWID() is non-reproducible - should support @seed parameter
+5. **RANDOM SEED:** NEWID() is non-reproducible - MUST support @seed parameter
 6. **SOFTMAX OVERFLOW:** EXP(Score / @temperature) can overflow for large scores
-   - Should use log-sum-exp trick for numerical stability
+   - MUST use log-sum-exp trick for numerical stability
 7. **GRANT EXECUTE TO PUBLIC** (line 328) - security risk
 
 **Dependencies:**
@@ -105,7 +105,7 @@
 - This is the **CORE INFERENCE ENGINE** - most critical procedure
 - Implements **autoregressive generation** like GPT (next-token prediction)
 - **Temperature sampling:** 0.0 = greedy, 1.0 = sampling, 2.0 = very random
-- **Nucleus sampling (top-p):** Modern alternative to top-k sampling
+- **Nucleus sampling (top-p):** Modern required implementation to top-k sampling
 - **Spatial similarity instead of model weights:** Uses R-Tree for candidate selection
 - **Schema mismatch will cause INSERT failure** - critical bug
 - **sp_FindNearestAtoms syntax error** - can't call procedure as table-valued function
@@ -160,12 +160,12 @@
 
 **Issues:**
 1. **MISSING TABLE:** `dbo.ModelMetadata` - referenced lines 65, 78, 86
-2. **COMPLEX LOGIC:** 115 lines for model selection - should be simpler
+2. **COMPLEX LOGIC:** 115 lines for model selection - MUST be simpler
 3. **NO VALIDATION:** Doesn't verify SupportedTasks/SupportedModalities JSON schema
-4. **INEFFICIENT:** Multiple OPENJSON calls in WHERE clause - should use CROSS APPLY
-5. **NO DEFAULT MODEL:** If no models match, returns empty - should have fallback
+4. **INEFFICIENT:** Multiple OPENJSON calls in WHERE clause - MUST use CROSS APPLY
+5. **NO DEFAULT MODEL:** If no models match, returns empty - MUST have fallback
 6. **WEIGHT OVERRIDE EDGE CASE:** If weight = 0 in JSON, keeps old weight (line 100)
-   - Should allow weight = 0 to exclude model
+   - MUST allow weight = 0 to exclude model
 
 **Dependencies:**
 - **DEPENDS ON (MISSING):**
@@ -182,8 +182,8 @@
 **Notes:**
 - This enables **ensemble learning** - multiple models vote/average
 - **Weight normalization critical** for ensemble methods
-- ModelMetadata.SupportedTasks should be JSON array: `["classification", "generation"]`
-- Model.Config.weights should be nested JSON: `{"weights": {"classification": 0.8, "generation": 0.6}}`
+- ModelMetadata.SupportedTasks MUST be JSON array: `["classification", "generation"]`
+- Model.Config.weights MUST be nested JSON: `{"weights": {"classification": 0.8, "generation": 0.6}}`
 - This supports **task routing** - different models for different tasks
 
 ---
@@ -218,9 +218,9 @@
 
 **Issues:**
 1. **LINEAR COMPLEXITY SCALING:** `complexity / 100` is too simple
-   - Should be logarithmic or power-law
+   - MUST be logarithmic or power-law
    - Real inference is O(n²) for transformers (attention)
-2. **HARDCODED CONSTANTS:** 50ms, 500ms, etc. should be configurable
+2. **HARDCODED CONSTANTS:** 50ms, 500ms, etc. MUST be configurable
 3. **NO MODEL TYPE CONSIDERATION:** transformer vs CNN very different
 4. **DIVISION BY 100:** Arbitrary scaling factor, not justified
 5. **NO BATCH SIZE:** Single request vs batch have different latency
@@ -238,7 +238,7 @@
 - This is for **SLA prediction** - estimate before execution
 - Used with fn_CalculateComplexity to predict latency
 - Too simplistic for production - needs ML-based predictor
-- Should learn from InferenceRequest.TotalDurationMs actual times
+- MUST learn from InferenceRequest.TotalDurationMs actual times
 
 ---
 
@@ -272,11 +272,11 @@
 
 **Issues:**
 1. **WRONG COMPLEXITY:** Transformer is O(n²), but uses 10x linear multiplier
-   - Should be: `@inputSize * @inputSize / 1000` or similar
+   - MUST be: `@inputSize * @inputSize / 1000` or similar
 2. **NO PARAMETER COUNT:** Model size (billions of parameters) ignored
 3. **NO BATCH SIZE:** Batch processing changes complexity
 4. **NO PRECISION:** FP32 vs INT8 quantization very different
-5. **HARDCODED MULTIPLIERS:** Should be in ModelType table
+5. **HARDCODED MULTIPLIERS:** MUST be in ModelType table
 6. **STRING MATCHING:** LIKE '%transformer%' is fragile
 
 **Dependencies:**
@@ -290,8 +290,8 @@
 **Notes:**
 - This is for **complexity estimation** before execution
 - Used with fn_EstimateResponseTime for SLA prediction
-- **Wrong formula for transformers** - should be quadratic
-- Should learn from actual compute times in InferenceRequest
+- **Wrong formula for transformers** - MUST be quadratic
+- MUST learn from actual compute times in InferenceRequest
 
 ---
 
@@ -319,11 +319,11 @@
 
 **Issues:**
 1. **SUBQUERY IN SELECT:** COUNT_BIG subquery executes per row
-   - Should be LEFT JOIN with GROUP BY for performance
+   - MUST be LEFT JOIN with GROUP BY for performance
    - Can't create indexed view with correlated subquery
-2. **COMMENTED OUT INDEX:** Should create the clustered index for materialization
+2. **COMMENTED OUT INDEX:** MUST create the clustered index for materialization
 3. **NO FILTERING:** Returns all models (including inactive)
-4. **NO SORTING:** Should have ORDER BY for consistent results
+4. **NO SORTING:** MUST have ORDER BY for consistent results
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -337,8 +337,8 @@
 **Notes:**
 - This is **model listing API** - used by UI/API
 - **Subquery prevents indexed view** - can't materialize with correlated subquery
-- Should rewrite as: `LEFT JOIN ModelLayer ... GROUP BY` for indexed view
-- Comment acknowledges indexed view is optional but doesn't explain why
+- MUST rewrite as: `LEFT JOIN ModelLayer ... GROUP BY` for indexed view
+- **FIX MISLEADING COMMENT:** Indexed view is NOT optional - required for query performance at scale
 
 ---
 
@@ -381,20 +381,20 @@
 - **Framework tracking** - enables framework-specific search
 
 **Issues:**
-1. **TEXT DATA TYPE:** Deprecated in SQL Server, should use NVARCHAR(MAX)
+1. **TEXT DATA TYPE:** Deprecated in SQL Server, MUST use NVARCHAR(MAX)
 2. **NO INDEXES** beyond PK - critical performance issue
-   - Should have: IX_CodeAtom_Language
-   - Should have: IX_CodeAtom_CodeHash (for deduplication)
-   - Should have: IX_CodeAtom_Framework
-   - Should have: IX_CodeAtom_CodeType
-   - Should have: SPATIAL INDEX on Embedding
+   - MUST have: IX_CodeAtom_Language
+   - MUST have: IX_CodeAtom_CodeHash (for deduplication)
+   - MUST have: IX_CodeAtom_Framework
+   - MUST have: IX_CodeAtom_CodeType
+   - MUST have: SPATIAL INDEX on Embedding
 3. **NO UNIQUE CONSTRAINT** on CodeHash - allows duplicate code
-4. **NO FOREIGN KEY** on Language, Framework (should normalize)
+4. **NO FOREIGN KEY** on Language, Framework (MUST normalize)
 5. **NO FULL-TEXT INDEX** on Code, Description (for text search)
 6. **EMBEDDING DIMENSION COLUMN:** Redundant - GEOMETRY doesn't have dimension
    - Seems confused with VECTOR type
 7. **NO TENANT ID:** Missing multi-tenancy support
-8. **USAGE COUNT DEFAULT 0:** Should be tracked via trigger or computed
+8. **USAGE COUNT DEFAULT 0:** MUST be tracked via trigger or computed
 
 **Dependencies:**
 - **USED BY:**
@@ -450,16 +450,16 @@
 
 **Issues:**
 1. **NO INDEXES** beyond PK - critical performance issue
-   - Should have: UNIQUE INDEX on (CacheKey, ModelId)
-   - Should have: IX_InferenceCache_InputHash (for lookup)
-   - Should have: IX_InferenceCache_LastAccessedUtc (for LRU eviction)
-   - Should have: IX_InferenceCache_ModelId (for model-specific queries)
-2. **VARBINARY(MAX) for InputHash:** Should be VARBINARY(32) for SHA256
+   - MUST have: UNIQUE INDEX on (CacheKey, ModelId)
+   - MUST have: IX_InferenceCache_InputHash (for lookup)
+   - MUST have: IX_InferenceCache_LastAccessedUtc (for LRU eviction)
+   - MUST have: IX_InferenceCache_ModelId (for model-specific queries)
+2. **VARBINARY(MAX) for InputHash:** MUST be VARBINARY(32) for SHA256
 3. **NO CACHE EVICTION LOGIC:** No stored procedure for LRU cleanup
 4. **NO SIZE LIMIT:** No constraint on total cache size
 5. **NO TTL:** No expiration time - stale results never removed
-6. **NO HIT/MISS TRACKING:** Should have CacheHit counter
-7. **NO COMPRESSION:** VARBINARY(MAX) should use COMPRESS()
+6. **NO HIT/MISS TRACKING:** MUST have CacheHit counter
+7. **NO COMPRESSION:** VARBINARY(MAX) MUST use COMPRESS()
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -476,7 +476,7 @@
 - **KV cache support** - IntermediateStates stores transformer KV cache
 - sp_Act references this for cache warming (Part 4 analysis)
 - **Severely under-indexed** - cache lookup will be slow
-- Should implement: cache hit tracking, LRU eviction, TTL expiration
+- MUST implement: cache hit tracking, LRU eviction, TTL expiration
 - This is critical for **performance optimization**
 
 ---
@@ -540,7 +540,7 @@ CREATE CONTRACT [//Hartonomous/AutonomousLoop/LearnContract] (
 
 **Issues:**
 1. **NO RESPONSE MESSAGE:** One-way only, Learn can't send back to Act
-   - Should support bidirectional for error handling
+   - MUST support bidirectional for error handling
 2. **NO TARGET validation:** Any service can receive
 
 **Dependencies:**
@@ -555,7 +555,7 @@ CREATE CONTRACT [//Hartonomous/AutonomousLoop/LearnContract] (
 **Notes:**
 - This is **OODA loop contract** - defines Act → Learn communication
 - One-way messaging - Learn phase is terminal (no response expected)
-- Should verify sp_Learn exists to process these messages
+- MUST verify sp_Learn exists to process these messages
 
 ---
 
@@ -577,8 +577,8 @@ CREATE QUEUE LearnQueue WITH STATUS = ON;
 - **Simple, correct definition**
 
 **Issues:**
-1. **NO ACTIVATION:** Should have PROCEDURE_NAME for automatic processing
-   - Should be: `WITH STATUS = ON, ACTIVATION (PROCEDURE_NAME = sp_Learn, MAX_QUEUE_READERS = 1, EXECUTE AS OWNER)`
+1. **NO ACTIVATION:** MUST have PROCEDURE_NAME for automatic processing
+   - MUST be: `WITH STATUS = ON, ACTIVATION (PROCEDURE_NAME = sp_Learn, MAX_QUEUE_READERS = 1, EXECUTE AS OWNER)`
 2. **NO RETENTION:** Default retention settings (messages deleted after processing)
 3. **NO MAX_QUEUE_READERS:** Single-threaded processing
 4. **NO POISON MESSAGE HANDLING:** Failed messages will retry forever
@@ -590,13 +590,13 @@ CREATE QUEUE LearnQueue WITH STATUS = ON;
 - **DEPENDS ON:** None
 
 **Missing Objects Referenced:**
-- sp_Learn procedure (should be activation procedure)
+- sp_Learn procedure (MUST be activation procedure)
 
 **Notes:**
 - This is **OODA loop queue** - receives messages from sp_Act
 - **No activation procedure** - messages sit in queue unprocessed
 - sp_Learn still missing - this is Phase 4 of OODA loop
-- Should implement: activation, poison message handling, max readers
+- MUST implement: activation, poison message handling, max readers
 
 ---
 
@@ -622,14 +622,14 @@ CREATE NONCLUSTERED INDEX [IX_AtomEmbeddingSpatialMetadata_BucketXYZ]
 
 **Issues:**
 1. **TABLE NAME MISMATCH:** Index on `AtomEmbeddingSpatialMetadatum` (singular)
-   - But likely should be `AtomEmbedding` (analyzed in Part 1)
+   - But likely MUST be `AtomEmbedding` (analyzed in Part 1)
    - Suggests separate spatial metadata table exists
-2. **NO INCLUDE COLUMNS:** Could add INCLUDE (AtomId, HilbertValue) for covering
+2. **NO INCLUDE COLUMNS:** MUST add INCLUDE (AtomId, HilbertValue) for covering
 3. **NOT UNIQUE:** Allows duplicate buckets
 
 **Dependencies:**
 - **DEPENDS ON:**
-  - TABLE: dbo.AtomEmbeddingSpatialMetadatum (not yet analyzed - may not exist)
+  - TABLE: dbo.AtomEmbeddingSpatialMetadatum (not yet analyzed - will not exist)
 - **USED BY:**
   - Spatial bucket queries
   - sp_FindNearestAtoms (bucket-based filtering)
@@ -666,8 +666,8 @@ INCLUDE (EmbeddingType, Dimension, SpatialKey);
 - **Includes SpatialKey** - enables spatial queries without table lookup
 
 **Issues:**
-1. **NO UNIQUENESS:** Should be UNIQUE if one embedding per (AtomId, ModelId)
-2. **INCLUDE column order:** Could optimize by usage frequency
+1. **NO UNIQUENESS:** MUST be UNIQUE if one embedding per (AtomId, ModelId)
+2. **INCLUDE column order:** MUST optimize by usage frequency
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -725,9 +725,9 @@ INCLUDE (EmbeddingType, Dimension, SpatialKey);
 - **Proper grid configuration** - 4-level grids for depth
 
 **Issues:**
-1. **HARDCODED GRID LEVELS:** Should be configurable per use case
-2. **NO BOUNDING BOX:** Some indexes could benefit from BOUNDING_BOX specification
-3. **CELLS_PER_OBJECT = 16:** Default - may need tuning for large objects
+1. **HARDCODED GRID LEVELS:** MUST be configurable per use case
+2. **NO BOUNDING BOX:** Some indexes MUST benefit from BOUNDING_BOX specification
+3. **CELLS_PER_OBJECT = 16:** Default - will need tuning for large objects
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -779,7 +779,7 @@ INCLUDE (EmbeddingType, Dimension, SpatialKey);
 
 1. **sp_RunInference BLOCKING BUGS:**
    - **Schema mismatch:** InferenceRequest table missing Temperature, TopK, TopP, MaxTokens columns (lines 273-275)
-   - **Syntax error:** Calls sp_FindNearestAtoms as function (line 140-148) - should be `EXEC` not table-valued
+   - **Syntax error:** Calls sp_FindNearestAtoms as function (line 140-148) - MUST be `EXEC` not table-valued
    - **BOTH BUGS WILL CAUSE PROCEDURE FAILURE**
 
 2. **sp_Converse BLOCKING BUG (from Part 4):**
@@ -824,7 +824,7 @@ INCLUDE (EmbeddingType, Dimension, SpatialKey);
 9. AtomProvenance
 10. dbo.StreamFusionResults
 11. **dbo.ModelMetadata** ⚠️ NEW (fn_SelectModelsForTask)
-12. **dbo.AtomEmbeddingSpatialMetadatum** ⚠️ NEW (index target - may be typo)
+12. **dbo.AtomEmbeddingSpatialMetadatum** ⚠️ NEW (index target - will be typo)
 
 **Procedures (3):**
 1. **sp_Learn** (OODA loop Phase 4 - CRITICAL MISSING)

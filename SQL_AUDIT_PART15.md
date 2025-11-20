@@ -72,13 +72,13 @@ Vector search with semantic filtering (topic, sentiment, temporal relevance). Co
 - ✅ Multi-tenant safe with TenantId filtering
 - ✅ Shared atoms via TenantAtoms
 
-### Improvement Recommendations
-1. **Priority 1:** Use CTE to compute VECTOR_DISTANCE once
-2. **Priority 2:** Replace TenantAtoms EXISTS with JOIN
-3. **Priority 3:** Add query hint for vector index
-4. **Priority 4:** Validate vector dimension matches @query_vector
-5. **Priority 5:** Remove PRINT statements or make conditional (@Debug parameter)
-6. **Priority 6:** Add index on SemanticFeatures topic columns
+### REQUIRED FIXES
+1. **CRITICAL:** Use CTE to compute VECTOR_DISTANCE once
+2. **URGENT:** Replace TenantAtoms EXISTS with JOIN
+3. **REQUIRED:** Add query hint for vector index
+4. **IMPLEMENT:** Validate vector dimension matches @query_vector
+5. **IMPLEMENT:** Remove PRINT statements or make conditional (@Debug parameter)
+6. **IMPLEMENT:** Add index on SemanticFeatures topic columns
 
 ---
 
@@ -134,7 +134,7 @@ VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS distance
 - ⚠️ **TenantAtoms EXISTS** - Per-row subquery (performance issue)
 - ⚠️ **No metric validation** - Accepts invalid metric strings
 - ⚠️ **SpatialKey.STDimension()** - Returns spatial dimension (not vector dimension)
-- ⚠️ **No vector dimension check** - Could mismatch query vector
+- ⚠️ **No vector dimension check** - MUST mismatch query vector
 
 **Performance:**
 - VECTOR_DISTANCE computed 3 times per row (very inefficient)
@@ -144,13 +144,13 @@ VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector) AS distance
 **Security:**
 - ✅ Multi-tenant safe
 
-### Improvement Recommendations
-1. **Priority 1:** Use CTE to compute VECTOR_DISTANCE once
-2. **Priority 2:** Replace TenantAtoms EXISTS with JOIN
-3. **Priority 3:** Validate distance_metric against allowed values
-4. **Priority 4:** Fix dimension return (use ae.Dimension, not SpatialKey.STDimension())
-5. **Priority 5:** Add vector dimension validation
-6. **Priority 6:** Add query hint for vector index
+### REQUIRED FIXES
+1. **CRITICAL:** Use CTE to compute VECTOR_DISTANCE once
+2. **URGENT:** Replace TenantAtoms EXISTS with JOIN
+3. **REQUIRED:** Validate distance_metric against allowed values
+4. **IMPLEMENT:** Fix dimension return (use ae.Dimension, not SpatialKey.STDimension())
+5. **IMPLEMENT:** Add vector dimension validation
+6. **IMPLEMENT:** Add query hint for vector index
 
 ---
 
@@ -206,24 +206,24 @@ INNER JOIN dbo.Atom FOR SYSTEM_TIME FROM @StartTime TO @EndTime a
 **Weaknesses:**
 - ⚠️ **Double VECTOR_DISTANCE** - Computed in SELECT and ORDER BY
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering (security issue)
-- ⚠️ **TemporalDistanceHours after CreatedAt filter** - Should filter on temporal distance directly
+- ⚠️ **TemporalDistanceHours after CreatedAt filter** - MUST filter on temporal distance directly
 - ⚠️ **BETWEEN redundant** - ae.CreatedAt BETWEEN ... already filtered by temporal query
 - ⚠️ **JSON output only** - No option for tabular results
 
 **Performance:**
 - VECTOR_DISTANCE computed twice per row
-- Temporal table query may be slow without proper indexes
+- Temporal table query will be slow without proper indexes
 - BETWEEN filter redundant (temporal query already filters)
 
 **Security:**
 - 🔴 **Missing TenantId** - Cross-tenant temporal data leak
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (CRITICAL security issue)
-2. **Priority 2:** Use CTE to compute VECTOR_DISTANCE once
-3. **Priority 3:** Remove redundant ae.CreatedAt BETWEEN filter
-4. **Priority 4:** Add @OutputFormat parameter (JSON/Tabular)
-5. **Priority 5:** Consider filtering by TemporalDistanceHours instead of raw dates
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (CRITICAL security issue)
+2. **URGENT:** Use CTE to compute VECTOR_DISTANCE once
+3. **REQUIRED:** Remove redundant ae.CreatedAt BETWEEN filter
+4. **IMPLEMENT:** Add @OutputFormat parameter (JSON/Tabular)
+5. **IMPLEMENT:** IMPLEMENT filtering by TemporalDistanceHours instead of raw dates
 
 ---
 
@@ -291,7 +291,7 @@ ORDER BY NEWID();
 - ⚠️ **Inconsistent columns** - Different SELECT columns in two paths
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **PRINT statements** - Debug output in production
-- ⚠️ **LEFT JOIN AtomEmbedding** - Could return atoms without embeddings
+- ⚠️ **LEFT JOIN AtomEmbedding** - MUST return atoms without embeddings
 
 **Performance:**
 - LIKE on CONVERT(AtomicValue) is full table scan
@@ -301,15 +301,15 @@ ORDER BY NEWID();
 **Security:**
 - 🔴 Missing TenantId filtering (cross-tenant leak)
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (CRITICAL)
-2. **Priority 2:** Remove ORDER BY NEWID() fallback (use meaningful default)
-3. **Priority 3:** Fix schema references (SourceType/SourceUri)
-4. **Priority 4:** Use CanonicalText for text search instead of AtomicValue
-5. **Priority 5:** Align SELECT columns between two paths
-6. **Priority 6:** Add error handling
-7. **Priority 7:** Remove PRINT statements
-8. **Priority 8:** Consider INNER JOIN AtomEmbedding (require embeddings)
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (CRITICAL)
+2. **URGENT:** Remove ORDER BY NEWID() fallback (use meaningful default)
+3. **REQUIRED:** Fix schema references (SourceType/SourceUri)
+4. **IMPLEMENT:** Use CanonicalText for text search instead of AtomicValue
+5. **IMPLEMENT:** Align SELECT columns between two paths
+6. **IMPLEMENT:** Add error handling
+7. **IMPLEMENT:** Remove PRINT statements
+8. **IMPLEMENT:** IMPLEMENT INNER JOIN AtomEmbedding (require embeddings)
 
 ---
 
@@ -385,7 +385,7 @@ FROM @InputFeatures FOR JSON PATH;
 - ⚠️ **No input validation** - Missing @InputAtomIds NULL check
 - ⚠️ **No model validation** - Doesn't check Model.IsActive
 - ⚠️ **Missing features handling** - No error if atoms have no embeddings
-- ⚠️ **Mock data misleading** - Returns fake 0.95 score (should error or return NULL)
+- ⚠️ **Mock data misleading** - Returns fake 0.95 score (MUST error or return NULL)
 
 **Performance:**
 - STRING_SPLIT is efficient
@@ -396,15 +396,15 @@ FROM @InputFeatures FOR JSON PATH;
 - ✅ Multi-tenant safe (filters by TenantId on both tables)
 - ⚠️ No authorization check (any user can score with any model)
 
-### Improvement Recommendations
-1. **Priority 1:** Implement actual PREDICT integration (ML Services or ONNX)
-2. **Priority 2:** Fix SerializedModel column reference (check actual schema)
-3. **Priority 3:** Use OutputFormat parameter or remove it
-4. **Priority 4:** Add input validation (NULL checks, empty string)
-5. **Priority 5:** Validate Model.IsActive
-6. **Priority 6:** Handle missing embeddings (error or skip)
-7. **Priority 7:** Add authorization check (model access control)
-8. **Priority 8:** Return NULL or error instead of mock data
+### REQUIRED FIXES
+1. **CRITICAL:** Implement actual PREDICT integration (ML Services or ONNX)
+2. **URGENT:** Fix SerializedModel column reference (check actual schema)
+3. **REQUIRED:** Use OutputFormat parameter or remove it
+4. **IMPLEMENT:** Add input validation (NULL checks, empty string)
+5. **IMPLEMENT:** Validate Model.IsActive
+6. **IMPLEMENT:** Handle missing embeddings (error or skip)
+7. **IMPLEMENT:** Add authorization check (model access control)
+8. **IMPLEMENT:** Return NULL or error instead of mock data
 
 ---
 

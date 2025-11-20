@@ -1,3 +1,6 @@
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.MLOps;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hartonomous.Api.Controllers;
@@ -6,11 +9,17 @@ namespace Hartonomous.Api.Controllers;
 /// Machine Learning Operations controller - showcases future MLOps capabilities.
 /// These endpoints are placeholders for functionality coming with CLR/SQL refactor.
 /// </summary>
-public class MLOpsController : ApiControllerBase
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/mlops")]
+[Authorize(Policy = "Admin")]
+public class MLOpsController : ControllerBase
 {
+    private readonly ILogger<MLOpsController> _logger;
+
     public MLOpsController(ILogger<MLOpsController> logger)
-        : base(logger)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -21,7 +30,7 @@ public class MLOpsController : ApiControllerBase
     [ProducesResponseType(typeof(ModelVersionsResponse), StatusCodes.Status200OK)]
     public IActionResult GetModelVersions()
     {
-        Logger.LogInformation("MLOps: Getting model versions (DEMO MODE)");
+        _logger.LogInformation("MLOps: Getting model versions (DEMO MODE)");
 
         var response = new ModelVersionsResponse
         {
@@ -80,7 +89,7 @@ public class MLOpsController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -91,7 +100,7 @@ public class MLOpsController : ApiControllerBase
     [ProducesResponseType(typeof(ExperimentsResponse), StatusCodes.Status200OK)]
     public IActionResult GetExperiments()
     {
-        Logger.LogInformation("MLOps: Getting experiments (DEMO MODE)");
+        _logger.LogInformation("MLOps: Getting experiments (DEMO MODE)");
 
         var response = new ExperimentsResponse
         {
@@ -145,7 +154,7 @@ public class MLOpsController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -156,7 +165,7 @@ public class MLOpsController : ApiControllerBase
     [ProducesResponseType(typeof(MetricsResponse), StatusCodes.Status200OK)]
     public IActionResult GetMetrics([FromQuery] string? timeWindow = "1h")
     {
-        Logger.LogInformation("MLOps: Getting metrics for window {TimeWindow} (DEMO MODE)", timeWindow);
+        _logger.LogInformation("MLOps: Getting metrics for window {TimeWindow} (DEMO MODE)", timeWindow);
 
         var response = new MetricsResponse
         {
@@ -207,7 +216,7 @@ public class MLOpsController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -219,11 +228,11 @@ public class MLOpsController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult DeployModel([FromBody] DeploymentRequest request)
     {
-        Logger.LogInformation("MLOps: Deploying model {ModelId} to {Environment} (DEMO MODE)", 
+        _logger.LogInformation("MLOps: Deploying model {ModelId} to {Environment} (DEMO MODE)", 
             request.ModelId, request.TargetEnvironment);
 
         if (string.IsNullOrWhiteSpace(request.ModelId))
-            return ErrorResult("ModelId is required", 400);
+            return BadRequest("ModelId is required");
 
         var response = new DeploymentResponse
         {
@@ -276,143 +285,6 @@ public class MLOpsController : ApiControllerBase
             Message = "Deployment simulation complete. In production, this would deploy CLR assemblies to SQL Server."
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 }
-
-#region Response Models
-
-public class ModelVersionsResponse
-{
-    public List<ModelVersion> Models { get; set; } = new();
-    public ModelStatistics Statistics { get; set; } = new();
-    public bool DemoMode { get; set; }
-}
-
-public class ModelVersion
-{
-    public string ModelId { get; set; } = string.Empty;
-    public string Version { get; set; } = string.Empty;
-    public DateTime DeployedAt { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public double Accuracy { get; set; }
-    public int LatencyMs { get; set; }
-    public int ThroughputQps { get; set; }
-    public string TrainingDataSize { get; set; } = string.Empty;
-    public string Framework { get; set; } = string.Empty;
-    public string Description { get; set; } = string.Empty;
-}
-
-public class ModelStatistics
-{
-    public int TotalModels { get; set; }
-    public int ProductionModels { get; set; }
-    public int CanaryModels { get; set; }
-    public int TestingModels { get; set; }
-    public double AverageAccuracy { get; set; }
-    public double AverageLatency { get; set; }
-    public long TotalInferences { get; set; }
-}
-
-public class ExperimentsResponse
-{
-    public List<Experiment> ActiveExperiments { get; set; } = new();
-    public int CompletedExperiments { get; set; }
-    public long TotalSampleSize { get; set; }
-    public bool DemoMode { get; set; }
-}
-
-public class Experiment
-{
-    public string ExperimentId { get; set; } = string.Empty;
-    public string Name { get; set; } = string.Empty;
-    public DateTime StartDate { get; set; }
-    public string Status { get; set; } = string.Empty;
-    public TrafficAllocation Traffic { get; set; } = new();
-    public ExperimentMetrics Metrics { get; set; } = new();
-    public string Decision { get; set; } = string.Empty;
-}
-
-public class TrafficAllocation
-{
-    public int ControlPercent { get; set; }
-    public int TreatmentPercent { get; set; }
-}
-
-public class ExperimentMetrics
-{
-    public double ControlAccuracy { get; set; }
-    public double TreatmentAccuracy { get; set; }
-    public double StatisticalSignificance { get; set; }
-    public long SampleSize { get; set; }
-    public string ConfidenceInterval { get; set; } = string.Empty;
-}
-
-public class MetricsResponse
-{
-    public string TimeWindow { get; set; } = string.Empty;
-    public DateTime Timestamp { get; set; }
-    public PerformanceMetrics Performance { get; set; } = new();
-    public Dictionary<string, ModelMetrics> Models { get; set; } = new();
-    public ResourceMetrics Resources { get; set; } = new();
-    public bool DemoMode { get; set; }
-}
-
-public class PerformanceMetrics
-{
-    public int AverageLatencyMs { get; set; }
-    public int P50LatencyMs { get; set; }
-    public int P95LatencyMs { get; set; }
-    public int P99LatencyMs { get; set; }
-    public int RequestsPerSecond { get; set; }
-    public double ErrorRate { get; set; }
-    public double SuccessRate { get; set; }
-}
-
-public class ModelMetrics
-{
-    public long Requests { get; set; }
-    public int AverageLatency { get; set; }
-    public double Accuracy { get; set; }
-    public double CacheHitRate { get; set; }
-}
-
-public class ResourceMetrics
-{
-    public int SqlServerCpuPercent { get; set; }
-    public double SqlServerMemoryGb { get; set; }
-    public int ClrMemoryMb { get; set; }
-    public int SpatialIndexSizeMb { get; set; }
-    public double Neo4jMemoryGb { get; set; }
-}
-
-public class DeploymentRequest
-{
-    public string ModelId { get; set; } = string.Empty;
-    public string TargetEnvironment { get; set; } = "production";
-    public bool AutoRollback { get; set; } = true;
-}
-
-public class DeploymentResponse
-{
-    public string DeploymentId { get; set; } = string.Empty;
-    public string ModelId { get; set; } = string.Empty;
-    public string Environment { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public List<DeploymentStep> Steps { get; set; } = new();
-    public DateTime StartedAt { get; set; }
-    public DateTime? EstimatedCompletion { get; set; }
-    public bool RollbackAvailable { get; set; }
-    public bool DemoMode { get; set; }
-    public string Message { get; set; } = string.Empty;
-}
-
-public class DeploymentStep
-{
-    public string Step { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public string? Duration { get; set; }
-    public string Details { get; set; } = string.Empty;
-}
-
-#endregion

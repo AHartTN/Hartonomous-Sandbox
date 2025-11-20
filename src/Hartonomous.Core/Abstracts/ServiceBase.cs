@@ -160,10 +160,25 @@ public abstract class ServiceBase<TService> where TService : class
     /// </summary>
     protected void ValidateNotNullOrWhiteSpace(string? value, string parameterName)
     {
-        ValidateParameter(
-            parameterName,
-            value,
-            v => string.IsNullOrWhiteSpace(v as string) ? $"{parameterName} cannot be null or whitespace." : null);
+        if (value == null)
+        {
+            Logger.LogWarning(
+                "[{ServiceName}] Parameter validation failed: {ParameterName} cannot be null",
+                typeof(TService).Name,
+                parameterName);
+
+            throw new ArgumentNullException(parameterName, $"{parameterName} cannot be null.");
+        }
+
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            Logger.LogWarning(
+                "[{ServiceName}] Parameter validation failed: {ParameterName} cannot be empty or whitespace",
+                typeof(TService).Name,
+                parameterName);
+
+            throw new ArgumentException($"{parameterName} cannot be empty or whitespace.", parameterName);
+        }
     }
 
     /// <summary>
@@ -171,15 +186,18 @@ public abstract class ServiceBase<TService> where TService : class
     /// </summary>
     protected void ValidateRange(long value, string parameterName, long min, long max)
     {
-        ValidateParameter(
-            parameterName,
-            value,
-            v =>
-            {
-                var numValue = (long)v!;
-                return numValue < min || numValue > max
-                    ? $"{parameterName} must be between {min} and {max}, but was {numValue}."
-                    : null;
-            });
+        if (value < min || value > max)
+        {
+            Logger.LogWarning(
+                "[{ServiceName}] Parameter validation failed: {ParameterName} must be between {Min} and {Max}, but was {Value}",
+                typeof(TService).Name,
+                parameterName,
+                min,
+                max,
+                value);
+
+            throw new ArgumentOutOfRangeException(parameterName, value,
+                $"{parameterName} must be between {min} and {max}, but was {value}.");
+        }
     }
 }

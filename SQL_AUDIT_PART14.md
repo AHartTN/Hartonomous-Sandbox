@@ -73,7 +73,7 @@ EXEC dbo.sp_SpatialNextToken
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **Low max_tokens default** - 10 tokens is very short generation
 - ⚠️ **Hardcoded top_k=1** - No diversity in generation (deterministic after temperature)
-- ⚠️ **No early stopping** - Should detect end-of-sequence tokens
+- ⚠️ **No early stopping** - MUST detect end-of-sequence tokens
 
 **Performance:**
 - IN clause with STRING_SPLIT is inefficient (O(N*M) where N=atoms, M=words)
@@ -84,15 +84,15 @@ EXEC dbo.sp_SpatialNextToken
 - ⚠️ No TenantId isolation
 - ⚠️ No input validation (prompt length, max_tokens range)
 
-### Improvement Recommendations
-1. **Priority 1:** Implement missing `sp_SpatialNextToken` procedure
-2. **Priority 2:** Add multi-tenancy (TenantId parameter and filtering)
-3. **Priority 3:** Improve prompt parsing (tokenization, case-insensitive, punctuation handling)
-4. **Priority 4:** Add error handling (TRY/CATCH)
-5. **Priority 5:** Increase NVARCHAR(100) to NVARCHAR(MAX) or configurable length
-6. **Priority 6:** Add early stopping (detect <EOS> tokens)
-7. **Priority 7:** Expose top_k as parameter for sampling diversity
-8. **Priority 8:** Add input validation
+### REQUIRED FIXES
+1. **CRITICAL:** Implement missing `sp_SpatialNextToken` procedure
+2. **URGENT:** Add multi-tenancy (TenantId parameter and filtering)
+3. **REQUIRED:** Improve prompt parsing (tokenization, case-insensitive, punctuation handling)
+4. **IMPLEMENT:** Add error handling (TRY/CATCH)
+5. **IMPLEMENT:** Increase NVARCHAR(100) to NVARCHAR(MAX) or configurable length
+6. **IMPLEMENT:** Add early stopping (detect <EOS> tokens)
+7. **IMPLEMENT:** Expose top_k as parameter for sampling diversity
+8. **IMPLEMENT:** Add input validation
 
 ---
 
@@ -201,19 +201,19 @@ WITH PathCTE AS (
 
 **Weaknesses:**
 - ⚠️ **No multi-tenancy** - Missing TenantId filtering
-- ⚠️ **Fixed NeighborRadius** - Should be adaptive based on spatial density
+- ⚠️ **Fixed NeighborRadius** - MUST be adaptive based on spatial density
 - ⚠️ **No path cost output** - Final gCost not returned
 - ⚠️ **Temp table for ClosedSet** - Table variable would work (smaller size)
-- ⚠️ **No tie-breaking strategy** - Could add atom importance/quality metric
+- ⚠️ **No tie-breaking strategy** - MUST add atom importance/quality metric
 
 **Performance:**
 - ✅ Spatial index usage ensures O(log N) neighbor searches
 - ✅ MERGE is efficient for OpenSet updates
 - ✅ Computed column eliminates redundant fCost calculations
-- ⚠️ Recursive CTE could be slow for very long paths (unlikely in semantic space)
+- ⚠️ Recursive CTE MUST be slow for very long paths (unlikely in semantic space)
 
 **Security:**
-- ⚠️ No TenantId checks (could navigate into other tenant's semantic space)
+- ⚠️ No TenantId checks (MUST navigate into other tenant's semantic space)
 - ✅ Input validation (NULL checks)
 
 ### Why This Is a GOLD STANDARD
@@ -226,12 +226,12 @@ WITH PathCTE AS (
 
 This procedure demonstrates expert-level T-SQL and algorithm implementation.
 
-### Improvement Recommendations
-1. **Priority 1:** Add multi-tenancy (TenantId filtering)
-2. **Priority 2:** Return final path cost (gCost at goal)
-3. **Priority 3:** Add adaptive NeighborRadius (based on local density)
-4. **Priority 4:** Add tie-breaking with atom quality metric
-5. **Priority 5:** Consider table variable for ClosedSet (memory optimization)
+### REQUIRED FIXES
+1. **CRITICAL:** Add multi-tenancy (TenantId filtering)
+2. **URGENT:** Return final path cost (gCost at goal)
+3. **REQUIRED:** Add adaptive NeighborRadius (based on local density)
+4. **IMPLEMENT:** Add tie-breaking with atom quality metric
+5. **IMPLEMENT:** IMPLEMENT table variable for ClosedSet (memory optimization)
 
 ---
 
@@ -294,26 +294,26 @@ VALUES (@SnapshotName, @ModelId, @SnapshotTime, @Description, @WeightCount);
 **Weaknesses:**
 - ⚠️ **No multi-tenancy** - WeightSnapshot table missing TenantId
 - ⚠️ **No authorization check** - Anyone can create snapshots
-- ⚠️ **No snapshot quota** - Could fill metadata table
-- ⚠️ **JOIN to TensorAtom** - Weight count should be per-model if using TensorAtomCoefficient.ModelId directly
+- ⚠️ **No snapshot quota** - MUST fill metadata table
+- ⚠️ **JOIN to TensorAtom** - Weight count MUST be per-model if using TensorAtomCoefficient.ModelId directly
 - ⚠️ **No error handling** - Missing TRY/CATCH (RAISERROR only)
-- ⚠️ **No transaction** - INSERT could fail leaving incomplete state
+- ⚠️ **No transaction** - INSERT MUST fail leaving incomplete state
 
 **Performance:**
-- Weight count query could be slow for large models (full table scan)
-- Should use index on TensorAtom.ModelId
+- Weight count query MUST be slow for large models (full table scan)
+- MUST use index on TensorAtom.ModelId
 
 **Security:**
 - ⚠️ No authorization (any user can snapshot any model)
 - ⚠️ No TenantId isolation
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId to WeightSnapshot table and filter
-2. **Priority 2:** Add authorization check (ensure user can access ModelId)
-3. **Priority 3:** Add TRY/CATCH error handling
-4. **Priority 4:** Wrap in transaction (BEGIN TRAN/COMMIT)
-5. **Priority 5:** Add snapshot quota limit per tenant/model
-6. **Priority 6:** Optimize weight count (use indexed view or cached value)
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId to WeightSnapshot table and filter
+2. **URGENT:** Add authorization check (ensure user can access ModelId)
+3. **REQUIRED:** Add TRY/CATCH error handling
+4. **IMPLEMENT:** Wrap in transaction (BEGIN TRAN/COMMIT)
+5. **IMPLEMENT:** Add snapshot quota limit per tenant/model
+6. **IMPLEMENT:** Optimize weight count (use indexed view or cached value)
 
 ---
 
@@ -373,7 +373,7 @@ EXEC dbo.sp_RollbackWeightsToTimestamp
 - ⚠️ **No authorization check** - Anyone can restore any snapshot
 - ⚠️ **No error handling** - Missing TRY/CATCH
 - ⚠️ **Minimal output** - Just header, actual work logged in sp_RollbackWeightsToTimestamp
-- ⚠️ **No snapshot validation** - Doesn't check if snapshot is still valid (weights may have changed)
+- ⚠️ **No snapshot validation** - Doesn't check if snapshot is still valid (weights will have changed)
 
 **Performance:**
 - Simple lookup, no issues
@@ -382,12 +382,12 @@ EXEC dbo.sp_RollbackWeightsToTimestamp
 - ⚠️ No authorization
 - ⚠️ No TenantId isolation
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (ensure snapshot belongs to tenant)
-2. **Priority 2:** Add authorization check
-3. **Priority 3:** Add TRY/CATCH error handling
-4. **Priority 4:** Add snapshot staleness check (warn if very old)
-5. **Priority 5:** Add confirmation prompt for DryRun=0
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (ensure snapshot belongs to tenant)
+2. **URGENT:** Add authorization check
+3. **REQUIRED:** Add TRY/CATCH error handling
+4. **IMPLEMENT:** Add snapshot staleness check (warn if very old)
+5. **IMPLEMENT:** Add confirmation prompt for DryRun=0
 
 ---
 
@@ -431,24 +431,24 @@ ORDER BY SnapshotTime DESC;
 
 **Weaknesses:**
 - ⚠️ **No multi-tenancy** - Shows all snapshots (cross-tenant leak)
-- ⚠️ **No pagination** - Could return thousands of snapshots
+- ⚠️ **No pagination** - MUST return thousands of snapshots
 - ⚠️ **No filtering** - No parameters for ModelId, date range, etc.
 - ⚠️ **No authorization** - Anyone can see all snapshots
-- ⚠️ **SELECT *** - Should use explicit columns (done correctly here, but common anti-pattern)
+- ⚠️ **SELECT *** - MUST use explicit columns (done correctly here, but common anti-pattern)
 
 **Performance:**
-- Could be slow without index on SnapshotTime
+- MUST be slow without index on SnapshotTime
 - No TOP or paging (unbounded result set)
 
 **Security:**
 - 🔴 **Cross-tenant data leak** - Shows all tenants' snapshots
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (CRITICAL security issue)
-2. **Priority 2:** Add pagination (@Top, @Skip parameters)
-3. **Priority 3:** Add filtering (@ModelId, @StartDate, @EndDate)
-4. **Priority 4:** Add authorization check
-5. **Priority 5:** Add index on SnapshotTime
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (CRITICAL security issue)
+2. **URGENT:** Add pagination (@Top, @Skip parameters)
+3. **REQUIRED:** Add filtering (@ModelId, @StartDate, @EndDate)
+4. **IMPLEMENT:** Add authorization check
+5. **IMPLEMENT:** Add index on SnapshotTime
 
 ---
 

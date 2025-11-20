@@ -1,4 +1,4 @@
-# Spatial Geometry: Landmark Projection and Voronoi Partitioning
+# Spatial Geometry: Dual Spatial Indexing Architecture
 
 **Status**: Production Implementation  
 **Date**: January 2025  
@@ -8,20 +8,296 @@
 
 ## Overview
 
-Spatial Geometry is the mathematical foundation that transforms high-dimensional AI embeddings (1536D) into queryable 3D semantic space. This document details the landmark projection algorithm, Voronoi partitioning, trilateration mathematics, and Hilbert curve mapping.
+Spatial Geometry implements **TWO distinct spatial indexing strategies** to support both dimension-level queries and semantic similarity search:
+
+1. **Dimension Space Indexing**: Per-float R-tree for feature analysis queries
+2. **Semantic Space Indexing**: 3D projection for nearest neighbor queries
+
+This dual architecture enables:
+- **Dimension-level queries**: "Which embeddings activate similarly in dimension 42?"
+- **Semantic queries**: "Find the 10 most similar embeddings to this query"
+- **Cross-modal analysis**: Correlate activation patterns across modalities
+- **Scalability**: 99.8% storage reduction via CAS + O(log N) query performance
 
 ---
 
-## Landmark Projection (1536D → 3D)
+## Architecture: Dimension Atoms + Dual Spatial Indices
 
-### The Challenge
+### The Foundation: Embeddings as Dimension Atoms
+
+Each embedding dimension (float) is stored as an individual atom with CAS deduplication:
+
+```sql
+-- Embedding: [0.123, -0.456, 0.789, ...]
+-- Each float becomes ONE atom with ContentHash
+
+INSERT INTO dbo.Atom (ContentHash, AtomicValue, Modality, Subtype, ReferenceCount)
+VALUES 
+  (HASHBYTES('SHA2_256', 0x3F7D70A4), 0x3F7D70A4, 'embedding', 'dimension', 1),  -- 0.123
+  (HASHBYTES('SHA2_256', 0xBEE978D5), 0xBEE978D5, 'embedding', 'dimension', 1);  -- -0.456
+  
+-- When another embedding reuses dimension value 0.123:
+-- ContentHash matches → Increment ReferenceCount (CAS deduplication)
+```
+
+**Storage Savings**:
+- 3.5B embeddings × 1536 dims × 4 bytes = 21TB (whole vectors)
+- ~10M unique floats × 4 bytes + 5.4B refs × 8 bytes = 43GB (dimension atoms)
+- **Reduction: 99.8%** via Content-Addressable Storage (CAS)
+
+### Dual Spatial Index Strategy
+
+---
+
+## Spatial Index 1: Dimension Space (Per-Float Queries)
+
+### Purpose
+
+Enable feature analysis queries: "Which embeddings have similar activation in specific dimensions?"
+
+### Geometry Model
+
+**3D Point Representation**: `geometry::Point(dimensionValue, dimensionIndex, modelId)`
+
+- **X-axis**: Float value of the dimension (-10.0 to +10.0, typical range)
+- **Y-axis**: Dimension index (0-1535 for 1536D embeddings)
+- **Z-axis**: Model ID (for multi-model support)
+
+### Schema Design
+
+```sql
+-- AtomEmbedding: Stores relationships between source atoms and dimension atoms
+CREATE TABLE dbo.AtomEmbedding (
+    AtomEmbeddingId BIGINT IDENTITY PRIMARY KEY,
+    SourceAtomId BIGINT NOT NULL,           -- The text/code/image atom being embedded
+    DimensionIndex SMALLINT NOT NULL,       -- 0-1535 (which dimension)
+    DimensionAtomId BIGINT NOT NULL,        -- FK to Atom (the float value atom)
+    ModelId INT NOT NULL,                   -- Which embedding model
+    SpatialKey GEOMETRY NOT NULL,           -- Point(value, index, modelId)
+    UNIQUE (SourceAtomId, DimensionIndex, ModelId),
+    FOREIGN KEY (SourceAtomId) REFERENCES dbo.Atom(AtomId) ON DELETE CASCADE,
+    FOREIGN KEY (DimensionAtomId) REFERENCES dbo.Atom(AtomId),
+    FOREIGN KEY (ModelId) REFERENCES dbo.Model(ModelId)
+);
+
+-- R-tree spatial index on dimension space
+CREATE SPATIAL INDEX SIX_AtomEmbedding_DimensionSpace
+ON dbo.AtomEmbedding(SpatialKey)
+WITH (
+    BOUNDING_BOX = (-10, 0, 10, 1536),  -- X: [-10,10], Y: [0,1535]
+    GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = HIGH, LEVEL_4 = HIGH),
+    CELLS_PER_OBJECT = 16
+);
+
+-- Filtered index: Only non-zero dimensions (70% sparse)
+CREATE INDEX IX_AtomEmbedding_NonZero
+ON dbo.AtomEmbedding(SourceAtomId, DimensionIndex, DimensionAtomId)
+WHERE ABS(CAST((SELECT AtomicValue FROM dbo.Atom WHERE AtomId = DimensionAtomId) AS REAL)) > 0.001;
+```
+
+### Query Patterns
+
+#### Pattern 1: Similar Activation in Specific Dimension
+
+```sql
+-- "Find embeddings with value ~0.856 in dimension 42"
+DECLARE @targetValue REAL = 0.856;
+DECLARE @dimIndex INT = 42;
+DECLARE @tolerance REAL = 0.05;
+DECLARE @queryPoint GEOMETRY = geometry::Point(@targetValue, @dimIndex, @modelId);
+
+SELECT DISTINCT ae.SourceAtomId, a.CanonicalText AS SourceText
+FROM dbo.AtomEmbedding ae WITH (INDEX(SIX_AtomEmbedding_DimensionSpace))
+INNER JOIN dbo.Atom a ON ae.SourceAtomId = a.AtomId
+WHERE ae.SpatialKey.STIntersects(@queryPoint.STBuffer(@tolerance)) = 1
+  AND ae.DimensionIndex = @dimIndex
+  AND ae.ModelId = @modelId;
+
+-- Performance: O(log N) via R-tree spatial index
+-- Use case: Feature importance analysis, semantic clustering
+```
+
+#### Pattern 2: Dimension Value Distribution Analysis
+
+```sql
+-- "What's the distribution of dimension 123 across all embeddings?"
+SELECT 
+    CAST(a.AtomicValue AS REAL) AS DimensionValue,
+    COUNT(*) AS Frequency,
+    AVG(CAST(a.AtomicValue AS REAL)) AS AvgValue,
+    STDEV(CAST(a.AtomicValue AS REAL)) AS StdDev
+FROM dbo.AtomEmbedding ae
+INNER JOIN dbo.Atom a ON ae.DimensionAtomId = a.AtomId
+WHERE ae.DimensionIndex = 123
+  AND ae.ModelId = @modelId
+GROUP BY a.AtomicValue
+ORDER BY Frequency DESC;
+
+-- Identify "informative" dimensions (high variance = discriminative features)
+```
+
+#### Pattern 3: Cross-Modal Dimension Correlation
+
+```sql
+-- "Do text and code embeddings activate similarly in dimension 256?"
+WITH TextActivations AS (
+    SELECT ae.SourceAtomId, CAST(a.AtomicValue AS REAL) AS Value
+    FROM dbo.AtomEmbedding ae
+    INNER JOIN dbo.Atom a ON ae.DimensionAtomId = a.AtomId
+    INNER JOIN dbo.Atom source ON ae.SourceAtomId = source.AtomId
+    WHERE ae.DimensionIndex = 256 AND source.Modality = 'text'
+),
+CodeActivations AS (
+    SELECT ae.SourceAtomId, CAST(a.AtomicValue AS REAL) AS Value
+    FROM dbo.AtomEmbedding ae
+    INNER JOIN dbo.Atom a ON ae.DimensionAtomId = a.AtomId
+    INNER JOIN dbo.Atom source ON ae.SourceAtomId = source.AtomId
+    WHERE ae.DimensionIndex = 256 AND source.Modality = 'code'
+)
+SELECT 
+    AVG(ta.Value) AS TextAvg,
+    AVG(ca.Value) AS CodeAvg,
+    STDEV(ta.Value) AS TextStdDev,
+    STDEV(ca.Value) AS CodeStdDev,
+    -- Pearson correlation
+    (AVG(ta.Value * ca.Value) - AVG(ta.Value) * AVG(ca.Value)) / 
+    (STDEV(ta.Value) * STDEV(ca.Value)) AS Correlation
+FROM TextActivations ta, CodeActivations ca;
+
+-- Result: Quantify cross-modal semantic alignment
+```
+
+---
+
+## Spatial Index 2: Semantic Space (Nearest Neighbor Queries)
+
+### Purpose
+
+Enable similarity search: "Find the 10 most similar embeddings to this query vector."
+
+### The Challenge: Curse of Dimensionality
 
 High-dimensional embeddings suffer from the curse of dimensionality:
+
 - All pairwise distances become similar
 - No meaningful nearest neighbors until ALL distances computed
 - Cannot use spatial indices (R-Tree requires ≤4 dimensions)
 
-**Solution**: Project to 3D while preserving semantic neighborhoods.
+**Solution**: Project to 3D while preserving semantic neighborhoods via landmark trilateration.
+
+### Geometry Model: 3D Semantic Projection
+
+**3D Point Representation**: `geometry::Point(X, Y, Z)` in semantic space
+
+- Computed via landmark trilateration (1536D → 3D projection)
+- Preserves semantic neighborhoods (0.89 Pearson correlation)
+- Enables R-tree spatial indexing for O(log N) pre-filtering
+
+### Materialized View: AtomEmbedding_SemanticSpace
+
+**Purpose**: Pre-compute 3D semantic projections for fast query performance.
+
+```sql
+-- Materialized semantic space (hot path optimization)
+CREATE TABLE dbo.AtomEmbedding_SemanticSpace (
+    SourceAtomId BIGINT NOT NULL,
+    ModelId INT NOT NULL,
+    SemanticSpatialKey GEOMETRY NOT NULL,    -- 3D projection via landmark trilateration
+    HilbertCurveIndex BIGINT NOT NULL,        -- Locality-preserving 1D index
+    VoronoiCellId INT NULL,                   -- Partition ID for partition elimination
+    LastRefreshed DATETIME2 NOT NULL DEFAULT GETUTCDATE(),
+    PRIMARY KEY (SourceAtomId, ModelId)
+);
+
+-- R-tree spatial index on 3D semantic space
+CREATE SPATIAL INDEX SIX_SemanticSpace
+ON dbo.AtomEmbedding_SemanticSpace(SemanticSpatialKey)
+WITH (
+    BOUNDING_BOX = (-100, -100, -100, 100, 100, 100),
+    GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = HIGH, LEVEL_4 = HIGH),
+    CELLS_PER_OBJECT = 16
+);
+
+-- Hilbert curve clustering (cache-friendly scans)
+CREATE CLUSTERED INDEX IX_SemanticSpace_Hilbert
+ON dbo.AtomEmbedding_SemanticSpace(HilbertCurveIndex);
+
+-- Voronoi partition index (partition elimination)
+CREATE INDEX IX_SemanticSpace_VoronoiCell
+ON dbo.AtomEmbedding_SemanticSpace(VoronoiCellId)
+INCLUDE (SourceAtomId, SemanticSpatialKey);
+```
+
+### Population Strategy: Background Reconstruction
+
+```sql
+-- Populate semantic space (run as background job)
+CREATE PROCEDURE dbo.sp_PopulateSemanticSpace
+    @modelId INT,
+    @batchSize INT = 10000
+AS
+BEGIN
+    DECLARE @offset INT = 0;
+    DECLARE @processed INT = 0;
+    
+    WHILE 1 = 1
+    BEGIN
+        -- Batch process: Reconstruct vectors and project to 3D
+        WITH SourceAtoms AS (
+            SELECT DISTINCT SourceAtomId
+            FROM dbo.AtomEmbedding
+            WHERE ModelId = @modelId
+            ORDER BY SourceAtomId
+            OFFSET @offset ROWS FETCH NEXT @batchSize ROWS ONLY
+        ),
+        ReconstructedVectors AS (
+            SELECT 
+                sa.SourceAtomId,
+                dbo.fn_ReconstructVector(sa.SourceAtomId, @modelId) AS EmbeddingVector
+            FROM SourceAtoms sa
+        )
+        INSERT INTO dbo.AtomEmbedding_SemanticSpace (SourceAtomId, ModelId, SemanticSpatialKey, HilbertCurveIndex)
+        SELECT 
+            rv.SourceAtomId,
+            @modelId,
+            dbo.clr_LandmarkProjection_ProjectTo3D(rv.EmbeddingVector, @modelId) AS SemanticSpatialKey,
+            NULL AS HilbertCurveIndex  -- Computed next
+        FROM ReconstructedVectors rv;
+        
+        SET @processed = @@ROWCOUNT;
+        IF @processed = 0 BREAK;
+        
+        SET @offset = @offset + @batchSize;
+        WAITFOR DELAY '00:00:01';  -- Throttle to avoid resource contention
+    END
+    
+    -- Compute Hilbert curve indices
+    UPDATE aes
+    SET aes.HilbertCurveIndex = dbo.clr_ComputeHilbertValue(
+        aes.SemanticSpatialKey.STX,
+        aes.SemanticSpatialKey.STY,
+        aes.SemanticSpatialKey.STZ,
+        16  -- Order 16: 65536 cells per dimension
+    )
+    FROM dbo.AtomEmbedding_SemanticSpace aes
+    WHERE aes.ModelId = @modelId AND aes.HilbertCurveIndex IS NULL;
+    
+    -- Assign Voronoi partitions
+    UPDATE aes
+    SET aes.VoronoiCellId = (
+        SELECT TOP 1 vp.PartitionId
+        FROM dbo.VoronoiPartitions vp
+        ORDER BY aes.SemanticSpatialKey.STDistance(vp.CentroidSpatialKey) ASC
+    )
+    FROM dbo.AtomEmbedding_SemanticSpace aes
+    WHERE aes.ModelId = @modelId AND aes.VoronoiCellId IS NULL;
+END
+GO
+```
+
+---
+
+## Landmark Trilateration: 1536D → 3D Projection
 
 ### Orthogonal Landmark Selection
 

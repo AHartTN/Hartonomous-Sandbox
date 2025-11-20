@@ -74,30 +74,30 @@ IF @StdDevSegments IS NOT NULL AND EXISTS (
 - ✅ **JSON anomalies** - Structured anomaly storage
 
 **Weaknesses:**
-- ⚠️ **No multi-tenancy** - Missing TenantId filtering (could audit across tenants)
+- ⚠️ **No multi-tenancy** - Missing TenantId filtering (MUST audit across tenants)
 - ⚠️ **ProvenanceStream properties** - Uses .Scope, .Model, .SegmentCount, .IsNull (custom type not defined)
 - ⚠️ **MinValidationScore unused** - Parameter not used in logic
-- ⚠️ **TOP 100 limit** - Detailed results limited (could miss important operations)
+- ⚠️ **TOP 100 limit** - Detailed results limited (MUST miss important operations)
 - ⚠️ **No authorization** - Anyone can audit any operations
 - ⚠️ **IsNull check** - ProvenanceStream.IsNull = 1 suggests CLR type (not documented)
 
 **Performance:**
-- Multiple aggregations over same dataset (could be optimized)
+- Multiple aggregations over same dataset (MUST be optimized)
 - Table variables for intermediate results (good for small datasets)
-- Anomaly detection queries run sequentially (could batch)
+- Anomaly detection queries run sequentially (MUST batch)
 
 **Security:**
 - ⚠️ No TenantId filtering (cross-tenant audit possible)
 - ⚠️ No authorization check
 
-### Improvement Recommendations
-1. **Priority 1:** Add TenantId filtering (ensure operations belong to tenant)
-2. **Priority 2:** Use MinValidationScore parameter or remove it
-3. **Priority 3:** Remove TOP 100 limit or make configurable
-4. **Priority 4:** Document ProvenanceStream CLR type structure
-5. **Priority 5:** Add authorization check
-6. **Priority 6:** Optimize multiple aggregations (use single pass with GROUPING SETS)
-7. **Priority 7:** Batch anomaly detection queries
+### REQUIRED FIXES
+1. **CRITICAL:** Add TenantId filtering (ensure operations belong to tenant)
+2. **URGENT:** Use MinValidationScore parameter or remove it
+3. **REQUIRED:** Remove TOP 100 limit or make configurable
+4. **IMPLEMENT:** Document ProvenanceStream CLR type structure
+5. **IMPLEMENT:** Add authorization check
+6. **IMPLEMENT:** Optimize multiple aggregations (use single pass with GROUPING SETS)
+7. **IMPLEMENT:** Batch anomaly detection queries
 
 ---
 
@@ -166,28 +166,28 @@ WHEN NOT MATCHED THEN INSERT (RelatedAtomId, VectorScore, GraphScore) VALUES (so
 
 **Weaknesses:**
 - ⚠️ **IncludeSemanticText unused** - Parameter not used in logic
-- ⚠️ **Hardcoded graph score** - 0.8 should be configurable
+- ⚠️ **Hardcoded graph score** - 0.8 MUST be configurable
 - ⚠️ **Equal weighting** - Division by 2.0 assumes both components present
 - ⚠️ **1-hop only** - No multi-hop graph traversal
 - ⚠️ **ContentHash/ContentType** - Atom schema uses different columns
-- ⚠️ **No zero-division protection** - If neither component enabled, CombinedScore = 0/2 = 0 (could divide by actual component count)
+- ⚠️ **No zero-division protection** - If neither component enabled, CombinedScore = 0/2 = 0 (MUST divide by actual component count)
 
 **Performance:**
-- Vector similarity could be slow without vector index
-- Graph UNION could be optimized with single query
+- Vector similarity MUST be slow without vector index
+- Graph UNION MUST be optimized with single query
 - MERGE is efficient for score combination
 
 **Security:**
 - ✅ Multi-tenant safe with TenantId filtering
 
-### Improvement Recommendations
-1. **Priority 1:** Fix Atom schema references (ContentHash, ContentType)
-2. **Priority 2:** Use IncludeSemanticText parameter or remove it
-3. **Priority 3:** Make graph score (0.8) configurable parameter
-4. **Priority 4:** Dynamic weighting based on enabled components
-5. **Priority 5:** Add multi-hop graph option (@MaxDepth parameter)
-6. **Priority 6:** Optimize graph query (single query instead of UNION)
-7. **Priority 7:** Add vector index hint for performance
+### REQUIRED FIXES
+1. **CRITICAL:** Fix Atom schema references (ContentHash, ContentType)
+2. **URGENT:** Use IncludeSemanticText parameter or remove it
+3. **REQUIRED:** Make graph score (0.8) configurable parameter
+4. **IMPLEMENT:** Dynamic weighting based on enabled components
+5. **IMPLEMENT:** Add multi-hop graph option (@MaxDepth parameter)
+6. **IMPLEMENT:** Optimize graph query (single query instead of UNION)
+7. **IMPLEMENT:** Add vector index hint for performance
 
 ---
 
@@ -238,8 +238,8 @@ WITH ImpactedAtoms AS (
 **Weaknesses:**
 - ⚠️ **ContentHash/ContentType** - Atom schema mismatch
 - ⚠️ **Downstream only** - Doesn't check upstream dependencies
-- ⚠️ **No cycle detection** - Recursive CTE could loop if circular dependencies
-- ⚠️ **Depth 100 hardcoded** - Should be parameter
+- ⚠️ **No cycle detection** - Recursive CTE MUST loop if circular dependencies
+- ⚠️ **Depth 100 hardcoded** - MUST be parameter
 - ⚠️ **No impact severity** - All impacts treated equally
 
 **Performance:**
@@ -250,12 +250,12 @@ WITH ImpactedAtoms AS (
 **Security:**
 - ✅ Multi-tenant safe
 
-### Improvement Recommendations
-1. **Priority 1:** Fix Atom schema references (ContentHash, ContentType)
-2. **Priority 2:** Add cycle detection (track visited nodes)
-3. **Priority 3:** Make max depth a parameter
-4. **Priority 4:** Add upstream impact option (@Direction parameter: 'downstream', 'upstream', 'both')
-5. **Priority 5:** Add impact severity/weight based on relationship type
+### REQUIRED FIXES
+1. **CRITICAL:** Fix Atom schema references (ContentHash, ContentType)
+2. **URGENT:** Add cycle detection (track visited nodes)
+3. **REQUIRED:** Make max depth a parameter
+4. **IMPLEMENT:** Add upstream impact option (@Direction parameter: 'downstream', 'upstream', 'both')
+5. **IMPLEMENT:** Add impact severity/weight based on relationship type
 
 ---
 
@@ -315,14 +315,14 @@ Compute semantic features for single atom embedding. Used by `sp_ComputeAllSeman
 **Security:**
 - ⚠️ No TenantId filtering
 
-### Improvement Recommendations
-1. **Priority 1:** Implement actual feature computation (sentiment analysis, topic classification, etc.)
-2. **Priority 2:** Add TenantId filtering
-3. **Priority 3:** Use embedding vector and canonical text in computation
-4. **Priority 4:** Add authorization check
-5. **Priority 5:** Consider CLR functions for ML-based feature extraction
-6. **Priority 6:** Add @ComputeMethod parameter (simple, ML-based, etc.)
-7. **Priority 7:** Return computed features (not just status code)
+### REQUIRED FIXES
+1. **CRITICAL:** Implement actual feature computation (sentiment analysis, topic classification, etc.)
+2. **URGENT:** Add TenantId filtering
+3. **REQUIRED:** Use embedding vector and canonical text in computation
+4. **IMPLEMENT:** Add authorization check
+5. **IMPLEMENT:** IMPLEMENT CLR functions for ML-based feature extraction
+6. **IMPLEMENT:** Add @ComputeMethod parameter (simple, ML-based, etc.)
+7. **IMPLEMENT:** Return computed features (not just status code)
 
 ---
 
@@ -372,7 +372,7 @@ Find semantically similar atoms using vector cosine similarity. Pure vector-base
 **Weaknesses:**
 - ⚠️ **ContentHash/ContentType** - Atom schema mismatch
 - ⚠️ **Double VECTOR_DISTANCE** - Computed in SELECT and ORDER BY
-- ⚠️ **No vector index hint** - Could benefit from explicit hint
+- ⚠️ **No vector index hint** - MUST benefit from explicit hint
 
 **Performance:**
 - VECTOR_DISTANCE computed twice (inefficiency)
@@ -381,11 +381,11 @@ Find semantically similar atoms using vector cosine similarity. Pure vector-base
 **Security:**
 - ✅ Multi-tenant safe
 
-### Improvement Recommendations
-1. **Priority 1:** Fix Atom schema references (ContentHash, ContentType)
-2. **Priority 2:** Use CTE to compute VECTOR_DISTANCE once
-3. **Priority 3:** Add vector index hint for performance
-4. **Priority 4:** Consider returning raw similarity (0-1) instead of percentage for consistency
+### REQUIRED FIXES
+1. **CRITICAL:** Fix Atom schema references (ContentHash, ContentType)
+2. **URGENT:** Use CTE to compute VECTOR_DISTANCE once
+3. **REQUIRED:** Add vector index hint for performance
+4. **IMPLEMENT:** IMPLEMENT returning raw similarity (0-1) instead of percentage for consistency
 
 ---
 
@@ -483,7 +483,7 @@ a.Modality, a.Subtype, a.CanonicalText
 **Hypothesis:**
 - ProvenanceStream is likely a hierarchyid wrapper or custom CLR type
 - Used for encoding provenance chains compactly
-- May be serialized/deserialized from OperationProvenance.ProvenanceData
+- will be serialized/deserialized from OperationProvenance.ProvenanceData
 
 **Action Required:**
 1. Search for ProvenanceStream CLR assembly definition

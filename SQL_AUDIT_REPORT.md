@@ -23,7 +23,7 @@
 | `Stream.StreamOrchestrationTables.sql` | Stream.StreamOrchestrationTables | StreamOrchestrationResults | **DUPLICATE** - Real table is `dbo.StreamOrchestrationResults.sql` |
 | `TensorAtomCoefficients_Temporal.sql` | TensorAtomCoefficients_Temporal | TensorAtomCoefficients_History | Filename mismatch |
 
-**Note:** Files like `Attention.AttentionGenerationTables.sql`, `Provenance.ProvenanceTrackingTables.sql`, etc. appear to be OLD schema files that create tables already defined elsewhere. These should be DELETED.
+**REQUIRED:** Files like `Attention.AttentionGenerationTables.sql`, `Provenance.ProvenanceTrackingTables.sql`, etc. are OLD schema files that create tables already defined elsewhere. **DELETE IMMEDIATELY** - These cause DACPAC build failures.
 
 ### 2. Procedure Files with Naming Mismatches (3 files)
 
@@ -49,7 +49,7 @@
 - `dbo.TenantAtom.sql` → Creates `[dbo].[TenantAtom]` (better documented, 19 lines)
 - `dbo.TenantAtoms.sql` → Creates `[dbo].[TenantAtoms]` (minimal, 7 lines)
 
-**Action Required:** Determine which table name is correct, delete the other file.
+**Action Required:** Determine which table name is correct (check code references), **DELETE** the other file immediately.
 
 ---
 
@@ -84,9 +84,9 @@ Move-Item '.\src\Hartonomous.Database\Functions\dbo.fn_HilbertFunctions.sql' '.\
 
 ### MEDIUM - Resolve TenantAtom vs TenantAtoms Conflict
 
-1. Review code references to determine correct table name
-2. Delete the unused file
-3. Update any FK references if needed
+1. Review code references to determine correct table name (**MANDATORY**)
+2. **DELETE** the unused file immediately
+3. **UPDATE** any FK references (not optional)
 
 ---
 

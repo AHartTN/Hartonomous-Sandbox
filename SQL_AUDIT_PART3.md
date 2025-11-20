@@ -69,8 +69,8 @@ This is a **MANUAL** file-by-file review. Each file is:
 **Issues:**
 1. **MISSING SPATIAL INDEX** on SpatialExpression (GEOMETRY column exists but no SPATIAL INDEX)
    - GEOMETRY column is essentially unusable without spatial index
-   - Should add: `CREATE SPATIAL INDEX [SIDX_AtomRelation_SpatialExpression] ON [dbo].[AtomRelation]([SpatialExpression])`
-2. **NO CHECK CONSTRAINT** on Weight/Importance/Confidence ranges (should be [0.0, 1.0])
+   - MUST add: `CREATE SPATIAL INDEX [SIDX_AtomRelation_SpatialExpression] ON [dbo].[AtomRelation]([SpatialExpression])`
+2. **NO CHECK CONSTRAINT** on Weight/Importance/Confidence ranges (MUST be [0.0, 1.0])
 3. **NO INDEX** on CreatedAt (common query pattern for recent relationships)
 4. **GEOMETRY vs GEOGRAPHY**: Using GEOMETRY instead of GEOGRAPHY - implies planar coordinate system
 5. **5D coordinates but 3D bucketing**: CoordT and CoordW exist but SpatialBucketT/W don't
@@ -85,7 +85,7 @@ This is a **MANUAL** file-by-file review. Each file is:
 - This is a **graph edge table** - enables knowledge graph functionality
 - Supports both weighted and unweighted relationships
 - Temporal versioning enables "time-travel" queries on relationship history
-- RelationType is free-form NVARCHAR - might benefit from normalization to RelationType lookup table
+- RelationType is free-form NVARCHAR - will benefit from normalization to RelationType lookup table
 
 ---
 
@@ -127,10 +127,10 @@ This is a **MANUAL** file-by-file review. Each file is:
 - Multi-tenant support
 
 **Issues:**
-1. **NO UNIQUE CONSTRAINT** on (ParentAtomId, TenantId) - could create duplicate jobs for same atom
+1. **NO UNIQUE CONSTRAINT** on (ParentAtomId, TenantId) - MUST create duplicate jobs for same atom
 2. **NO CHECK CONSTRAINT** on JobStatus (allows invalid status values)
 3. **NO INDEX** on ModelId (if querying jobs by model)
-4. **AtomChunkSize hardcoded default** - should be configurable per tenant/job
+4. **AtomChunkSize hardcoded default** - MUST be configurable per tenant/job
 5. **NO RETRY LOGIC** columns (RetryCount, MaxRetries, BackoffMs)
 6. **LastUpdatedAt not auto-updated** - needs trigger or computed column
 7. **NO FOREIGN KEY** on ModelId → dbo.Model(ModelId)
@@ -192,15 +192,15 @@ This is a **MANUAL** file-by-file review. Each file is:
    - `dbo.IsolationForestScore(NVARCHAR)` - referenced on line 141
    - `dbo.LocalOutlierFactor(NVARCHAR, INT)` - referenced on line 144
 2. **MISSING TABLE:** `dbo.InferenceRequest` (queried on line 87)
-   - Alternative: May be `dbo.InferenceTracking` but schema doesn't match
+   - required implementation: will be `dbo.InferenceTracking` but schema doesn't match
 3. **MISSING TABLE:** `dbo.InferenceTracking` (referenced on line 269 for velocity calculation)
 4. **PLACEHOLDER VECTOR:** Line 83 - `CAST(NULL AS VECTOR(1998))` - vector computation not implemented
 5. **HARDCODED CONSTANTS:**
    - IsolationThreshold = 0.7 (line 148)
    - LOFThreshold = 1.5 (line 149)
-   - Should be configurable parameters
+   - MUST be configurable parameters
 6. **NO LOGGING:** Observations are sent to Service Broker but not persisted to table
-7. **PERFORMANCE:** TOP 1000 inference requests without index hint - may be slow
+7. **PERFORMANCE:** TOP 1000 inference requests without index hint - will be slow
 8. **JSON_OBJECT syntax** (line 242) requires SQL Server 2022+
 
 **Dependencies:**
@@ -277,7 +277,7 @@ This is a **MANUAL** file-by-file review. Each file is:
    - 3 patterns for ConceptDiscovery (line 137)
    - 10,000 inferences for ModelRetraining (line 149)
    - 0.01 for PruneModel (line 165)
-5. **SYNTAX ERROR on line 221:** `[@HypothesisList]` should be `@HypothesisList` (bracket syntax invalid)
+5. **SYNTAX ERROR on line 221:** `[@HypothesisList]` MUST be `@HypothesisList` (bracket syntax invalid)
 6. **JSON_OBJECT syntax** (line 211) requires SQL Server 2022+
 7. **NO LOGGING:** Hypotheses sent to Service Broker but not logged to audit table
 8. **GEOMETRY error region** (line 198): `geometry::Point(0, 0, 0)` is placeholder - needs real implementation
@@ -351,11 +351,11 @@ This is a **MANUAL** file-by-file review. Each file is:
 1. **MISSING CLR FUNCTION:** `dbo.clr_FindPrimes(@Start BIGINT, @End BIGINT)` (line 109)
 2. **MISSING TABLE:** `dbo.InferenceCache` (referenced on line 235 for CacheWarming)
 3. **NO RETRY LOGIC:** Failed actions not retried
-4. **HARDCODED TOP 5** missing indexes (line 188) - should be configurable
-5. **UPDATE STATISTICS WITH FULLSCAN** (lines 196-198) - EXPENSIVE, should be SAMPLE
-6. **NO TRANSACTION WRAPPER:** Index creation, statistics updates should be transactional
+4. **HARDCODED TOP 5** missing indexes (line 188) - MUST be configurable
+5. **UPDATE STATISTICS WITH FULLSCAN** (lines 196-198) - EXPENSIVE, MUST be SAMPLE
+6. **NO TRANSACTION WRAPPER:** Index creation, statistics updates MUST be transactional
 7. **NO LOGGING TABLE:** Execution results sent to Service Broker but not persisted
-8. **CURSOR PERFORMANCE:** Using CURSOR for hypothesis processing - could use set-based approach
+8. **CURSOR PERFORMANCE:** Using CURSOR for hypothesis processing - MUST use set-based approach
 9. **PRELOAD QUERY** (line 233): `SELECT COUNT(*) FROM (...) WITH (NOLOCK)` doesn't actually preload - just counts
 10. **CONCEPT DISCOVERY placeholder:** Line 249-256 - just counts buckets, doesn't create actual concepts
 
@@ -430,12 +430,12 @@ This is a **MANUAL** file-by-file review. Each file is:
 
 **Issues:**
 1. **NO CHECK CONSTRAINT** on Status (allows invalid values)
-2. **NO CHECK CONSTRAINT** on Priority (should be 1-10)
-3. **NO CHECK CONSTRAINT** on RiskLevel (should be 'low'/'medium'/'high')
+2. **NO CHECK CONSTRAINT** on Priority (MUST be 1-10)
+3. **NO CHECK CONSTRAINT** on RiskLevel (MUST be 'low'/'medium'/'high')
 4. **NO INDEX** on RiskLevel (if querying high-risk actions)
 5. **NO INDEX** on ActionType (common query pattern)
 6. **NO UNIQUE CONSTRAINT** on (ActionType, Status, Parameters) - allows duplicate pending actions
-7. **NO FOREIGN KEY** on ApprovedBy (should reference Users or similar)
+7. **NO FOREIGN KEY** on ApprovedBy (MUST reference Users or similar)
 
 **Dependencies:**
 - **USED BY:**

@@ -54,7 +54,7 @@ Implements chain-of-thought reasoning by generating multi-step reasoning chains 
 - `dbo.ReasoningChains` - Storage table ❌ NOT FOUND
 
 **Key Operations:**
-1. Iterates through reasoning steps (WHILE loop - could be optimized)
+1. Iterates through reasoning steps (WHILE loop - MUST be optimized)
 2. Generates response text for each step
 3. Creates embedding for coherence analysis
 4. Stores reasoning chain with JSON serialization
@@ -111,16 +111,16 @@ INSERT INTO dbo.ReasoningChains (
 2. ❌ **Missing CLR Function:** `dbo.ChainOfThoughtCoherence` aggregate function not found
    - Usage: `SELECT @CoherenceAnalysis = dbo.ChainOfThoughtCoherence(StepNumber, CAST(ResponseVector AS NVARCHAR(MAX))) FROM @ReasoningSteps;`
    - Expected to analyze vector coherence across reasoning steps
-   - Should return JSON with coherence metrics
+   - MUST return JSON with coherence metrics
 
 **HIGH:**
 3. ⚠️ **WHILE Loop:** Iterative step generation - architectural comment says "set-based" but uses WHILE
    - Current: Sequential step generation
    - Comment claims: "PARADIGM-COMPLIANT: Generate reasoning steps in a table, then use CLR aggregate"
    - Reality: Still uses WHILE loop for generation
-   - Could optimize with parallel generation for independent steps
+   - MUST optimize with parallel generation for independent steps
 
-4. ⚠️ **Hardcoded Confidence:** `DECLARE @Confidence FLOAT = 0.8;` - should calculate from response quality
+4. ⚠️ **Hardcoded Confidence:** `DECLARE @Confidence FLOAT = 0.8;` - MUST calculate from response quality
    - No actual confidence computation
    - Missing coherence scoring per step
 
@@ -139,12 +139,12 @@ INSERT INTO dbo.ReasoningChains (
 - ✅ Debug flag for troubleshooting
 - ✅ Proper DATETIME2 usage (UTC)
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **CRITICAL:** Create `dbo.ReasoningChains` table with proper schema
 2. **CRITICAL:** Implement `dbo.ChainOfThoughtCoherence` CLR aggregate
 3. **HIGH:** Replace hardcoded confidence with computed coherence scores
 4. **MEDIUM:** Add TenantId for multi-tenancy
-5. **MEDIUM:** Consider parallel step generation for performance
+5. **MEDIUM:** IMPLEMENT parallel step generation for performance
 6. **LOW:** Enhance prompt engineering for better reasoning chains
 
 #### Cross-References
@@ -237,27 +237,27 @@ INSERT INTO dbo.MultiPathReasoning (
 
 **HIGH:**
 2. ⚠️ **Unused Parameter:** `@BranchingFactor` parameter declared but never used
-   - Comment: "could branch here in full implementation"
+   - Comment: "MUST branch here in full implementation"
    - Current: Linear paths only, no actual branching
    - BranchId always set to 1
 
 3. ⚠️ **Fake Scoring:** `UPDATE @ReasoningTree SET Score = Score + (RAND() * 0.4 - 0.2);`
    - Adds random noise instead of real quality metrics
-   - Should evaluate coherence, completeness, factuality
+   - MUST evaluate coherence, completeness, factuality
 
 4. ⚠️ **High Temperature:** `@temperature = 0.9` for exploration
    - Good for diversity
-   - May reduce coherence
-   - Should be configurable per use case
+   - will reduce coherence
+   - MUST be configurable per use case
 
 **MEDIUM:**
 5. ⚠️ **No TenantId:** Missing multi-tenancy support
 6. ⚠️ **Nested WHILE Loops:** Outer loop for paths, inner loop for depth
-   - Could parallelize path generation
+   - MUST parallelize path generation
    - Each path is independent
 
 7. ⚠️ **Simple Path Selection:** Only uses AVG(Score)
-   - Could consider diversity, coherence, convergence
+   - MUST IMPLEMENT diversity, coherence, convergence
    - No analysis of path similarity
 
 #### Strengths
@@ -267,7 +267,7 @@ INSERT INTO dbo.MultiPathReasoning (
 - ✅ Duration tracking
 - ✅ Proper error handling structure
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **CRITICAL:** Create `dbo.MultiPathReasoning` table
 2. **HIGH:** Implement real scoring metrics (coherence, completeness, factuality)
 3. **HIGH:** Implement actual branching logic using @BranchingFactor
@@ -372,33 +372,33 @@ FROM @Samples;
      ```
 
 2. ❌ **Missing CLR Function:** `dbo.SelfConsistency` aggregate function not found
-   - Should analyze vector similarity across samples
-   - Should identify consensus clusters
-   - Should return JSON with consensus metrics
+   - MUST analyze vector similarity across samples
+   - MUST identify consensus clusters
+   - MUST return JSON with consensus metrics
 
 **HIGH:**
 3. ⚠️ **Naive Answer Extraction:** `DECLARE @FinalAnswer NVARCHAR(MAX) = REVERSE(SUBSTRING(REVERSE(@SampleResponse), 1, CHARINDEX('.', REVERSE(@SampleResponse)) - 1));`
    - Extracts last sentence by finding last period
    - Breaks if no period exists
    - Doesn't handle multi-sentence answers
-   - Should use NLP or structured output format
+   - MUST use NLP or structured output format
 
 4. ⚠️ **WHILE Loop:** Sequential sample generation
-   - Could parallelize since samples are independent
+   - MUST parallelize since samples are independent
    - Would significantly improve performance for large @NumSamples
 
 5. ⚠️ **Hardcoded Confidence:** `Confidence = 0.8` for all samples
-   - Should vary based on response quality
+   - MUST vary based on response quality
    - No actual confidence calculation
 
 **MEDIUM:**
 6. ⚠️ **No TenantId:** Missing multi-tenancy support
 7. ⚠️ **Vector Cast to NVARCHAR:** `CAST(ResponsePathVector AS NVARCHAR(MAX))`
-   - CLR function should accept VARBINARY or VECTOR type directly
+   - CLR function MUST accept VARBINARY or VECTOR type directly
    - Casting vectors to strings is inefficient
 
 8. ⚠️ **No Null Handling:** `TRY_CAST(JSON_VALUE(...) AS FLOAT)` without null checks
-   - Should validate JSON structure before extraction
+   - MUST validate JSON structure before extraction
 
 #### Strengths
 - ✅ Two-level embedding analysis (full reasoning + final answer)
@@ -407,7 +407,7 @@ FROM @Samples;
 - ✅ Proper UTC timestamps
 - ✅ Good parameter defaults
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **CRITICAL:** Create `dbo.SelfConsistencyResults` table
 2. **CRITICAL:** Implement `dbo.SelfConsistency` CLR aggregate
 3. **HIGH:** Improve answer extraction with NLP or structured formats
@@ -436,7 +436,7 @@ Identifies duplicate atoms using vector similarity analysis with configurable th
 
 **Parameters:**
 ```sql
-@SimilarityThreshold FLOAT = 0.95    -- Minimum similarity to consider duplicate
+@SimilarityThreshold FLOAT = 0.95    -- Minimum similarity to IMPLEMENT duplicate
 @BatchSize INT = 1000                -- Limit result count
 @TenantId INT = 0                    -- Multi-tenancy support ✅
 ```
@@ -495,24 +495,24 @@ ORDER BY dg.Similarity DESC;
 1. ⚠️ **Performance:** Self-join on AtomEmbedding is O(N²)
    - Will be slow for large datasets
    - VECTOR_DISTANCE computed twice (WHERE and SELECT)
-   - Should use indexed approximate nearest neighbor search
+   - MUST use indexed approximate nearest neighbor search
 
 2. ⚠️ **No Deduplication Action:** Only detects duplicates, doesn't merge or mark them
-   - Should have @Action parameter ('detect', 'merge', 'mark')
+   - MUST have @Action parameter ('detect', 'merge', 'mark')
    - No update to Atom table with duplicate status
 
 **MEDIUM:**
 3. ⚠️ **Fixed BatchSize:** Hardcoded to 1000
    - Large datasets would need multiple runs
-   - Should support pagination or cursor-based iteration
+   - MUST support pagination or cursor-based iteration
 
 4. ⚠️ **No Model Filtering:** Joins on `ae1.ModelId = ae2.ModelId`
    - Forces same model for both embeddings
-   - May miss cross-model duplicates
-   - Should be optional parameter
+   - will miss cross-model duplicates
+   - MUST be optional parameter
 
 5. ⚠️ **ContentHash Not Used:** Joins fetch ContentHash but doesn't use it
-   - Could optimize with early filter: `WHERE a1.ContentHash = a2.ContentHash`
+   - MUST optimize with early filter: `WHERE a1.ContentHash = a2.ContentHash`
    - Exact hash match = guaranteed duplicate
 
 **LOW:**
@@ -528,19 +528,19 @@ ORDER BY dg.Similarity DESC;
 - ✅ **Error Handling:** TRY/CATCH with proper RAISERROR
 - ✅ **Metadata Output:** Includes ContentHash and timestamps for validation
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Optimize with approximate nearest neighbor index (when available)
 2. **HIGH:** Add deduplication actions (merge, mark, delete)
 3. **HIGH:** Pre-filter by ContentHash for exact duplicates
 4. **MEDIUM:** Add pagination support for large datasets
 5. **MEDIUM:** Make model matching optional
 6. **MEDIUM:** Add logging to track deduplication operations
-7. **LOW:** Consider clustering approach for transitive duplicate groups
+7. **LOW:** IMPLEMENT clustering approach for transitive duplicate groups
 
 #### Cross-References
 - **Uses:** Atom (Part 1), AtomEmbedding (Part 1)
 - **Related:** Data quality and storage optimization
-- **Pattern:** Could integrate with sp_DiscoverAndBindConcepts for cluster-based deduplication
+- **Pattern:** MUST integrate with sp_DiscoverAndBindConcepts for cluster-based deduplication
 
 ---
 
@@ -648,14 +648,14 @@ INNER JOIN RankedBindings rb ON ab.AtomId = rb.AtomId AND ab.ConceptId = rb.Conc
 **CRITICAL:**
 1. ❌ **Missing Function:** `dbo.fn_BindAtomsToCentroid` not found
    - Expected signature: `fn_BindAtomsToCentroid(VARBINARY(MAX), FLOAT, INT) RETURNS TABLE (AtomId BIGINT, Similarity FLOAT)`
-   - Should query AtomEmbedding with VECTOR_DISTANCE
+   - MUST query AtomEmbedding with VECTOR_DISTANCE
    - Blocking: Binding phase will fail
 
 **HIGH:**
 2. ⚠️ **Cursor Usage:** Uses cursor to iterate concepts for binding
-   - Could be set-based with CROSS APPLY
+   - MUST be set-based with CROSS APPLY
    - Performance issue for many concepts
-   - Alternative:
+   - required implementation:
      ```sql
      INSERT INTO @AtomBindings
      SELECT ab.AtomId, ic.ConceptId, ab.Similarity, 0
@@ -664,35 +664,35 @@ INNER JOIN RankedBindings rb ON ab.AtomId = rb.AtomId AND ab.ConceptId = rb.Conc
      ```
 
 3. ⚠️ **Unused Parameter:** `@MaxConceptsPerAtom` declared but not enforced
-   - Should limit bindings per atom
+   - MUST limit bindings per atom
    - Currently binds all concepts above threshold
-   - Should add: `WHERE Rank <= @MaxConceptsPerAtom` to final INSERT
+   - MUST add: `WHERE Rank <= @MaxConceptsPerAtom` to final INSERT
 
 4. ⚠️ **Redundant Atom Count:** Initial insert sets AtomCount, then updates it
-   - Could remove from initial INSERT
+   - MUST remove from initial INSERT
    - OR skip UPDATE if counts match
 
 **MEDIUM:**
 5. ⚠️ **Schema Assumptions:** Assumes provenance.Concepts has many columns
    - ConceptName, Description, CentroidVector, Centroid, VectorDimension, MemberCount, AtomCount, CoherenceScore, Coherence, HilbertValue, DiscoveryMethod, ModelId, TenantId
    - Redundant columns: CoherenceScore/Coherence, MemberCount/AtomCount
-   - VectorDimension set to 0 - should compute
+   - VectorDimension set to 0 - MUST compute
 
 6. ⚠️ **Hardcoded ModelId:** `ModelId = 1` in concept INSERT
-   - Should be parameter or derived from embeddings
+   - MUST be parameter or derived from embeddings
    - Comment: "Default ModelId - adjust as needed"
 
 7. ⚠️ **No Validation:** No checks for empty results or zero bindings
-   - Should warn if no concepts discovered
-   - Should validate @MinClusterSize < actual cluster sizes
+   - MUST warn if no concepts discovered
+   - MUST validate @MinClusterSize < actual cluster sizes
 
 **LOW:**
 8. ⚠️ **ConceptName Generation:** `'Cluster_' + CAST(ROW_NUMBER() OVER (ORDER BY Coherence DESC) AS NVARCHAR(50))`
    - Generic names like "Cluster_1", "Cluster_2"
-   - Should generate descriptive names from top atoms
+   - MUST generate descriptive names from top atoms
 
 9. ⚠️ **Print Statements:** Uses PRINT for output
-   - Should return result set or use OUTPUT parameters
+   - MUST return result set or use OUTPUT parameters
    - Current summary is good but mixed with PRINT
 
 #### Strengths
@@ -705,7 +705,7 @@ INNER JOIN RankedBindings rb ON ab.AtomId = rb.AtomId AND ab.ConceptId = rb.Conc
 - ✅ **Transaction Management:** Proper BEGIN/COMMIT/ROLLBACK
 - ✅ **Error Handling:** TRY/CATCH with transaction rollback
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **CRITICAL:** Implement `dbo.fn_BindAtomsToCentroid` function
 2. **HIGH:** Replace cursor with set-based CROSS APPLY
 3. **HIGH:** Enforce @MaxConceptsPerAtom limit
@@ -816,7 +816,7 @@ Primary semantic search interface supporting both vector-only and hybrid spatial
 - `dbo.Atom` - Atom metadata (Part 1)
 
 **Key Operations:**
-1. **Auto-embedding:** Converts text to vector if needed
+1. **Auto-embedding:** Converts text to vector
 2. **Spatial projection:** Maps vector to 3D space for hybrid mode
 3. **Hybrid search:** Two-phase spatial filter + vector rerank
 4. **Vector-only search:** Direct VECTOR_DISTANCE on all embeddings
@@ -912,40 +912,40 @@ VALUES (
 1. ⚠️ **Dimension Mismatch Handling:** `@query_dimension INT = 768` default, but vectors are VECTOR(1998)
    - Filter: `AND ae.Dimension = @query_dimension`
    - If caller doesn't override, will miss all VECTOR(1998) embeddings
-   - Should auto-detect from model or embedding table
+   - MUST auto-detect from model or embedding table
 
 2. ⚠️ **Duplicate VECTOR_DISTANCE:** Vector-only path computes distance twice
    - Once in SELECT: `1.0 - VECTOR_DISTANCE(...)`
    - Once in WHERE: `(1.0 - VECTOR_DISTANCE(...)) >= @SimilarityThreshold` (wait, no WHERE threshold in vector-only)
-   - Actually computed in SELECT and ORDER BY - could use CTE or derived table
+   - Actually computed in SELECT and ORDER BY - MUST use CTE or derived table
 
 3. ⚠️ **Spatial Candidate Multiplier:** `@spatial_candidates = CASE WHEN @top_k IS NULL OR @top_k <= 0 THEN 10 ELSE @top_k * 10 END;`
    - Hardcoded 10x multiplier
-   - Should be configurable parameter
-   - May be too aggressive or too conservative depending on data distribution
+   - MUST be configurable parameter
+   - will be too aggressive or too conservative depending on data distribution
 
 **MEDIUM:**
 4. ⚠️ **Multi-Tenancy Pattern:** Uses OR with EXISTS subquery
    - `(a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta ...))`
    - Performance: OR prevents index usage
-   - Should use UNION for better query plans
+   - MUST use UNION for better query plans
 
 5. ⚠️ **@category Parameter:** Filters on `a.Subtype = @category`
    - Name mismatch: "category" vs "Subtype"
-   - Should be @Subtype or rename column
+   - MUST be @Subtype or rename column
 
-6. ⚠️ **No Timeout Handling:** Long-running searches could block
-   - Should add query timeout hints
+6. ⚠️ **No Timeout Handling:** Long-running searches MUST block
+   - MUST add query timeout hints
    - Or implement async search with job queue
 
 7. ⚠️ **InputHash Logic:** Only hashes if @query_text provided
    - Vector queries have NULL InputHash
-   - Could hash vector bytes for cache key
+   - MUST hash vector bytes for cache key
 
 **LOW:**
 8. ⚠️ **JSON Error Handling:** `CAST(JSON_OBJECT(...) AS NVARCHAR(MAX))` without TRY_CAST
    - SQL Server 2022+ syntax
-   - Should validate or use TRY_CAST
+   - MUST validate or use TRY_CAST
 
 9. ⚠️ **Variable Naming:** Inconsistent snake_case vs camelCase
    - Parameters use snake_case (@query_text)
@@ -961,7 +961,7 @@ VALUES (
 - ✅ **Category Filtering:** Optional result filtering
 - ✅ **Error Messages:** Clear error for missing inputs
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Auto-detect dimension from embeddings or model metadata
 2. **HIGH:** Optimize multi-tenancy query with UNION instead of OR
 3. **MEDIUM:** Make spatial candidate multiplier configurable
@@ -1066,23 +1066,23 @@ ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
    - Comment acknowledges: "redundant check, but safe"
 
 2. ⚠️ **Multi-Tenancy Performance:** Same OR + EXISTS pattern as sp_SemanticSearch
-   - Should use UNION for better query plans
+   - MUST use UNION for better query plans
    - Affects both Phase 1 and Phase 2
 
 3. ⚠️ **Duplicate VECTOR_DISTANCE:** Computed in SELECT and ORDER BY
-   - Could use CTE or CROSS APPLY to compute once
+   - MUST use CTE or CROSS APPLY to compute once
 
 **LOW:**
 4. ⚠️ **PRINT Statements:** Debug output with PRINT
-   - Should use @Debug parameter or remove
+   - MUST use @Debug parameter or remove
    - Not user-facing output
 
 5. ⚠️ **No Validation:** Doesn't validate @spatial_candidates > @final_top_k
-   - Should enforce @spatial_candidates >= @final_top_k
+   - MUST enforce @spatial_candidates >= @final_top_k
    - Otherwise Phase 2 will return fewer results than requested
 
 6. ⚠️ **SRID Hardcoded:** Default @srid = 0
-   - Should match AtomEmbedding.SpatialKey SRID
+   - MUST match AtomEmbedding.SpatialKey SRID
    - Mismatch will cause spatial errors
 
 #### Strengths
@@ -1095,7 +1095,7 @@ ORDER BY VECTOR_DISTANCE(@distance_metric, ae.EmbeddingVector, @query_vector);
 - ✅ **Flexible Filtering:** Optional embedding type and model filters
 - ✅ **Table Variable Pattern:** Efficient candidate storage
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **MEDIUM:** Remove redundant tenant check in Phase 2
 2. **MEDIUM:** Optimize multi-tenancy with UNION pattern
 3. **MEDIUM:** Add validation: @spatial_candidates >= @final_top_k
@@ -1223,7 +1223,7 @@ SELECT TOP (@TopK) ... ORDER BY r.CombinedScore DESC;
 **HIGH:**
 1. ⚠️ **Missing Full-Text Index:** CONTAINSTABLE requires FT index on Atom.Content
    - Will fail if index doesn't exist
-   - Should check: `SELECT * FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('dbo.Atom')`
+   - MUST check: `SELECT * FROM sys.fulltext_indexes WHERE object_id = OBJECT_ID('dbo.Atom')`
    - Or use LIKE fallback
 
 2. ⚠️ **Dynamic SQL Limitations:** `@Keywords` truncated to NVARCHAR(4000)
@@ -1234,35 +1234,35 @@ SELECT TOP (@TopK) ... ORDER BY r.CombinedScore DESC;
 3. ⚠️ **FTS Rank Normalization:** `fts.FTSRank / 1000.0`
    - Arbitrary scaling factor
    - FTS rank scale varies by content and index
-   - Should normalize to 0-1 based on max rank in result set
+   - MUST normalize to 0-1 based on max rank in result set
 
 **MEDIUM:**
 4. ⚠️ **Spatial Scoring:** Binary 1.0/0.0 instead of distance-based
    - Within region = 1.0, outside = 0.0
    - No partial scoring for proximity
-   - Could use: `1.0 / (1.0 + STDistance(@region.STCentroid()))`
+   - MUST use: `1.0 / (1.0 + STDistance(@region.STCentroid()))`
 
 5. ⚠️ **No Zero-Weight Optimization:** Computes all modalities even if weight = 0
    - If @KeywordWeight = 0, skips CONTAINSTABLE (good)
    - But always computes vector scores even if @VectorWeight = 0
-   - Should skip modalities with zero weight
+   - MUST skip modalities with zero weight
 
 6. ⚠️ **Left Join Performance:** `LEFT JOIN dbo.TenantAtoms ta`
    - If @TenantId IS NULL, LEFT JOIN is unnecessary
-   - Should use conditional logic or INNER JOIN
+   - MUST use conditional logic or INNER JOIN
 
 7. ⚠️ **Temp Table Cleanup:** `DROP TABLE #FTSResults;` in IF block
    - Good cleanup
    - But if error occurs before DROP, table persists
-   - Should use TRY/FINALLY pattern
+   - MUST use TRY/FINALLY pattern
 
 **LOW:**
 8. ⚠️ **No Model Filtering:** Vector scoring doesn't filter by ModelId
    - Multiple embeddings per atom = multiple scores
-   - Should filter or aggregate
+   - MUST filter or aggregate
 
 9. ⚠️ **No Dimension Filtering:** Doesn't filter `ae.Dimension`
-   - May include embeddings with different dimensions
+   - will include embeddings with different dimensions
    - Vector distance will fail if dimensions mismatch
 
 #### Strengths
@@ -1273,7 +1273,7 @@ SELECT TOP (@TopK) ... ORDER BY r.CombinedScore DESC;
 - ✅ **Rich Metadata:** Returns individual and combined scores
 - ✅ **Error Handling:** TRY/CATCH with proper RAISERROR
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Check for FT index or implement LIKE fallback
 2. **HIGH:** Fix keyword truncation - use NVARCHAR(MAX) in dynamic SQL
 3. **HIGH:** Normalize FTS ranks dynamically based on max rank
@@ -1373,38 +1373,38 @@ SELECT TOP (@TopK) ... ORDER BY er.EnsembleScore DESC;
 **HIGH:**
 1. ⚠️ **Hardcoded 3 Models:** Requires exactly 3 models
    - Not flexible for 2-model or 4+ model ensembles
-   - Should accept variable number of models via TVP or JSON
+   - MUST accept variable number of models via TVP or JSON
 
 2. ⚠️ **No Weight Validation:** Doesn't check if weights sum to 1.0
-   - Could lead to unexpected score ranges
-   - Should validate like sp_FusionSearch does
+   - MUST lead to unexpected score ranges
+   - MUST validate like sp_FusionSearch does
 
 3. ⚠️ **Three Subqueries:** Per-model scoring uses correlated subqueries
    - Each subquery scans AtomEmbedding independently
    - Performance: O(N * 3) for N atoms
-   - Should use LEFT JOINs or CTEs
+   - MUST use LEFT JOINs or CTEs
 
 **MEDIUM:**
 4. ⚠️ **Zero Score for Missing Embeddings:** `ISNULL(..., 0.0)`
    - Atom with 1/3 embeddings penalized
-   - Should normalize: `EnsembleScore / (COUNT(non-null scores))`
+   - MUST normalize: `EnsembleScore / (COUNT(non-null scores))`
    - Or filter to atoms with all embeddings
 
 5. ⚠️ **No Dimension Filtering:** Doesn't filter `ae.Dimension`
    - Assumes all models use same dimension
-   - Could fail if models have different dimensions
+   - MUST fail if models have different dimensions
 
 6. ⚠️ **Left Join for Tenancy:** Same performance issue as other procedures
-   - Should optimize tenant filtering
+   - MUST optimize tenant filtering
 
 **LOW:**
 7. ⚠️ **No Metadata:** Doesn't return model info in results
    - Useful to know which models contributed
-   - Could return Model1Score, Model2Score, Model3Score
+   - MUST return Model1Score, Model2Score, Model3Score
 
 8. ⚠️ **Fixed Parameter Names:** @QueryVector1, @QueryVector2, @QueryVector3
    - Not extensible
-   - Should use TVP or JSON array
+   - MUST use TVP or JSON array
 
 #### Strengths
 - ✅ **Ensemble Learning:** Leverages multiple model perspectives
@@ -1414,7 +1414,7 @@ SELECT TOP (@TopK) ... ORDER BY er.EnsembleScore DESC;
 - ✅ **Error Handling:** TRY/CATCH block
 - ✅ **Rich Output:** Includes per-model and ensemble scores
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Refactor to accept variable number of models (TVP or JSON)
 2. **HIGH:** Optimize per-model scoring with JOINs instead of subqueries
 3. **HIGH:** Validate weights sum to 1.0
@@ -1547,25 +1547,25 @@ VALUES (
 
 **MEDIUM:**
 1. ⚠️ **WHILE Loop:** Iterates segments sequentially
-   - Could use CLR function to enumerate all segments at once
+   - MUST use CLR function to enumerate all segments at once
    - Wait, Part 11 shows: `provenance.clr_EnumerateAtomicStreamSegments` exists
-   - Should use that TVF instead of WHILE loop
+   - MUST use that TVF instead of WHILE loop
 
 2. ⚠️ **Hardcoded Segment Types:** `IF @SegmentKind NOT IN ('Input', 'Output', ...)`
-   - Segment types should be in reference table or CLR constant
+   - Segment types MUST be in reference table or CLR constant
    - New types require code change
 
 3. ⚠️ **No TenantId:** Missing multi-tenancy
-   - Should validate caller has access to operation
+   - MUST validate caller has access to operation
    - Security risk: any user can validate any operation
 
 4. ⚠️ **Validation Logic in Procedure:** Complex validation rules
-   - Should extract to separate validation framework
+   - MUST extract to separate validation framework
    - Hard to unit test
 
 **LOW:**
 5. ⚠️ **Stream Age:** `DATEDIFF(MINUTE, ...) / 60.0` 
-   - Could use DATEDIFF(HOUR, ...) directly
+   - MUST use DATEDIFF(HOUR, ...) directly
    - Minor precision difference
 
 6. ⚠️ **Status Ordering:** `CASE Status WHEN 'FAIL' THEN 1 ...`
@@ -1573,7 +1573,7 @@ VALUES (
    - Good for user experience
 
 7. ⚠️ **Debug PRINT:** Uses PRINT for debug output
-   - Should return debug info in result set or use @Debug = 2 for verbose mode
+   - MUST return debug info in result set or use @Debug = 2 for verbose mode
 
 #### Strengths
 - ✅ **Comprehensive Validation:** Checks existence, metadata, segments, timestamps, age
@@ -1585,7 +1585,7 @@ VALUES (
 - ✅ **Early Exit:** GOTO for fast failure on missing stream
 - ✅ **Audit Trail:** Stores every validation run
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Replace WHILE loop with clr_EnumerateAtomicStreamSegments TVF
 2. **MEDIUM:** Add TenantId and authorization check
 3. **MEDIUM:** Extract validation rules to configuration table
@@ -1598,7 +1598,7 @@ VALUES (
 - **Uses:** OperationProvenance (Part 11), AtomicStream UDT (Part 11), ProvenanceValidationResults (Part 11)
 - **Calls:** AtomicStream CLR methods (GetSegmentKind, GetSegmentTimestamp)
 - **Related:** Provenance audit, compliance, debugging
-- **Pattern:** Could be generalized for other stream validation scenarios
+- **Pattern:** MUST be generalized for other stream validation scenarios
 
 ---
 
@@ -1650,12 +1650,12 @@ VALUES (
 
 **Multi-Tenancy Optimization Needed:**
 - All procedures use `OR + EXISTS` pattern
-- Should use `UNION` for better query plans
+- MUST use `UNION` for better query plans
 - Affects index usage
 
 **VECTOR_DISTANCE Duplication:**
 - Computed in SELECT, WHERE, ORDER BY
-- Should use CTEs or derived tables
+- MUST use CTEs or derived tables
 - Minor but consistent pattern
 
 ### Cross-Cutting Observations
@@ -1807,16 +1807,16 @@ VALUES (
    - `dbo.fn_DetermineSla(NVARCHAR(50), INT) RETURNS NVARCHAR(20)`
    - `dbo.fn_EstimateResponseTime(NVARCHAR(255), INT) RETURNS INT`
    - Impact: Procedure will fail at runtime
-   - Should implement or provide fallback logic
+   - MUST implement or provide fallback logic
 
 **HIGH:**
 2. ⚠️ **Service Broker Not Verified:** No check if Service Broker is enabled
    - `BEGIN DIALOG` will fail if Service Broker disabled
-   - Should check: `SELECT is_broker_enabled FROM sys.databases WHERE database_id = DB_ID()`
-   - Should provide error message if not enabled
+   - MUST check: `SELECT is_broker_enabled FROM sys.databases WHERE database_id = DB_ID()`
+   - MUST provide error message if not enabled
 
 3. ⚠️ **No Conversation Cleanup:** `@DialogHandle` never ended
-   - Should `END CONVERSATION @DialogHandle` after SEND
+   - **REQUIRED:** `END CONVERSATION @DialogHandle` after SEND
    - Causes conversation handle leaks
    - OR use one-way messaging pattern
 
@@ -1828,28 +1828,28 @@ VALUES (
 **MEDIUM:**
 5. ⚠️ **Hardcoded Defaults:** Magic numbers for missing JSON values
    - `SET @tokenCount = ISNULL(@tokenCount, 1000);`
-   - Should be configurable or based on model defaults
+   - MUST be configurable or based on model defaults
 
 6. ⚠️ **No Input Validation:** Doesn't validate @inputData is valid JSON
-   - Should use `ISJSON(@inputData) = 1`
+   - MUST use `ISJSON(@inputData) = 1`
    - Prevents JSON parsing errors
 
 7. ⚠️ **Comment Discrepancy:** "Changed from 'Pending' to 'Queued'"
    - Suggests previous status was 'Pending'
-   - Should document why changed (consistency with job lifecycle?)
+   - MUST document why changed (consistency with job lifecycle?)
 
 8. ⚠️ **No Transaction:** Insert + Service Broker send not atomic
    - If SEND fails, InferenceRequest exists but no message queued
-   - Should wrap in transaction with proper error handling
+   - MUST wrap in transaction with proper error handling
 
 **LOW:**
 9. ⚠️ **Correlation ID Format:** Uses NEWID() GUID
-   - Could use sequential GUID for better indexing
+   - MUST use sequential GUID for better indexing
    - Or allow custom format (e.g., prefixed IDs)
 
 10. ⚠️ **XML vs JSON:** Service Broker uses XML, input uses JSON
     - Inconsistent formats
-    - Could send JSON directly if message type allows
+    - MUST send JSON directly if message type allows
 
 #### Strengths
 - ✅ **Service Broker Integration:** Modern message-based architecture
@@ -1860,7 +1860,7 @@ VALUES (
 - ✅ **UTC Timestamps:** Proper timezone handling
 - ✅ **Comment Documentation:** Explains paradigm shift from polling
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **CRITICAL:** Implement three missing CLR functions with proper logic
 2. **HIGH:** Verify Service Broker enabled, provide clear error if not
 3. **HIGH:** End conversation after SEND or document one-way pattern
@@ -1925,11 +1925,11 @@ WHERE InferenceId = @inferenceId;
 1. ⚠️ **No Authorization Check:** Any user can query any job
    - Missing TenantId filter
    - Security risk: cross-tenant data access
-   - Should verify caller owns the job
+   - MUST verify caller owns the job
 
 2. ⚠️ **No Error Handling:** No TRY/CATCH block
    - Unhandled exceptions propagate to caller
-   - Should validate @inferenceId exists
+   - MUST validate @inferenceId exists
 
 3. ⚠️ **Limited Output:** Only returns InferenceRequest columns
    - Doesn't include calculated metadata (Complexity, SlaTier, EstimatedResponseTimeMs)
@@ -1939,7 +1939,7 @@ WHERE InferenceId = @inferenceId;
 **MEDIUM:**
 4. ⚠️ **No NULL Check:** Doesn't return error if job not found
    - Returns empty result set
-   - Should return explicit error or status
+   - MUST return explicit error or status
 
 5. ⚠️ **Missing Columns:** Output doesn't match sp_SubmitInferenceJob enrichment
    - sp_SubmitInferenceJob adds Complexity, SlaTier, EstimatedResponseTimeMs
@@ -1949,21 +1949,21 @@ WHERE InferenceId = @inferenceId;
 **LOW:**
 6. ⚠️ **Performance:** No index hint or optimization
    - Assumes PK on InferenceId (likely exists)
-   - Should verify clustered index
+   - MUST verify clustered index
 
 #### Strengths
 - ✅ **Simple and Direct:** Clear single-purpose procedure
 - ✅ **Consistent Naming:** Follows get/retrieve pattern
 - ✅ **Correlation ID:** Returns correlation tracking
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Add TenantId authorization check
 2. **HIGH:** Add TRY/CATCH error handling
 3. **HIGH:** Include Complexity, SlaTier, EstimatedResponseTimeMs in output
 4. **MEDIUM:** Return explicit error if job not found
 5. **MEDIUM:** Add model information to output
 6. **LOW:** Add token usage and cost information
-7. **LOW:** Consider returning related information (model name, tenant name)
+7. **LOW:** IMPLEMENT returning related information (model name, tenant name)
 
 #### Cross-References
 - **Uses:** InferenceRequest (Part 8)
@@ -2024,43 +2024,43 @@ WHERE InferenceId = @inferenceId;
 1. ❌ **No Authorization Check:** Any caller can update any job
    - No TenantId validation
    - Security risk: malicious status changes
-   - Worker processes should have service account validation
+   - Worker processes MUST have service account validation
 
 **HIGH:**
 2. ⚠️ **No Error Handling:** No TRY/CATCH block
    - Unhandled exceptions on invalid updates
-   - Should validate job exists
+   - MUST validate job exists
 
 3. ⚠️ **No Validation:** Doesn't validate status values
-   - Should check: @status IN ('Queued', 'Processing', 'Completed', 'Failed', 'Cancelled')
+   - MUST check: @status IN ('Queued', 'Processing', 'Completed', 'Failed', 'Cancelled')
    - Prevents typos and invalid states
 
 4. ⚠️ **No Concurrency Control:** No optimistic locking
-   - Multiple workers could update same job
-   - Should use: `WHERE InferenceId = @inferenceId AND Status = @previousStatus`
+   - Multiple workers MUST update same job
+   - MUST use: `WHERE InferenceId = @inferenceId AND Status = @previousStatus`
    - Or use row versioning
 
 5. ⚠️ **No Audit Trail:** Status changes not logged
    - Can't track job lifecycle
-   - Should log state transitions
+   - MUST log state transitions
 
 **MEDIUM:**
 6. ⚠️ **Partial Updates:** Allows updating OutputData without status change
    - Unclear when to call with partial data
-   - Should enforce complete updates or separate procedures
+   - MUST enforce complete updates or separate procedures
 
 7. ⚠️ **Timestamp Logic:** Auto-sets timestamp only for terminal states
    - What if caller provides timestamp for non-terminal state?
-   - Should validate or document behavior
+   - MUST validate or document behavior
 
 8. ⚠️ **No @@ROWCOUNT Check:** Doesn't verify update succeeded
    - If job doesn't exist, silently succeeds
-   - Should return error or affected row count
+   - MUST return error or affected row count
 
 **LOW:**
 9. ⚠️ **No Output:** Doesn't return updated record
    - Caller can't verify update
-   - Should return updated job or status code
+   - MUST return updated job or status code
 
 10. ⚠️ **Missing Columns:** Doesn't update Complexity, SlaTier, EstimatedResponseTimeMs
     - If job recalculated, can't update those values
@@ -2071,7 +2071,7 @@ WHERE InferenceId = @inferenceId;
 - ✅ **Flexible Parameters:** Optional parameters for partial updates
 - ✅ **Terminal State Detection:** Recognizes 'Completed' and 'Failed'
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **CRITICAL:** Add service account or TenantId authorization
 2. **HIGH:** Add TRY/CATCH error handling
 3. **HIGH:** Validate status values with CHECK constraint or validation
@@ -2081,7 +2081,7 @@ WHERE InferenceId = @inferenceId;
 7. **MEDIUM:** Return updated job record
 8. **MEDIUM:** Document or enforce complete vs partial update semantics
 9. **LOW:** Add parameters for updating Complexity, SlaTier, EstimatedResponseTimeMs
-10. **LOW:** Consider row-level security for job updates
+10. **LOW:** IMPLEMENT row-level security for job updates
 
 #### Cross-References
 - **Uses:** InferenceRequest (Part 8)
@@ -2185,7 +2185,7 @@ END
 **HIGH:**
 1. ⚠️ **Cursor Usage:** Iterates concepts with cursor
    - Performance: O(N²) for N concepts
-   - Could be set-based with CROSS APPLY:
+   - MUST be set-based with CROSS APPLY:
    ```sql
    WITH NearestNeighbors AS (
        SELECT 
@@ -2207,17 +2207,17 @@ END
 
 2. ⚠️ **Duplicate Distance Calculation:** Computes STDistance in SELECT and ORDER BY
    - Minor performance issue
-   - Could use CTE or TOP 1 with CROSS APPLY
+   - MUST use CTE or TOP 1 with CROSS APPLY
 
 3. ⚠️ **Simplified Voronoi:** Comment warns "Simplified version"
-   - True Voronoi cells should use perpendicular bisector planes
-   - Current: Circular buffers that may overlap
-   - Should document limitations
+   - True Voronoi cells MUST use perpendicular bisector planes
+   - Current: Circular buffers that will overlap
+   - MUST document limitations
 
 **MEDIUM:**
 4. ⚠️ **Hardcoded Bounding Box:** `WITH (BOUNDING_BOX = (-1, -1, 1, 1))`
    - Assumes normalized coordinates [-1, 1]
-   - Should compute from actual data:
+   - MUST compute from actual data:
    ```sql
    SELECT 
        MIN(CentroidSpatialKey.STX) AS MinX,
@@ -2229,28 +2229,28 @@ END
 
 5. ⚠️ **Single Concept Edge Case:** Sets @NearestDistance = 1.0
    - Arbitrary default radius
-   - Should be configurable parameter
+   - MUST be configurable parameter
 
 6. ⚠️ **No Validation:** Doesn't check if domains overlap
    - Buffer approach can create overlapping domains
-   - Should validate or document overlaps
+   - MUST validate or document overlaps
 
 7. ⚠️ **Spatial Index Check:** Only checks by name
-   - Could have different index with same name in different schema
-   - Should check: `object_id = OBJECT_ID('provenance.Concepts')`
+   - MUST have different index with same name in different schema
+   - MUST check: `object_id = OBJECT_ID('provenance.Concepts')`
 
 **LOW:**
 8. ⚠️ **Temp Table Cleanup:** Uses # temp tables (auto-cleanup)
    - Good practice
-   - Could reuse variables/CTEs for better memory usage
+   - MUST reuse variables/CTEs for better memory usage
 
 9. ⚠️ **No Progress Reporting:** No feedback for long operations
-   - Should report progress every N concepts
+   - MUST report progress every N concepts
    - Or return concept count processed
 
 10. ⚠️ **Comment Reference:** "MIConvexHull CLR" mentioned
     - Suggests full implementation would use CLR library
-    - Should document if library is available
+    - MUST document if library is available
 
 #### Strengths
 - ✅ **Multi-Tenancy:** Filters by TenantId
@@ -2261,7 +2261,7 @@ END
 - ✅ **Result Reporting:** Returns updated count
 - ✅ **Edge Case Handling:** Single concept case handled
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Replace cursor with set-based CROSS APPLY solution
 2. **HIGH:** Document Voronoi simplification and overlap possibilities
 3. **MEDIUM:** Compute bounding box from actual data
@@ -2269,7 +2269,7 @@ END
 5. **MEDIUM:** Validate or document domain overlaps
 6. **MEDIUM:** Fix spatial index check to include object_id
 7. **LOW:** Add progress reporting for large concept sets
-8. **LOW:** Consider implementing true Voronoi with MIConvexHull CLR
+8. **LOW:** IMPLEMENT implementing true Voronoi with MIConvexHull CLR
 9. **LOW:** Return domain statistics (avg radius, overlap count, etc.)
 
 #### Cross-References
@@ -2319,7 +2319,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - `ModelId` - Model identifier
 - `ModelName` - Human-readable model name
 - `LayerIdx` - Layer index (0-based)
-- `LayerName` - Layer name (may be NULL if ModelLayer not populated)
+- `LayerName` - Layer name (will be NULL if ModelLayer not populated - CRITICAL FIX)
 - `PositionX`, `PositionY`, `PositionZ` - 3D tensor coordinates
 - `WeightValueBinary` - VARBINARY(64) containing IEEE 754 float32
 
@@ -2349,29 +2349,29 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 
 2. ⚠️ **No Conversion Function:** Returns binary, requires client decoding
    - Comment acknowledges: "decode client-side or use CLR functions"
-   - Could add CLR scalar function: `dbo.fn_BinaryToFloat32` (noted missing in Part 10)
+   - MUST add CLR scalar function: `dbo.fn_BinaryToFloat32` (noted missing in Part 10)
    - Or provide separate computed column view
 
 3. ⚠️ **No TenantId Filter:** Missing multi-tenancy
    - View returns all models for all tenants
-   - Should join Model table and filter by TenantId
+   - MUST join Model table and filter by TenantId
    - Security risk for multi-tenant deployments
 
-4. ⚠️ **LEFT JOIN ModelLayer:** Layer names may be NULL
+4. ⚠️ **LEFT JOIN ModelLayer:** Layer names will be NULL
    - If ModelLayer not populated, LayerName is NULL
-   - Should document this or make INNER JOIN if required
+   - MUST document this or make INNER JOIN if required
 
 **LOW:**
 5. ⚠️ **No Versioning:** Doesn't include temporal columns
-   - TensorAtomCoefficient may have temporal versioning
-   - Should include ValidFrom/ValidTo for historical queries
+   - TensorAtomCoefficient will have temporal versioning
+   - MUST include ValidFrom/ValidTo for historical queries
 
 6. ⚠️ **Column Aliasing:** Uses brackets for all identifiers
    - Consistent but verbose
    - Style preference
 
-7. ⚠️ **No Index Hints:** Large weight tables could benefit from hints
-   - Could add WITH (NOLOCK) for read-only analytics
+7. ⚠️ **No Index Hints:** Large weight tables MUST benefit from hints
+   - MUST add WITH (NOLOCK) for read-only analytics
    - Or document expected query patterns
 
 #### Strengths
@@ -2383,14 +2383,14 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - ✅ **OLAP-Friendly:** Suitable for analytics queries
 - ✅ **Atomic Decomposition:** Leverages TensorAtomCoefficient architecture
 
-#### Recommendations
+#### REQUIRED FIXES
 1. **HIGH:** Add TenantId filtering for security
-2. **MEDIUM:** Consider WITH SCHEMABINDING for indexed view potential
+2. **MEDIUM:** IMPLEMENT WITH SCHEMABINDING for indexed view potential
 3. **MEDIUM:** Create companion view with decoded float values (using CLR)
 4. **MEDIUM:** Add temporal columns for historical analysis
 5. **LOW:** Document ModelLayer LEFT JOIN behavior
 6. **LOW:** Add example queries to comments
-7. **LOW:** Consider NOLOCK hint for analytics workloads
+7. **LOW:** IMPLEMENT NOLOCK hint for analytics workloads
 
 #### Cross-References
 - **Uses:** TensorAtomCoefficient (Part 8), Atom (Part 1), Model (Part 2), ModelLayer (not analyzed)
@@ -2429,7 +2429,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - InferenceService (service)
 - InferenceJobContract (contract)
 - InferenceJobRequest (message type)
-- Note: May exist but not verified in audit
+- Note: will exist but not verified in audit
 
 ### Quality Distribution (All Batches)
 - **Excellent (85-100):** 3 files (sp_HybridSearch: 88, vw_ReconstructModelLayerWeights: 88, sp_SemanticSearch: 85)
@@ -2455,7 +2455,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - sp_BuildConceptDomains: Simplified Voronoi tessellation
 - Uses STBuffer for circular domains
 - Enables fast spatial containment queries
-- Could be improved with true Voronoi (MIConvexHull CLR)
+- MUST be improved with true Voronoi (MIConvexHull CLR)
 
 **Weight Reconstruction (Batch 3):**
 - vw_ReconstructModelLayerWeights: OLAP-friendly weight access
@@ -2474,7 +2474,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - Malicious job status changes
 - Unauthorized weight access
 
-**Recommendation:**
+**IMPLEMENT:**
 - Implement row-level security or add TenantId filters
 - Add service account validation for worker procedures
 - Audit all data access
@@ -2482,7 +2482,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 ### Performance Insights
 
 **Cursor vs Set-Based:**
-- sp_BuildConceptDomains: Cursor-based O(N²) could be set-based O(N log N)
+- sp_BuildConceptDomains: Cursor-based O(N²) MUST be set-based O(N log N)
 - Pattern seen in multiple procedures
 - Optimization opportunity: ~10-100x speedup for large datasets
 
@@ -2493,7 +2493,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - Scalable worker pool architecture
 
 **Indexed Views:**
-- vw_ReconstructModelLayerWeights could benefit from SCHEMABINDING
+- vw_ReconstructModelLayerWeights MUST benefit from SCHEMABINDING
 - Current: Scans on every query
 - Potential: Materialized indexed view for analytics
 
@@ -2628,7 +2628,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 - Good for complex data structures
 - Some files missing ISJSON validation
 
-### Recommendations Priority Matrix
+### REQUIRED FIXES Priority Matrix
 
 **CRITICAL (Must Fix Before Production):**
 1. Implement 6 missing CLR functions
@@ -2654,7 +2654,7 @@ WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
 **LOW (Polish & Future):**
 1. Standardize variable naming conventions
 2. Add progress reporting for long operations
-3. Consider SCHEMABINDING for indexed views
+3. IMPLEMENT SCHEMABINDING for indexed views
 4. Implement true Voronoi with MIConvexHull CLR
 5. Add comprehensive metadata to outputs
 

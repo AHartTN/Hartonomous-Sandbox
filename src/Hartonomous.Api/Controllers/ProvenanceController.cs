@@ -1,4 +1,8 @@
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.MLOps;
+using Hartonomous.Api.DTOs.Provenance;
 using Hartonomous.Core.Interfaces.Provenance;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -8,17 +12,22 @@ namespace Hartonomous.Api.Controllers;
 /// Provenance and lineage tracking endpoints using Neo4j graph database.
 /// Provides atom lineage, session paths, error clustering, and influence analysis.
 /// </summary>
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/provenance")]
+[Authorize(Policy = "ApiUser")]
 [EnableRateLimiting("query")]
-public class ProvenanceController : ApiControllerBase
+public class ProvenanceController : ControllerBase
 {
     private readonly IProvenanceQueryService _provenanceService;
+    private readonly ILogger<ProvenanceController> _logger;
 
     public ProvenanceController(
         IProvenanceQueryService provenanceService,
         ILogger<ProvenanceController> logger)
-        : base(logger)
     {
         _provenanceService = provenanceService ?? throw new ArgumentNullException(nameof(provenanceService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -42,14 +51,14 @@ public class ProvenanceController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (atomId <= 0)
-            return ErrorResult("Atom ID must be greater than 0", 400);
+            return BadRequest("Atom ID must be greater than 0");
 
         if (maxDepth < 1)
-            return ErrorResult("Max depth must be at least 1", 400);
+            return BadRequest("Max depth must be at least 1");
 
         try
         {
-            Logger.LogInformation("Retrieving lineage for atom {AtomId} with max depth {MaxDepth}", atomId, maxDepth);
+            _logger.LogInformation("Retrieving lineage for atom {AtomId} with max depth {MaxDepth}", atomId, maxDepth);
 
             var lineage = await _provenanceService.GetAtomLineageAsync(atomId, maxDepth, cancellationToken);
 
@@ -58,9 +67,9 @@ public class ProvenanceController : ApiControllerBase
             {
                 AtomId = atomId,
                 MaxDepth = maxDepth ?? 5,
-                Nodes = GenerateMockLineageNodes(atomId, maxDepth ?? 5),
-                Edges = GenerateMockLineageEdges(atomId),
-                SpatialData = GenerateMockSpatialData(atomId),
+                Nodes = ProvenanceControllerMockData.GenerateMockLineageNodes(atomId, maxDepth ?? 5),
+                Edges = ProvenanceControllerMockData.GenerateMockLineageEdges(atomId),
+                SpatialData = ProvenanceControllerMockData.GenerateMockSpatialData(atomId),
                 Statistics = new LineageStatistics
                 {
                     TotalNodes = 24,
@@ -72,12 +81,12 @@ public class ProvenanceController : ApiControllerBase
                 DemoMode = true
             };
 
-            return SuccessResult(response);
+            return Ok(response);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error retrieving atom lineage for atom {AtomId}", atomId);
-            return ErrorResult("An error occurred while retrieving atom lineage", 500);
+            _logger.LogError(ex, "Error retrieving atom lineage for atom {AtomId}", atomId);
+            throw new InvalidOperationException("An error occurred while retrieving atom lineage");
         }
     }
 
@@ -100,19 +109,19 @@ public class ProvenanceController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (sessionId <= 0)
-            return ErrorResult("Session ID must be greater than 0", 400);
+            return BadRequest("Session ID must be greater than 0");
 
         try
         {
-            Logger.LogInformation("Retrieving reasoning paths for session {SessionId}", sessionId);
+            _logger.LogInformation("Retrieving reasoning paths for session {SessionId}", sessionId);
 
             var paths = await _provenanceService.GetSessionPathsAsync(sessionId, cancellationToken);
 
             var response = new SessionPathsResponse
             {
                 SessionId = sessionId,
-                Paths = GenerateMockSessionPaths(sessionId),
-                SpatialTraversal = GenerateMockPathSpatialData(),
+                Paths = ProvenanceControllerMockData.GenerateMockSessionPaths(sessionId),
+                SpatialTraversal = ProvenanceControllerMockData.GenerateMockPathSpatialData(),
                 Statistics = new PathStatistics
                 {
                     TotalPaths = 7,
@@ -125,12 +134,12 @@ public class ProvenanceController : ApiControllerBase
                 DemoMode = true
             };
 
-            return SuccessResult(response);
+            return Ok(response);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error retrieving session paths for session {SessionId}", sessionId);
-            return ErrorResult("An error occurred while retrieving session paths", 500);
+            _logger.LogError(ex, "Error retrieving session paths for session {SessionId}", sessionId);
+            throw new InvalidOperationException("An error occurred while retrieving session paths");
         }
     }
 
@@ -152,7 +161,7 @@ public class ProvenanceController : ApiControllerBase
     {
         try
         {
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Finding error clusters with min size {MinSize}, sessionId filter: {SessionId}",
                 minClusterSize,
                 sessionId);
@@ -163,8 +172,8 @@ public class ProvenanceController : ApiControllerBase
             {
                 SessionFilter = sessionId,
                 MinClusterSize = minClusterSize,
-                Clusters = GenerateMockErrorClusters(),
-                SpatialHeatmap = GenerateMockErrorHeatmap(),
+                Clusters = ProvenanceControllerMockData.GenerateMockErrorClusters(),
+                SpatialHeatmap = ProvenanceControllerMockData.GenerateMockErrorHeatmap(),
                 Statistics = new ErrorStatistics
                 {
                     TotalErrors = 156,
@@ -177,12 +186,12 @@ public class ProvenanceController : ApiControllerBase
                 DemoMode = true
             };
 
-            return SuccessResult(response);
+            return Ok(response);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error finding error clusters");
-            return ErrorResult("An error occurred while finding error clusters", 500);
+            _logger.LogError(ex, "Error finding error clusters");
+            throw new InvalidOperationException("An error occurred while finding error clusters");
         }
     }
 
@@ -205,14 +214,14 @@ public class ProvenanceController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (atomId <= 0)
-            return ErrorResult("Atom ID must be greater than 0", 400);
+            return BadRequest("Atom ID must be greater than 0");
 
         if (minInfluence < 0 || minInfluence > 1)
-            return ErrorResult("Influence threshold must be between 0.0 and 1.0", 400);
+            return BadRequest("Influence threshold must be between 0.0 and 1.0");
 
         try
         {
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Finding influencing atoms for atom {AtomId} with min influence {MinInfluence}",
                 atomId,
                 minInfluence);
@@ -223,8 +232,8 @@ public class ProvenanceController : ApiControllerBase
             {
                 ResultAtomId = atomId,
                 MinInfluenceThreshold = minInfluence,
-                Influences = GenerateMockInfluences(atomId, minInfluence),
-                SpatialDistribution = GenerateMockInfluenceSpatialData(),
+                Influences = ProvenanceControllerMockData.GenerateMockInfluences(atomId, minInfluence),
+                SpatialDistribution = ProvenanceControllerMockData.GenerateMockInfluenceSpatialData(),
                 Statistics = new InfluenceStatistics
                 {
                     TotalInfluencingAtoms = 42,
@@ -237,248 +246,12 @@ public class ProvenanceController : ApiControllerBase
                 DemoMode = true
             };
 
-            return SuccessResult(response);
+            return Ok(response);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error finding influencing atoms for atom {AtomId}", atomId);
-            return ErrorResult("An error occurred while finding influencing atoms", 500);
+            _logger.LogError(ex, "Error finding influencing atoms for atom {AtomId}", atomId);
+            throw new InvalidOperationException("An error occurred while finding influencing atoms");
         }
     }
-
-    #region Mock Data Generators
-
-    private List<LineageNode> GenerateMockLineageNodes(long atomId, int maxDepth)
-    {
-        var nodes = new List<LineageNode>
-        {
-            new() { AtomId = atomId, Type = "Result", Depth = 0, Label = "Final Inference", Confidence = 0.94, Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4194, 37.7749] } },
-            new() { AtomId = atomId - 1, Type = "Transform", Depth = 1, Label = "Semantic Synthesis", Confidence = 0.89, Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4210, 37.7745] } },
-            new() { AtomId = atomId - 2, Type = "Source", Depth = 2, Label = "Knowledge Atom #1", Confidence = 0.92, Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4180, 37.7755] } },
-            new() { AtomId = atomId - 3, Type = "Source", Depth = 2, Label = "Knowledge Atom #2", Confidence = 0.87, Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4200, 37.7740] } },
-            new() { AtomId = atomId - 4, Type = "Validation", Depth = 1, Label = "Error Check", Confidence = 0.96, Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4190, 37.7752] } }
-        };
-
-        return nodes;
-    }
-
-    private List<LineageEdge> GenerateMockLineageEdges(long atomId)
-    {
-        return new List<LineageEdge>
-        {
-            new() { From = atomId - 1, To = atomId, Type = "PRODUCES", Weight = 0.89, Label = "synthesis" },
-            new() { From = atomId - 2, To = atomId - 1, Type = "CONTRIBUTES", Weight = 0.73, Label = "semantic_match" },
-            new() { From = atomId - 3, To = atomId - 1, Type = "CONTRIBUTES", Weight = 0.68, Label = "context_support" },
-            new() { From = atomId - 4, To = atomId, Type = "VALIDATES", Weight = 0.96, Label = "error_free" }
-        };
-    }
-
-    private SpatialVisualizationData GenerateMockSpatialData(long atomId)
-    {
-        return new SpatialVisualizationData
-        {
-            Type = "FeatureCollection",
-            Features = new List<GeoJsonFeature>
-            {
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4194, 37.7749] },
-                    Properties = new Dictionary<string, object> { ["atomId"] = atomId, ["type"] = "result", ["confidence"] = 0.94 }
-                },
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonLineString 
-                    { 
-                        Type = "LineString", 
-                        Coordinates = new List<double[]> { new[] { -122.4180, 37.7755 }, new[] { -122.4194, 37.7749 } } 
-                    },
-                    Properties = new Dictionary<string, object> { ["type"] = "lineage", ["weight"] = 0.89 }
-                }
-            },
-            BoundingBox = new double[] { -122.4220, 37.7730, -122.4170, 37.7765 }
-        };
-    }
-
-    private List<ReasoningPath> GenerateMockSessionPaths(long sessionId)
-    {
-        return new List<ReasoningPath>
-        {
-            new() 
-            { 
-                PathId = "path_1", 
-                Status = "completed", 
-                Confidence = 0.92, 
-                Steps = 7, 
-                Waypoints = new List<GeoJsonPoint> 
-                {
-                    new() { Type = "Point", Coordinates = [-122.4194, 37.7749] },
-                    new() { Type = "Point", Coordinates = [-122.4200, 37.7755] },
-                    new() { Type = "Point", Coordinates = [-122.4210, 37.7760] }
-                }
-            },
-            new() 
-            { 
-                PathId = "path_2", 
-                Status = "pruned", 
-                Confidence = 0.67, 
-                Steps = 4, 
-                Reason = "Low confidence threshold",
-                Waypoints = new List<GeoJsonPoint> 
-                {
-                    new() { Type = "Point", Coordinates = [-122.4194, 37.7749] },
-                    new() { Type = "Point", Coordinates = [-122.4180, 37.7740] }
-                }
-            }
-        };
-    }
-
-    private SpatialVisualizationData GenerateMockPathSpatialData()
-    {
-        return new SpatialVisualizationData
-        {
-            Type = "FeatureCollection",
-            Features = new List<GeoJsonFeature>
-            {
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonLineString 
-                    { 
-                        Type = "LineString", 
-                        Coordinates = new List<double[]> 
-                        { 
-                            new[] { -122.4194, 37.7749 }, 
-                            new[] { -122.4200, 37.7755 },
-                            new[] { -122.4210, 37.7760 }
-                        } 
-                    },
-                    Properties = new Dictionary<string, object> { ["pathId"] = "path_1", ["status"] = "completed", ["confidence"] = 0.92 }
-                }
-            },
-            BoundingBox = new double[] { -122.4220, 37.7740, -122.4180, 37.7765 }
-        };
-    }
-
-    private List<ErrorCluster> GenerateMockErrorClusters()
-    {
-        return new List<ErrorCluster>
-        {
-            new() 
-            { 
-                ClusterId = "cluster_1", 
-                ErrorType = "SemanticAmbiguity", 
-                ErrorCount = 34, 
-                Centroid = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4195, 37.7750] },
-                Radius = 0.5,
-                FirstOccurrence = DateTime.UtcNow.AddDays(-6),
-                LastOccurrence = DateTime.UtcNow.AddHours(-3),
-                Severity = "medium"
-            },
-            new() 
-            { 
-                ClusterId = "cluster_2", 
-                ErrorType = "ConfidenceThreshold", 
-                ErrorCount = 21, 
-                Centroid = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4210, 37.7765] },
-                Radius = 0.3,
-                FirstOccurrence = DateTime.UtcNow.AddDays(-4),
-                LastOccurrence = DateTime.UtcNow.AddHours(-12),
-                Severity = "low"
-            }
-        };
-    }
-
-    private SpatialVisualizationData GenerateMockErrorHeatmap()
-    {
-        return new SpatialVisualizationData
-        {
-            Type = "FeatureCollection",
-            Features = new List<GeoJsonFeature>
-            {
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4195, 37.7750] },
-                    Properties = new Dictionary<string, object> { ["intensity"] = 34, ["errorType"] = "SemanticAmbiguity" }
-                },
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4210, 37.7765] },
-                    Properties = new Dictionary<string, object> { ["intensity"] = 21, ["errorType"] = "ConfidenceThreshold" }
-                }
-            },
-            BoundingBox = new double[] { -122.4220, 37.7740, -122.4180, 37.7770 }
-        };
-    }
-
-    private List<InfluencingAtom> GenerateMockInfluences(long atomId, double minInfluence)
-    {
-        return new List<InfluencingAtom>
-        {
-            new() 
-            { 
-                AtomId = atomId - 5, 
-                InfluenceWeight = 0.89, 
-                InfluenceType = "Direct",
-                Label = "Primary Context Source",
-                Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4180, 37.7755] },
-                Distance = 0.8
-            },
-            new() 
-            { 
-                AtomId = atomId - 12, 
-                InfluenceWeight = 0.67, 
-                InfluenceType = "Indirect",
-                Label = "Supporting Evidence",
-                Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4200, 37.7740] },
-                Distance = 1.2
-            },
-            new() 
-            { 
-                AtomId = atomId - 23, 
-                InfluenceWeight = 0.42, 
-                InfluenceType = "Indirect",
-                Label = "Historical Pattern",
-                Location = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4215, 37.7760] },
-                Distance = 2.3
-            }
-        };
-    }
-
-    private SpatialVisualizationData GenerateMockInfluenceSpatialData()
-    {
-        return new SpatialVisualizationData
-        {
-            Type = "FeatureCollection",
-            Features = new List<GeoJsonFeature>
-            {
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonPoint { Type = "Point", Coordinates = [-122.4180, 37.7755] },
-                    Properties = new Dictionary<string, object> { ["influence"] = 0.89, ["type"] = "direct" }
-                },
-                new() 
-                { 
-                    Type = "Feature",
-                    Geometry = new GeoJsonLineString 
-                    { 
-                        Type = "LineString", 
-                        Coordinates = new List<double[]> 
-                        { 
-                            new[] { -122.4180, 37.7755 }, 
-                            new[] { -122.4194, 37.7749 }
-                        } 
-                    },
-                    Properties = new Dictionary<string, object> { ["weight"] = 0.89 }
-                }
-            },
-            BoundingBox = new double[] { -122.4220, 37.7735, -122.4170, 37.7770 }
-        };
-    }
-
-    #endregion
 }

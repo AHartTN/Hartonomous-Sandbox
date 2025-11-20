@@ -7,23 +7,23 @@ namespace Hartonomous.Infrastructure.Services.Reasoning;
 /// <summary>
 /// Mock implementation of reasoning services for marketing site demonstrations.
 /// Returns realistic sample data without requiring database connectivity.
+/// Inherits from ReasoningServiceBase for standardized validation and telemetry.
 /// </summary>
-public sealed class MockReasoningService : IReasoningService
+public sealed class MockReasoningService : ReasoningServiceBase<MockReasoningService>
 {
-    private readonly ILogger<MockReasoningService> _logger;
     private static readonly Random _random = new();
 
     public MockReasoningService(ILogger<MockReasoningService> logger)
+        : base(logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    public async Task<ReasoningResult> ExecuteChainOfThoughtAsync(
+    protected override async Task<ReasoningResult> ExecuteChainOfThoughtInternalAsync(
         long sessionId,
         string prompt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[DEMO] Executing Chain-of-Thought reasoning for session {SessionId}", sessionId);
+        Logger.LogInformation("[DEMO] Executing Chain-of-Thought reasoning for session {SessionId}", sessionId);
         
         await Task.Delay(_random.Next(100, 500), cancellationToken);
         
@@ -41,13 +41,13 @@ public sealed class MockReasoningService : IReasoningService
         };
     }
 
-    public async Task<ReasoningResult> ExecuteTreeOfThoughtAsync(
+    protected override async Task<ReasoningResult> ExecuteTreeOfThoughtInternalAsync(
         long sessionId,
         string prompt,
-        int maxBranches = 3,
-        CancellationToken cancellationToken = default)
+        int maxBranches,
+        CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[DEMO] Executing Tree-of-Thought reasoning for session {SessionId} with {MaxBranches} branches", 
+        Logger.LogInformation("[DEMO] Executing Tree-of-Thought reasoning for session {SessionId} with {MaxBranches} branches", 
             sessionId, maxBranches);
         
         await Task.Delay(_random.Next(150, 600), cancellationToken);
@@ -66,11 +66,11 @@ public sealed class MockReasoningService : IReasoningService
         };
     }
 
-    public Task<IEnumerable<ReasoningResult>> GetSessionHistoryAsync(
+    protected override Task<IEnumerable<ReasoningResult>> GetSessionHistoryInternalAsync(
         long sessionId,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken)
     {
-        _logger.LogInformation("[DEMO] Retrieving reasoning history for session {SessionId}", sessionId);
+        Logger.LogInformation("[DEMO] Retrieving reasoning history for session {SessionId}", sessionId);
         
         var results = new List<ReasoningResult>
         {

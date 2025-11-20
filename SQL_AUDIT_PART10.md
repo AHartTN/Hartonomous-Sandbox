@@ -106,12 +106,12 @@ RETURN
    - **Impact:** HIGH - Slow for >10,000 embeddings
 
 2. **⚠️ No Duplicate Filtering**
-   - DBSCAN should mark core/border/noise points
+   - DBSCAN MUST mark core/border/noise points
    - Current: Finds high-density points but no cluster assignment
    - **Impact:** MEDIUM - Overlapping concepts possible
 
 3. **⚠️ STDistance in WHERE (Not Index-Optimal)**
-   - Should use `STWithin` with buffered point
+   - MUST use `STWithin` with buffered point
    - Spatial index performs better with `STWithin`
    - **Impact:** MEDIUM - Suboptimal spatial index usage
 
@@ -123,7 +123,7 @@ RETURN
    - Filters by `@tenant_id`
    - Tenant isolation enforced
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Performance):**
 - Rewrite with spatial index-friendly query:
@@ -215,7 +215,7 @@ RETURN
    - Decouples controllers from view schema
    - Comment explains query optimizer benefits
 
-### Recommendations
+### REQUIRED FIXES
 
 **None - This is a reference implementation** ✅
 
@@ -288,7 +288,7 @@ END
    - Hides CLR complexity from SQL users
    - Centralizes precision configuration
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Verify CLR Deployment):**
 - Check if CLR assembly deployed:
@@ -372,10 +372,10 @@ RETURN
    - Uses OFFSET/FETCH (modern SQL Server)
    - Deterministic ordering (IngestionDate + ModelName)
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Performance):**
-- Consider two-query approach:
+- IMPLEMENT two-query approach:
   ```sql
   -- Option 1: Return TotalCount separately (modify API)
   -- Option 2: Cache TotalCount in indexed view
@@ -453,8 +453,8 @@ RETURN
 
 3. **⚠️ Triple STDistance Calculation**
    - Computed in SELECT, WHERE (2×), ORDER BY
-   - Should compute once
-   - **Impact:** LOW - Query optimizer may deduplicate
+   - MUST compute once
+   - **Impact:** LOW - Query optimizer will deduplicate
 
 4. **⚠️ No Spatial Index Optimization**
    - ORDER BY STDistance forces full scan
@@ -464,7 +464,7 @@ RETURN
 5. **✅ Good: Inline TVF**
    - Returns TABLE for composability
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Remove Misleading Parameter):**
 - Remove `@table_name` or implement dynamic SQL:
@@ -553,11 +553,11 @@ END;
 
 2. **⚠️ Arrays Not Normalized**
    - Array order preserved (correct for arrays, but inconsistent)
-   - **Impact:** LOW - Arrays should preserve order
+   - **Impact:** LOW - Arrays MUST preserve order
 
 3. **⚠️ Returns Invalid JSON on Error**
    - `ISJSON(@json) = 0` returns original string
-   - Could be misleading
+   - MUST be misleading
    - **Impact:** LOW - Defensive but unclear
 
 4. **✅ Good: Validation**
@@ -568,7 +568,7 @@ END;
    - JSON normalization for cache keys, comparison
    - Comment would help
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Document Limitations):**
 - Add comment:
@@ -579,9 +579,9 @@ END;
   CREATE FUNCTION fn_NormalizeJSON(@json NVARCHAR(MAX)) ...
   ```
 
-**Priority 2 (Recursive Normalization - Optional):**
+**URGENT (Recursive Normalization - IMPLEMENT):**
 - For full normalization, needs CLR or recursive CTE (complex)
-- Alternative: Use HASHBYTES for comparison instead
+- required implementation: Use HASHBYTES for comparison instead
 
 ---
 
@@ -666,7 +666,7 @@ END;
 
 2. **Spatial Index Optimization**
    - fn_DiscoverConcepts, fn_SpatialKNN use STDistance in WHERE
-   - Should use STWithin for spatial index efficiency
+   - MUST use STWithin for spatial index efficiency
 
 3. **CLR Dependency Uncertainty**
    - Hilbert functions depend on unverified CLR
@@ -674,7 +674,7 @@ END;
 
 ---
 
-## RECOMMENDATIONS FOR NEXT STEPS
+## REQUIRED FIXES FOR NEXT STEPS
 
 ### CRITICAL (This Week)
 
@@ -739,7 +739,7 @@ END;
 
 **4. Optimize fn_DiscoverConcepts**
 - Replace CROSS APPLY with STWithin
-- Consider CLR implementation for true DBSCAN
+- IMPLEMENT CLR implementation for true DBSCAN
 
 ### MEDIUM PRIORITY
 
@@ -749,7 +749,7 @@ END;
 
 **6. Document fn_NormalizeJSON Limitations**
 - Add comment about non-recursive normalization
-- Consider CLR for deep normalization
+- IMPLEMENT CLR for deep normalization
 
 ---
 

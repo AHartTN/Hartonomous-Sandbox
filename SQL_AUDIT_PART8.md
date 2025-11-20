@@ -65,7 +65,7 @@ CREATE TABLE [dbo].[ModelMetadata] (
 
 1. **⚠️ MetadataId as PK, not ModelId**
    - Uses surrogate IDENTITY key instead of ModelId as primary key
-   - Should be: `PRIMARY KEY (ModelId)` for 1:1 relationship
+   - MUST be: `PRIMARY KEY (ModelId)` for 1:1 relationship
    - **Impact:** MEDIUM - Allows duplicate ModelId rows (data integrity issue)
 
 2. **⚠️ No UNIQUE constraint on ModelId**
@@ -85,7 +85,7 @@ CREATE TABLE [dbo].[ModelMetadata] (
    - Flexible schema for tasks/modalities
    - Supports evolving model capabilities
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Data Integrity):**
 - Change PK to ModelId:
@@ -95,7 +95,7 @@ CREATE TABLE [dbo].[ModelMetadata] (
   ALTER TABLE ModelMetadata ADD CONSTRAINT PK_ModelMetadata PRIMARY KEY (ModelId);
   ```
 
-**Priority 2:**
+**URGENT:**
 - Add JSON schema validation:
   ```sql
   ALTER TABLE ModelMetadata ADD CONSTRAINT CK_SupportedTasks_JSON
@@ -174,7 +174,7 @@ CREATE TABLE [dbo].[InferenceRequest] (
 
 5. **⚠️ NVARCHAR(MAX) for Small Fields**
    - `CorrelationId`, `Status`, `UserFeedback` are NVARCHAR(MAX)
-   - Should be fixed-length: `CorrelationId NVARCHAR(128)`, `Status NVARCHAR(50)`
+   - MUST be fixed-length: `CorrelationId NVARCHAR(128)`, `Status NVARCHAR(50)`
    - **Impact:** MEDIUM - Storage waste, poor indexing
 
 6. **⚠️ No Indexes**
@@ -192,7 +192,7 @@ CREATE TABLE [dbo].[InferenceRequest] (
    - Tracks cache hits, user feedback, SLA tier
    - Good for analytics
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING - Fix Part 5 Schema Mismatch):**
 - Add missing columns:
@@ -273,7 +273,7 @@ CREATE TABLE [dbo].[InferenceCache] (
 
 4. **⚠️ VARBINARY(MAX) for InputHash**
    - `InputHash` is VARBINARY(MAX) (unlimited)
-   - Should be fixed-length: `VARBINARY(32)` for SHA2-256
+   - MUST be fixed-length: `VARBINARY(32)` for SHA2-256
    - **Impact:** MEDIUM - Storage waste, poor index performance
 
 5. **⚠️ No TTL (Time-To-Live)**
@@ -285,7 +285,7 @@ CREATE TABLE [dbo].[InferenceCache] (
    - Missing `TenantId` column
    - **Impact:** MEDIUM - Cross-tenant cache leakage possible
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (BLOCKING - Cache Performance):**
 - Add UNIQUE index on CacheKey:
@@ -385,7 +385,7 @@ FROM dbo.ModelLayer l;
    - Comment documents replacement of hard-coded SQL
    - Centralizes layer statistics logic
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Performance - Enable Indexed View):**
 - Rewrite to use JOINs instead of correlated subqueries:
@@ -408,7 +408,7 @@ FROM dbo.ModelLayer l;
   ON vw_ModelLayersWithStats(LayerId);
   ```
 
-**Priority 2:**
+**URGENT:**
 - Remove misleading comment about optional index (or fix schema)
 
 ---
@@ -472,13 +472,13 @@ WITH (STATISTICS_NORECOMPUTE = OFF);
 
 4. **⚠️ MINOR: INNER JOIN Semantics**
    - Uses INNER JOIN - models without layers excluded
-   - May want LEFT JOIN version for all models
+   - will want LEFT JOIN version for all models
    - **Impact:** LOW - Probably intentional (only models with layers)
 
-### Recommendations
+### REQUIRED FIXES
 
-**Priority 1 (Optional Enhancement):**
-- Consider companion view for models without layers:
+**CRITICAL (Missing companion view):**
+- IMPLEMENT companion view for models without layers:
   ```sql
   CREATE VIEW vw_ModelsWithoutLayers WITH SCHEMABINDING AS
   SELECT m.ModelId, m.ModelName, m.UsageCount, m.LastUsed
@@ -540,7 +540,7 @@ FROM dbo.Model m;
 4. **✅ Good: Controller Replacement**
    - Centralizes model listing logic
 
-### Recommendations
+### REQUIRED FIXES
 
 **Priority 1 (Enable Indexed View):**
 - Rewrite to use LEFT JOIN + GROUP BY:
@@ -801,7 +801,7 @@ CREATE QUEUE AnalyzeQueue WITH STATUS = ON;
 3. **Surrogate Keys for 1:1 Relationships**
    - ModelMetadata uses MetadataId instead of ModelId as PK
    - Allows duplicate metadata per model (data integrity issue)
-   - **Pattern violation:** 1:1 relationships should use FK as PK
+   - **Pattern violation:** 1:1 relationships MUST use FK as PK
 
 ### Missing Objects Update
 
@@ -862,7 +862,7 @@ CREATE QUEUE AnalyzeQueue WITH STATUS = ON;
 
 ---
 
-## RECOMMENDATIONS FOR NEXT STEPS
+## REQUIRED FIXES FOR NEXT STEPS
 
 ### Immediate Actions (This Week)
 

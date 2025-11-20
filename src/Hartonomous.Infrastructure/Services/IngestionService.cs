@@ -1,6 +1,8 @@
+using Hartonomous.Core.Abstracts;
 using Hartonomous.Core.Exceptions;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Services;
+using Hartonomous.Core.Validation;
 using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
 using Microsoft.ApplicationInsights;
@@ -12,64 +14,54 @@ namespace Hartonomous.Infrastructure.Services;
 /// <summary>
 /// Implementation of IIngestionService using direct DbContext access.
 /// Follows Microsoft pattern: Services use DbContext directly (no repository layer).
+/// Inherits from ServiceBase for standardized logging, telemetry, and validation.
 /// </summary>
-public class IngestionService : IIngestionService
+public class IngestionService : ServiceBase<IngestionService>, IIngestionService
 {
-    private readonly HartonomousDbContext _context; // Direct DbContext injection
+    private readonly HartonomousDbContext _context;
     private readonly IFileTypeDetector _fileTypeDetector;
     private readonly IEnumerable<IAtomizer<byte[]>> _atomizers;
-    private readonly ILogger<IngestionService> _logger;
     private readonly TelemetryClient? _telemetry;
 
     public IngestionService(
-        HartonomousDbContext context, // Direct DbContext (no repository)
+        HartonomousDbContext context,
         IFileTypeDetector fileTypeDetector,
         IEnumerable<IAtomizer<byte[]>> atomizers,
         ILogger<IngestionService> logger,
         TelemetryClient? telemetry = null)
+        : base(logger)
     {
-        _context = context;
-        _fileTypeDetector = fileTypeDetector;
-        _atomizers = atomizers;
-        _logger = logger;
+        _context = Guard.NotNull(context, nameof(context));
+        _fileTypeDetector = Guard.NotNull(fileTypeDetector, nameof(fileTypeDetector));
+        _atomizers = Guard.NotNullOrEmpty(atomizers, nameof(atomizers));
         _telemetry = telemetry;
     }
 
     public async Task<IngestionResult> IngestFileAsync(byte[] fileData, string fileName, int tenantId)
     {
-        // Start Application Insights operation tracking
-        using var operation = _telemetry?.StartOperation<RequestTelemetry>("IngestFile");
-        
-        if (operation != null)
+        return await ExecuteWithTelemetryAsync(
+            $"IngestFile ({fileName})",
+            async () => await IngestFileInternalAsync(fileData, fileName, tenantId),
+            CancellationToken.None);
+    }
+
+    private async Task<IngestionResult> IngestFileInternalAsync(byte[] fileData, string fileName, int tenantId)
+    {
+        // Validation using Guard clauses
+        Guard.NotNullOrEmpty(fileData, nameof(fileData));
+        Guard.NotNullOrWhiteSpace(fileName, nameof(fileName));
+        Guard.Positive(tenantId, nameof(tenantId));
+
+        // Detect file type
+        var fileType = _fileTypeDetector.Detect(fileData, fileName);
+        if (fileType.Category == FileCategory.Unknown)
         {
-            operation.Telemetry.Properties["FileName"] = fileName;
-            operation.Telemetry.Properties["TenantId"] = tenantId.ToString();
-            operation.Telemetry.Properties["FileSize"] = fileData?.Length.ToString() ?? "0";
+            throw new InvalidFileFormatException($"Unsupported file format: {fileName}");
         }
-        
-        try
-        {
-            // Validation - throw exceptions (Microsoft pattern, not Result<T>)
-            if (fileData == null || fileData.Length == 0)
-                throw new ArgumentException("File cannot be empty", nameof(fileData));
 
-            if (string.IsNullOrWhiteSpace(fileName))
-                throw new ArgumentException("Filename cannot be empty", nameof(fileName));
-
-            // Detect file type
-            var fileType = _fileTypeDetector.Detect(fileData, fileName);
-            if (fileType.Category == FileCategory.Unknown)
-                throw new InvalidFileFormatException($"Unsupported file format: {fileName}");
-
-            if (operation != null)
-            {
-                operation.Telemetry.Properties["FileType"] = fileType.ContentType;
-                operation.Telemetry.Properties["FileCategory"] = fileType.Category.ToString();
-            }
-
-            _logger.LogInformation(
-                "Ingesting file: {FileName}, Type: {ContentType}, Size: {Size} bytes, Tenant: {TenantId}",
-                fileName, fileType.ContentType, fileData.Length, tenantId);
+        Logger.LogInformation(
+            "Ingesting file: {FileName}, Type: {ContentType}, Size: {Size} bytes, Tenant: {TenantId}",
+            fileName, fileType.ContentType, fileData.Length, tenantId);
 
         // Find appropriate atomizers for this file type
         var supportedAtomizers = _atomizers
@@ -78,7 +70,9 @@ public class IngestionService : IIngestionService
             .ToList();
             
         if (!supportedAtomizers.Any())
+        {
             throw new InvalidFileFormatException($"No atomizer found for file type: {fileType.ContentType}");
+        }
 
         var allAtoms = new List<Atom>();
 
@@ -117,7 +111,7 @@ public class IngestionService : IIngestionService
                 allAtoms.Add(atom);
             }
             
-            _logger.LogInformation(
+            Logger.LogInformation(
                 "Atomizer {AtomizerType} produced {AtomCount} atoms",
                 result.ProcessingInfo.AtomizerType, result.Atoms.Count);
         }
@@ -129,7 +123,7 @@ public class IngestionService : IIngestionService
 
         // Save to database - DbContext = Repository + Unit of Work
         await _context.Atoms.AddRangeAsync(allAtoms);
-        await _context.SaveChangesAsync(); // Unit of Work pattern
+        await _context.SaveChangesAsync();
 
         // Track custom metrics
         _telemetry?.TrackMetric("Atoms.Ingested", allAtoms.Count);
@@ -141,13 +135,7 @@ public class IngestionService : IIngestionService
             ["TenantId"] = tenantId.ToString()
         });
 
-        if (operation != null)
-        {
-            operation.Telemetry.Success = true;
-            operation.Telemetry.Metrics["AtomsCreated"] = allAtoms.Count;
-        }
-
-        _logger.LogInformation(
+        Logger.LogInformation(
             "Ingestion complete: {FileName} → {AtomCount} atoms created, Tenant: {TenantId}",
             fileName, allAtoms.Count, tenantId);
 
@@ -157,17 +145,6 @@ public class IngestionService : IIngestionService
             ItemsProcessed = allAtoms.Count,
             Message = $"Successfully ingested {allAtoms.Count} atoms from {fileName}"
         };
-        }
-        catch (Exception ex)
-        {
-            if (operation != null)
-            {
-                operation.Telemetry.Success = false;
-            }
-            
-            _logger.LogError(ex, "Ingestion failed for {FileName}", fileName);
-            throw; // Let global handler convert to Problem Details
-        }
     }
 
     public Task<IngestionResult> IngestUrlAsync(string url, int tenantId)

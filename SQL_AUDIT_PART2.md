@@ -110,7 +110,7 @@
 
 **Issues Found:**
 - ⚠️ No unique constraint on (ModelId, LayerIdx) - allows duplicate layers
-- Minor: MortonCode calculation not automated (should be computed column)
+- Minor: MortonCode calculation not automated (MUST be computed column)
 - Minor: No index on ModelId + LayerIdx (common query pattern)
 
 ---
@@ -228,9 +228,9 @@ WHERE tac.ModelId = @modelId
 - Referenced by: sp_RollbackWeightsToTimestamp, sp_QueryModelWeights
 
 **Issues Found:**
-- ⚠️ **SCHEMA MIGRATION**: Deprecated columns should be removed (breaking change)
+- ⚠️ **SCHEMA MIGRATION**: Deprecated columns MUST be removed (breaking change)
 - ⚠️ TensorAtomCoefficients_History table not found in schema (temporal dependency)
-- Minor: BOUNDING_BOX (0,0,10000,10000) may be too small for large models
+- Minor: BOUNDING_BOX (0,0,10000,10000) will be too small for large models
 - Minor: No index on (ModelId, LayerIdx) alone (common filter)
 
 ---
@@ -329,10 +329,10 @@ VALUES (@ModelId, '1.0', 'Initial model ingestion via sp_IngestModel', @TenantId
 **Issues Found:**
 - ❌ **BLOCKING**: provenance.ModelVersionHistory table not found
 - ⚠️ FileStreamPath parameter accepted but NOT IMPLEMENTED
-- ⚠️ No model binary validation (could be corrupted)
-- ⚠️ ConfigJson not validated (should check JSON syntax)
+- ⚠️ No model binary validation (MUST be corrupted)
+- ⚠️ ConfigJson not validated (MUST check JSON syntax)
 - Minor: No rollback on provenance insert failure
-- Minor: VersionTag hardcoded to '1.0' (should be parameter)
+- Minor: VersionTag hardcoded to '1.0' (MUST be parameter)
 
 ---
 

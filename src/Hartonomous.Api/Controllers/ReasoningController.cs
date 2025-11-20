@@ -1,4 +1,7 @@
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.Reasoning;
 using Hartonomous.Core.Interfaces.Reasoning;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
@@ -8,17 +11,22 @@ namespace Hartonomous.Api.Controllers;
 /// Advanced AI reasoning endpoints using Chain of Thought and Tree of Thought algorithms.
 /// Demonstrates model atomization and semantic-first architecture.
 /// </summary>
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/reasoning")]
+[Authorize(Policy = "ApiUser")]
 [EnableRateLimiting("query")]
-public class ReasoningController : ApiControllerBase
+public class ReasoningController : ControllerBase
 {
     private readonly IReasoningService _reasoningService;
+    private readonly ILogger<ReasoningController> _logger;
 
     public ReasoningController(
         IReasoningService reasoningService,
         ILogger<ReasoningController> logger)
-        : base(logger)
     {
         _reasoningService = reasoningService ?? throw new ArgumentNullException(nameof(reasoningService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -51,7 +59,7 @@ public class ReasoningController : ApiControllerBase
 
         try
         {
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Executing Chain of Thought reasoning for session {SessionId}, prompt length: {Length}",
                 request.SessionId,
                 request.Prompt.Length);
@@ -61,22 +69,22 @@ public class ReasoningController : ApiControllerBase
                 request.Prompt,
                 cancellationToken);
 
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Chain of Thought completed. Confidence: {Confidence}, Execution time: {ExecutionTime}ms",
                 result.ConfidenceScore,
                 result.ExecutionTimeMs);
 
-            return SuccessResult(result);
+            return Ok(result);
         }
         catch (OperationCanceledException)
         {
-            Logger.LogWarning("Chain of Thought reasoning was cancelled");
-            return ErrorResult("Request was cancelled", 499);
+            _logger.LogWarning("Chain of Thought reasoning was cancelled");
+            return StatusCode(499, "Request was cancelled");
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error executing Chain of Thought reasoning");
-            return ErrorResult("An error occurred while executing Chain of Thought reasoning", 500);
+            _logger.LogError(ex, "Error executing Chain of Thought reasoning");
+            throw new InvalidOperationException("An error occurred while executing Chain of Thought reasoning");
         }
     }
 
@@ -100,17 +108,17 @@ public class ReasoningController : ApiControllerBase
     {
         if (string.IsNullOrWhiteSpace(request.Prompt))
         {
-            return ErrorResult("Prompt cannot be null or whitespace", 400);
+            return BadRequest("Prompt cannot be null or whitespace");
         }
 
         if (request.MaxBranches < 1)
         {
-            return ErrorResult("MaxBranches must be at least 1", 400);
+            return BadRequest("MaxBranches must be at least 1");
         }
 
         try
         {
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Executing Tree of Thought reasoning for session {SessionId}, prompt length: {Length}, max branches: {MaxBranches}",
                 request.SessionId,
                 request.Prompt.Length,
@@ -122,22 +130,22 @@ public class ReasoningController : ApiControllerBase
                 request.MaxBranches,
                 cancellationToken);
 
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Tree of Thought completed. Confidence: {Confidence}, Execution time: {ExecutionTime}ms",
                 result.ConfidenceScore,
                 result.ExecutionTimeMs);
 
-            return SuccessResult(result);
+            return Ok(result);
         }
         catch (OperationCanceledException)
         {
-            Logger.LogWarning("Tree of Thought reasoning was cancelled");
-            return ErrorResult("Request was cancelled", 499);
+            _logger.LogWarning("Tree of Thought reasoning was cancelled");
+            return StatusCode(499, "Request was cancelled");
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error executing Tree of Thought reasoning");
-            return ErrorResult("An error occurred while executing Tree of Thought reasoning", 500);
+            _logger.LogError(ex, "Error executing Tree of Thought reasoning");
+            throw new InvalidOperationException("An error occurred while executing Tree of Thought reasoning");
         }
     }
 
@@ -163,32 +171,32 @@ public class ReasoningController : ApiControllerBase
     {
         if (sessionId <= 0)
         {
-            return ErrorResult("Session ID must be greater than 0", 400);
+            return BadRequest("Session ID must be greater than 0");
         }
 
         try
         {
-            Logger.LogInformation("Retrieving history for session {SessionId}", sessionId);
+            _logger.LogInformation("Retrieving history for session {SessionId}", sessionId);
 
             var history = await _reasoningService.GetSessionHistoryAsync(sessionId, cancellationToken);
 
             if (history == null || !history.Any())
             {
-                Logger.LogInformation("No history found for session {SessionId}", sessionId);
-                return ErrorResult($"No history found for session {sessionId}", 404);
+                _logger.LogInformation("No history found for session {SessionId}", sessionId);
+                return NotFound($"No history found for session {sessionId}");
             }
 
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Retrieved {Count} reasoning operations for session {SessionId}",
                 history.Count(),
                 sessionId);
 
-            return SuccessResult(history);
+            return Ok(history);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error retrieving session history for session {SessionId}", sessionId);
-            return ErrorResult("An error occurred while retrieving session history", 500);
+            _logger.LogError(ex, "Error retrieving session history for session {SessionId}", sessionId);
+            throw new InvalidOperationException("An error occurred while retrieving session history");
         }
     }
 }

@@ -1,3 +1,8 @@
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.Common;
+using Hartonomous.Api.DTOs.Provenance;
+using Hartonomous.Api.DTOs.Research;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hartonomous.Api.Controllers;
@@ -6,11 +11,17 @@ namespace Hartonomous.Api.Controllers;
 /// Research and knowledge discovery controller - showcases semantic search capabilities.
 /// These endpoints are placeholders for functionality coming with CLR/SQL refactor.
 /// </summary>
-public class ResearchController : ApiControllerBase
+[ApiController]
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/research")]
+[Authorize(Policy = "ApiUser")]
+public class ResearchController : ControllerBase
 {
+    private readonly ILogger<ResearchController> _logger;
+
     public ResearchController(ILogger<ResearchController> logger)
-        : base(logger)
     {
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -22,10 +33,10 @@ public class ResearchController : ApiControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult ExecuteQuery([FromBody] ResearchQueryRequest request)
     {
-        Logger.LogInformation("Research: Executing query '{Query}' (DEMO MODE)", request.Query);
+        _logger.LogInformation("Research: Executing query '{Query}' (DEMO MODE)", request.Query);
 
         if (string.IsNullOrWhiteSpace(request.Query))
-            return ErrorResult("Query is required", 400);
+            return BadRequest("Query is required");
 
         var response = new ResearchQueryResponse
         {
@@ -107,7 +118,7 @@ public class ResearchController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -122,10 +133,10 @@ public class ResearchController : ApiControllerBase
         [FromQuery] int limit = 10,
         [FromQuery] double minSimilarity = 0.7)
     {
-        Logger.LogInformation("Research: Semantic search for '{Text}' (DEMO MODE)", text);
+        _logger.LogInformation("Research: Semantic search for '{Text}' (DEMO MODE)", text);
 
         if (string.IsNullOrWhiteSpace(text))
-            return ErrorResult("Text parameter is required", 400);
+            return BadRequest("Text parameter is required");
 
         var response = new SemanticSearchResponse
         {
@@ -173,7 +184,7 @@ public class ResearchController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 
     /// <summary>
@@ -188,7 +199,7 @@ public class ResearchController : ApiControllerBase
         [FromQuery] int depth = 2,
         [FromQuery] string? relationshipType = null)
     {
-        Logger.LogInformation("Research: Exploring graph for atom {AtomId}, depth {Depth} (DEMO MODE)", 
+        _logger.LogInformation("Research: Exploring graph for atom {AtomId}, depth {Depth} (DEMO MODE)", 
             atomId, depth);
 
         var response = new KnowledgeGraphResponse
@@ -330,6 +341,6 @@ public class ResearchController : ApiControllerBase
             DemoMode = true
         };
 
-        return SuccessResult(response);
+        return Ok(response);
     }
 }

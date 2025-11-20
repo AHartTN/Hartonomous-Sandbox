@@ -48,15 +48,15 @@
    - GenerationStream (referenced in comment line 53)
    - AtomProvenance (referenced in comment line 53)
 3. **PLACEHOLDER IMPLEMENTATION:** Lines 52-55 - returns stream ID instead of actual text
-   - Should query GenerationStream/AtomProvenance to reconstruct generated text
+   - MUST query GenerationStream/AtomProvenance to reconstruct generated text
 4. **HARDCODED VALUES:**
    - topK = 50 (line 37)
    - topP = 0.9 (line 38)
-   - Should be parameters
+   - MUST be parameters
 5. **NO CACHING:** Doesn't check InferenceCache for duplicate prompts
 6. **NO LOGGING:** Doesn't insert into InferenceRequest table
 7. **SQL INJECTION RISK:** Line 17 - `REPLACE(@prompt, '"', '\"')` is insufficient JSON escaping
-   - Should use FOR JSON or proper JSON library
+   - MUST use FOR JSON or proper JSON library
 8. **NO RATE LIMITING:** No tenant quota enforcement
 
 **Dependencies:**
@@ -77,8 +77,8 @@
 **Notes:**
 - This is a **critical wrapper** for LLM text generation
 - **Placeholder implementation** - core functionality not implemented
-- Should integrate with InferenceCache for deduplication
-- Should log all requests to InferenceRequest for analytics
+- MUST integrate with InferenceCache for deduplication
+- MUST log all requests to InferenceRequest for analytics
 - Temperature/topK/topP parameters align with transformer sampling algorithms
 
 ---
@@ -121,9 +121,9 @@
    - **LOGIC BUG:** This code won't work as written
 6. **NO CONVERSATION HISTORY:** Stateless - doesn't track multi-turn conversations
 7. **NO STREAMING:** Returns entire response at once
-8. **HARD-CODED PROMPT TEMPLATES:** Should be in PromptTemplates table
+8. **HARD-CODED PROMPT TEMPLATES:** MUST be in PromptTemplates table
 9. **NO GUARDRAILS:** LLM can call any enabled tool, no safety checks
-10. **NO TIMEOUT:** Tool execution could hang indefinitely
+10. **NO TIMEOUT:** Tool execution MUST hang indefinitely
 
 **Dependencies:**
 - **DEPENDS ON (MISSING):**
@@ -143,7 +143,7 @@
 - This implements **ReAct (Reasoning + Acting)** agentic pattern
 - **Critical bug:** sp_GenerateText returns OUTPUT parameter, not result set
   - Lines 41-43 and 72-74 won't work
-  - Should use `EXEC sp_GenerateText @prompt=..., @GeneratedText=@ToolSelectionResult OUTPUT`
+  - MUST use `EXEC sp_GenerateText @prompt=..., @GeneratedText=@ToolSelectionResult OUTPUT`
 - Only 1 of N tools implemented - dispatcher is incomplete
 - No conversation memory - can't handle multi-turn dialogs
 - This is foundational for **autonomous agent capabilities**
@@ -266,17 +266,17 @@
 
 **Issues:**
 1. **NO INDEXES** beyond PK - critical performance issue
-   - Should have: IX_InferenceRequest_InputHash (for cache lookup)
-   - Should have: IX_InferenceRequest_RequestTimestamp (for time-series queries)
-   - Should have: IX_InferenceRequest_Status (for pending queries)
-   - Should have: IX_InferenceRequest_CacheHit (for analytics)
-   - Should have: IX_InferenceRequest_ModelId (for model analytics)
+   - MUST have: IX_InferenceRequest_InputHash (for cache lookup)
+   - MUST have: IX_InferenceRequest_RequestTimestamp (for time-series queries)
+   - MUST have: IX_InferenceRequest_Status (for pending queries)
+   - MUST have: IX_InferenceRequest_CacheHit (for analytics)
+   - MUST have: IX_InferenceRequest_ModelId (for model analytics)
 2. **NO CHECK CONSTRAINT** on Status (allows invalid values)
-3. **NO CHECK CONSTRAINT** on UserRating (should be 1-5)
+3. **NO CHECK CONSTRAINT** on UserRating (MUST be 1-5)
 4. **NO UNIQUE CONSTRAINT** on InputHash - allows duplicate requests
-5. **CorrelationId is NVARCHAR(MAX)** - should be NVARCHAR(128) or UNIQUEIDENTIFIER
-6. **Status is NVARCHAR(MAX)** - should be NVARCHAR(50)
-7. **NO DEFAULT** on Status (should default to 'Pending')
+5. **CorrelationId is NVARCHAR(MAX)** - MUST be NVARCHAR(128) or UNIQUEIDENTIFIER
+6. **Status is NVARCHAR(MAX)** - MUST be NVARCHAR(50)
+7. **NO DEFAULT** on Status (MUST default to 'Pending')
 8. **NO TEMPORAL VERSIONING** - can't track edits (e.g., user rating changes)
 9. **NO COMPUTED COLUMN** for DurationMs (CompletionTimestamp - RequestTimestamp)
 
@@ -352,7 +352,7 @@
 - This is the **tool registry** for agentic AI (LangChain/AutoGPT style)
 - **ReAct pattern:** LLM reads descriptions, selects tool, system executes
 - **Generic dispatch:** ObjectType/ObjectName enables calling any SQL object
-- ParametersJson should be JSON Schema format for validation
+- ParametersJson MUST be JSON Schema format for validation
 - This enables **function calling** (like OpenAI function calling)
 - Security concern: Need permission model to restrict dangerous tools
 
@@ -392,11 +392,11 @@
 
 **Issues:**
 1. **NO CHECK CONSTRAINT** on AggregationLevel (allows invalid values)
-2. **NO PARTITIONING:** Large time-series data should be partitioned by TimeWindowStart
-3. **VARBINARY(MAX)** - could exceed 2GB, no FILESTREAM
-4. **NO COMPRESSION:** Should use ROW or PAGE compression for VARBINARY
+2. **NO PARTITIONING:** Large time-series data MUST be partitioned by TimeWindowStart
+3. **VARBINARY(MAX)** - MUST exceed 2GB, no FILESTREAM
+4. **NO COMPRESSION:** MUST use ROW or PAGE compression for VARBINARY
 5. **NO RETENTION POLICY:** Old streams never deleted
-6. **NO FOREIGN KEY** on SensorType (should normalize to SensorTypes table)
+6. **NO FOREIGN KEY** on SensorType (MUST normalize to SensorTypes table)
 
 **Dependencies:**
 - **USED BY:**
@@ -444,10 +444,10 @@
 
 **Issues:**
 1. **INNER JOIN only** - required for indexed views, but excludes models with no layers
-2. **NO FILTERED INDEX:** Could add WHERE IsActive = 1 filtered index
-3. **NO PARTITION ALIGNMENT:** If Model/ModelLayer partitioned, view should align
+2. **NO FILTERED INDEX:** MUST add WHERE IsActive = 1 filtered index
+3. **NO PARTITION ALIGNMENT:** If Model/ModelLayer partitioned, view MUST align
 4. **CLIENT-SIDE AVG:** Client must compute SumInferenceTimeMs / CountInferenceTimeMs
-   - Should document this in comments
+   - MUST document this in comments
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -492,13 +492,13 @@
 
 **Issues:**
 1. **NO CONVERSION TO FLOAT:** Returns VARBINARY, client must decode
-   - Should have CLR function `dbo.fn_BinaryToFloat32(VARBINARY) RETURNS FLOAT`
+   - MUST have CLR function `dbo.fn_BinaryToFloat32(VARBINARY) RETURNS FLOAT`
    - Or document decoding procedure
-2. **NO FILTERING:** Queries entire model - should have @ModelId parameter
-   - But views can't have parameters - should be table-valued function
-3. **PERFORMANCE:** 4-way JOIN with no indexes specified - could be slow
+2. **NO FILTERING:** Queries entire model - MUST have @ModelId parameter
+   - But views can't have parameters - MUST be table-valued function
+3. **PERFORMANCE:** 4-way JOIN with no indexes specified - MUST be slow
 4. **NO COMPRESSION INFO:** Doesn't indicate if weights are quantized
-5. **VARBINARY(64) seems large** for single float32 (4 bytes) - may store metadata
+5. **VARBINARY(64) seems large** for single float32 (4 bytes) - will store metadata
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -517,7 +517,7 @@
 - This enables **weight export** for model persistence
 - VARBINARY storage requires client-side or CLR decoding
 - **Not indexed view** - recalculated each query
-- Should be TABLE-VALUED FUNCTION with @ModelId parameter for filtering
+- MUST be TABLE-VALUED FUNCTION with @ModelId parameter for filtering
 - This is foundational for **model serialization/deserialization**
 
 ---
@@ -551,7 +551,7 @@
    - Comment says "Dynamic SQL would be needed" but not implemented
 2. **NO MODALITY FILTERING:** Returns all embeddings regardless of modality
 3. **NO TENANT FILTERING:** No multi-tenancy support
-4. **NO RADIUS LIMIT:** Could return very distant points if K > cluster size
+4. **NO RADIUS LIMIT:** MUST return very distant points if K > cluster size
 5. **PERFORMANCE:** No index hint - relies on query optimizer
 
 **Dependencies:**
@@ -567,7 +567,7 @@
 **Notes:**
 - This is **spatial KNN** using GEOMETRY (planar, not GEOGRAPHY geodetic)
 - **R-Tree index critical** - without spatial index, this is O(N)
-- Should validate spatial index exists on AtomEmbedding.SpatialKey
+- MUST validate spatial index exists on AtomEmbedding.SpatialKey
 - @table_name parameter is vestigial - remove or implement dynamic SQL
 - This complements sp_FindNearestAtoms (which uses Hilbert + VECTOR)
 
@@ -601,7 +601,7 @@
 **Issues:**
 1. **NO VALIDATION:** Doesn't verify vector dimensions match (both must be 1998)
 2. **SCALAR FUNCTION** - can't be inlined by query optimizer
-   - Should be inline table-valued function or computed column
+   - MUST be inline table-valued function or computed column
 
 **Dependencies:**
 - **DEPENDS ON:**
@@ -657,10 +657,10 @@
 
 **Issues:**
 1. **CROSS APPLY with CROSS JOIN** - O(N²) complexity - EXTREMELY SLOW at scale
-   - Should use spatial index with STWithin() predicate
+   - MUST use spatial index with STWithin() predicate
 2. **NO CLUSTER ASSIGNMENT:** Only returns cluster centers, not which atoms belong to which cluster
 3. **NOT TRUE DBSCAN:** Missing border points, noise classification
-4. **HARDCODED PLANAR GEOMETRY:** Should support both GEOMETRY and VECTOR distance
+4. **HARDCODED PLANAR GEOMETRY:** MUST support both GEOMETRY and VECTOR distance
 5. **NO CONCEPT LABELING:** Doesn't assign semantic labels to discovered concepts
 6. **PERFORMANCE:** No index hints, relies on optimizer
 
@@ -678,7 +678,7 @@
 - This is **unsupervised concept discovery** - finds emergent patterns in embeddings
 - **DBSCAN:** Density-Based Spatial Clustering of Applications with Noise
 - **O(N²) worst case** - needs optimization for production
-- Should store discovered concepts in ConceptCatalog table
+- MUST store discovered concepts in ConceptCatalog table
 - This enables **emergent semantics** - system discovers concepts without labels
 
 ---

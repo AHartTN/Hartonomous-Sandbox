@@ -5,11 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Threading.RateLimiting;
+using Asp.Versioning;
+using Hartonomous.Api.DTOs.Ingestion;
+using Hartonomous.Api.Extensions;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Atomizers;
 using Hartonomous.Infrastructure.FileType;
 using Hartonomous.Infrastructure.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -21,12 +24,16 @@ namespace Hartonomous.Api.Controllers;
 /// Data ingestion API - comprehensive atomization of files into 64-byte atoms.
 /// Supports text, images, audio, video, documents, archives, models, code, and more.
 /// </summary>
+[ApiController]
+[ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/ingestion")]
-public class DataIngestionController : ApiControllerBase
+[Authorize(Policy = "DataIngestion")]
+public class DataIngestionController : ControllerBase
 {
     private readonly IFileTypeDetector _fileTypeDetector;
     private readonly IEnumerable<IAtomizer<byte[]>> _atomizers;
     private readonly IAtomBulkInsertService _bulkInsertService;
+    private readonly ILogger<DataIngestionController> _logger;
     
     // In-memory job tracking (TODO: move to persistent storage)
     private static readonly ConcurrentDictionary<string, IngestionJob> _jobs = new();
@@ -36,11 +43,11 @@ public class DataIngestionController : ApiControllerBase
         IEnumerable<IAtomizer<byte[]>> atomizers,
         IAtomBulkInsertService bulkInsertService,
         ILogger<DataIngestionController> logger)
-        : base(logger)
     {
-        _fileTypeDetector = fileTypeDetector;
-        _atomizers = atomizers;
-        _bulkInsertService = bulkInsertService;
+        _fileTypeDetector = fileTypeDetector ?? throw new ArgumentNullException(nameof(fileTypeDetector));
+        _atomizers = atomizers ?? throw new ArgumentNullException(nameof(atomizers));
+        _bulkInsertService = bulkInsertService ?? throw new ArgumentNullException(nameof(bulkInsertService));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -56,7 +63,7 @@ public class DataIngestionController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (file == null || file.Length == 0)
-            return ErrorResult("No file provided", 400);
+            return BadRequest("No file provided");
 
         var jobId = Guid.NewGuid().ToString();
         var job = new IngestionJob
@@ -82,7 +89,7 @@ public class DataIngestionController : ApiControllerBase
             job.DetectedType = fileType.ContentType;
             job.DetectedCategory = fileType.Category.ToString();
 
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Ingesting file: {FileName} ({SizeBytes} bytes, {ContentType}, {Category})",
                 file.FileName,
                 file.Length,
@@ -99,7 +106,7 @@ public class DataIngestionController : ApiControllerBase
             {
                 job.Status = "failed";
                 job.ErrorMessage = $"No atomizer found for {fileType.ContentType}";
-                return ErrorResult(job.ErrorMessage, 400);
+                return BadRequest(job.ErrorMessage);
             }
 
             // Atomize file
@@ -149,14 +156,14 @@ public class DataIngestionController : ApiControllerBase
             job.CompletedAt = DateTime.UtcNow;
             job.DurationMs = (long)(job.CompletedAt.Value - job.StartedAt).TotalMilliseconds;
 
-            Logger.LogInformation(
+            _logger.LogInformation(
                 "Ingestion completed: {JobId}, {TotalAtoms} atoms ({UniqueAtoms} unique), {DurationMs}ms",
                 jobId,
                 job.TotalAtoms,
                 job.UniqueAtoms,
                 job.DurationMs);
 
-            return SuccessResult(new
+            return Ok(new
             {
                 jobId,
                 status = job.Status,
@@ -174,12 +181,12 @@ public class DataIngestionController : ApiControllerBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Ingestion failed for {FileName}", file.FileName);
+            _logger.LogError(ex, "Ingestion failed for {FileName}", file.FileName);
             job.Status = "failed";
             job.ErrorMessage = ex.Message;
             job.CompletedAt = DateTime.UtcNow;
 
-            return ErrorResult(ex.Message, 500);
+            throw; // Problem Details middleware will handle
         }
     }
 
@@ -191,9 +198,9 @@ public class DataIngestionController : ApiControllerBase
     public IActionResult GetJobStatus(string jobId)
     {
         if (!_jobs.TryGetValue(jobId, out var job))
-            return ErrorResult("Job not found", 404);
+            return NotFound("Job not found");
 
-        return SuccessResult(new
+        return Ok(new
         {
             jobId = job.JobId,
             fileName = job.FileName,
@@ -221,10 +228,10 @@ public class DataIngestionController : ApiControllerBase
     public IActionResult QueryAtoms([FromQuery] string hash)
     {
         if (string.IsNullOrWhiteSpace(hash))
-            return ErrorResult("Hash parameter required", 400);
+            return BadRequest("Hash parameter required");
 
         // TODO: Query atoms from database
-        return SuccessResult(new { message = "Atom query not yet implemented", hash });
+        return Ok(new { message = "Atom query not yet implemented", hash });
     }
 
     /// <summary>
@@ -237,7 +244,7 @@ public class DataIngestionController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.Url))
-            return ErrorResult("URL is required", 400);
+            return BadRequest("URL is required");
 
         var jobId = Guid.NewGuid().ToString();
         var job = new IngestionJob
@@ -255,7 +262,7 @@ public class DataIngestionController : ApiControllerBase
             // Use WebFetchAtomizer (IAtomizer<string>)
             var webAtomizer = _atomizers.OfType<IAtomizer<string>>().FirstOrDefault();
             if (webAtomizer == null)
-                return ErrorResult("Web fetch atomizer not configured", 500);
+                throw new InvalidOperationException("Web fetch atomizer not configured");
 
             var sourceMetadata = new SourceMetadata
             {
@@ -280,7 +287,7 @@ public class DataIngestionController : ApiControllerBase
             job.CompletedAt = DateTime.UtcNow;
             job.DurationMs = (long)(job.CompletedAt.Value - job.StartedAt).TotalMilliseconds;
 
-            return SuccessResult(new
+            return Ok(new
             {
                 jobId,
                 status = job.Status,
@@ -290,12 +297,12 @@ public class DataIngestionController : ApiControllerBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "URL ingestion failed: {Url}", request.Url);
+            _logger.LogError(ex, "URL ingestion failed: {Url}", request.Url);
             job.Status = "failed";
             job.ErrorMessage = ex.Message;
             job.CompletedAt = DateTime.UtcNow;
 
-            return ErrorResult(ex.Message, 500);
+            throw;
         }
     }
 
@@ -309,7 +316,7 @@ public class DataIngestionController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.ConnectionString))
-            return ErrorResult("Connection string is required", 400);
+            return BadRequest("Connection string is required");
 
         var jobId = Guid.NewGuid().ToString();
         var job = new IngestionJob
@@ -327,7 +334,7 @@ public class DataIngestionController : ApiControllerBase
             // Use DatabaseAtomizer
             var dbAtomizer = _atomizers.OfType<IAtomizer<DatabaseConnectionInfo>>().FirstOrDefault();
             if (dbAtomizer == null)
-                return ErrorResult("Database atomizer not configured", 500);
+                throw new InvalidOperationException("Database atomizer not configured");
 
             var dbInfo = new DatabaseConnectionInfo
             {
@@ -358,7 +365,7 @@ public class DataIngestionController : ApiControllerBase
             job.CompletedAt = DateTime.UtcNow;
             job.DurationMs = (long)(job.CompletedAt.Value - job.StartedAt).TotalMilliseconds;
 
-            return SuccessResult(new
+            return Ok(new
             {
                 jobId,
                 status = job.Status,
@@ -368,12 +375,12 @@ public class DataIngestionController : ApiControllerBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Database ingestion failed");
+            _logger.LogError(ex, "Database ingestion failed");
             job.Status = "failed";
             job.ErrorMessage = ex.Message;
             job.CompletedAt = DateTime.UtcNow;
 
-            return ErrorResult(ex.Message, 500);
+            throw;
         }
     }
 
@@ -387,7 +394,7 @@ public class DataIngestionController : ApiControllerBase
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(request.RepositoryPath))
-            return ErrorResult("Repository path is required", 400);
+            return BadRequest("Repository path is required");
 
         var jobId = Guid.NewGuid().ToString();
         var job = new IngestionJob
@@ -405,7 +412,7 @@ public class DataIngestionController : ApiControllerBase
             // Use GitRepositoryAtomizer
             var gitAtomizer = _atomizers.OfType<IAtomizer<GitRepositoryInfo>>().FirstOrDefault();
             if (gitAtomizer == null)
-                return ErrorResult("Git repository atomizer not configured", 500);
+                throw new InvalidOperationException("Git repository atomizer not configured");
 
             var gitInfo = new GitRepositoryInfo
             {
@@ -439,7 +446,7 @@ public class DataIngestionController : ApiControllerBase
             job.CompletedAt = DateTime.UtcNow;
             job.DurationMs = (long)(job.CompletedAt.Value - job.StartedAt).TotalMilliseconds;
 
-            return SuccessResult(new
+            return Ok(new
             {
                 jobId,
                 status = job.Status,
@@ -449,12 +456,12 @@ public class DataIngestionController : ApiControllerBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Git repository ingestion failed: {RepoPath}", request.RepositoryPath);
+            _logger.LogError(ex, "Git repository ingestion failed: {RepoPath}", request.RepositoryPath);
             job.Status = "failed";
             job.ErrorMessage = ex.Message;
             job.CompletedAt = DateTime.UtcNow;
 
-            return ErrorResult(ex.Message, 500);
+            throw;
         }
     }
 
@@ -522,56 +529,12 @@ public class DataIngestionController : ApiControllerBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Child ingestion failed: {FileName}", childSource.Metadata.FileName);
+            _logger.LogError(ex, "Child ingestion failed: {FileName}", childSource.Metadata.FileName);
             childJob.Status = "failed";
             childJob.ErrorMessage = ex.Message;
             childJob.CompletedAt = DateTime.UtcNow;
         }
 
         return childJobId;
-    }
-
-    // Simple in-memory job tracking model
-    private class IngestionJob
-    {
-        public string JobId { get; set; } = "";
-        public string? FileName { get; set; }
-        public long FileSizeBytes { get; set; }
-        public string Status { get; set; } = "pending";
-        public string? DetectedType { get; set; }
-        public string? DetectedCategory { get; set; }
-        public int TotalAtoms { get; set; }
-        public int UniqueAtoms { get; set; }
-        public DateTime StartedAt { get; set; }
-        public DateTime? CompletedAt { get; set; }
-        public long DurationMs { get; set; }
-        public List<string>? ChildJobs { get; set; }
-        public string? ErrorMessage { get; set; }
-        public int TenantId { get; set; }
-    }
-
-    // Request models
-    public class UrlIngestionRequest
-    {
-        public required string Url { get; set; }
-        public int TenantId { get; set; } = 0;
-    }
-
-    public class DatabaseIngestionRequest
-    {
-        public required string ConnectionString { get; set; }
-        public int TenantId { get; set; } = 0;
-        public int MaxTables { get; set; } = 50;
-        public int MaxRowsPerTable { get; set; } = 1000;
-    }
-
-    public class GitIngestionRequest
-    {
-        public required string RepositoryPath { get; set; }
-        public int TenantId { get; set; } = 0;
-        public int MaxBranches { get; set; } = 50;
-        public int MaxCommits { get; set; } = 100;
-        public int MaxFiles { get; set; } = 1000;
-        public bool IncludeFileHistory { get; set; } = true;
     }
 }
