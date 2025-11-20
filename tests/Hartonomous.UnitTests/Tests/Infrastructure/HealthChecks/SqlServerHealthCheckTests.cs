@@ -1,7 +1,8 @@
+using Hartonomous.Core.Configuration;
 using Hartonomous.Infrastructure.Health;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NSubstitute;
 using FluentAssertions;
 using Xunit;
@@ -11,20 +12,26 @@ namespace Hartonomous.UnitTests.Tests.Infrastructure.HealthChecks;
 public class SqlServerHealthCheckTests
 {
     private readonly ILogger<SqlServerHealthCheck> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly IOptions<DatabaseOptions> _options;
 
     public SqlServerHealthCheckTests()
     {
         _logger = Substitute.For<ILogger<SqlServerHealthCheck>>();
-        _configuration = Substitute.For<IConfiguration>();
+        
+        var databaseOptions = new DatabaseOptions
+        {
+            HartonomousDb = "Server=tcp:mock-server.database.windows.net,1433;Initial Catalog=Hartonomous;"
+        };
+        
+        _options = Options.Create(databaseOptions);
     }
 
     [Fact]
     public async Task CheckHealthAsync_WithMissingConnectionString_ReturnsUnhealthy()
     {
         // Arrange
-        _configuration.GetConnectionString("HartonomousDb").Returns((string?)null);
-        var healthCheck = new SqlServerHealthCheck(_logger, _configuration);
+        var emptyOptions = Options.Create(new DatabaseOptions { HartonomousDb = string.Empty });
+        var healthCheck = new SqlServerHealthCheck(_logger, emptyOptions);
         var context = new HealthCheckContext();
 
         // Act
@@ -39,7 +46,7 @@ public class SqlServerHealthCheckTests
     public void Constructor_WithNullLogger_ThrowsArgumentNullException()
     {
         // Act
-        Action act = () => new SqlServerHealthCheck(null!, _configuration);
+        Action act = () => new SqlServerHealthCheck(null!, _options);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
@@ -47,13 +54,13 @@ public class SqlServerHealthCheckTests
     }
 
     [Fact]
-    public void Constructor_WithNullConfiguration_ThrowsArgumentNullException()
+    public void Constructor_WithNullOptions_ThrowsArgumentNullException()
     {
         // Act
         Action act = () => new SqlServerHealthCheck(_logger, null!);
 
         // Assert
         act.Should().Throw<ArgumentNullException>()
-            .WithParameterName("configuration");
+            .WithParameterName("options");
     }
 }

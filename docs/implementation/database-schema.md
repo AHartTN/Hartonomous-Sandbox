@@ -99,10 +99,19 @@ INCLUDE (AtomId, ContentHash, CreatedAt);
 - **Reference counting**: Garbage collection when `ReferenceCount = 0`
 - **Modality classification**: Enables cross-modal queries via spatial projection
 
+**Supported Modalities**:
+- `text`: Natural language text, documents
+- `image`: Pixels, raster/vector graphics
+- `audio`: Audio samples, spectrograms
+- `code`: Source code AST nodes (see [Code Atomization](#code-atomization-ast-nodes))
+- `tensor`: AI model weights
+- `video`: Video frames, motion data
+
 **Deduplication Benefits**:
 - Same model, 3 tenants: 65% storage reduction
 - Similar models (same architecture): 40-50% reduction
 - Unrelated models: 5-10% reduction (common layers like LayerNorm)
+- **Code deduplication**: Shared functions/classes across projects: 30-40% reduction
 
 ---
 
@@ -717,6 +726,192 @@ FOR SYSTEM_TIME ALL
 WHERE AtomId = 12345
 ORDER BY ValidFrom;
 ```
+
+---
+
+## Code Atomization (AST Nodes)
+
+**CRITICAL DESIGN CORRECTION**: The `dbo.CodeAtom` table is **DEPRECATED** and violates atomic decomposition principles.
+
+### Correct Pattern: Code as Atom Rows
+
+Every Roslyn SyntaxNode becomes ONE Atom row:
+
+```sql
+-- Example: Store a C# method declaration
+INSERT INTO dbo.Atom (
+    Modality,
+    Subtype,
+    ContentHash,
+    AtomicValue,
+    CanonicalText,
+    Metadata,
+    TenantId
+)
+VALUES (
+    'code',  -- Modality
+    'MethodDeclaration',  -- Roslyn SyntaxKind
+    HASHBYTES('SHA2_256', @serializedNode),
+    @serializedNode,  -- Binary serialized SyntaxNode (if ≤64 bytes)
+    'public void MyMethod(int x) { ... }',  -- Reconstructed source
+    JSON_OBJECT(
+        'Language': 'C#',
+        'Framework': '.NET Framework 4.8.1',
+        'SyntaxKind': 'MethodDeclaration',
+        'RoslynType': 'Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax',
+        'Span': JSON_OBJECT('Start': 0, 'Length': 45),
+        'Modifiers': ['public'],
+        'ReturnType': 'void',
+        'Identifier': 'MyMethod',
+        'Parameters': [JSON_OBJECT('Type': 'int', 'Name': 'x')],
+        'CyclomaticComplexity': 3,
+        'QualityScore': 0.95
+    ),
+    @TenantId
+);
+```
+
+### AST Hierarchy via AtomRelation
+
+```sql
+-- Parent-child AST relationships
+CREATE TABLE dbo.AtomRelation (
+    RelationId BIGINT IDENTITY PRIMARY KEY,
+    FromAtomId BIGINT NOT NULL,
+    ToAtomId BIGINT NOT NULL,
+    RelationType NVARCHAR(50) NOT NULL,  -- 'AST_CONTAINS', 'AST_SIBLING', etc.
+    SequenceIndex INT NULL,  -- Order in parent's child list
+    
+    CONSTRAINT FK_AtomRelation_From FOREIGN KEY (FromAtomId) REFERENCES dbo.Atom(AtomId),
+    CONSTRAINT FK_AtomRelation_To FOREIGN KEY (ToAtomId) REFERENCES dbo.Atom(AtomId)
+);
+
+-- Index for AST traversal (parent → children)
+CREATE NONCLUSTERED INDEX IX_AtomRelation_AST_Parent
+ON dbo.AtomRelation(FromAtomId, RelationType, SequenceIndex)
+INCLUDE (ToAtomId)
+WHERE RelationType = 'AST_CONTAINS';
+
+-- Index for reverse traversal (child → parent)
+CREATE NONCLUSTERED INDEX IX_AtomRelation_AST_Child
+ON dbo.AtomRelation(ToAtomId, RelationType)
+INCLUDE (FromAtomId)
+WHERE RelationType = 'AST_CONTAINS';
+```
+
+### Spatial Indexing for Code Similarity
+
+```sql
+-- Generate AST embeddings via CLR
+INSERT INTO dbo.AtomEmbedding (AtomId, ModelId, SpatialKey, EmbeddingVector)
+SELECT 
+    a.AtomId,
+    @CodeEmbeddingModelId,
+    dbo.clr_GenerateCodeAstVector(a.Metadata) AS SpatialKey,  -- AST structure → 3D GEOMETRY
+    dbo.clr_GenerateCodeEmbedding(a.CanonicalText) AS EmbeddingVector  -- Code text → 1998D vector
+FROM dbo.Atom a
+WHERE a.Modality = 'code';
+
+-- Spatial index for O(log N) "find similar code" queries
+CREATE SPATIAL INDEX IX_CodeAtomEmbedding_Spatial
+ON dbo.AtomEmbedding(SpatialKey)
+USING GEOMETRY_GRID
+WHERE EXISTS (SELECT 1 FROM dbo.Atom WHERE AtomId = AtomEmbedding.AtomId AND Modality = 'code')
+WITH (
+    BOUNDING_BOX = (-100, -100, -100, 100, 100, 100),
+    GRIDS = (LEVEL_1 = HIGH, LEVEL_2 = HIGH, LEVEL_3 = HIGH, LEVEL_4 = HIGH)
+);
+```
+
+### Roslyn Integration (CLR)
+
+**Assembly**: Hartonomous.Clr.dll
+
+**Functions**:
+```sql
+-- Atomize C# source file → Atom rows
+CREATE PROCEDURE dbo.sp_AtomizeCode
+    @sourceCode NVARCHAR(MAX),
+    @language NVARCHAR(50) = 'C#',
+    @framework NVARCHAR(100) = '.NET Framework 4.8.1',
+    @tenantId INT
+AS EXTERNAL NAME [Hartonomous.Clr].[CodeAtomizers.RoslynAtomizer].[AtomizeCode];
+GO
+
+-- Generate AST structure vector (1998D)
+CREATE FUNCTION dbo.clr_GenerateCodeAstVector(
+    @metadata NVARCHAR(MAX)  -- JSON with SyntaxKind, depth, complexity, etc.
+)
+RETURNS VARBINARY(MAX)  -- 1998 floats × 4 bytes = 7992 bytes
+AS EXTERNAL NAME [Hartonomous.Clr].[CodeAtomizers.AstVectorizer].[GenerateVector];
+GO
+
+-- Reconstruct Roslyn SyntaxTree from Atoms
+CREATE FUNCTION dbo.clr_ReconstructSyntaxTree(
+    @rootAtomId BIGINT
+)
+RETURNS NVARCHAR(MAX)  -- C# source code
+AS EXTERNAL NAME [Hartonomous.Clr].[CodeAtomizers.RoslynReconstructor].[Reconstruct];
+GO
+```
+
+### Deprecated: dbo.CodeAtom Table
+
+**Status**: ⚠️ **DEPRECATED - DO NOT USE**
+
+**Migration Path**:
+```sql
+-- Migrate existing CodeAtom rows to Atom table
+INSERT INTO dbo.Atom (
+    Modality,
+    Subtype,
+    ContentHash,
+    CanonicalText,
+    Metadata,
+    TenantId
+)
+SELECT 
+    'code' AS Modality,
+    ca.CodeType AS Subtype,
+    ca.CodeHash AS ContentHash,
+    CAST(ca.Code AS NVARCHAR(MAX)) AS CanonicalText,  -- TEXT → NVARCHAR(MAX)
+    JSON_OBJECT(
+        'Language': ca.Language,
+        'Framework': ca.Framework,
+        'QualityScore': ca.QualityScore,
+        'UsageCount': ca.UsageCount,
+        'Tags': JSON_QUERY(ca.Tags)
+    ) AS Metadata,
+    0 AS TenantId  -- Default tenant
+FROM dbo.CodeAtom ca;
+
+-- Migrate embeddings
+INSERT INTO dbo.AtomEmbedding (AtomId, ModelId, SpatialKey)
+SELECT 
+    a.AtomId,
+    @CodeEmbeddingModelId,
+    ca.Embedding  -- Existing GEOMETRY
+FROM dbo.CodeAtom ca
+INNER JOIN dbo.Atom a ON a.ContentHash = ca.CodeHash
+WHERE a.Modality = 'code';
+
+-- Drop deprecated table (after verification)
+DROP TABLE dbo.CodeAtom;
+```
+
+**Why CodeAtom Violates Architecture**:
+
+| Issue | CodeAtom | Correct (Atom) |
+|-------|----------|----------------|
+| Atomic decomposition | Stores entire code snippets | Each AST node is an Atom |
+| Modality support | Code-only | All modalities (text, code, image, audio, tensor) |
+| Cross-modal queries | Impossible | "Find code similar to this text" |
+| Temporal versioning | Manual CreatedAt/UpdatedAt | SYSTEM_VERSIONING |
+| Multi-tenancy | Missing TenantId | Full tenant isolation |
+| Deduplication | CodeHash (partial) | ContentHash (universal) |
+| Normalization | Embedding directly on table | AtomEmbedding join table |
+| AST hierarchy | No structure tracking | AtomRelation graph |
+| Data type | TEXT (deprecated) | NVARCHAR(MAX) |
 
 ---
 

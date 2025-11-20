@@ -8,8 +8,9 @@ using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Api.Controllers;
 
-[ApiController]
-[Route("api/[controller]")]
+/// <summary>
+/// Real-time streaming ingestion API using SignalR.
+/// </summary>
 public class StreamingIngestionController : ApiControllerBase
 {
     private readonly StreamingIngestionService _streamingService;

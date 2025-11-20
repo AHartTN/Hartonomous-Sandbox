@@ -1,6 +1,7 @@
-using Microsoft.Extensions.Configuration;
+using Hartonomous.Core.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 
 namespace Hartonomous.Infrastructure.Health;
@@ -16,19 +17,14 @@ public sealed class Neo4jHealthCheck : IHealthCheck
 
     public Neo4jHealthCheck(
         ILogger<Neo4jHealthCheck> logger,
-        IConfiguration configuration)
+        IDriver driver,
+        IOptions<Neo4jOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-
-        var neo4jUri = configuration["Neo4j:Uri"]
-            ?? throw new InvalidOperationException("Neo4j:Uri configuration not found.");
-        var neo4jUsername = configuration["Neo4j:Username"]
-            ?? throw new InvalidOperationException("Neo4j:Username configuration not found.");
-        var neo4jPassword = configuration["Neo4j:Password"]
-            ?? throw new InvalidOperationException("Neo4j:Password configuration not found.");
-        _database = configuration["Neo4j:Database"] ?? "neo4j";
-
-        _driver = GraphDatabase.Driver(neo4jUri, AuthTokens.Basic(neo4jUsername, neo4jPassword));
+        _driver = driver ?? throw new ArgumentNullException(nameof(driver));
+        
+        var neo4jOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _database = neo4jOptions.Database;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(

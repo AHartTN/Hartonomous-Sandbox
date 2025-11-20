@@ -478,12 +478,78 @@ EXEC dbo.sp_SpatialNextToken
 -- RAM usage: ~100MB (spatial index pages only)
 ```
 
-### Why This Works
+### Code as Atoms: AST Atomization
+
+**Problem**: Early design mistake - CodeAtom as separate table.
+
+**Correct Design**: Code is just another modality. Each Roslyn SyntaxNode becomes ONE Atom:
+
+```sql
+-- WRONG (legacy CodeAtom table):
+INSERT INTO CodeAtom (Language, Code, Framework, CodeType, ...)
+VALUES ('C#', 'public void Foo() {...}', '.NET 4.8.1', 'MethodDeclaration', ...);
+
+-- CORRECT (Atom with Modality='code'):
+INSERT INTO Atom (Modality, Subtype, CanonicalText, Metadata, ...)
+VALUES (
+    'code',
+    'MethodDeclaration',  -- Roslyn SyntaxKind
+    'public void Foo() { ... }',  -- Reconstructed source
+    JSON_OBJECT(
+        'Language': 'C#',
+        'Framework': '.NET Framework 4.8.1',
+        'SyntaxKind': 'MethodDeclaration',
+        'RoslynType': 'Microsoft.CodeAnalysis.CSharp.Syntax.MethodDeclarationSyntax',
+        'ParentAtomId': 12345,  -- Reference to parent AST node
+        'ChildAtomIds': [12346, 12347],  -- Children in AST
+        'QualityScore': 0.95,
+        'UsageCount': 12
+    ),
+    ...
+);
+```
+
+**AST Hierarchy via AtomRelation**:
+
+```sql
+-- Roslyn SyntaxTree decomposition:
+-- CompilationUnit → NamespaceDeclaration → ClassDeclaration → MethodDeclaration → Block → Statement
+
+-- Each SyntaxNode is an Atom with RelationType='AST_CONTAINS':
+INSERT INTO AtomRelation (FromAtomId, ToAtomId, RelationType)
+VALUES 
+    (10000, 10001, 'AST_CONTAINS'),  -- CompilationUnit → NamespaceDeclaration
+    (10001, 10002, 'AST_CONTAINS'),  -- NamespaceDeclaration → ClassDeclaration  
+    (10002, 10003, 'AST_CONTAINS'),  -- ClassDeclaration → MethodDeclaration
+    (10003, 10004, 'AST_CONTAINS'),  -- MethodDeclaration → Block
+    (10004, 10005, 'AST_CONTAINS');  -- Block → Statement
+
+-- Spatial embedding for "find similar code structure" queries:
+INSERT INTO AtomEmbedding (AtomId, SpatialKey, EmbeddingVector)
+SELECT 
+    AtomId,
+    dbo.clr_GenerateCodeAstVector(Metadata) AS SpatialKey,  -- AST → 3D GEOMETRY
+    dbo.clr_GenerateCodeEmbedding(CanonicalText) AS EmbeddingVector  -- Code → 1998D vector
+FROM Atom
+WHERE Modality = 'code';
+```
+
+**Why This Works**:
+
+- ✅ **Round-trip fidelity**: Reconstruct exact Roslyn SyntaxTree from Atoms
+- ✅ **Structural queries**: "Find methods with similar AST shape" via spatial R-Tree
+- ✅ **Code generation**: SyntaxFactory can rebuild from Metadata JSON
+- ✅ **Refactoring**: SyntaxRewriter transforms stored AST, version via SYSTEM_VERSIONING
+- ✅ **Cross-language**: Same pattern for Python AST, JavaScript AST, etc.
+- ✅ **Multi-modal**: "Find code similar to this text description" across modalities
+
+### Why Queryable AI Works
 
 1. **Weights ARE Spatial Points**: Each tensor weight has 3D coordinate
 2. **Spatial Index = Model Structure**: R-tree encodes semantic relationships
 3. **Query = Traversal**: Navigate spatial index instead of loading tensors
 4. **O(log N) Scaling**: 10× more weights ≠ 10× slower queries
+5. **Code = AST Atoms**: Same spatial pattern for code structure queries
 
 **Result**: Inference on 70B parameter models with <1GB RAM usage.
 

@@ -18,5 +18,7 @@ FROM [dbo].[TensorAtomCoefficient] tac
 JOIN [dbo].[Atom] a ON tac.[TensorAtomId] = a.[AtomId]
 JOIN [dbo].[Model] m ON tac.[ModelId] = m.[ModelId]
 LEFT JOIN [dbo].[ModelLayer] ml ON tac.[ModelId] = ml.[ModelId] AND tac.[LayerIdx] = ml.[LayerIdx]
-WHERE a.[Modality] = 'model' AND a.[Subtype] = 'float32-weight';
+WHERE a.[Modality] = 'model' 
+  AND a.[Subtype] = 'float32-weight'
+  AND a.[TenantId] = CAST(SESSION_CONTEXT(N'TenantId') AS INT);
 GO

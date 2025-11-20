@@ -1,8 +1,9 @@
 using Azure.Identity;
 using Azure.Security.KeyVault.Secrets;
-using Microsoft.Extensions.Configuration;
+using Hartonomous.Core.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Hartonomous.Infrastructure.Health;
 
@@ -16,15 +17,24 @@ public sealed class KeyVaultHealthCheck : IHealthCheck
 
     public KeyVaultHealthCheck(
         ILogger<KeyVaultHealthCheck> logger,
-        IConfiguration configuration)
+        IOptions<KeyVaultOptions> options,
+        IOptions<AzureOptions> azureOptions)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        
+        var keyVaultOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        var azureOpts = azureOptions?.Value ?? throw new ArgumentNullException(nameof(azureOptions));
+        
+        if (!keyVaultOptions.Enabled)
+        {
+            throw new InvalidOperationException("Key Vault is not enabled in configuration.");
+        }
 
-        var keyVaultUri = configuration["Azure:KeyVault:Uri"]
-            ?? "https://kv-hartonomous.vault.azure.net/";
-
-        var credential = new DefaultAzureCredential();
-        _secretClient = new SecretClient(new Uri(keyVaultUri), credential);
+        var credential = azureOpts.UseManagedIdentity 
+            ? new DefaultAzureCredential() 
+            : new DefaultAzureCredential(new DefaultAzureCredentialOptions { ExcludeManagedIdentityCredential = true });
+            
+        _secretClient = new SecretClient(new Uri(keyVaultOptions.VaultUri!), credential);
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(

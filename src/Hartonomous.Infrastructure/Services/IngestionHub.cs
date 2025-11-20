@@ -1,7 +1,7 @@
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System;
 using System.Threading.Tasks;
-using Hartonomous.Infrastructure.Services.SignalR;
 
 namespace Hartonomous.Infrastructure.Services;
 

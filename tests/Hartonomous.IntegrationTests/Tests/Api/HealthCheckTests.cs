@@ -1,14 +1,13 @@
-using Microsoft.AspNetCore.Mvc.Testing;
 using FluentAssertions;
 using System.Net;
 
 namespace Hartonomous.IntegrationTests.Tests.Api;
 
-public class HealthCheckTests : IClassFixture<WebApplicationFactory<Program>>
+public class HealthCheckTests : IClassFixture<HartonomousWebApplicationFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly HartonomousWebApplicationFactory _factory;
 
-    public HealthCheckTests(WebApplicationFactory<Program> factory)
+    public HealthCheckTests(HartonomousWebApplicationFactory factory)
     {
         _factory = factory;
     }
@@ -23,8 +22,8 @@ public class HealthCheckTests : IClassFixture<WebApplicationFactory<Program>>
         var response = await client.GetAsync("/health");
 
         // Assert
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var content = await response.Content.ReadAsStringAsync();
+        response.StatusCode.Should().Be(HttpStatusCode.OK, $"Health check failed with response: {content}");
         content.Should().Contain("Healthy");
     }
 

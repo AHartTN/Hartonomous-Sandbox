@@ -318,6 +318,217 @@ WHERE ae.HilbertCurveIndex IS NULL;
 
 ---
 
+## Code Atomization (AST as Atoms)
+
+**CRITICAL CORRECTION**: Code is NOT stored in separate CodeAtom table. Code is atomized using the SAME pattern as AI models.
+
+### AST Decomposition Pattern
+
+Just like AI models decompose into layers → tensors → weights, code decomposes into AST nodes:
+
+```
+C# File (.cs)
+  → Roslyn CompilationUnit (Atom: Modality='code', Subtype='CompilationUnit')
+    → NamespaceDeclaration (Atom: Subtype='NamespaceDeclaration')
+      → ClassDeclaration (Atom: Subtype='ClassDeclaration')
+        → MethodDeclaration (Atom: Subtype='MethodDeclaration')
+          → ParameterList (Atom: Subtype='ParameterList')
+          → Block (Atom: Subtype='Block')
+            → Statement (Atom: Subtype='Statement')
+              → IdentifierToken (Atom: Subtype='IdentifierToken')
+              → Trivia (Atom: Subtype='Trivia')
+```
+
+### Roslyn Integration (C# / .NET Framework 4.8.1)
+
+**CLR Function**: `clr_AtomizeCode`
+
+```csharp
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
+
+public static void AtomizeCodeFile(string sourceCode)
+{
+    // 1. Parse C# source to Roslyn SyntaxTree
+    SyntaxTree tree = CSharpSyntaxTree.ParseText(sourceCode);
+    CompilationUnit root = tree.GetCompilationUnitRoot();
+    
+    // 2. Walk AST depth-first, create Atom for each SyntaxNode
+    WalkAndAtomize(root, parentAtomId: null);
+}
+
+private static long WalkAndAtomize(SyntaxNode node, long? parentAtomId)
+{
+    // Extract node properties
+    string syntaxKind = node.Kind().ToString();  // e.g., "MethodDeclaration"
+    string canonicalText = node.ToFullString();  // Reconstructed source with trivia
+    byte[] serialized = SerializeSyntaxNode(node);  // Binary serialization
+    byte[] contentHash = SHA256.HashData(serialized);
+    
+    // Build Metadata JSON
+    var metadata = new
+    {
+        Language = "C#",
+        Framework = ".NET Framework 4.8.1",
+        SyntaxKind = syntaxKind,
+        RoslynType = node.GetType().FullName,
+        Span = new { Start = node.Span.Start, Length = node.Span.Length },
+        LeadingTrivia = node.GetLeadingTrivia().ToFullString(),
+        TrailingTrivia = node.GetTrailingTrivia().ToFullString()
+    };
+    
+    // Insert into Atom table
+    long atomId = InsertAtom(
+        modality: "code",
+        subtype: syntaxKind,
+        contentHash: contentHash,
+        atomicValue: serialized.Length <= 64 ? serialized : null,  // Chunk if >64 bytes
+        canonicalText: canonicalText,
+        metadata: JsonConvert.SerializeObject(metadata)
+    );
+    
+    // Generate AST embedding via Gram-Schmidt orthogonalization
+    byte[] astVector = GenerateAstVector(node);
+    SqlGeometry spatialKey = ProjectToGeometry(astVector);  // 1998D → 3D
+    
+    InsertAtomEmbedding(
+        atomId: atomId,
+        embeddingVector: astVector,
+        spatialKey: spatialKey
+    );
+    
+    // Create parent-child relationship
+    if (parentAtomId.HasValue)
+    {
+        InsertAtomRelation(
+            fromAtomId: parentAtomId.Value,
+            toAtomId: atomId,
+            relationType: "AST_CONTAINS"
+        );
+    }
+    
+    // Recursively atomize children
+    foreach (SyntaxNode child in node.ChildNodes())
+    {
+        WalkAndAtomize(child, parentAtomId: atomId);
+    }
+    
+    return atomId;
+}
+
+private static byte[] GenerateAstVector(SyntaxNode node)
+{
+    // Extract structural features:
+    // - Node kind (one-hot encoding)
+    // - Depth in tree
+    // - Number of children
+    // - Token types
+    // - Identifier entropy
+    
+    float[] features = new float[1998];  // Match embedding dimension
+    
+    // Encode SyntaxKind (300 possible kinds)
+    int kindIndex = (int)node.Kind();
+    if (kindIndex < 300) features[kindIndex] = 1.0f;
+    
+    // Encode tree depth
+    features[300] = GetDepth(node) / 100.0f;  // Normalize
+    
+    // Encode child count
+    features[301] = node.ChildNodes().Count() / 50.0f;
+    
+    // Encode complexity metrics
+    features[302] = CalculateCyclomaticComplexity(node) / 20.0f;
+    features[303] = node.Span.Length / 10000.0f;  // Code length
+    
+    // Apply Gram-Schmidt orthogonalization to ensure orthogonal basis
+    return GramSchmidtOrthogonalize(features);
+}
+```
+
+### Storage Pattern
+
+```sql
+-- Atom table stores each AST node:
+SELECT 
+    AtomId,
+    Modality,           -- 'code'
+    Subtype,            -- 'MethodDeclaration', 'ClassDeclaration', etc.
+    CanonicalText,      -- 'public void Foo() { ... }'
+    JSON_VALUE(Metadata, '$.SyntaxKind') AS SyntaxKind,
+    JSON_VALUE(Metadata, '$.RoslynType') AS RoslynType
+FROM Atom
+WHERE Modality = 'code';
+
+-- AtomRelation stores AST hierarchy:
+SELECT 
+    a1.CanonicalText AS Parent,
+    a2.CanonicalText AS Child,
+    ar.RelationType
+FROM AtomRelation ar
+INNER JOIN Atom a1 ON ar.FromAtomId = a1.AtomId
+INNER JOIN Atom a2 ON ar.ToAtomId = a2.AtomId
+WHERE ar.RelationType = 'AST_CONTAINS';
+
+-- AtomEmbedding enables semantic code search:
+SELECT TOP 10
+    a.CanonicalText AS SimilarCode,
+    ae.SpatialKey.STDistance(@queryPoint) AS SpatialDistance
+FROM AtomEmbedding ae
+INNER JOIN Atom a ON ae.AtomId = a.AtomId
+WHERE a.Modality = 'code'
+  AND ae.SpatialKey.STIntersects(@queryPoint.STBuffer(5.0)) = 1
+ORDER BY SpatialDistance ASC;
+```
+
+### Reconstruction: Atoms → SyntaxTree
+
+```csharp
+public static SyntaxTree ReconstructFromAtoms(long rootAtomId)
+{
+    // 1. Load root atom
+    var rootAtom = LoadAtom(rootAtomId);
+    var metadata = JsonConvert.DeserializeObject<dynamic>(rootAtom.Metadata);
+    
+    // 2. Deserialize SyntaxNode from AtomicValue or reconstruct from Metadata
+    SyntaxNode node = rootAtom.AtomicValue != null
+        ? DeserializeSyntaxNode(rootAtom.AtomicValue)
+        : ReconstructFromMetadata(metadata);
+    
+    // 3. Recursively reconstruct children via AtomRelation
+    var children = LoadChildAtoms(rootAtomId, "AST_CONTAINS");
+    foreach (var childAtom in children)
+    {
+        SyntaxNode childNode = ReconstructFromAtoms(childAtom.AtomId);
+        node = node.AddChild(childNode);  // SyntaxFactory methods
+    }
+    
+    // 4. Create SyntaxTree
+    return CSharpSyntaxTree.Create((CompilationUnit)node);
+}
+```
+
+### Cross-Language AST Support
+
+| Language | Parser | AST Library |
+|----------|--------|-------------|
+| C# | Roslyn | Microsoft.CodeAnalysis.CSharp |
+| Python | Tree-sitter | tree-sitter-python |
+| JavaScript | Tree-sitter | tree-sitter-javascript |
+| TypeScript | Tree-sitter | tree-sitter-typescript |
+| Go | Tree-sitter | tree-sitter-go |
+| Rust | Tree-sitter | tree-sitter-rust |
+
+All use the SAME Atom storage pattern:
+```sql
+Modality = 'code'
+Subtype = {language-specific AST node type}
+Metadata = { "Language": "...", "AstNodeType": "...", ... }
+```
+
+---
+
 ## Supported Model Formats
 
 ### 1. GGUF (✅ Implemented)

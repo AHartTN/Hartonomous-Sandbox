@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Hartonomous.Clr.Contracts
 {
     /// <summary>
@@ -11,8 +13,22 @@ namespace Hartonomous.Clr.Contracts
         /// Loads the raw binary data for a specific tensor by name.
         /// </summary>
         /// <param name="tensorName">The fully qualified name of the tensor (e.g., "transformer.layer.0.attention.qkv_proj.weight").</param>
-        /// <param name="expectedSizeInBytes">The expected size of the tensor in bytes, for validation.</param>
+        /// <param name="maxElements">Maximum number of elements to load.</param>
         /// <returns>A float array containing the tensor weights, or null if not found.</returns>
         float[]? LoadWeights(string tensorName, int maxElements);
+
+        /// <summary>
+        /// Loads multiple tensors in a single batch operation.
+        /// </summary>
+        /// <param name="tensorPatterns">Dictionary mapping result keys to tensor name patterns.</param>
+        /// <returns>Dictionary of loaded tensor weights.</returns>
+        Dictionary<string, float[]> LoadWeightsBatch(Dictionary<string, string> tensorPatterns);
+
+        /// <summary>
+        /// Gets metadata for a tensor without loading the full weights.
+        /// </summary>
+        /// <param name="tensorNamePattern">Tensor name pattern to query.</param>
+        /// <returns>Tensor metadata.</returns>
+        Hartonomous.Clr.Core.TensorMetadata GetMetadata(string tensorNamePattern);
     }
 }

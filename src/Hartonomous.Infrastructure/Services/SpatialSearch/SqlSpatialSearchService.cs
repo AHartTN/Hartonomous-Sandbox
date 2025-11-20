@@ -1,9 +1,10 @@
 using Azure.Core;
 using Azure.Identity;
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.SpatialSearch;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
 using NetTopologySuite.IO;
 using Newtonsoft.Json;
@@ -18,16 +19,18 @@ namespace Hartonomous.Infrastructure.Services.SpatialSearch;
 public sealed class SqlSpatialSearchService : ISpatialSearchService
 {
     private readonly ILogger<SqlSpatialSearchService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly string _connectionString;
     private readonly TokenCredential _credential;
     private readonly SqlServerBytesReader _spatialReader;
 
     public SqlSpatialSearchService(
         ILogger<SqlSpatialSearchService> logger,
-        IConfiguration configuration)
+        IOptions<DatabaseOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        
+        var databaseOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _connectionString = databaseOptions.HartonomousDb;
         _credential = new DefaultAzureCredential();
         _spatialReader = new SqlServerBytesReader { IsGeography = true };
     }
@@ -45,10 +48,7 @@ public sealed class SqlSpatialSearchService : ISpatialSearchService
             "Executing spatial search for nearest atoms at ({Latitude}, {Longitude}), max results: {MaxResults}, radius: {Radius}m",
             location.Y, location.X, maxResults, radiusMeters);
 
-        var connectionString = _configuration.GetConnectionString("HartonomousDb")
-            ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found.");
-
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(_connectionString);
 
         var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
         var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
@@ -113,10 +113,7 @@ public sealed class SqlSpatialSearchService : ISpatialSearchService
             "Executing k-NN search for {K} nearest atoms at ({Latitude}, {Longitude})",
             k, location.Y, location.X);
 
-        var connectionString = _configuration.GetConnectionString("HartonomousDb")
-            ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found.");
-
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(_connectionString);
 
         var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
         var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
@@ -185,10 +182,7 @@ public sealed class SqlSpatialSearchService : ISpatialSearchService
             "Projecting {AtomCount} atoms onto {LandmarkCount} landmarks",
             atomIdList.Count, landmarkIdList.Count);
 
-        var connectionString = _configuration.GetConnectionString("HartonomousDb")
-            ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found.");
-
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(_connectionString);
 
         var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
         var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);

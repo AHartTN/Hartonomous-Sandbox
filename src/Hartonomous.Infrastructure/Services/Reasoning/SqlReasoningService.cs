@@ -1,10 +1,11 @@
 using Azure.Core;
 using Azure.Identity;
 using Hartonomous.Core.Abstracts;
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Reasoning;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using System.Data;
 
@@ -16,15 +17,17 @@ namespace Hartonomous.Infrastructure.Services.Reasoning;
 public sealed class SqlReasoningService : IReasoningService
 {
     private readonly ILogger<SqlReasoningService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly string _connectionString;
     private readonly TokenCredential _credential;
 
     public SqlReasoningService(
         ILogger<SqlReasoningService> logger,
-        IConfiguration configuration)
+        IOptions<DatabaseOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        
+        var databaseOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _connectionString = databaseOptions.HartonomousDb;
         _credential = new DefaultAzureCredential();
     }
 
@@ -94,10 +97,7 @@ public sealed class SqlReasoningService : IReasoningService
 
         _logger.LogInformation("Retrieving reasoning history for session {SessionId}", sessionId);
 
-        var connectionString = _configuration.GetConnectionString("HartonomousDb")
-            ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found.");
-
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(_connectionString);
 
         var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
         var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
@@ -144,10 +144,7 @@ public sealed class SqlReasoningService : IReasoningService
         Dictionary<string, object>? parameters,
         CancellationToken cancellationToken)
     {
-        var connectionString = _configuration.GetConnectionString("HartonomousDb")
-            ?? throw new InvalidOperationException("Connection string 'HartonomousDb' not found.");
-
-        await using var connection = new SqlConnection(connectionString);
+        await using var connection = new SqlConnection(_connectionString);
 
         // Use Arc-enabled managed identity authentication
         var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);

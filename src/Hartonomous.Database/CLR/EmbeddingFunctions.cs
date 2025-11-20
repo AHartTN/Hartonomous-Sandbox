@@ -4,6 +4,7 @@ using System.Data.SqlClient;
 using System.Linq;
 using System.Data.SqlTypes;
 using Microsoft.SqlServer.Server;
+using Newtonsoft.Json;
 
 namespace Hartonomous.SqlClr
 {

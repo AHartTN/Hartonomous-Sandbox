@@ -62,6 +62,9 @@ src/Hartonomous.Data.Entities/HartonomousDbContextFactory.cs
 *.coverage
 *.coveragexml
 
+# Test configuration (local developer SQL Server connection strings)
+tests/**/local.config.json
+
 # IDE
 .claude/
 .gemini/

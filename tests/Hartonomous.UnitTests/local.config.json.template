@@ -1,0 +1,3 @@
+{
+  "ConnectionString": "Server=YOUR-SQL-SERVER;Database=Hartonomous_UnitTests;Integrated Security=True;TrustServerCertificate=True;ConnectRetryCount=0;"
+}

@@ -84,5 +84,70 @@ namespace Hartonomous.Clr.TensorOperations
                 return null;
             }
         }
+
+        /// <summary>
+        /// Loads multiple tensors in a single batch operation.
+        /// </summary>
+        public System.Collections.Generic.Dictionary<string, float[]> LoadWeightsBatch(System.Collections.Generic.Dictionary<string, string> tensorPatterns)
+        {
+            var results = new System.Collections.Generic.Dictionary<string, float[]>();
+
+            foreach (var kvp in tensorPatterns)
+            {
+                var weights = LoadWeights(kvp.Value, int.MaxValue);
+                if (weights != null)
+                {
+                    results[kvp.Key] = weights;
+                }
+            }
+
+            return results;
+        }
+
+        /// <summary>
+        /// Gets metadata for a tensor without loading the full weights.
+        /// </summary>
+        public Hartonomous.Clr.Core.TensorMetadata GetMetadata(string tensorNamePattern)
+        {
+            try
+            {
+                using (var conn = new SqlConnection("context connection=true"))
+                {
+                    conn.Open();
+
+                    var query = @"
+                        SELECT TOP 1 ta.TensorName, ta.TensorShape, ta.DataType, ta.ElementCount, ta.ByteSize
+                        FROM dbo.TensorAtoms ta
+                        WHERE ta.TensorName LIKE '%' + @pattern + '%'
+                        ORDER BY ta.ElementCount DESC;";
+
+                    using (var cmd = new SqlCommand(query, conn))
+                    {
+                        cmd.Parameters.AddWithValue("@pattern", tensorNamePattern);
+
+                        using (var reader = cmd.ExecuteReader())
+                        {
+                            if (reader.Read())
+                            {
+                                return new Hartonomous.Clr.Core.TensorMetadata
+                                {
+                                    TensorName = reader.GetString(0),
+                                    TensorShape = reader.GetString(1),
+                                    DataType = reader.GetString(2),
+                                    ElementCount = reader.GetInt64(3),
+                                    ByteSize = reader.GetInt64(4)
+                                };
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SqlContext.Pipe?.Send($"Error getting tensor metadata: {ex.Message}");
+            }
+
+            throw new ArgumentException($"Tensor not found matching pattern: {tensorNamePattern}");
+        }
     }
 }

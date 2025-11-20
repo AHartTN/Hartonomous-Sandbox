@@ -1,6 +1,10 @@
+using System.Diagnostics;
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Provenance;
-using Microsoft.Extensions.Configuration;
+using Microsoft.ApplicationInsights;
+using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 
 namespace Hartonomous.Infrastructure.Services.Provenance;
@@ -9,29 +13,29 @@ namespace Hartonomous.Infrastructure.Services.Provenance;
 /// Neo4j implementation of provenance query service for READ-ONLY analytical Cypher queries.
 /// Tracks atom lineage, error clustering, and reasoning session paths through the provenance graph.
 /// </summary>
-public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisposable
+public sealed class Neo4jProvenanceService : IProvenanceQueryService
 {
     private readonly ILogger<Neo4jProvenanceService> _logger;
     private readonly IDriver _driver;
     private readonly string _database;
+    private readonly TelemetryClient? _telemetry;
+    private readonly string _neo4jEndpoint;
 
     public Neo4jProvenanceService(
         ILogger<Neo4jProvenanceService> logger,
-        IConfiguration configuration)
+        IDriver driver,
+        IOptions<Neo4jOptions> options,
+        TelemetryClient? telemetry = null)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        _driver = driver ?? throw new ArgumentNullException(nameof(driver));
+        _telemetry = telemetry;
         
-        var neo4jUri = configuration["Neo4j:Uri"]
-            ?? throw new InvalidOperationException("Neo4j:Uri configuration not found.");
-        var neo4jUsername = configuration["Neo4j:Username"]
-            ?? throw new InvalidOperationException("Neo4j:Username configuration not found.");
-        var neo4jPassword = configuration["Neo4j:Password"]
-            ?? throw new InvalidOperationException("Neo4j:Password configuration not found.");
-        _database = configuration["Neo4j:Database"] ?? "neo4j";
-
-        _driver = GraphDatabase.Driver(neo4jUri, AuthTokens.Basic(neo4jUsername, neo4jPassword));
+        var neo4jOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _database = neo4jOptions.Database;
+        _neo4jEndpoint = neo4jOptions.Uri ?? "unknown";
         
-        _logger.LogInformation("Neo4j provenance service initialized. URI: {Uri}, Database: {Database}", neo4jUri, _database);
+        _logger.LogInformation("Neo4j provenance service initialized. Database: {Database}", _database);
     }
 
     public async Task<AtomLineage> GetAtomLineageAsync(
@@ -53,11 +57,25 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             LIMIT 1
             """;
 
-        await using var session = _driver.AsyncSession(o => o
-            .WithDatabase(_database)
-            .WithDefaultAccessMode(AccessMode.Read)); // READ-ONLY
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.GetAtomLineage",
+            Type = "Neo4j",
+            Target = _neo4jEndpoint,
+            Data = $"MATCH atom lineage for atomId: {atomId}, maxDepth: {depth}"
+        };
+        dependency.Properties["AtomId"] = atomId.ToString();
+        dependency.Properties["MaxDepth"] = depth.ToString();
+        dependency.Properties["Database"] = _database;
 
-        var result = await session.ExecuteReadAsync(async tx =>
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await using var session = _driver.AsyncSession(o => o
+                .WithDatabase(_database)
+                .WithDefaultAccessMode(AccessMode.Read)); // READ-ONLY
+
+            var result = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(query, new { atomId, maxDepth = depth });
             var record = await cursor.SingleAsync();
@@ -85,10 +103,25 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             };
         });
 
-        _logger.LogDebug("Lineage query completed. Found {AncestorCount} ancestors at depth {Depth}", 
-            result.TotalAncestors, result.Depth);
+            _logger.LogDebug("Lineage query completed. Found {AncestorCount} ancestors at depth {Depth}", 
+                result.TotalAncestors, result.Depth);
 
-        return result;
+            dependency.Success = true;
+            dependency.Metrics["AncestorCount"] = result.TotalAncestors;
+            dependency.Metrics["Depth"] = result.Depth;
+            return result;
+        }
+        catch (Exception ex)
+        {
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to query atom lineage for {AtomId}", atomId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
+        }
     }
 
     public async Task<IEnumerable<ErrorCluster>> FindErrorClustersAsync(
@@ -115,11 +148,25 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             ORDER BY errorCount DESC
             """;
 
-        await using var session = _driver.AsyncSession(o => o
-            .WithDatabase(_database)
-            .WithDefaultAccessMode(AccessMode.Read));
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.FindErrorClusters",
+            Type = "Neo4j",
+            Target = _neo4jEndpoint,
+            Data = $"Find error clusters for sessionId: {sessionId?.ToString() ?? "all"}, minSize: {minClusterSize}"
+        };
+        dependency.Properties["SessionId"] = sessionId?.ToString() ?? "all";
+        dependency.Properties["MinClusterSize"] = minClusterSize.ToString();
+        dependency.Properties["Database"] = _database;
 
-        var clusters = await session.ExecuteReadAsync(async tx =>
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await using var session = _driver.AsyncSession(o => o
+                .WithDatabase(_database)
+                .WithDefaultAccessMode(AccessMode.Read));
+
+            var clusters = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(query, new 
             { 
@@ -151,9 +198,23 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             return results;
         });
 
-        _logger.LogInformation("Error cluster analysis completed. Found {ClusterCount} clusters.", clusters.Count);
+            _logger.LogInformation("Error cluster analysis completed. Found {ClusterCount} clusters.", clusters.Count);
 
-        return clusters;
+            dependency.Success = true;
+            dependency.Metrics["ClusterCount"] = clusters.Count;
+            return clusters;
+        }
+        catch (Exception ex)
+        {
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to find error clusters for sessionId {SessionId}", sessionId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
+        }
     }
 
     public async Task<IEnumerable<ReasoningPath>> GetSessionPathsAsync(
@@ -176,11 +237,24 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
                 session.isSuccessful as isSuccessful
             """;
 
-        await using var session = _driver.AsyncSession(o => o
-            .WithDatabase(_database)
-            .WithDefaultAccessMode(AccessMode.Read));
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.GetSessionPaths",
+            Type = "Neo4j",
+            Target = _neo4jEndpoint,
+            Data = $"Get reasoning paths for sessionId: {sessionId}"
+        };
+        dependency.Properties["SessionId"] = sessionId.ToString();
+        dependency.Properties["Database"] = _database;
 
-        var paths = await session.ExecuteReadAsync(async tx =>
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await using var session = _driver.AsyncSession(o => o
+                .WithDatabase(_database)
+                .WithDefaultAccessMode(AccessMode.Read));
+
+            var paths = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(query, new { sessionId });
 
@@ -212,9 +286,23 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             return results;
         });
 
-        _logger.LogDebug("Session path query completed. Found {PathCount} reasoning paths.", paths.Count);
+            _logger.LogDebug("Session path query completed. Found {PathCount} reasoning paths.", paths.Count);
 
-        return paths;
+            dependency.Success = true;
+            dependency.Metrics["PathCount"] = paths.Count;
+            return paths;
+        }
+        catch (Exception ex)
+        {
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to get session paths for sessionId {SessionId}", sessionId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
+        }
     }
 
     public async Task<IEnumerable<AtomInfluence>> GetInfluencingAtomsAsync(
@@ -234,11 +322,24 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             ORDER BY weight DESC
             """;
 
-        await using var session = _driver.AsyncSession(o => o
-            .WithDatabase(_database)
-            .WithDefaultAccessMode(AccessMode.Read));
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.GetInfluencingAtoms",
+            Type = "Neo4j",
+            Target = _neo4jEndpoint,
+            Data = $"Find influencing atoms for resultAtomId: {resultAtomId}"
+        };
+        dependency.Properties["ResultAtomId"] = resultAtomId.ToString();
+        dependency.Properties["Database"] = _database;
 
-        var influences = await session.ExecuteReadAsync(async tx =>
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await using var session = _driver.AsyncSession(o => o
+                .WithDatabase(_database)
+                .WithDefaultAccessMode(AccessMode.Read));
+
+            var influences = await session.ExecuteReadAsync(async tx =>
         {
             var cursor = await tx.RunAsync(query, new { resultAtomId });
 
@@ -263,17 +364,22 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService, IAsyncDisp
             return results;
         });
 
-        _logger.LogDebug("Found {InfluenceCount} influencing atoms.", influences.Count);
+            _logger.LogDebug("Found {InfluenceCount} influencing atoms.", influences.Count);
 
-        return influences;
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        if (_driver != null)
+            dependency.Success = true;
+            dependency.Metrics["InfluenceCount"] = influences.Count;
+            return influences;
+        }
+        catch (Exception ex)
         {
-            await _driver.DisposeAsync();
-            _logger.LogInformation("Neo4j driver disposed.");
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to get influencing atoms for resultAtomId {ResultAtomId}", resultAtomId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
         }
     }
 }

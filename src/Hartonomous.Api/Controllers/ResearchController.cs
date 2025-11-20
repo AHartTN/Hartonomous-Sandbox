@@ -6,9 +6,6 @@ namespace Hartonomous.Api.Controllers;
 /// Research and knowledge discovery controller - showcases semantic search capabilities.
 /// These endpoints are placeholders for functionality coming with CLR/SQL refactor.
 /// </summary>
-[ApiController]
-[Route("api/[controller]")]
-[Produces("application/json")]
 public class ResearchController : ApiControllerBase
 {
     public ResearchController(ILogger<ResearchController> logger)

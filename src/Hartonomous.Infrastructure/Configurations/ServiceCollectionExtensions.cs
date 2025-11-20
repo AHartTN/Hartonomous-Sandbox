@@ -1,3 +1,4 @@
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Provenance;
 using Hartonomous.Core.Interfaces.Reasoning;
 using Hartonomous.Core.Interfaces.SpatialSearch;
@@ -7,6 +8,7 @@ using Hartonomous.Infrastructure.Services.Reasoning;
 using Hartonomous.Infrastructure.Services.SpatialSearch;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 
 namespace Hartonomous.Infrastructure.Configurations;
@@ -20,17 +22,19 @@ public static class ServiceCollectionExtensions
     /// Registers production SQL Server and Neo4j implementations for production environments.
     /// </summary>
     public static IServiceCollection AddHartonomousInfrastructure(
-        this IServiceCollection services,
-        IConfiguration configuration)
+        this IServiceCollection services)
     {
-        // Neo4j Driver (Singleton)
+        // Neo4j Driver (Singleton) - uses IOptions for configuration
         services.AddSingleton<IDriver>(sp =>
         {
-            var neo4jUri = configuration["Neo4j:Uri"] ?? "bolt://localhost:7687";
-            var neo4jUser = configuration["Neo4j:Username"] ?? "neo4j";
-            var neo4jPassword = configuration["Neo4j:Password"] ?? "neo4jneo4j";
+            var options = sp.GetRequiredService<IOptions<Neo4jOptions>>().Value;
             
-            return GraphDatabase.Driver(neo4jUri, AuthTokens.Basic(neo4jUser, neo4jPassword));
+            return GraphDatabase.Driver(
+                options.Uri, 
+                AuthTokens.Basic(options.Username, options.Password),
+                config => config
+                    .WithMaxConnectionPoolSize(options.MaxConnectionPoolSize)
+                    .WithConnectionTimeout(TimeSpan.FromSeconds(options.ConnectionTimeoutSeconds)));
         });
 
         // Reasoning services (SQL Server with managed identity)

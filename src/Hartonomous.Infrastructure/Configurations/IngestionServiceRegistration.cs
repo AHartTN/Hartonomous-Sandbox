@@ -1,9 +1,11 @@
+using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Atomizers;
 using Hartonomous.Infrastructure.FileType;
 using Hartonomous.Infrastructure.Services;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Hartonomous.Infrastructure.Configurations;
 
@@ -16,8 +18,7 @@ public static class IngestionServiceRegistration
     /// Register all ingestion services: file type detection, atomizers, bulk insert.
     /// </summary>
     public static IServiceCollection AddIngestionServices(
-        this IServiceCollection services,
-        IConfiguration configuration)
+        this IServiceCollection services)
     {
         // File type detector
         services.AddSingleton<IFileTypeDetector, FileTypeDetector>();
@@ -65,15 +66,21 @@ public static class IngestionServiceRegistration
             return new GitRepositoryAtomizer(detector, byteAtomizers);
         });
 
-        // Bulk insert service
-        var connectionString = configuration.GetConnectionString("HartonomousDb")
-            ?? throw new InvalidOperationException("HartonomousDb connection string not found");
-        
-        services.AddSingleton(sp => 
+        // Bulk insert service (registered as interface)
+        services.AddScoped<IAtomBulkInsertService>(sp => 
         {
-            var logger = sp.GetRequiredService<Microsoft.Extensions.Logging.ILogger<AtomBulkInsertService>>();
-            return new AtomBulkInsertService(connectionString, logger);
+            var databaseOptions = sp.GetRequiredService<IOptions<DatabaseOptions>>().Value;
+            var logger = sp.GetRequiredService<ILogger<AtomBulkInsertService>>();
+            return new AtomBulkInsertService(databaseOptions.HartonomousDb, logger);
         });
+
+        // Streaming atomizers (for real-time telemetry, video, audio)
+        services.AddTransient<Hartonomous.Infrastructure.Atomizers.TelemetryStreamAtomizer>();
+        services.AddTransient<Hartonomous.Infrastructure.Atomizers.VideoStreamAtomizer>();
+        services.AddTransient<Hartonomous.Infrastructure.Atomizers.AudioStreamAtomizer>();
+
+        // Streaming ingestion service (manages real-time sessions)
+        services.AddScoped<Hartonomous.Infrastructure.Services.StreamingIngestionService>();
 
         return services;
     }

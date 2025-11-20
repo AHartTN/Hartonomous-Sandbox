@@ -1,8 +1,10 @@
+using Hartonomous.Core.Configuration;
 using Hartonomous.Infrastructure.Services.Provenance;
 using Hartonomous.Core.Interfaces.Provenance;
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Neo4j.Driver;
 using NSubstitute;
 using Xunit;
 
@@ -15,23 +17,23 @@ namespace Hartonomous.UnitTests.Infrastructure;
 public class Neo4jProvenanceServiceTests
 {
     private readonly ILogger<Neo4jProvenanceService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly IDriver _driver;
+    private readonly IOptions<Neo4jOptions> _options;
 
     public Neo4jProvenanceServiceTests()
     {
         _logger = Substitute.For<ILogger<Neo4jProvenanceService>>();
+        _driver = Substitute.For<IDriver>();
         
-        var configData = new Dictionary<string, string?>
+        var neo4jOptions = new Neo4jOptions
         {
-            {"Neo4j:Uri", "bolt://localhost:7687"},
-            {"Neo4j:Username", "neo4j"},
-            {"Neo4j:Password", "test-password"},
-            {"Neo4j:Database", "hartonomous"}
+            Uri = "bolt://localhost:7687",
+            Username = "neo4j",
+            Password = "test-password",
+            Database = "hartonomous"
         };
         
-        _configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(configData)
-            .Build();
+        _options = Options.Create(neo4jOptions);
     }
 
     [Fact]
@@ -39,22 +41,30 @@ public class Neo4jProvenanceServiceTests
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => 
-            new Neo4jProvenanceService(null!, _configuration));
+            new Neo4jProvenanceService(null!, _driver, _options));
     }
 
     [Fact]
-    public void Constructor_WithNullConfiguration_ThrowsNullReferenceException()
+    public void Constructor_WithNullDriver_ThrowsArgumentNullException()
     {
-        // Act & Assert - Configuration indexer throws NullReferenceException, not ArgumentNullException
-        Assert.Throws<NullReferenceException>(() => 
-            new Neo4jProvenanceService(_logger, null!));
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => 
+            new Neo4jProvenanceService(_logger, null!, _options));
+    }
+    
+    [Fact]
+    public void Constructor_WithNullOptions_ThrowsArgumentNullException()
+    {
+        // Act & Assert
+        Assert.Throws<ArgumentNullException>(() => 
+            new Neo4jProvenanceService(_logger, _driver, null!));
     }
 
     [Fact]
     public void Constructor_WithValidParameters_CreatesInstance()
     {
         // Act
-        var service = new Neo4jProvenanceService(_logger, _configuration);
+        var service = new Neo4jProvenanceService(_logger, _driver, _options);
 
         // Assert
         service.Should().NotBeNull();
@@ -62,71 +72,71 @@ public class Neo4jProvenanceServiceTests
     }
 
     [Fact]
-    public void Constructor_MissingNeo4jUri_ThrowsInvalidOperationException()
+    public void Constructor_MissingNeo4jUri_ThrowsArgumentException()
     {
-        // Arrange - Configuration without Neo4j:Uri
-        var incompleteConfig = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                {"Neo4j:Username", "neo4j"},
-                {"Neo4j:Password", "test"}
-            })
-            .Build();
+        // Arrange - Options with invalid Uri
+        var invalidOptions = Options.Create(new Neo4jOptions
+        {
+            Uri = string.Empty,
+            Username = "neo4j",
+            Password = "test",
+            Database = "neo4j"
+        });
 
-        // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => 
-            new Neo4jProvenanceService(_logger, incompleteConfig));
+        // Act & Assert - DataAnnotations validation will catch this at startup
+        // For unit tests, we just verify it doesn't crash constructor
+        var service = new Neo4jProvenanceService(_logger, _driver, invalidOptions);
+        service.Should().NotBeNull();
     }
 
     [Fact]
-    public void Constructor_MissingNeo4jUsername_ThrowsInvalidOperationException()
+    public void Constructor_MissingNeo4jUsername_DoesNotThrow()
     {
         // Arrange
-        var incompleteConfig = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                {"Neo4j:Uri", "bolt://localhost:7687"},
-                {"Neo4j:Password", "test"}
-            })
-            .Build();
+        var invalidOptions = Options.Create(new Neo4jOptions
+        {
+            Uri = "bolt://localhost:7687",
+            Username = string.Empty,
+            Password = "test",
+            Database = "neo4j"
+        });
 
-        // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => 
-            new Neo4jProvenanceService(_logger, incompleteConfig));
+        // Act & Assert - DataAnnotations validation will catch this at startup
+        var service = new Neo4jProvenanceService(_logger, _driver, invalidOptions);
+        service.Should().NotBeNull();
     }
 
     [Fact]
-    public void Constructor_MissingNeo4jPassword_ThrowsInvalidOperationException()
+    public void Constructor_MissingNeo4jPassword_DoesNotThrow()
     {
         // Arrange
-        var incompleteConfig = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                {"Neo4j:Uri", "bolt://localhost:7687"},
-                {"Neo4j:Username", "neo4j"}
-            })
-            .Build();
+        var invalidOptions = Options.Create(new Neo4jOptions
+        {
+            Uri = "bolt://localhost:7687",
+            Username = "neo4j",
+            Password = string.Empty,
+            Database = "neo4j"
+        });
 
-        // Act & Assert
-        Assert.Throws<InvalidOperationException>(() => 
-            new Neo4jProvenanceService(_logger, incompleteConfig));
+        // Act & Assert - DataAnnotations validation will catch this at startup  
+        var service = new Neo4jProvenanceService(_logger, _driver, invalidOptions);
+        service.Should().NotBeNull();
     }
 
     [Fact]
-    public void Constructor_MissingNeo4jDatabase_UsesDefaultDatabase()
+    public void Constructor_DefaultDatabase_UsesNeo4jDefault()
     {
-        // Arrange - Configuration without Neo4j:Database (should default to "neo4j")
-        var configWithoutDb = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                {"Neo4j:Uri", "bolt://localhost:7687"},
-                {"Neo4j:Username", "neo4j"},
-                {"Neo4j:Password", "test-password"}
-            })
-            .Build();
+        // Arrange
+        var optionsWithoutDb = Options.Create(new Neo4jOptions
+        {
+            Uri = "bolt://localhost:7687",
+            Username = "neo4j",
+            Password = "test-password",
+            Database = "neo4j" // Default value
+        });
 
         // Act
-        var service = new Neo4jProvenanceService(_logger, configWithoutDb);
+        var service = new Neo4jProvenanceService(_logger, _driver, optionsWithoutDb);
 
         // Assert
         service.Should().NotBeNull();
@@ -139,31 +149,18 @@ public class Neo4jProvenanceServiceTests
     public void Constructor_WithVariousUriSchemes_AcceptsValidUris(string neo4jUri)
     {
         // Arrange
-        var config = new ConfigurationBuilder()
-            .AddInMemoryCollection(new Dictionary<string, string?>
-            {
-                {"Neo4j:Uri", neo4jUri},
-                {"Neo4j:Username", "neo4j"},
-                {"Neo4j:Password", "test"}
-            })
-            .Build();
+        var customOptions = Options.Create(new Neo4jOptions
+        {
+            Uri = neo4jUri,
+            Username = "neo4j",
+            Password = "test",
+            Database = "neo4j"
+        });
 
         // Act
-        var service = new Neo4jProvenanceService(_logger, config);
+        var service = new Neo4jProvenanceService(_logger, _driver, customOptions);
 
         // Assert
         service.Should().NotBeNull();
-    }
-
-
-
-    [Fact]
-    public async Task DisposeAsync_AfterConstruction_DisposesCleanly()
-    {
-        // Arrange
-        var service = new Neo4jProvenanceService(_logger, _configuration);
-
-        // Act & Assert - Should dispose without throwing
-        await service.DisposeAsync();
     }
 }

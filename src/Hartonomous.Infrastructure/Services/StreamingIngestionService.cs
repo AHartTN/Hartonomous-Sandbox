@@ -6,7 +6,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Atomizers;
-using Hartonomous.Infrastructure.Services.SignalR;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Services;

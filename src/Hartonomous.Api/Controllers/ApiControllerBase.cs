@@ -1,3 +1,4 @@
+using Asp.Versioning;
 using Hartonomous.Core.DTOs;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -8,6 +9,9 @@ namespace Hartonomous.Api.Controllers;
 /// Base controller providing standardized response formatting and error handling.
 /// All API controllers should inherit from this class for consistent behavior.
 /// </summary>
+[ApiVersion("1.0")]
+[Route("api/v{version:apiVersion}/[controller]")]
+[ApiController]
 public abstract class ApiControllerBase : ControllerBase
 {
     /// <summary>

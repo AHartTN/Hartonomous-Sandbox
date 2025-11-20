@@ -2,8 +2,9 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Hartonomous.Api.Controllers;
 
-[ApiController]
-[Route("[controller]")]
+/// <summary>
+/// Demo weather forecast API.
+/// </summary>
 public class WeatherForecastController : ApiControllerBase
 {
     private static readonly string[] Summaries =

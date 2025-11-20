@@ -101,8 +101,10 @@ public class AtomEmbeddingConfiguration : IEntityTypeConfiguration<AtomEmbedding
             .HasDatabaseName("IX_AtomEmbedding_TenantId_ModelId")
             ;
 
-        builder.HasIndex(e => new { e.SpatialKey })
-            .HasDatabaseName("SIX_AtomEmbedding_SpatialKey")
-            ;
+        // Note: SpatialKey uses a SQL Server SPATIAL INDEX (SIX_AtomEmbedding_SpatialKey)
+        // which is created via migrations/database scripts, not EF Core fluent API.
+        // EF Core does not support spatial indexes in HasIndex() - attempting to create
+        // a regular index on geometry columns throws:
+        // "Column 'SpatialKey' is of a type that is invalid for use as a key column"
     }
 }

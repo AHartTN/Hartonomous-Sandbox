@@ -3,8 +3,10 @@ using System.Data.SqlTypes;
 using System.Linq;
 using Microsoft.SqlServer.Server;
 using Hartonomous.Clr.Contracts;
+using Hartonomous.Clr.Core;
 using MathNet.Numerics.LinearAlgebra;
 using MathNet.Numerics.LinearAlgebra.Single;
+using Newtonsoft.Json;
 
 namespace Hartonomous.Clr.TensorOperations
 {
@@ -268,7 +270,7 @@ namespace Hartonomous.Clr.TensorOperations
         {
             if (modelId.IsNull || tokenIdsJson.IsNull)
             {
-                return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(new { error = "Model ID and token IDs cannot be null." }));
+                return new SqlString(JsonConvert.SerializeObject(new { error = "Model ID and token IDs cannot be null." }));
             }
 
             try
@@ -280,18 +282,18 @@ namespace Hartonomous.Clr.TensorOperations
                 var inferenceEngine = new TransformerInference(tensorProvider);
 
                 // 3. Deserialize the input token IDs.
-                var tokenIds = Newtonsoft.Json.JsonConvert.DeserializeObject<int[]>(tokenIdsJson.Value);
+                var tokenIds = JsonConvert.DeserializeObject<int[]>(tokenIdsJson.Value);
 
                 // 4. Run the inference process.
                 // Parameters like embeddingDim, numHeads, etc., could be loaded from model metadata.
                 var resultEmbedding = inferenceEngine.GenerateEmbedding(tokenIds!);
 
                 // 5. Serialize the result and return it.
-                return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(resultEmbedding));
+                return new SqlString(JsonConvert.SerializeObject(resultEmbedding));
             }
             catch (Exception ex)
             {
-                return new SqlString(Newtonsoft.Json.JsonConvert.SerializeObject(new { error = ex.Message, stack_trace = ex.StackTrace }));
+                return new SqlString(JsonConvert.SerializeObject(new { error = ex.Message, stack_trace = ex.StackTrace }));
             }
         }
     }

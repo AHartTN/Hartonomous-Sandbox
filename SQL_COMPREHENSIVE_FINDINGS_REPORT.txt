@@ -1,0 +1,194 @@
+
+==============================================================================
+HARTONOMOUS DATABASE PROJECT - COMPREHENSIVE AUDIT FINDINGS
+==============================================================================
+Generated: 2025-11-19 23:47:48
+Project: src\Hartonomous.Database\Hartonomous.Database.sqlproj
+
+==============================================================================
+CRITICAL ISSUES REQUIRING IMMEDIATE ACTION
+==============================================================================
+
+1. DUPLICATE TABLE DEFINITIONS (30 duplicates found)
+   -------------------------------------------------------------------
+   Multiple files define the same table - causes build conflicts
+   
+   IMMEDIATE ACTION: Delete legacy schema files:
+   - Attention.AttentionGenerationTables.sql (defines 3 tables)
+   - Provenance.ProvenanceTrackingTables.sql (defines 3 tables)
+   - Reasoning.ReasoningFrameworkTables.sql (defines 3 tables)  
+   - Stream.StreamOrchestrationTables.sql (defines 4 tables)
+   - Admin.WeightRollback.sql (defines 1 table + 3 procs)
+   - graph/ folder files (schema conflicts)
+   - provenance/ folder files (schema conflicts)
+   - ref/ folder files (schema conflicts)
+   
+2. MISSING CRITICAL OBJECTS (92 missing references found)
+   -------------------------------------------------------------------
+   
+   HIGH PRIORITY - Missing Functions:
+   ✗ fn_GenerateText - Called by sp_GenerateText
+   ✗ fn_GenerateWithAttention - Called by sp_GenerateWithAttention
+   ✗ fn_GetTimeWindow - Called by sp_FuseMultiModalStreams, sp_OrchestrateSensorStream
+   ✗ fn_GetComponentCount - Called by sp_FuseMultiModalStreams, sp_OrchestrateSensorStream
+   ✗ fn_DecompressComponents - Called by sp_FuseMultiModalStreams, sp_GenerateEventsFromStream
+   ✗ fn_ProjectTo3D - Called by sp_FindNearestAtoms
+   ✗ fn_clr_AnalyzeSystemState - Called by sp_Converse
+   
+   HIGH PRIORITY - Missing CLR Wrappers:
+   ✗ clr_StreamOrchestrator - Called by sp_FuseMultiModalStreams, sp_OrchestrateSensorStream (2 refs)
+   ✗ clr_CosineSimilarity - Called by sp_FindNearestAtoms
+   ✗ clr_VectorAverage - Called by sp_RunInference  
+   ✗ clr_ProjectToPoint - Called by sp_AtomizeCode
+   ✗ clr_GenerateCodeAstVector - Called by sp_AtomizeCode
+   ✗ clr_ReadFileBytes - Called by sp_MigratePayloadLocatorToFileStream
+   ✗ clr_FindPrimes - Called by sp_Act
+   ✗ clr_ComputeHilbertValue - Called by sp_FindNearestAtoms
+   
+   MEDIUM PRIORITY - Missing Tables/Views:
+   ✗ IngestionJobs - Referenced by 3 procedures (should be IngestionJob)
+   ✗ InferenceTracking - Referenced by sp_Analyze, sp_RunInference
+   ✗ TensorAtomCoefficients - Referenced by sp_AtomizeModel_Governed
+   ✗ WeightOverrides - Referenced by fn_SelectModelsForTask
+   ✗ ProvenanceFunctions - Referenced by 3 procedures
+   ✗ ModelManagement - Referenced by 2 procedures
+   ✗ Neo4jSyncQueue - Referenced by 2 procedures
+   
+   LOW PRIORITY - Temp Tables/CTEs (likely intentional):
+   ✗ ActQueue, AnalyzeQueue, HypothesizeQueue (queue names)
+   ✗ query, temp, buffer, named, text (temp variables/CTEs)
+   ✗ Various cursor declarations
+   
+==============================================================================
+SCHEMA INCONSISTENCIES
+==============================================================================
+
+3. TABLE NAME MISMATCHES
+   -------------------------------------------------------------------
+   ✗ IngestionJobs (plural) referenced but table is IngestionJob (singular)
+     - Fix: Update 3 procedures to reference IngestionJob
+     - Files: sp_AtomizeImage_Governed.sql, sp_AtomizeModel_Governed.sql, 
+              sp_AtomizeText_Governed.sql
+   
+   ✗ TenantAtom vs TenantAtoms - TWO different tables exist
+     - dbo.TenantAtom.sql → Creates [dbo].[TenantAtom]
+     - dbo.TenantAtoms.sql → Creates [dbo].[TenantAtoms]
+     - ACTION: Determine which is correct, delete the other
+
+4. FILE NAMING ISSUES
+   -------------------------------------------------------------------
+   ✗ TensorAtomCoefficients_Temporal.sql creates TensorAtomCoefficients_History
+   ✗ dbo.BillingUsageLedger_Migrate_to_Ledger.sql creates BillingUsageLedger_New
+   ✗ dbo.fn_HilbertFunctions.sql defines 3 functions (should be split)
+   ✗ Embedding.TextToVector.sql creates sp_TextToEmbedding
+
+==============================================================================
+DEPENDENCY ISSUES
+==============================================================================
+
+5. BROKEN PROCEDURE CHAINS
+   -------------------------------------------------------------------
+   The following procedures call non-existent functions/procedures:
+   
+   ✗ sp_GenerateText → fn_GenerateText (MISSING)
+   ✗ sp_GenerateWithAttention → fn_GenerateWithAttention (MISSING)
+   ✗ sp_FuseMultiModalStreams → clr_StreamOrchestrator, fn_GetTimeWindow, 
+                                 fn_GetComponentCount, fn_DecompressComponents (ALL MISSING)
+   ✗ sp_OrchestrateSensorStream → Same 4 missing functions as above
+   ✗ sp_FindNearestAtoms → clr_CosineSimilarity, clr_ComputeHilbertValue, 
+                            fn_ProjectTo3D (ALL MISSING)
+   ✗ sp_AtomizeCode → clr_ProjectToPoint, clr_GenerateCodeAstVector (BOTH MISSING)
+
+==============================================================================
+BUILD IMPACT ASSESSMENT
+==============================================================================
+
+CURRENT DACPAC BUILD STATUS: FAILING
+- 30 duplicate object definitions (SQL71508 errors)
+- 92 unresolved references (SQL71502 warnings → SQL71501 errors when referenced columns)
+- Multiple missing CLR function wrappers
+- FK constraint mismatches
+
+ESTIMATED FIX EFFORT:
+- Delete 8 duplicate schema files: 15 minutes
+- Create 7 missing functions: 2-3 hours
+- Create 8 missing CLR wrappers: 1-2 hours  
+- Fix IngestionJobs references: 30 minutes
+- Resolve TenantAtom conflict: 15 minutes
+- Rename mismatched files: 10 minutes
+
+TOTAL ESTIMATED TIME TO CLEAN BUILD: 4-6 hours
+
+==============================================================================
+RECOMMENDED ACTION PLAN (Priority Order)
+==============================================================================
+
+PHASE 1: DELETE DUPLICATES (CRITICAL - 30 minutes)
+[ ] Delete Attention.AttentionGenerationTables.sql
+[ ] Delete Provenance.ProvenanceTrackingTables.sql
+[ ] Delete Reasoning.ReasoningFrameworkTables.sql
+[ ] Delete Stream.StreamOrchestrationTables.sql
+[ ] Delete Admin.WeightRollback.sql
+[ ] Delete Billing.InsertUsageRecord_Native.sql
+[ ] Delete graph/ and provenance/ folder duplicate files
+[ ] Delete TensorAtomCoefficients_Temporal.sql (duplicate)
+
+PHASE 2: FIX SCHEMA REFERENCES (HIGH - 45 minutes)
+[ ] Update sp_AtomizeImage_Governed.sql: IngestionJobs → IngestionJob
+[ ] Update sp_AtomizeModel_Governed.sql: IngestionJobs → IngestionJob
+[ ] Update sp_AtomizeText_Governed.sql: IngestionJobs → IngestionJob
+[ ] Resolve TenantAtom vs TenantAtoms conflict
+[ ] Rename mismatched files (4 files)
+
+PHASE 3: CREATE MISSING FUNCTIONS (HIGH - 2-3 hours)
+[ ] Create fn_GenerateText (CLR wrapper or T-SQL impl)
+[ ] Create fn_GenerateWithAttention
+[ ] Create fn_GetTimeWindow
+[ ] Create fn_GetComponentCount  
+[ ] Create fn_DecompressComponents
+[ ] Create fn_ProjectTo3D
+[ ] Create fn_clr_AnalyzeSystemState
+
+PHASE 4: CREATE CLR WRAPPERS (HIGH - 1-2 hours)
+[ ] Create SQL wrapper for clr_StreamOrchestrator
+[ ] Create SQL wrapper for clr_CosineSimilarity
+[ ] Create SQL wrapper for clr_VectorAverage
+[ ] Create SQL wrapper for clr_ProjectToPoint
+[ ] Create SQL wrapper for clr_GenerateCodeAstVector
+[ ] Create SQL wrapper for clr_ReadFileBytes
+[ ] Create SQL wrapper for clr_FindPrimes
+[ ] Create SQL wrapper for clr_ComputeHilbertValue
+
+PHASE 5: CREATE MISSING TABLES/VIEWS (MEDIUM - 1 hour)
+[ ] Investigate InferenceTracking (may be deleted file)
+[ ] Investigate TensorAtomCoefficients (may be view)
+[ ] Create WeightOverrides table (if needed)
+[ ] Create ProvenanceFunctions view (if needed)
+[ ] Create ModelManagement view (if needed)
+[ ] Create Neo4jSyncQueue table (if needed)
+
+PHASE 6: REBUILD AND VERIFY (30 minutes)
+[ ] Run build-dacpac.ps1
+[ ] Verify 0 errors
+[ ] Check all warnings resolved
+[ ] Test CLR function calls
+
+PHASE 7: SIGN AND DEPLOY (1 hour)
+[ ] Sign CLR assemblies with certificate
+[ ] Deploy DACPAC to SQL Server 2025
+[ ] Verify deployment successful
+[ ] Run smoke tests
+
+==============================================================================
+FILES FOR REVIEW
+==============================================================================
+
+✓ SQL_COMPREHENSIVE_AUDIT.csv - Full file-by-file analysis (232 files)
+✓ SQL_MISSING_OBJECTS.csv - All missing object references (92 objects)
+✓ SQL_DUPLICATE_OBJECTS.csv - Duplicate definitions (30 duplicates)
+✓ SQL_CLR_WRAPPER_STATUS.csv - CLR wrapper status (empty = no [SqlFunction] found)
+✓ SQL_PROCEDURE_CALL_CHAINS.csv - Procedure dependency graph
+✓ SQL_AUDIT_REPORT.md - Initial naming audit (superseded by this report)
+
+==============================================================================
+

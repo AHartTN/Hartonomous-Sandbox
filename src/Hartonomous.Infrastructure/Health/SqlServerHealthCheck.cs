@@ -1,9 +1,10 @@
 using Azure.Core;
 using Azure.Identity;
+using Hartonomous.Core.Configuration;
 using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Hartonomous.Infrastructure.Health;
 
@@ -13,15 +14,17 @@ namespace Hartonomous.Infrastructure.Health;
 public sealed class SqlServerHealthCheck : IHealthCheck
 {
     private readonly ILogger<SqlServerHealthCheck> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly string _connectionString;
     private readonly TokenCredential _credential;
 
     public SqlServerHealthCheck(
         ILogger<SqlServerHealthCheck> logger,
-        IConfiguration configuration)
+        IOptions<DatabaseOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        
+        var databaseOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        _connectionString = databaseOptions.HartonomousDb;
         _credential = new DefaultAzureCredential();
     }
 
@@ -31,13 +34,12 @@ public sealed class SqlServerHealthCheck : IHealthCheck
     {
         try
         {
-            var connectionString = _configuration.GetConnectionString("HartonomousDb");
-            if (string.IsNullOrEmpty(connectionString))
+            if (string.IsNullOrEmpty(_connectionString))
             {
                 return HealthCheckResult.Unhealthy("SQL Server connection string not configured.");
             }
 
-            await using var connection = new SqlConnection(connectionString);
+            await using var connection = new SqlConnection(_connectionString);
 
             // Authenticate using Arc-enabled managed identity
             var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);

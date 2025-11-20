@@ -1,8 +1,9 @@
+using Hartonomous.Core.Configuration;
 using Hartonomous.Infrastructure.Services.SpatialSearch;
 using Hartonomous.Core.Interfaces.SpatialSearch;
 using FluentAssertions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NetTopologySuite.Geometries;
 using NSubstitute;
 using Xunit;
@@ -16,21 +17,19 @@ namespace Hartonomous.UnitTests.Infrastructure;
 public class SqlSpatialSearchServiceTests
 {
     private readonly ILogger<SqlSpatialSearchService> _logger;
-    private readonly IConfiguration _configuration;
+    private readonly IOptions<DatabaseOptions> _options;
     private readonly GeometryFactory _geometryFactory;
 
     public SqlSpatialSearchServiceTests()
     {
         _logger = Substitute.For<ILogger<SqlSpatialSearchService>>();
         
-        var configData = new Dictionary<string, string?>
+        var databaseOptions = new DatabaseOptions
         {
-            {"ConnectionStrings:HartonomousDb", "Server=tcp:mock-server.database.windows.net,1433;Initial Catalog=Hartonomous;"}
+            HartonomousDb = "Server=tcp:mock-server.database.windows.net,1433;Initial Catalog=Hartonomous;"
         };
         
-        _configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(configData)
-            .Build();
+        _options = Options.Create(databaseOptions);
 
         _geometryFactory = new GeometryFactory(new PrecisionModel(), 4326); // WGS84
     }
@@ -40,11 +39,11 @@ public class SqlSpatialSearchServiceTests
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => 
-            new SqlSpatialSearchService(null!, _configuration));
+            new SqlSpatialSearchService(null!, _options));
     }
 
     [Fact]
-    public void Constructor_WithNullConfiguration_ThrowsArgumentNullException()
+    public void Constructor_WithNullOptions_ThrowsArgumentNullException()
     {
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => 
@@ -55,7 +54,7 @@ public class SqlSpatialSearchServiceTests
     public void Constructor_WithValidParameters_CreatesInstance()
     {
         // Act
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
 
         // Assert
         service.Should().NotBeNull();
@@ -66,7 +65,7 @@ public class SqlSpatialSearchServiceTests
     public async Task FindNearestAtoms_WithNullLocation_ThrowsArgumentNullException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
@@ -77,7 +76,7 @@ public class SqlSpatialSearchServiceTests
     public async Task FindNearestAtoms_WithNegativeMaxResults_ThrowsArgumentOutOfRangeException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var location = _geometryFactory.CreatePoint(new Coordinate(-86.7816, 36.1627));
 
         // Act & Assert
@@ -89,7 +88,7 @@ public class SqlSpatialSearchServiceTests
     public async Task FindNearestAtoms_WithZeroMaxResults_ThrowsArgumentOutOfRangeException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var location = _geometryFactory.CreatePoint(new Coordinate(-86.7816, 36.1627));
 
         // Act & Assert
@@ -105,7 +104,7 @@ public class SqlSpatialSearchServiceTests
     public async Task FindNearestAtoms_WithVariousLocations_AcceptsValidCoordinates(double longitude, double latitude)
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var location = _geometryFactory.CreatePoint(new Coordinate(longitude, latitude));
 
         // Act & Assert - Would throw when attempting SQL connection in real environment
@@ -118,7 +117,7 @@ public class SqlSpatialSearchServiceTests
     public async Task FindKNearestAtoms_WithNullLocation_ThrowsArgumentNullException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
 
         // Act & Assert
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
@@ -132,7 +131,7 @@ public class SqlSpatialSearchServiceTests
     public async Task FindKNearestAtoms_WithInvalidK_ThrowsArgumentOutOfRangeException(int invalidK)
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var location = _geometryFactory.CreatePoint(new Coordinate(-86.7816, 36.1627));
 
         // Act & Assert
@@ -144,7 +143,7 @@ public class SqlSpatialSearchServiceTests
     public async Task ProjectOntoLandmarks_WithNullAtomIds_ThrowsArgumentNullException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var landmarkIds = new[] { 1L, 2L, 3L };
 
         // Act & Assert
@@ -156,7 +155,7 @@ public class SqlSpatialSearchServiceTests
     public async Task ProjectOntoLandmarks_WithNullLandmarkIds_ThrowsArgumentNullException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var atomIds = new[] { 100L, 101L, 102L };
 
         // Act & Assert
@@ -168,7 +167,7 @@ public class SqlSpatialSearchServiceTests
     public async Task ProjectOntoLandmarks_WithEmptyAtomIds_ThrowsArgumentException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var atomIds = Array.Empty<long>();
         var landmarkIds = new[] { 1L, 2L, 3L };
 
@@ -181,7 +180,7 @@ public class SqlSpatialSearchServiceTests
     public async Task ProjectOntoLandmarks_WithEmptyLandmarkIds_ThrowsArgumentException()
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var atomIds = new[] { 100L, 101L };
         var landmarkIds = Array.Empty<long>();
 
@@ -197,7 +196,7 @@ public class SqlSpatialSearchServiceTests
     public async Task ProjectOntoLandmarks_WithValidCounts_AcceptsParameters(int atomCount, int landmarkCount)
     {
         // Arrange
-        var service = new SqlSpatialSearchService(_logger, _configuration);
+        var service = new SqlSpatialSearchService(_logger, _options);
         var atomIds = Enumerable.Range(1, atomCount).Select(i => (long)i * 100).ToArray();
         var landmarkIds = Enumerable.Range(1, landmarkCount).Select(i => (long)i).ToArray();
 
@@ -207,3 +206,4 @@ public class SqlSpatialSearchServiceTests
             service.ProjectOntoLandmarksAsync(atomIds, landmarkIds));
     }
 }
+

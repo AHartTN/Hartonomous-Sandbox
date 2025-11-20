@@ -5,12 +5,14 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Threading.RateLimiting;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Atomizers;
 using Hartonomous.Infrastructure.FileType;
 using Hartonomous.Infrastructure.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Api.Controllers;
@@ -19,13 +21,12 @@ namespace Hartonomous.Api.Controllers;
 /// Data ingestion API - comprehensive atomization of files into 64-byte atoms.
 /// Supports text, images, audio, video, documents, archives, models, code, and more.
 /// </summary>
-[ApiController]
-[Route("api/ingestion")]
+[Route("api/v{version:apiVersion}/ingestion")]
 public class DataIngestionController : ApiControllerBase
 {
     private readonly IFileTypeDetector _fileTypeDetector;
     private readonly IEnumerable<IAtomizer<byte[]>> _atomizers;
-    private readonly AtomBulkInsertService _bulkInsertService;
+    private readonly IAtomBulkInsertService _bulkInsertService;
     
     // In-memory job tracking (TODO: move to persistent storage)
     private static readonly ConcurrentDictionary<string, IngestionJob> _jobs = new();
@@ -33,7 +34,7 @@ public class DataIngestionController : ApiControllerBase
     public DataIngestionController(
         IFileTypeDetector fileTypeDetector,
         IEnumerable<IAtomizer<byte[]>> atomizers,
-        AtomBulkInsertService bulkInsertService,
+        IAtomBulkInsertService bulkInsertService,
         ILogger<DataIngestionController> logger)
         : base(logger)
     {
@@ -48,6 +49,7 @@ public class DataIngestionController : ApiControllerBase
     /// </summary>
     [HttpPost("file")]
     [RequestSizeLimit(1_000_000_000)] // 1GB max
+    [EnableRateLimiting("ingestion")]
     public async Task<IActionResult> IngestFile(
         [FromForm] IFormFile file,
         [FromForm] int tenantId = 0,

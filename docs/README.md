@@ -32,6 +32,7 @@ Deep dive into the core architectural innovations that make Hartonomous unique.
 - **[Inference & Generation](architecture/inference.md)** - Spatial KNN for next-token prediction
 - **[Training & Fine-Tuning](architecture/training.md)** - Gradient descent on geometry
 - **[Archive Handling](architecture/archive-handler.md)** - Secure ZIP/TAR/GZIP extraction
+- **[Code Atomization](architecture/code-atomization.md)** - AST decomposition via Roslyn (⚠️ CodeAtom deprecated)
 
 **Audience**: Software architects, technical leads, researchers
 

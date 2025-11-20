@@ -6,9 +6,6 @@ namespace Hartonomous.Api.Controllers;
 /// Machine Learning Operations controller - showcases future MLOps capabilities.
 /// These endpoints are placeholders for functionality coming with CLR/SQL refactor.
 /// </summary>
-[ApiController]
-[Route("api/[controller]")]
-[Produces("application/json")]
 public class MLOpsController : ApiControllerBase
 {
     public MLOpsController(ILogger<MLOpsController> logger)

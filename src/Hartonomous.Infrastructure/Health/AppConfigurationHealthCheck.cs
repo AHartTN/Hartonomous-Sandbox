@@ -1,8 +1,9 @@
 using Azure.Data.AppConfiguration;
 using Azure.Identity;
-using Microsoft.Extensions.Configuration;
+using Hartonomous.Core.Configuration;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Hartonomous.Infrastructure.Health;
 
@@ -16,15 +17,24 @@ public sealed class AppConfigurationHealthCheck : IHealthCheck
 
     public AppConfigurationHealthCheck(
         ILogger<AppConfigurationHealthCheck> logger,
-        IConfiguration configuration)
+        IOptions<AzureAppConfigurationOptions> options,
+        IOptions<AzureOptions> azureOptions)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        
+        var appConfigOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
+        var azureOpts = azureOptions?.Value ?? throw new ArgumentNullException(nameof(azureOptions));
+        
+        if (!appConfigOptions.Enabled)
+        {
+            throw new InvalidOperationException("Azure App Configuration is not enabled in configuration.");
+        }
 
-        var appConfigUri = configuration["Azure:AppConfiguration:Uri"]
-            ?? "https://appconfig-hartonomous.azconfig.io";
-
-        var credential = new DefaultAzureCredential();
-        _configClient = new ConfigurationClient(new Uri(appConfigUri), credential);
+        var credential = azureOpts.UseManagedIdentity 
+            ? new DefaultAzureCredential() 
+            : new DefaultAzureCredential(new DefaultAzureCredentialOptions { ExcludeManagedIdentityCredential = true });
+            
+        _configClient = new ConfigurationClient(new Uri(appConfigOptions.Endpoint!), credential);
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(

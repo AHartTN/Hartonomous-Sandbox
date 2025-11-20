@@ -15,7 +15,7 @@ namespace Hartonomous.Infrastructure.Services;
 /// High-performance bulk atom insertion with SHA-256 deduplication via MERGE.
 /// Uses Table-Valued Parameters for batch inserts with ACID compliance.
 /// </summary>
-public class AtomBulkInsertService
+public class AtomBulkInsertService : IAtomBulkInsertService
 {
     private readonly string _connectionString;
     private readonly ILogger<AtomBulkInsertService> _logger;
@@ -24,6 +24,26 @@ public class AtomBulkInsertService
     {
         _connectionString = connectionString;
         _logger = logger;
+    }
+
+    /// <summary>
+    /// Bulk inserts an atomization result (atoms + compositions) into the database.
+    /// </summary>
+    public async Task<int> BulkInsertAsync(AtomizationResult result, CancellationToken cancellationToken = default)
+    {
+        // Extract tenant ID from first atom's metadata or default to 1
+        var tenantId = 1; // TODO: Extract from result.ProcessingInfo or auth context
+        
+        // Insert atoms and get ID mappings
+        var atomIdMap = await BulkInsertAtomsAsync(result.Atoms, tenantId, cancellationToken);
+        
+        // Insert compositions if any exist
+        if (result.Compositions?.Count > 0)
+        {
+            await BulkInsertCompositionsAsync(result.Compositions, atomIdMap, tenantId, cancellationToken);
+        }
+        
+        return result.Atoms.Count;
     }
 
     /// <summary>

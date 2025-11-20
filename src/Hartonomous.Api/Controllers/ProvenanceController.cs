@@ -1,5 +1,6 @@
 using Hartonomous.Core.Interfaces.Provenance;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Hartonomous.Api.Controllers;
 
@@ -7,9 +8,7 @@ namespace Hartonomous.Api.Controllers;
 /// Provenance and lineage tracking endpoints using Neo4j graph database.
 /// Provides atom lineage, session paths, error clustering, and influence analysis.
 /// </summary>
-[ApiController]
-[Route("api/[controller]")]
-[Produces("application/json")]
+[EnableRateLimiting("query")]
 public class ProvenanceController : ApiControllerBase
 {
     private readonly IProvenanceQueryService _provenanceService;

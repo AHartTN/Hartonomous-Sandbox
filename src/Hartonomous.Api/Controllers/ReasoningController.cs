@@ -1,5 +1,6 @@
 using Hartonomous.Core.Interfaces.Reasoning;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Hartonomous.Api.Controllers;
 
@@ -7,9 +8,7 @@ namespace Hartonomous.Api.Controllers;
 /// Advanced AI reasoning endpoints using Chain of Thought and Tree of Thought algorithms.
 /// Demonstrates model atomization and semantic-first architecture.
 /// </summary>
-[ApiController]
-[Route("api/[controller]")]
-[Produces("application/json")]
+[EnableRateLimiting("query")]
 public class ReasoningController : ApiControllerBase
 {
     private readonly IReasoningService _reasoningService;
