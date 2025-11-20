@@ -243,28 +243,6 @@ public class HartonomousObjectDetectionService
     }
 }
 
-public class Contour
-{
-    public List<(int x, int y)> Points { get; set; } = new();
-    public required BoundingBox BoundingBox { get; set; }
-}
-
-public class ObjectFeatures
-{
-    public int Area { get; set; }
-    public double Perimeter { get; set; }
-    public double AspectRatio { get; set; }
-    public double Circularity { get; set; }
-    public double Convexity { get; set; }
-    public int[]? ColorHistogram { get; set; }
-}
-
-public class ObjectClassification
-{
-    public required string Label { get; set; }
-    public required float Confidence { get; set; }
-}
-
 /// <summary>
 /// Simple rule-based classifier for common object shapes.
 /// In production, this would be a trained model (decision tree, neural network, etc.)

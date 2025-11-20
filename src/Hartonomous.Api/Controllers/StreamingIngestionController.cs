@@ -206,8 +206,3 @@ public class StreamingIngestionController : ApiControllerBase
         }
     }
 }
-
-public class StartSessionRequest
-{
-    public required StreamType StreamType { get; set; }
-}

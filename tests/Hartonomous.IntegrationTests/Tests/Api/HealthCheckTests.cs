@@ -3,20 +3,18 @@ using System.Net;
 
 namespace Hartonomous.IntegrationTests.Tests.Api;
 
-public class HealthCheckTests : IClassFixture<HartonomousWebApplicationFactory>
+public class HealthCheckTests : IntegrationTestBase<HartonomousWebApplicationFactory>, 
+    IClassFixture<HartonomousWebApplicationFactory>
 {
-    private readonly HartonomousWebApplicationFactory _factory;
-
-    public HealthCheckTests(HartonomousWebApplicationFactory factory)
+    public HealthCheckTests(HartonomousWebApplicationFactory factory) : base(factory)
     {
-        _factory = factory;
     }
 
     [Fact]
     public async Task HealthCheck_ReturnsHealthy()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        var client = CreateClient();
 
         // Act
         var response = await client.GetAsync("/health");
@@ -31,7 +29,7 @@ public class HealthCheckTests : IClassFixture<HartonomousWebApplicationFactory>
     public async Task ReadyCheck_ReturnsHealthy()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        var client = CreateClient();
 
         // Act
         var response = await client.GetAsync("/health/ready");
@@ -44,7 +42,7 @@ public class HealthCheckTests : IClassFixture<HartonomousWebApplicationFactory>
     public async Task LiveCheck_ReturnsHealthy()
     {
         // Arrange
-        var client = _factory.CreateClient();
+        var client = CreateClient();
 
         // Act
         var response = await client.GetAsync("/health/live");

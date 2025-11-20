@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Hartonomous.IntegrationTests;
@@ -11,20 +12,17 @@ namespace Hartonomous.IntegrationTests;
 /// Custom WebApplicationFactory for integration tests.
 /// Supports both Development (Azure disabled) and Production (Azure enabled) testing.
 /// </summary>
-public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>
+public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>, IAsyncDisposable
 {
-    private readonly string _environment;
-    private readonly bool _enableAzureServices;
+    private readonly string _environment = "Development";
+    private bool _disposed;
 
     /// <summary>
-    /// Creates a test factory for the specified environment.
+    /// Creates a test factory for Development environment (default).
+    /// xUnit IClassFixture requires EXACTLY ONE parameterless constructor.
     /// </summary>
-    /// <param name="environment">Environment name (Development, Production, etc.)</param>
-    /// <param name="enableAzureServices">Enable Azure App Config, Key Vault, App Insights</param>
-    public HartonomousWebApplicationFactory(string environment = "Development", bool enableAzureServices = false)
+    public HartonomousWebApplicationFactory()
     {
-        _environment = environment;
-        _enableAzureServices = enableAzureServices;
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -38,6 +36,9 @@ public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>
             {
                 options.HartonomousDb = "Server=localhost;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;";
             });
+            
+            // CRITICAL: Force shutdown after 1 second to prevent freezing
+            services.Configure<HostOptions>(opts => opts.ShutdownTimeout = TimeSpan.FromSeconds(1));
         });
         
         // Suppress startup/shutdown logs to avoid delays
@@ -46,14 +47,25 @@ public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>
             logging.ClearProviders();
         });
     }
-    
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        // Force immediate disposal
+        await base.DisposeAsync();
+        
+        GC.SuppressFinalize(this);
+    }
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (!_disposed && disposing)
         {
-            // Ensure all scoped services are disposed before factory disposal
-            // This prevents hanging during EF Core connection cleanup
-            Services?.Dispose();
+            _disposed = true;
         }
         base.Dispose(disposing);
     }

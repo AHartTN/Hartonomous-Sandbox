@@ -2,12 +2,13 @@ namespace Hartonomous.IntegrationTests;
 
 /// <summary>
 /// Test application factory with Azure services enabled.
-/// Uses the HART-DESKTOP Arc managed identity for App Configuration, Key Vault, and Application Insights.
+/// NOTE: Azure services are now managed by environment-specific factories.
+/// Use ProductionConfigWebApplicationFactory for Azure configuration testing.
+/// This class is kept for backwards compatibility but does nothing special.
 /// </summary>
 public class AzureEnabledWebApplicationFactory : HartonomousWebApplicationFactory
 {
-    public AzureEnabledWebApplicationFactory() 
-        : base(environment: "Development", enableAzureServices: true)
+    public AzureEnabledWebApplicationFactory() : base()
     {
     }
 }

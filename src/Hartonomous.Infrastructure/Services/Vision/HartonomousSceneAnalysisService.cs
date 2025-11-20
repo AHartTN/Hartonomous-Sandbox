@@ -287,31 +287,3 @@ public class HartonomousSceneAnalysisService
         return caption;
     }
 }
-
-public class ColorCluster
-{
-    public required Pixel Centroid { get; set; }
-    public required List<Pixel> Members { get; set; }
-}
-
-public class SceneInfo
-{
-    public string? Caption { get; set; }
-    public float CaptionConfidence { get; set; }
-    public List<Tag> Tags { get; set; } = new();
-    public List<DominantColor> DominantColors { get; set; } = new();
-}
-
-public class Tag
-{
-    public required string Name { get; set; }
-    public required float Confidence { get; set; }
-}
-
-public class DominantColor
-{
-    public byte R { get; set; }
-    public byte G { get; set; }
-    public byte B { get; set; }
-    public float Percentage { get; set; }
-}

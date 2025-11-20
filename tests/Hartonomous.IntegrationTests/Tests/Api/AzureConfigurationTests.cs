@@ -62,6 +62,11 @@ public class AzureConfigurationTests : IClassFixture<AzureEnabledWebApplicationF
         response.Headers.Should().Contain(h => h.Key == "X-Correlation-ID");
         var correlationId = response.Headers.GetValues("X-Correlation-ID").First();
         correlationId.Should().NotBeNullOrEmpty();
+        
+        // Debug output
+        Console.WriteLine($"Correlation ID value: '{correlationId}'");
+        Console.WriteLine($"Correlation ID length: {correlationId.Length}");
+        
         Guid.TryParse(correlationId, out _).Should().BeTrue("Correlation ID should be a valid GUID");
     }
 
@@ -89,8 +94,8 @@ public class AzureConfigurationTests : IClassFixture<AzureEnabledWebApplicationF
         // Important for parallel test execution
         
         // Act & Assert
-        var factory1 = new HartonomousWebApplicationFactory("Development", enableAzureServices: true);
-        var factory2 = new HartonomousWebApplicationFactory("Development", enableAzureServices: true);
+        var factory1 = new HartonomousWebApplicationFactory();
+        var factory2 = new HartonomousWebApplicationFactory();
         
         factory1.Should().NotBeNull();
         factory2.Should().NotBeNull();

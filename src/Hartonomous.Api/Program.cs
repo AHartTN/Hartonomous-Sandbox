@@ -418,17 +418,17 @@ else
 // 8. Rate limiting (PHASE 6.5)
 app.UseRateLimiter();
 
-// 9. Authentication (PHASE 1.1)
+// 9. Routing (enables endpoint routing) - MUST be before authorization
+app.UseRouting();
+
+// 10. Authentication (PHASE 1.1)
 if (!disableAuth)
 {
     app.UseAuthentication();
 }
 
-// 10. Authorization (must be AFTER authentication)
+// 11. Authorization (must be AFTER routing and authentication)
 app.UseAuthorization();
-
-// 10. Routing
-app.UseRouting();
 
 // Map endpoints
 app.MapControllers();

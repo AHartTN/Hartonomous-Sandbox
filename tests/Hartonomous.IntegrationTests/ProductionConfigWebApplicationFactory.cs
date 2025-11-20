@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Hartonomous.IntegrationTests;
@@ -12,7 +13,7 @@ namespace Hartonomous.IntegrationTests;
 /// (Azure App Configuration, Key Vault, Application Insights, etc.)
 /// Uses in-memory configuration overrides to enable Azure services without real Azure resources.
 /// </summary>
-public class ProductionConfigWebApplicationFactory : WebApplicationFactory<Program>
+public class ProductionConfigWebApplicationFactory : WebApplicationFactory<Program>, IAsyncDisposable
 {
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -20,54 +21,29 @@ public class ProductionConfigWebApplicationFactory : WebApplicationFactory<Progr
         // but not Production (which might have different validation requirements)
         builder.UseEnvironment("Staging");
         
+        // CRITICAL: Set these BEFORE ConfigureAppConfiguration runs
+        // Program.cs reads these during startup BEFORE ConfigureAppConfiguration callback
+        builder.UseSetting("AzureAppConfiguration:Enabled", "false");
+        builder.UseSetting("KeyVault:Enabled", "false");
+        
+        // Configure environment variables for test credentials (overrides appsettings.Staging.json)
+        Environment.SetEnvironmentVariable("Neo4j__Uri", "bolt://localhost:7687");
+        Environment.SetEnvironmentVariable("Neo4j__Username", "neo4j");
+        Environment.SetEnvironmentVariable("Neo4j__Password", "neo4jneo4j");
+        Environment.SetEnvironmentVariable("Neo4j__Database", "neo4j");
+        Environment.SetEnvironmentVariable("ConnectionStrings__HartonomousDb", 
+            "Server=localhost;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;");
+        
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            // Load base configuration from appsettings.json to get real Azure endpoints
-            config.AddJsonFile("appsettings.json", optional: false, reloadOnChange: false);
-            
-            // Override specific settings for test environment
-            // Uses REAL Azure endpoints from appsettings.json but with test-specific overrides
-            var testConfig = new Dictionary<string, string>
-            {
-                // Enable Azure App Configuration - uses real endpoint from appsettings.json
-                ["AzureAppConfiguration:Enabled"] = "true",
-                
-                // Enable Key Vault - uses real endpoint from appsettings.json  
-                ["KeyVault:Enabled"] = "true",
-                
-                // ApplicationInsights connection string from appsettings.json is used
-                
-                // AzureAd settings from appsettings.json are used
-                
-                // Disable authentication for tests
-                ["Authentication:DisableAuth"] = "true",
-                
-                // Use localhost database for actual data operations
-                ["ConnectionStrings:HartonomousDb"] = "Server=localhost;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;",
-                
-                // Enable managed identity for HART-DESKTOP (NT AUTHORITY\NETWORK SERVICE)
-                // This will use DefaultAzureCredential which attempts:
-                // 1. Environment variables
-                // 2. Managed Identity (Arc-enabled for HART-DESKTOP)
-                // 3. Azure CLI
-                // 4. Visual Studio
-                // Failures are graceful and don't crash the app
-                ["Azure:UseManagedIdentity"] = "true",
-                
-                // Enable Swagger UI to test production Swagger paths
-                ["Swagger:EnableUI"] = "true"
-            };
-            
-            config.AddInMemoryCollection(testConfig!);
+            // Environment variables (set above) will already override appsettings.Staging.json
+            // No need for in-memory collection - environment variables have higher precedence
         });
         
         builder.ConfigureServices(services =>
         {
-            // Override DatabaseOptions to ensure localhost SQL Server is used
-            services.PostConfigure<DatabaseOptions>(options =>
-            {
-                options.HartonomousDb = "Server=localhost;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;";
-            });
+            // CRITICAL: Force shutdown after 1 second to prevent freezing
+            services.Configure<HostOptions>(opts => opts.ShutdownTimeout = TimeSpan.FromSeconds(1));
         });
         
         // Suppress Azure configuration errors for testing
@@ -80,13 +56,27 @@ public class ProductionConfigWebApplicationFactory : WebApplicationFactory<Progr
             logging.ClearProviders();
         });
     }
-    
+
+    private bool _disposed;
+
+    public override async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+            return;
+
+        _disposed = true;
+
+        // Force immediate disposal
+        await base.DisposeAsync();
+        
+        GC.SuppressFinalize(this);
+    }
+
     protected override void Dispose(bool disposing)
     {
-        if (disposing)
+        if (!_disposed && disposing)
         {
-            // Ensure all scoped services are disposed before factory disposal
-            Services?.Dispose();
+            _disposed = true;
         }
         base.Dispose(disposing);
     }
