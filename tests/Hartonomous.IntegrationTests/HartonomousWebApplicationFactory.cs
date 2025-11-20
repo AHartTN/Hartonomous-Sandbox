@@ -39,5 +39,22 @@ public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>
                 options.HartonomousDb = "Server=localhost;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;";
             });
         });
+        
+        // Suppress startup/shutdown logs to avoid delays
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+        });
+    }
+    
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // Ensure all scoped services are disposed before factory disposal
+            // This prevents hanging during EF Core connection cleanup
+            Services?.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }

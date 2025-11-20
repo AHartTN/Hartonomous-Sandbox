@@ -73,5 +73,21 @@ public class ProductionConfigWebApplicationFactory : WebApplicationFactory<Progr
         // Suppress Azure configuration errors for testing
         // The Azure config code will execute but fail gracefully
         builder.UseSetting("SuppressStatusMessages", "true");
+        
+        // Suppress startup/shutdown logs to avoid delays
+        builder.ConfigureLogging(logging =>
+        {
+            logging.ClearProviders();
+        });
+    }
+    
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            // Ensure all scoped services are disposed before factory disposal
+            Services?.Dispose();
+        }
+        base.Dispose(disposing);
     }
 }
