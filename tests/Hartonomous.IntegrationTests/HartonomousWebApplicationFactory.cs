@@ -1,10 +1,15 @@
 using Hartonomous.Core.Configuration;
+using Hartonomous.Core.Interfaces.Provenance;
+using Hartonomous.Core.Interfaces.Reasoning;
+using Hartonomous.Infrastructure.Services.Provenance;
+using Hartonomous.Infrastructure.Services.Reasoning;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using System.Linq;
 
 namespace Hartonomous.IntegrationTests;
 
@@ -36,6 +41,21 @@ public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>, 
             {
                 options.HartonomousDb = "Server=localhost;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;";
             });
+            
+            // Replace production services with mocks for testing
+            var descriptor1 = services.FirstOrDefault(d => d.ServiceType == typeof(IProvenanceQueryService));
+            if (descriptor1 != null)
+            {
+                services.Remove(descriptor1);
+            }
+            services.AddScoped<IProvenanceQueryService, MockProvenanceService>();
+            
+            var descriptor2 = services.FirstOrDefault(d => d.ServiceType == typeof(IReasoningService));
+            if (descriptor2 != null)
+            {
+                services.Remove(descriptor2);
+            }
+            services.AddScoped<IReasoningService, MockReasoningService>();
             
             // CRITICAL: Force shutdown after 1 second to prevent freezing
             services.Configure<HostOptions>(opts => opts.ShutdownTimeout = TimeSpan.FromSeconds(1));

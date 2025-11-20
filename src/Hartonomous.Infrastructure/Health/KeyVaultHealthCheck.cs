@@ -27,7 +27,9 @@ public sealed class KeyVaultHealthCheck : IHealthCheck
         
         if (!keyVaultOptions.Enabled)
         {
-            throw new InvalidOperationException("Key Vault is not enabled in configuration.");
+            // Key Vault is disabled, so we can't create a client
+            _secretClient = null!;
+            return;
         }
 
         var credential = azureOpts.UseManagedIdentity 
@@ -41,6 +43,12 @@ public sealed class KeyVaultHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        // If Key Vault is disabled, consider it healthy
+        if (_secretClient == null)
+        {
+            return HealthCheckResult.Healthy("Key Vault is disabled.");
+        }
+
         try
         {
             // Attempt to list secrets (requires Key Vault Secrets User role minimum)

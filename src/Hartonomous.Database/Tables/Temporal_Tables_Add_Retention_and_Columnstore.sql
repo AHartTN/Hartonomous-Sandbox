@@ -12,34 +12,45 @@ USE Hartonomous;
 
 -- Step 1: Disable system versioning temporarily
 IF EXISTS (
-    SELECT 1 FROM sys.tables 
-    WHERE name = 'TensorAtomCoefficients' 
+    SELECT 1 FROM sys.tables
+    WHERE name = 'TensorAtomCoefficients'
     AND temporal_type = 2
 )
 BEGIN
-
     ALTER TABLE dbo.TensorAtomCoefficients SET (SYSTEM_VERSIONING = OFF);
-
 END;
 
 -- Step 2: Re-enable with 90-day retention
-
-ALTER TABLE dbo.TensorAtomCoefficients
-SET (
-    SYSTEM_VERSIONING = ON (
-        HISTORY_TABLE = dbo.TensorAtomCoefficients_History,
-        HISTORY_RETENTION_PERIOD = 90 DAYS
-    )
-);
+IF EXISTS (
+    SELECT 1 FROM sys.tables
+    WHERE name = 'TensorAtomCoefficients'
+    AND temporal_type = 2
+)
+BEGIN
+    ALTER TABLE dbo.TensorAtomCoefficients
+    SET (
+        SYSTEM_VERSIONING = ON (
+            HISTORY_TABLE = dbo.TensorAtomCoefficients_History,
+            HISTORY_RETENTION_PERIOD = 90 DAYS
+        )
+    );
+END;
 
 -- Step 3: Convert history table to clustered columnstore
-
+IF EXISTS (
+    SELECT 1 FROM sys.tables
+    WHERE name = 'TensorAtomCoefficients_History'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'CCI_TensorAtomCoefficients_History'
+    AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients_History')
 )
 BEGIN
     -- Drop existing nonclustered index first
     IF EXISTS (
-        SELECT 1 FROM sys.indexes 
-        WHERE name = 'IX_TensorAtomCoefficients_History_Period' 
+        SELECT 1 FROM sys.indexes
+        WHERE name = 'IX_TensorAtomCoefficients_History_Period'
         AND object_id = OBJECT_ID('dbo.TensorAtomCoefficients_History')
     )
     BEGIN
@@ -49,11 +60,6 @@ BEGIN
     -- Create clustered columnstore index (optimal for large historical data)
     CREATE CLUSTERED COLUMNSTORE INDEX CCI_TensorAtomCoefficients_History
     ON dbo.TensorAtomCoefficients_History;
-
-END
-ELSE
-BEGIN
-
 END;
 
 -- =============================================
@@ -62,45 +68,51 @@ END;
 
 -- Step 1: Disable system versioning temporarily
 IF EXISTS (
-    SELECT 1 FROM sys.tables 
-    WHERE name = 'Weights' 
+    SELECT 1 FROM sys.tables
+    WHERE name = 'Weights'
     AND temporal_type = 2
 )
 BEGIN
-
     ALTER TABLE dbo.Weights SET (SYSTEM_VERSIONING = OFF);
-
 END;
 
 -- Step 2: Re-enable with 90-day retention
-
-ALTER TABLE dbo.Weights
-SET (
-    SYSTEM_VERSIONING = ON (
-        HISTORY_TABLE = dbo.Weights_History,
-        HISTORY_RETENTION_PERIOD = 90 DAYS
-    )
-);
+IF EXISTS (
+    SELECT 1 FROM sys.tables
+    WHERE name = 'Weights'
+    AND temporal_type = 2
+)
+BEGIN
+    ALTER TABLE dbo.Weights
+    SET (
+        SYSTEM_VERSIONING = ON (
+            HISTORY_TABLE = dbo.Weights_History,
+            HISTORY_RETENTION_PERIOD = 90 DAYS
+        )
+    );
+END;
 
 -- Step 3: Convert history table to clustered columnstore
-
+IF EXISTS (
+    SELECT 1 FROM sys.tables
+    WHERE name = 'Weights_History'
+)
+AND NOT EXISTS (
+    SELECT 1 FROM sys.indexes
+    WHERE name = 'CCI_Weights_History'
+    AND object_id = OBJECT_ID('dbo.Weights_History')
 )
 BEGIN
     -- Create clustered columnstore index (optimal for large historical data)
     CREATE CLUSTERED COLUMNSTORE INDEX CCI_Weights_History
     ON dbo.Weights_History;
-
-END
-ELSE
-BEGIN
-
 END;
 
 -- =============================================
 -- VERIFICATION
 -- =============================================
 
-SELECT 
+SELECT
     t.name AS TableName,
     CASE t.temporal_type
         WHEN 2 THEN 'System-Versioned Temporal'

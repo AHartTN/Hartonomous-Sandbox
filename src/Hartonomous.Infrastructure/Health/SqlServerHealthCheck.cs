@@ -41,10 +41,15 @@ public sealed class SqlServerHealthCheck : IHealthCheck
 
             await using var connection = new SqlConnection(_connectionString);
 
-            // Authenticate using Arc-enabled managed identity
-            var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
-            var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
-            connection.AccessToken = token.Token;
+            // Only use Azure managed identity authentication if not using integrated security
+            if (!_connectionString.Contains("Integrated Security", StringComparison.OrdinalIgnoreCase) &&
+                !_connectionString.Contains("Trusted_Connection", StringComparison.OrdinalIgnoreCase))
+            {
+                // Authenticate using Arc-enabled managed identity
+                var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
+                var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
+                connection.AccessToken = token.Token;
+            }
 
             await connection.OpenAsync(cancellationToken);
 

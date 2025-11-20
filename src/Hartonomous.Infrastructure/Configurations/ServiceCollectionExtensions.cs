@@ -13,6 +13,8 @@ using Hartonomous.Infrastructure.Services.Ingestion;
 using Hartonomous.Infrastructure.Services.Ingestion.Strategies;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
 
@@ -34,6 +36,11 @@ public static class ServiceCollectionExtensions
         {
             var options = sp.GetRequiredService<IOptions<Neo4jOptions>>().Value;
             
+            if (!options.Enabled)
+            {
+                return null!; // Return null when disabled, health check will handle this
+            }
+            
             return GraphDatabase.Driver(
                 options.Uri, 
                 AuthTokens.Basic(options.Username, options.Password),
@@ -42,14 +49,27 @@ public static class ServiceCollectionExtensions
                     .WithConnectionTimeout(TimeSpan.FromSeconds(options.ConnectionTimeoutSeconds)));
         });
 
+        // Register Neo4j services conditionally
+        services.AddScoped<Neo4jProvenanceService>();
+        services.AddScoped<MockProvenanceService>();
+
         // Reasoning services (SQL Server with managed identity)
         services.AddScoped<IReasoningService, SqlReasoningService>();
 
         // Spatial search services (SQL Server with NetTopologySuite)
         services.AddScoped<ISpatialSearchService, SqlSpatialSearchService>();
 
-        // Provenance query services (Neo4j READ-ONLY)
-        services.AddScoped<IProvenanceQueryService, Neo4jProvenanceService>();
+        // Provenance query services (Neo4j READ-ONLY) - only register if Neo4j is enabled
+        services.AddScoped<IProvenanceQueryService>(sp =>
+        {
+            var neo4jOptions = sp.GetRequiredService<IOptions<Neo4jOptions>>().Value;
+            if (!neo4jOptions.Enabled)
+            {
+                // Return a mock service when Neo4j is disabled
+                return sp.GetRequiredService<MockProvenanceService>();
+            }
+            return sp.GetRequiredService<Neo4jProvenanceService>();
+        });
 
         // Validation services
         services.AddScoped<IValidationService, ValidationService>();
@@ -75,7 +95,20 @@ public static class ServiceCollectionExtensions
 
         // Health checks
         services.AddHealthChecks()
-            .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "sql"])
+            .AddCheck<SqlServerHealthCheck>("sql_server", tags: ["database", "sql"]);
+
+        // Register Neo4j health check conditionally
+        services.AddSingleton<Neo4jHealthCheck>(sp =>
+        {
+            var neo4jOptions = sp.GetRequiredService<IOptions<Neo4jOptions>>().Value;
+            return new Neo4jHealthCheck(
+                sp.GetRequiredService<ILogger<Neo4jHealthCheck>>(),
+                neo4jOptions.Enabled ? sp.GetRequiredService<IDriver>() : null,
+                sp.GetRequiredService<IOptions<Neo4jOptions>>()
+            );
+        });
+
+        services.AddHealthChecks()
             .AddCheck<Neo4jHealthCheck>("neo4j", tags: ["database", "graph"])
             .AddCheck<KeyVaultHealthCheck>("key_vault", tags: ["azure", "secrets"])
             .AddCheck<AppConfigurationHealthCheck>("app_configuration", tags: ["azure", "config"]);

@@ -2,7 +2,7 @@
 -- sp_AtomizeModel_Governed: Governed, Chunked Model Weight Atomization
 -- =============================================
 -- Implements the T-SQL Governor state machine for resumable, quota-enforced ingestion
--- Uses IngestionJobs table to track progress and enforce governance
+-- Uses IngestionJob table to track progress and enforce governance
 -- =============================================
 
 CREATE PROCEDURE [dbo].[sp_AtomizeModel_Governed]
@@ -30,7 +30,7 @@ BEGIN
         @ParentAtomId = ParentAtomId,
         @ModelId = ModelId,
         @TenantId = TenantId -- V3: Retrieve TenantId from the job
-    FROM dbo.IngestionJobs
+    FROM dbo.IngestionJob
     WHERE IngestionJobId = @IngestionJobId;
 
     IF @JobStatus IS NULL
@@ -45,7 +45,7 @@ BEGIN
         RETURN -1;
     END
 
-    UPDATE dbo.IngestionJobs 
+    UPDATE dbo.IngestionJob 
     SET JobStatus = 'Processing', LastUpdatedAt = SYSUTCDATETIME() 
     WHERE IngestionJobId = @IngestionJobId;
 
@@ -81,7 +81,7 @@ BEGIN
             -- 3a. Check Governance
             IF @TotalAtomsProcessed > @AtomQuota
             BEGIN
-                UPDATE dbo.IngestionJobs 
+                UPDATE dbo.IngestionJob 
                 SET JobStatus = 'Failed', 
                     ErrorMessage = 'Atom quota exceeded.',
                     LastUpdatedAt = SYSUTCDATETIME()
@@ -176,7 +176,7 @@ BEGIN
             SET @CurrentAtomOffset = @CurrentAtomOffset + @AtomChunkSize;
             SET @TotalAtomsProcessed = @TotalAtomsProcessed + @RowsInChunk;
             
-            UPDATE dbo.IngestionJobs 
+            UPDATE dbo.IngestionJob 
             SET CurrentAtomOffset = @CurrentAtomOffset, 
                 TotalAtomsProcessed = @TotalAtomsProcessed, 
                 LastUpdatedAt = SYSUTCDATETIME()
@@ -187,7 +187,7 @@ BEGIN
             IF (XACT_STATE() <> 0) ROLLBACK TRANSACTION;
             
             DECLARE @Error NVARCHAR(MAX) = ERROR_MESSAGE();
-            UPDATE dbo.IngestionJobs 
+            UPDATE dbo.IngestionJob 
             SET JobStatus = 'Failed', 
                 ErrorMessage = @Error,
                 LastUpdatedAt = SYSUTCDATETIME()
@@ -206,7 +206,7 @@ BEGIN
 
     -- Mark job as complete
     IF @JobStatus <> 'Failed'
-        UPDATE dbo.IngestionJobs 
+        UPDATE dbo.IngestionJob 
         SET JobStatus = 'Complete', 
             LastUpdatedAt = SYSUTCDATETIME() 
         WHERE IngestionJobId = @IngestionJobId;

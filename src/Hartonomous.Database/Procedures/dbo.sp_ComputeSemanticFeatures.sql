@@ -33,14 +33,13 @@ BEGIN
         BEGIN
             -- Update existing features
             UPDATE dbo.SemanticFeatures
-            SET 
+            SET
                 ComputedAt = SYSUTCDATETIME(),
                 -- Feature computation would go here
                 -- This is a simplified implementation
-                Sentiment = 0.0,
-                Toxicity = 0.0,
-                Formality = 0.5,
-                Complexity = 0.5
+                SentimentScore = 0.0,
+                FormalityScore = 0.5,
+                ComplexityScore = 0.5
             WHERE AtomEmbeddingId = @atom_embedding_id;
         END
         ELSE
@@ -48,30 +47,26 @@ BEGIN
             -- Insert new semantic features
             INSERT INTO dbo.SemanticFeatures (
                 AtomEmbeddingId,
-                AtomId,
-                Sentiment,
-                Toxicity,
-                Formality,
-                Complexity,
+                SentimentScore,
+                FormalityScore,
+                ComplexityScore,
                 TopicBusiness,
                 TopicTechnical,
                 TopicScientific,
                 TopicCreative,
-                TemporalIndicator,
+                TemporalRelevance,
                 ComputedAt
             )
             VALUES (
                 @atom_embedding_id,
-                @atom_id,
                 0.0,  -- Neutral sentiment
-                0.0,  -- Non-toxic
                 0.5,  -- Medium formality
                 0.5,  -- Medium complexity
                 0.0,  -- Topic scores would be computed from text analysis
                 0.0,
                 0.0,
                 0.0,
-                0.0,  -- No temporal indicator
+                1.0,  -- Fully temporally relevant
                 SYSUTCDATETIME()
             );
         END

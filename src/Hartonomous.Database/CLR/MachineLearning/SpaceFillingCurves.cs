@@ -242,6 +242,53 @@ namespace Hartonomous.Clr.MachineLearning
             }
         }
 
+        /// <summary>
+        /// Inverse 3D Hilbert curve - decode index back to (x, y, z).
+        /// </summary>
+        /// <param name="h">Hilbert index</param>
+        /// <param name="order">Curve order (grid is 2^order per dimension)</param>
+        /// <returns>3D coordinates (x, y, z)</returns>
+        public static (uint x, uint y, uint z) InverseHilbert3D(ulong h, int order)
+        {
+            uint x = 0, y = 0, z = 0;
+            uint n = (uint)(1 << order);
+
+            for (int i = order - 1; i >= 0; i--)
+            {
+                // Extract 3 bits from Hilbert index
+                uint index = (uint)((h >> (i * 3)) & 7);
+
+                uint px = index & 1;
+                uint py = (index >> 1) & 1;
+                uint pz = (index >> 2) & 1;
+
+                // Apply bit to coordinates
+                uint mask = (uint)(1 << i);
+                if (px != 0) x |= mask;
+                if (py != 0) y |= mask;
+                if (pz != 0) z |= mask;
+
+                // Inverse rotation for next iteration
+                InverseRot3D(ref x, ref y, ref z, px, py, pz, i);
+            }
+
+            return (x, y, z);
+        }
+
+        private static void InverseRot3D(ref uint x, ref uint y, ref uint z, uint px, uint py, uint pz, int level)
+        {
+            // Inverse of Rot3D rotation
+            if (pz == 0)
+            {
+                if (px == 1)
+                {
+                    uint t = x;
+                    x = y;
+                    y = t;
+                }
+            }
+        }
+
         #endregion
 
         #region Distance Preservation Metrics

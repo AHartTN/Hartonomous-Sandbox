@@ -12,29 +12,36 @@ namespace Hartonomous.Infrastructure.Health;
 public sealed class Neo4jHealthCheck : IHealthCheck
 {
     private readonly ILogger<Neo4jHealthCheck> _logger;
-    private readonly IDriver _driver;
-    private readonly string _database;
+    private readonly IDriver? _driver;
+    private readonly Neo4jOptions _neo4jOptions;
 
     public Neo4jHealthCheck(
         ILogger<Neo4jHealthCheck> logger,
-        IDriver driver,
+        IDriver? driver,
         IOptions<Neo4jOptions> options)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        _driver = driver ?? throw new ArgumentNullException(nameof(driver));
         
         var neo4jOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _database = neo4jOptions.Database;
+        _neo4jOptions = neo4jOptions;
+        
+        _driver = neo4jOptions.Enabled ? driver : null;
     }
 
     public async Task<HealthCheckResult> CheckHealthAsync(
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        if (_driver == null || !_neo4jOptions.Enabled)
+        {
+            _logger.LogDebug("Neo4j is disabled.");
+            return HealthCheckResult.Healthy("Neo4j is disabled.");
+        }
+
         try
         {
             await using var session = _driver.AsyncSession(o => o
-                .WithDatabase(_database)
+                .WithDatabase(_neo4jOptions.Database)
                 .WithDefaultAccessMode(AccessMode.Read));
 
             // Simple query to verify connectivity

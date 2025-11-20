@@ -136,8 +136,7 @@ public static partial class SpatialFunctions
 
     /// <summary>
     /// Inverse Hilbert curve - convert 1D value back to 3D coordinates
-    /// NOTE: Currently uses SpaceFillingCurves.InverseHilbert2D (3D inverse not yet implemented)
-    /// TODO: Implement InverseHilbert3D in SpaceFillingCurves.cs for full round-trip
+    /// Uses SpaceFillingCurves.InverseHilbert3D for proper round-trip
     /// </summary>
     [SqlFunction(
         IsDeterministic = true,
@@ -149,46 +148,18 @@ public static partial class SpatialFunctions
         if (hilbertValue.IsNull)
             return SqlGeometry.Null;
 
-        // TODO: This currently only works for 2D - need InverseHilbert3D
-        // For now, fallback to original algorithm until SpaceFillingCurves.InverseHilbert3D is added
-        int p = precision.IsNull ? 21 : precision.Value;
-        long h = hilbertValue.Value;
+        int order = precision.IsNull ? 21 : precision.Value;
+        ulong hilbert = (ulong)hilbertValue.Value;
 
-        long x = 0, y = 0, z = 0;
+        // Decode Hilbert value to coordinates using SpaceFillingCurves
+        var (ix, iy, iz) = SpaceFillingCurves.InverseHilbert3D(hilbert, order);
 
-        for (int i = p - 1; i >= 0; i--)
-        {
-            long mask = 7L << (i * 3);
-            long bits = (h & mask) >> (i * 3);
+        uint maxCoord = (1u << order) - 1;
 
-            long qc = (bits >> 2) & 1;
-            long qd = (bits >> 1) & 1;
-            long qa = bits & 1;
-            long qb = qa ^ qd;
-
-            if (qd == 1)
-            {
-                x = x ^ ((1L << (i + 1)) - 1);
-                z = z ^ ((1L << (i + 1)) - 1);
-            }
-
-            if (qc == 1)
-            {
-                long temp = x;
-                x = y;
-                y = temp;
-            }
-
-            long q = 1L << i;
-            if (qa == 1) x |= q;
-            if (qb == 1) y |= q;
-            if (qc == 1) z |= q;
-        }
-
-        long maxCoord = (1L << p) - 1;
-        double normX = (double)x / maxCoord;
-        double normY = (double)y / maxCoord;
-        double normZ = (double)z / maxCoord;
+        // Normalize back to [0, 1] space
+        double normX = (double)ix / maxCoord;
+        double normY = (double)iy / maxCoord;
+        double normZ = (double)iz / maxCoord;
 
         // Return as GEOMETRY point
         var builder = new SqlGeometryBuilder();

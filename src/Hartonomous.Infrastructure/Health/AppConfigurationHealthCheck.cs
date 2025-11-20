@@ -27,7 +27,9 @@ public sealed class AppConfigurationHealthCheck : IHealthCheck
         
         if (!appConfigOptions.Enabled)
         {
-            throw new InvalidOperationException("Azure App Configuration is not enabled in configuration.");
+            // App Configuration is disabled, so we can't create a client
+            _configClient = null!;
+            return;
         }
 
         var credential = azureOpts.UseManagedIdentity 
@@ -41,6 +43,12 @@ public sealed class AppConfigurationHealthCheck : IHealthCheck
         HealthCheckContext context,
         CancellationToken cancellationToken = default)
     {
+        // If App Configuration is disabled, consider it healthy
+        if (_configClient == null)
+        {
+            return HealthCheckResult.Healthy("App Configuration is disabled.");
+        }
+
         try
         {
             // Attempt to read a single setting to verify connectivity

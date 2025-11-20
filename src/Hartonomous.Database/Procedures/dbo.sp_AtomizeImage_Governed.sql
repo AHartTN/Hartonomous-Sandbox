@@ -30,7 +30,7 @@ BEGIN
         @TotalAtomsProcessed = TotalAtomsProcessed,
         @ParentAtomId = ParentAtomId,
         @TenantId = TenantId -- V3: Retrieve TenantId from the job
-    FROM dbo.IngestionJobs
+    FROM dbo.IngestionJob
     WHERE IngestionJobId = @IngestionJobId;
 
     IF @JobStatus IS NULL OR @JobStatus IN ('Complete', 'Processing')
@@ -39,7 +39,7 @@ BEGIN
         RETURN -1;
     END
 
-    UPDATE dbo.IngestionJobs 
+    UPDATE dbo.IngestionJob 
     SET JobStatus = 'Processing', LastUpdatedAt = SYSUTCDATETIME() 
     WHERE IngestionJobId = @IngestionJobId;
 
@@ -79,7 +79,7 @@ BEGIN
         BEGIN TRY
             IF @TotalAtomsProcessed > @AtomQuota
             BEGIN
-                UPDATE dbo.IngestionJobs 
+                UPDATE dbo.IngestionJob 
                 SET JobStatus = 'Failed', ErrorMessage = 'Atom quota exceeded.'
                 WHERE IngestionJobId = @IngestionJobId;
                 RAISERROR('Atom quota exceeded.', 16, 1);
@@ -191,7 +191,7 @@ BEGIN
             SET @CurrentAtomOffset = @CurrentAtomOffset + @AtomChunkSize;
             SET @TotalAtomsProcessed = @TotalAtomsProcessed + @RowsInChunk;
             
-            UPDATE dbo.IngestionJobs 
+            UPDATE dbo.IngestionJob 
             SET CurrentAtomOffset = @CurrentAtomOffset, 
                 TotalAtomsProcessed = @TotalAtomsProcessed,
                 LastUpdatedAt = SYSUTCDATETIME()
@@ -202,7 +202,7 @@ BEGIN
             IF (XACT_STATE() <> 0) ROLLBACK TRANSACTION;
             
             DECLARE @Error NVARCHAR(MAX) = ERROR_MESSAGE();
-            UPDATE dbo.IngestionJobs 
+            UPDATE dbo.IngestionJob 
             SET JobStatus = 'Failed', ErrorMessage = @Error
             WHERE IngestionJobId = @IngestionJobId;
             
@@ -215,7 +215,7 @@ BEGIN
         END CATCH
     END
 
-    UPDATE dbo.IngestionJobs 
+    UPDATE dbo.IngestionJob 
     SET JobStatus = 'Complete', LastUpdatedAt = SYSUTCDATETIME() 
     WHERE IngestionJobId = @IngestionJobId;
 

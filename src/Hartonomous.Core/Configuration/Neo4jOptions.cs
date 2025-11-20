@@ -10,6 +10,11 @@ public class Neo4jOptions
     public const string SectionName = "Neo4j";
 
     /// <summary>
+    /// Whether Neo4j is enabled.
+    /// </summary>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
     /// Neo4j connection URI (e.g., bolt://localhost:7687).
     /// </summary>
     [Required]
