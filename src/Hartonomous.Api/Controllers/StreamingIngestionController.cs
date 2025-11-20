@@ -10,17 +10,16 @@ namespace Hartonomous.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class StreamingIngestionController : ControllerBase
+public class StreamingIngestionController : ApiControllerBase
 {
     private readonly StreamingIngestionService _streamingService;
-    private readonly ILogger<StreamingIngestionController> _logger;
 
     public StreamingIngestionController(
         StreamingIngestionService streamingService,
         ILogger<StreamingIngestionController> logger)
+        : base(logger)
     {
         _streamingService = streamingService;
-        _logger = logger;
     }
 
     /// <summary>
@@ -49,8 +48,8 @@ public class StreamingIngestionController : ControllerBase
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start streaming session");
-            return StatusCode(500, new { error = ex.Message });
+            Logger.LogError(ex, "Failed to start streaming session");
+            return ErrorResult(ex.Message, 500);
         }
     }
 
@@ -80,12 +79,12 @@ public class StreamingIngestionController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { error = ex.Message });
+            return ErrorResult(ex.Message, 404);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to ingest telemetry for session {SessionId}", sessionId);
-            return StatusCode(500, new { error = ex.Message });
+            Logger.LogError(ex, "Failed to ingest telemetry for session {SessionId}", sessionId);
+            return ErrorResult(ex.Message, 500);
         }
     }
 
@@ -116,12 +115,12 @@ public class StreamingIngestionController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { error = ex.Message });
+            return ErrorResult(ex.Message, 404);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to ingest video frame for session {SessionId}", sessionId);
-            return StatusCode(500, new { error = ex.Message });
+            Logger.LogError(ex, "Failed to ingest video frame for session {SessionId}", sessionId);
+            return ErrorResult(ex.Message, 500);
         }
     }
 
@@ -152,12 +151,12 @@ public class StreamingIngestionController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { error = ex.Message });
+            return ErrorResult(ex.Message, 404);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to ingest audio buffer for session {SessionId}", sessionId);
-            return StatusCode(500, new { error = ex.Message });
+            Logger.LogError(ex, "Failed to ingest audio buffer for session {SessionId}", sessionId);
+            return ErrorResult(ex.Message, 500);
         }
     }
 
@@ -169,9 +168,7 @@ public class StreamingIngestionController : ControllerBase
     {
         var status = _streamingService.GetSessionStatus(sessionId);
         if (status == null)
-        {
-            return NotFound(new { error = $"Session {sessionId} not found" });
-        }
+            return ErrorResult($"Session {sessionId} not found", 404);
 
         return Ok(status);
     }
@@ -199,12 +196,12 @@ public class StreamingIngestionController : ControllerBase
         }
         catch (InvalidOperationException ex)
         {
-            return NotFound(new { error = ex.Message });
+            return ErrorResult(ex.Message, 404);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to stop session {SessionId}", sessionId);
-            return StatusCode(500, new { error = ex.Message });
+            Logger.LogError(ex, "Failed to stop session {SessionId}", sessionId);
+            return ErrorResult(ex.Message, 500);
         }
     }
 }

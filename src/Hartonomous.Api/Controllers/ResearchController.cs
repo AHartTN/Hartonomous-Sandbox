@@ -9,13 +9,11 @@ namespace Hartonomous.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-public class ResearchController : ControllerBase
+public class ResearchController : ApiControllerBase
 {
-    private readonly ILogger<ResearchController> _logger;
-
     public ResearchController(ILogger<ResearchController> logger)
+        : base(logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -27,12 +25,10 @@ public class ResearchController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public IActionResult ExecuteQuery([FromBody] ResearchQueryRequest request)
     {
-        _logger.LogInformation("Research: Executing query '{Query}' (DEMO MODE)", request.Query);
+        Logger.LogInformation("Research: Executing query '{Query}' (DEMO MODE)", request.Query);
 
         if (string.IsNullOrWhiteSpace(request.Query))
-        {
-            return BadRequest(new { error = "Query is required" });
-        }
+            return ErrorResult("Query is required", 400);
 
         var response = new ResearchQueryResponse
         {
@@ -114,7 +110,7 @@ public class ResearchController : ControllerBase
             DemoMode = true
         };
 
-        return Ok(response);
+        return SuccessResult(response);
     }
 
     /// <summary>
@@ -129,12 +125,10 @@ public class ResearchController : ControllerBase
         [FromQuery] int limit = 10,
         [FromQuery] double minSimilarity = 0.7)
     {
-        _logger.LogInformation("Research: Semantic search for '{Text}' (DEMO MODE)", text);
+        Logger.LogInformation("Research: Semantic search for '{Text}' (DEMO MODE)", text);
 
         if (string.IsNullOrWhiteSpace(text))
-        {
-            return BadRequest(new { error = "Text parameter is required" });
-        }
+            return ErrorResult("Text parameter is required", 400);
 
         var response = new SemanticSearchResponse
         {
@@ -182,7 +176,7 @@ public class ResearchController : ControllerBase
             DemoMode = true
         };
 
-        return Ok(response);
+        return SuccessResult(response);
     }
 
     /// <summary>
@@ -197,7 +191,7 @@ public class ResearchController : ControllerBase
         [FromQuery] int depth = 2,
         [FromQuery] string? relationshipType = null)
     {
-        _logger.LogInformation("Research: Exploring graph for atom {AtomId}, depth {Depth} (DEMO MODE)", 
+        Logger.LogInformation("Research: Exploring graph for atom {AtomId}, depth {Depth} (DEMO MODE)", 
             atomId, depth);
 
         var response = new KnowledgeGraphResponse
@@ -339,7 +333,7 @@ public class ResearchController : ControllerBase
             DemoMode = true
         };
 
-        return Ok(response);
+        return SuccessResult(response);
     }
 }
 

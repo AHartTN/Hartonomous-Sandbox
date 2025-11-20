@@ -9,13 +9,11 @@ namespace Hartonomous.Api.Controllers;
 [ApiController]
 [Route("api/[controller]")]
 [Produces("application/json")]
-public class AuditController : ControllerBase
+public class AuditController : ApiControllerBase
 {
-    private readonly ILogger<AuditController> _logger;
-
     public AuditController(ILogger<AuditController> logger)
+        : base(logger)
     {
-        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
@@ -32,7 +30,7 @@ public class AuditController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50)
     {
-        _logger.LogInformation("Audit: Getting logs (eventType: {EventType}, user: {UserId}) (DEMO MODE)", 
+        Logger.LogInformation("Audit: Getting logs (eventType: {EventType}, user: {UserId}) (DEMO MODE)", 
             eventType, userId);
 
         var response = new AuditLogsResponse
@@ -120,7 +118,7 @@ public class AuditController : ControllerBase
             DemoMode = true
         };
 
-        return Ok(response);
+        return SuccessResult(response);
     }
 
     /// <summary>
@@ -131,7 +129,7 @@ public class AuditController : ControllerBase
     [ProducesResponseType(typeof(GovernanceResponse), StatusCodes.Status200OK)]
     public IActionResult GetGovernance()
     {
-        _logger.LogInformation("Audit: Getting governance status (DEMO MODE)");
+        Logger.LogInformation("Audit: Getting governance status (DEMO MODE)");
 
         var response = new GovernanceResponse
         {
@@ -207,7 +205,7 @@ public class AuditController : ControllerBase
             DemoMode = true
         };
 
-        return Ok(response);
+        return SuccessResult(response);
     }
 
     /// <summary>
@@ -219,7 +217,7 @@ public class AuditController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public IActionResult GetAuditTrail(string resourceId, [FromQuery] int depth = 5)
     {
-        _logger.LogInformation("Audit: Getting trail for {ResourceId} with depth {Depth} (DEMO MODE)", 
+        Logger.LogInformation("Audit: Getting trail for {ResourceId} with depth {Depth} (DEMO MODE)", 
             resourceId, depth);
 
         var response = new AuditTrailResponse
@@ -291,7 +289,7 @@ public class AuditController : ControllerBase
             DemoMode = true
         };
 
-        return Ok(response);
+        return SuccessResult(response);
     }
 }
 
