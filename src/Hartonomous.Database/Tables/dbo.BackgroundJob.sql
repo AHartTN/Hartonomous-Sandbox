@@ -6,7 +6,7 @@ CREATE TABLE [dbo].[BackgroundJob]
 (
     [JobId]           BIGINT IDENTITY(1,1) NOT NULL,
     [JobType]         NVARCHAR(128) NOT NULL,
-    [Payload]         NVARCHAR(MAX) NULL,
+    [Payload]         json NULL,
     [Status]          INT NOT NULL DEFAULT 0, -- 0=Pending, 1=InProgress, 2=Completed, 3=Failed, 4=DeadLettered, 5=Cancelled, 6=Scheduled
     [AttemptCount]    INT NOT NULL DEFAULT 0,
     [MaxRetries]      INT NOT NULL DEFAULT 3,
@@ -15,7 +15,7 @@ CREATE TABLE [dbo].[BackgroundJob]
     [ScheduledAtUtc]  DATETIME2(3) NULL,
     [StartedAtUtc]    DATETIME2(3) NULL,
     [CompletedAtUtc]  DATETIME2(3) NULL,
-    [ResultData]      NVARCHAR(MAX) NULL,
+    [ResultData]      json NULL,
     [ErrorMessage]    NVARCHAR(MAX) NULL,
     [ErrorStackTrace] NVARCHAR(MAX) NULL,
     [TenantId]        INT NULL,

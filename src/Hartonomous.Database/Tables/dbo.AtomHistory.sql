@@ -18,7 +18,7 @@ CREATE TABLE [dbo].[AtomHistory]
     [SourceType]      NVARCHAR(100)    NULL,
     [SourceUri]       NVARCHAR(2048)   NULL,
     [CanonicalText]   NVARCHAR(MAX)    NULL,
-    [Metadata]        NVARCHAR(MAX)    NULL,
+    [Metadata]        json             NULL,
     [AtomicValue]     VARBINARY(64)    NULL,
     [CreatedAt]       DATETIME2(7)     NOT NULL,
     [ModifiedAt]      DATETIME2(7)     NOT NULL,

@@ -17,8 +17,8 @@ CREATE TABLE [dbo].[Atom] (
     [SourceUri]       NVARCHAR(2048)   NULL,  -- Original source location or reference
     [CanonicalText]   NVARCHAR(MAX)    NULL,  -- Normalized text representation (for text atoms)
 
-    -- Extensible metadata
-    [Metadata]        NVARCHAR(MAX)    NULL,  -- JSON metadata for extensibility
+    -- Extensible metadata (native JSON for SQL Server 2025+)
+    [Metadata]        json             NULL,  -- JSON metadata for extensibility (binary format, optimized storage)
 
     -- Schema-level governance: Max 64 bytes enforces atomic decomposition
     [AtomicValue]     VARBINARY(64)    NULL,

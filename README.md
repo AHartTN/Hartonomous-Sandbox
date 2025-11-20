@@ -1,278 +1,317 @@
 # Hartonomous
 
-**Semantic-First AI Engine with O(log N) Spatial Indexing**
+**Database-Centric AI Platform with Spatial Reasoning**
 
-Hartonomous is a database-first AI system that achieves **3.6 million times faster** semantic queries than conventional approaches by treating spatial indexes as the ANN algorithm itself, not as a layer on top of embeddings. Built on SQL Server with CLR computation and Neo4j provenance tracking, it enables capabilities impossible in traditional AI systems: cross-modal queries (text ↔ audio ↔ image ↔ code), autonomous system optimization via OODA loop, temporal causality with bidirectional state traversal, and manifold-based adversarial detection.
+Hartonomous is a revolutionary AI platform that stores AI models as **atomized spatial data** in SQL Server, enabling semantic search, geometric inference, and autonomous improvement through spatial reasoning—without loading entire models into memory.
 
-## Core Innovation: Spatial Indexes ARE the ANN
+## 🎯 Core Innovation
 
-**Conventional AI Pipeline**:
+Traditional AI systems load multi-gigabyte models into RAM for inference. Hartonomous **atomizes** model weights into content-addressable atoms stored in SQL Server's `GEOMETRY` spatial indices, enabling:
+
+- **O(log N) Inference**: Spatial KNN queries find relevant weights via R-tree indices
+- **Zero Model Loading**: Query 3D semantic space instead of loading full models
+- **Content-Addressable Storage**: Automatic deduplication via SHA-256 hashing
+- **Gradient Descent on Geometry**: True machine learning—update 3D coordinates, not weights
+- **OODA Loop Autonomy**: Self-healing database that optimizes itself through spatial reasoning
+
+## 🏗️ Architecture
+
 ```
-Query → Compute distance to ALL N embeddings → Sort → Top K
-Time: O(N · D) where N = billions, D = 1536
+┌─────────────────────────────────────────────────────────────┐
+│                        API Layer                            │
+│  .NET 10 ASP.NET Core • Entra ID Auth • Problem Details    │
+└────────────┬────────────────────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────────────────────┐
+│                   Application Services                      │
+│  18 Atomizers • Ingestion Pipeline • Spatial Queries       │
+└────────────┬────────────────────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────────────────────┐
+│              SQL Server 2025 (Spatial Core)                 │
+│  • TensorAtoms (GEOMETRY) • DiskANN Vector Index            │
+│  • CLR Functions (O(K) refinement) • R-Tree Spatial Index   │
+│  • Columnstore (analytics) • Temporal Tables (audit trail)  │
+└────────────┬────────────────────────────────────────────────┘
+             │
+┌────────────▼────────────────────────────────────────────────┐
+│              Neo4j (Provenance Graph)                       │
+│  Merkle DAG • Atom lineage • Cross-modal relationships     │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-**Hartonomous Semantic-First Pipeline**:
-```
-Query → R-Tree spatial filter (O(log N)) → CLR refinement (O(K)) → Top K
-Time: O(log N + K · D) where K << N
-Result: 3,600,000× speedup for 3.5B atoms
-```
+### Key Components
 
-### How It Works
+1. **Atomization Engine**: Breaks models, documents, images, videos into content-addressable atoms
+2. **Spatial Geometry Layer**: Projects 1536D embeddings → 3D coordinates via landmark trilateration
+3. **CLR Computation**: 49 SIMD-optimized functions for O(K) attention/refinement (SAFE permission level)
+4. **OODA Autonomous Loop**: Observe → Orient → Decide → Act → Learn cycle for self-optimization
+5. **Multi-Tenant Isolation**: Row-level security with spatial index partitioning
 
-1. **Landmark Projection**: 1536D embeddings → 3D via trilateration (preserves semantic neighborhoods)
-2. **R-Tree Indexing**: SQL Server spatial index on 3D geometry (O(log N) lookup)
-3. **Semantic Pre-Filter**: `STIntersects()` returns K candidates where K << N
-4. **CLR Refinement**: Exact cosine similarity on SMALL candidate set (O(K))
-
-**Key Insight**: Atoms semantically similar in 1536D cluster together in 3D. Spatial proximity = semantic similarity.
-
-## Key Capabilities
-
-### 1. Cross-Modal Semantic Queries
-Query across modalities with unified semantic space:
-- **Text → Audio**: Find audio clips matching "peaceful ocean waves" (no transcription needed)
-- **Image → Code**: Discover Python code implementing a UI mockup
-- **Audio → Text**: Get text descriptions of sound (semantic, not transcription)
-- **Multi-hop chains**: Image → Code → Documentation in ~50-80ms
-
-### 2. OODA Autonomous Loop
-Self-improving system via continuous observation and learning:
-- **Observe**: Detect query latency, anomalies, model drift (sp_Analyze)
-- **Orient**: Generate 7 hypothesis types - IndexOptimization, ConceptDiscovery, PruneModel, etc. (sp_Hypothesize)
-- **Decide**: Auto-execute low-risk improvements, queue high-risk for approval
-- **Act**: Execute optimizations (create indexes, warm cache, prune weights) (sp_Act)
-- **Learn**: Measure outcomes, update model weights (sp_Learn)
-- **Dual-Triggering**: Scheduled (15-min SQL Agent) + Event-driven (Service Broker)
-
-### 3. Model Atomization & Ingestion
-Content-addressable decomposition with provenance:
-- **TensorAtoms**: SHA-256 content-addressable units
-- **Multi-format parsers**: GGUF, SafeTensors, ONNX, PyTorch, TensorFlow, StableDiffusion
-- **SVD Compression**: 159:1 ratio (28GB → 176MB via rank-64 + Q8_0)
-- **Neo4j Provenance**: Complete lineage tracking (INGESTED_FROM, HAD_INPUT, GENERATED)
-
-### 4. Temporal Causality
-Bidirectional state traversal (Laplace's Demon):
-- **Forward**: OODA loop predicts and improves system state
-- **Backward**: SQL `FOR SYSTEM_TIME AS OF` reconstructs historical state
-- **Counterfactual Analysis**: "What if X changed at time T?" queries
-- **Reproducible Inference**: Replay historical requests with exact model state
-
-### 5. Adversarial Modeling
-Manifold-based threat detection:
-- **Red Team**: Cryptographic attacks via semantic_key_mining.sql (manifold clustering)
-- **Blue Team**: LOF + Isolation Forest anomaly detection (~15-20ms latency)
-- **White Team**: OODA loop generates defensive hypotheses automatically
-- **Real-time Protection**: Anomaly detection integrated into inference pipeline
-
-### 6. Novel Geometric Capabilities
-Unique features enabled by unified semantic space:
-- **Behavioral Geometry**: User sessions as LINESTRING paths through 3D space
-- **Synthesis + Retrieval**: Generate AND retrieve content in same operation
-- **Audio from Coordinates**: `clr_GenerateHarmonicTone` sonifies semantic positions
-- **Barycentric Blending**: N-way concept interpolation (e.g., 40% happy + 30% nostalgic + 30% hopeful)
-- **Concept Arithmetic**: Paris - France + Italy ≈ Rome (works across ALL modalities)
-
-## Architecture Overview
-
-### Database-First Design
-**SQL Server 2022+** as the computation and storage engine:
-- **TensorAtoms Table**: 3.5B rows, spatial indexed on 3D projected embeddings
-- **Spatial Indexes**: R-Tree (range queries) + Hilbert B-Tree (locality preservation)
-- **Temporal Tables**: System-versioned for historical queries and state reconstruction
-- **Service Broker**: Async message-based orchestration (OODA loop, inference pipelines)
-
-### CLR Computation Layer
-49 SQL CLR functions (~225K lines) for high-performance operations:
-- **Distance Metrics**: Cosine, Euclidean, Manhattan, Hamming (pluggable IDistanceMetric)
-- **Machine Learning**: DBSCAN, LOF, Isolation Forest, CUSUM, DTW, A*, GraphAlgorithms
-- **Model Parsers**: GGUF, SafeTensors, ONNX, PyTorch, TensorFlow (IModelFormatReader)
-- **Spatial Algorithms**: Hilbert curves, Morton curves, Voronoi, KNN, computational geometry
-- **SVD & Compression**: Manifold projection, dequantization, activation functions
-
-### Neo4j Provenance Graph
-Complete cryptographic audit trail:
-- **Atoms**: Content-addressable nodes (SHA-256 hashes)
-- **Merkle DAG**: Tamper-evident provenance chains
-- **Relationships**: INGESTED_FROM, HAD_INPUT, GENERATED, USED_REASONING, HAS_STEP
-- **Lineage Queries**: Trace upstream/downstream dependencies via sp_QueryLineage
-
-### Multi-Tenant Architecture
-Isolated tenants with shared infrastructure:
-- **Row-Level Security**: TenantId filtering on all tables
-- **Referential Integrity**: Asymmetric CASCADE (SQL) + protected immutability (Neo4j)
-- **Quantity Guardians**: ReferenceCount blocks DELETE if shared components in use
-
-## Performance Characteristics
-
-**Semantic Queries**: O(log N) + O(K)
-- 3.5B atoms: ~18-25ms average, ~35ms p99
-- 1M atoms: 20 R-Tree lookups, 10M: 24, 1B: 30 (logarithmic scaling proven)
-
-**Model Compression**: 159:1 ratio
-- 28GB model → 176MB (importance pruning + SVD rank-64 + Q8_0 quantization)
-- 92% explained variance retained
-- Reconstruction quality: MSE < 0.01, Cosine similarity > 0.95
-
-**OODA Loop**: 2-7 seconds per cycle
-- sp_Analyze: ~500-1000ms
-- sp_Hypothesize: ~100-300ms
-- sp_Act: ~1-5s (depends on hypothesis)
-- sp_Learn: ~200-500ms
-
-**Cross-Modal Queries**: Same O(log N) + O(K) as single-modal
-- Text → Audio: ~20-30ms
-- Image → Code: ~25-35ms
-- 3-hop chains: ~60-90ms
-
-## Getting Started
+## 🚀 Quick Start
 
 ### Prerequisites
-- SQL Server 2022+ (Developer/Standard/Enterprise)
-- .NET 8.0 SDK
-- Neo4j 5.x
-- PowerShell 7+
 
-### Quick Start
+- **Windows Server** or **Windows 11** (SQL Server requirement)
+- **.NET 10 SDK** (or later)
+- **SQL Server 2025** (or 2022) with CLR enabled
+- **Neo4j 5.x** (Community or Enterprise)
+- **PowerShell 7+**
 
-1. **Clone and build**:
+### 5-Minute Setup
+
 ```powershell
-git clone https://github.com/YourOrg/Hartonomous.git
+# 1. Clone repository
+git clone https://github.com/AHartTN/Hartonomous.git
 cd Hartonomous
-dotnet build Hartonomous.sln
+
+# 2. Configure connection strings
+cp src/Hartonomous.Api/appsettings.json.template src/Hartonomous.Api/appsettings.json
+# Edit appsettings.json with your SQL Server and Neo4j connection strings
+
+# 3. Deploy database
+.\scripts\Deploy-Database.ps1 -ServerName "localhost" -DatabaseName "Hartonomous"
+
+# 4. Run API
+dotnet run --project src/Hartonomous.Api
 ```
 
-2. **Deploy database**:
-```powershell
-.\scripts\Deploy-Database.ps1 `
-    -ServerInstance "localhost" `
-    -DatabaseName "Hartonomous" `
-    -CreateDatabase
+Navigate to `https://localhost:5001/swagger` to explore the API.
+
+### First Model Ingestion
+
+```bash
+# Ingest Ollama model (requires Ollama running locally)
+curl -X POST https://localhost:5001/api/ingest/ollama \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelIdentifier": "llama3.2",
+    "source": {
+      "name": "Llama 3.2 from Ollama",
+      "metadata": "{\"ollamaEndpoint\":\"http://localhost:11434\"}"
+    }
+  }'
+
+# Ingest HuggingFace model
+curl -X POST https://localhost:5001/api/ingest/huggingface \
+  -H "Content-Type: application/json" \
+  -d '{
+    "modelIdentifier": "meta-llama/Llama-3.2-1B",
+    "source": {
+      "name": "Llama 3.2 1B from Hugging Face"
+    }
+  }'
 ```
 
-3. **Deploy CLR assemblies**:
-```powershell
-.\scripts\deploy-dacpac.ps1 `
-    -ServerInstance "localhost" `
-    -DatabaseName "Hartonomous"
-```
+## 📚 Documentation
 
-4. **Configure Neo4j**:
-```powershell
-.\scripts\Configure-Neo4j.ps1 `
-    -Uri "bolt://localhost:7687" `
-    -Username "neo4j" `
-    -Password "YourPassword"
-```
+### Getting Started
+- **[Quickstart Guide](docs/getting-started/quickstart.md)** - 5-minute setup and first query
+- **[Installation](docs/getting-started/installation.md)** - Detailed installation instructions
+- **[Configuration](docs/getting-started/configuration.md)** - Connection strings, Azure services, authentication
+- **[First Ingestion](docs/getting-started/first-ingestion.md)** - Step-by-step model/document ingestion
 
-5. **Ingest your first model**:
+### Architecture
+- **[Semantic-First Architecture](docs/architecture/semantic-first.md)** - O(log N) + O(K) pattern, spatial indices
+- **[OODA Autonomous Loop](docs/architecture/ooda-loop.md)** - Self-healing, autonomous optimization
+- **[Spatial Geometry](docs/architecture/spatial-geometry.md)** - Landmark projection, Voronoi partitioning
+- **[Model Atomization](docs/architecture/model-atomization.md)** - Content-addressable atoms, CAS deduplication
+- **[Catalog Management](docs/architecture/catalog-management.md)** - Multi-file models (HuggingFace, Ollama)
+- **[Model Parsers](docs/architecture/model-parsers.md)** - GGUF, SafeTensors, ONNX, PyTorch, TensorFlow
+- **[Inference & Generation](docs/architecture/inference.md)** - Spatial KNN, autoregressive decoding
+- **[Training & Fine-Tuning](docs/architecture/training.md)** - Gradient descent on geometry
+- **[Archive Handling](docs/architecture/archive-handler.md)** - ZIP/TAR/GZIP extraction with security
+
+### Implementation
+- **[Database Schema](docs/implementation/database-schema.md)** - Core tables, indices, temporal tables
+- **[T-SQL Pipelines](docs/implementation/t-sql-pipelines.md)** - Service Broker, OODA queues, message processing
+- **[CLR Functions](docs/implementation/clr-functions.md)** - 49 SIMD-optimized functions, SAFE permission level
+- **[Neo4j Integration](docs/implementation/neo4j-integration.md)** - Provenance graph, Merkle DAG sync
+- **[Worker Services](docs/implementation/worker-services.md)** - Background processing, ingestion, sync
+- **[Testing Strategy](docs/implementation/testing.md)** - Unit, CLR, integration, E2E testing
+
+### Operations
+- **[Deployment](docs/operations/deployment.md)** - Azure Arc, DACPAC deployment, GitHub Actions
+- **[Monitoring](docs/operations/monitoring.md)** - Application Insights, performance counters, health checks
+- **[Backup & Recovery](docs/operations/backup-recovery.md)** - Database backup, Neo4j backup, disaster recovery
+- **[Performance Tuning](docs/operations/performance-tuning.md)** - Index optimization, query plans, columnstore
+- **[Troubleshooting](docs/operations/troubleshooting.md)** - Common issues, error codes, diagnostics
+- **[Cognitive Kernel Seeding](docs/operations/kernel-seeding.md)** - Bootstrap testing framework (4 epochs)
+
+### API Reference
+- **[Ingestion Endpoints](docs/api/ingestion.md)** - File, URL, database, model platform ingestion
+- **[Query Endpoints](docs/api/query.md)** - Spatial search, semantic queries, cross-modal
+- **[Reasoning Endpoints](docs/api/reasoning.md)** - A* pathfinding, OODA loop, hypothesis generation
+- **[Provenance Endpoints](docs/api/provenance.md)** - Atom lineage, Merkle DAG traversal
+- **[Streaming Endpoints](docs/api/streaming.md)** - Server-sent events for long-running operations
+
+### Atomizers
+- **[AI Model Platforms](docs/atomizers/ai-model-platforms.md)** - Ollama, HuggingFace atomizers
+- **[Document Atomizers](docs/atomizers/documents.md)** - PDF, Markdown, text splitting strategies
+- **[Image Atomizers](docs/atomizers/images.md)** - OCR, object detection, scene analysis
+- **[Video Atomizers](docs/atomizers/videos.md)** - Frame extraction, shot detection, audio transcription
+- **[Code Atomizers](docs/atomizers/code.md)** - AST parsing, function extraction, dependency analysis
+
+### Contributing
+- **[Contributing Guide](docs/contributing/contributing.md)** - How to contribute, code standards
+- **[Development Setup](docs/contributing/development-setup.md)** - Local development environment
+- **[Code Standards](docs/contributing/code-standards.md)** - C#, T-SQL, PowerShell style guides
+- **[Pull Request Process](docs/contributing/pull-requests.md)** - PR templates, review process
+
+### Planning (Current Development)
+- **[Architectural Validation](docs/planning/ARCHITECTURAL-VALIDATION-REPORT.md)** - Microsoft pattern validation
+- **[Refactoring Plan](docs/planning/ARCHITECTURAL-REFACTORING-PLAN.md)** - SOLID, Clean Architecture refactoring
+- **[App Layer Production Plan](docs/planning/APP-LAYER-PRODUCTION-PLAN.md)** - Production readiness roadmap
+
+## 🎓 Key Concepts
+
+### Content-Addressable Storage (CAS)
+
+Every atom has a SHA-256 hash of its content:
+
 ```sql
--- Ingest GGUF model
-EXEC dbo.sp_IngestModel
-    @ModelPath = 'C:\Models\Qwen3-Coder-7B.gguf',
-    @ModelName = 'Qwen3-Coder-7B',
-    @TenantId = 1;
+-- Automatic deduplication
+INSERT INTO Atom (ContentHash, AtomicValue, ReferenceCount)
+SELECT @hash, @content, 1
+WHERE NOT EXISTS (SELECT 1 FROM Atom WHERE ContentHash = @hash);
+
+UPDATE Atom SET ReferenceCount += 1 WHERE ContentHash = @hash;
 ```
 
-6. **Run your first query**:
+### Spatial Reasoning for Inference
+
 ```sql
--- Cross-modal query: Text → Code
-DECLARE @QueryVector VARBINARY(MAX) = dbo.clr_ComputeEmbedding('binary search algorithm');
-DECLARE @QueryPoint GEOMETRY = dbo.clr_LandmarkProjection_ProjectTo3D(
-    @QueryVector,
-    (SELECT Landmark1 FROM dbo.ProjectionConfig),
-    (SELECT Landmark2 FROM dbo.ProjectionConfig),
-    (SELECT Landmark3 FROM dbo.ProjectionConfig),
-    42
-);
+-- Traditional: Load 7B parameters into RAM (28 GB)
+-- Hartonomous: Query 3D space for relevant atoms
 
-SELECT TOP 10
-    ca.CodeSnippet,
-    dbo.clr_CosineSimilarity(@QueryVector, ca.EmbeddingVector) AS Score
-FROM dbo.CodeAtoms ca
-WHERE ca.SpatialKey.STIntersects(@QueryPoint.STBuffer(3.0)) = 1
-ORDER BY Score DESC;
+-- 1. Embed query → 3D projection
+DECLARE @queryPoint GEOMETRY = dbo.fn_ProjectTo3D(@queryEmbedding);
+
+-- 2. Spatial KNN (O(log N) via R-tree)
+SELECT TOP 50 AtomId, SpatialKey.STDistance(@queryPoint) AS Distance
+FROM AtomEmbedding WITH (INDEX(IX_Spatial))
+ORDER BY SpatialKey.STDistance(@queryPoint);
+
+-- 3. Attention weighting (O(K) where K=50)
+-- 4. Return next token (no full model loaded)
 ```
 
-## Documentation
+### OODA Loop Autonomy
 
-### Architecture & Concepts
-- **[Semantic-First Architecture](docs/architecture/semantic-first.md)** - O(log N) + O(K) pattern explained
-- **[OODA Autonomous Loop](docs/architecture/ooda-loop.md)** - Self-improving system design
-- **[Model Atomization](docs/architecture/model-atomization.md)** - Content-addressable decomposition
-- **[Entropy Geometry](docs/architecture/entropy-geometry.md)** - SVD compression and manifold clustering
-- **[Temporal Causality](docs/architecture/temporal-causality.md)** - Laplace's Demon implementation
-- **[Adversarial Modeling](docs/architecture/adversarial-modeling.md)** - Red/blue/white team dynamics
-- **[Cross-Modal Capabilities](docs/architecture/cross-modal.md)** - Unified semantic space queries
-- **[System Design](docs/architecture/system-design.md)** - Complete architecture overview
-
-### Guides & Operations
-- **[Installation Guide](docs/getting-started/installation.md)** - Detailed setup instructions
-- **[First Queries](docs/getting-started/first-queries.md)** - Tutorial with examples
-- **[API Reference](docs/api/README.md)** - REST endpoints, SQL procedures, CLR functions
-- **[Deployment Guide](docs/operations/deployment.md)** - Production deployment procedures
-- **[Monitoring & Troubleshooting](docs/operations/monitoring.md)** - Observability and diagnostics
-- **[Performance Tuning](docs/operations/performance-tuning.md)** - Optimization strategies
-
-### Examples & Patterns
-- **[Cross-Modal Queries](docs/examples/cross-modal-queries.md)** - Text/audio/image/code examples
-- **[Model Ingestion](docs/examples/model-ingestion.md)** - Multi-format parser usage
-- **[Reasoning Chains](docs/examples/reasoning-chains.md)** - Tree-of-Thought, Chain-of-Thought
-- **[Behavioral Analysis](docs/examples/behavioral-analysis.md)** - Session path geometry
-
-## Project Status
-
-**Current Phase**: Production-Ready Core Implementation
-
-✅ **Completed**:
-- 49 CLR functions (225K lines) - Distance metrics, ML algorithms, model parsers
-- Semantic-first spatial indexing (R-Tree + Hilbert)
-- OODA autonomous loop with dual-triggering
-- Model atomization and ingestion pipeline
-- SVD compression and manifold clustering
-- Temporal tables with FOR SYSTEM_TIME support
-- Neo4j provenance graph integration
-- Cross-modal query capabilities
-- Performance validation (3.6M× speedup proven)
-
-🚧 **In Progress**:
-- REST API layer (.NET 8.0)
-- Worker services (Neo4j sync, model ingestion, CES consumer)
-- Azure deployment automation
-- UI/Dashboard (monitoring, model management)
-
-📋 **Planned**:
-- Multi-model ensembles (Voronoi territory partitioning)
-- Advanced reasoning frameworks (Tree-of-Thought, ReAct, AutoGPT)
-- GPU acceleration (optional, for CLR-heavy operations)
-- Horizontal scaling (read replicas, sharding)
-
-## Contributing
-
-We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-## License
-
-[MIT License](LICENSE) - See LICENSE file for details.
-
-## Citation
-
-If you use Hartonomous in your research, please cite:
-
-```bibtex
-@software{hartonomous2025,
-  title={Hartonomous: Semantic-First AI Engine with O(log N) Spatial Indexing},
-  author={Your Name},
-  year={2025},
-  url={https://github.com/YourOrg/Hartonomous}
-}
+```
+┌──────────────────────────────────────────────────────┐
+│  OBSERVE: Detect slow query (> 1000ms)              │
+│     ↓                                                │
+│  ORIENT: Analyze execution plan, missing indices    │
+│     ↓                                                │
+│  DECIDE: Generate hypothesis (CREATE INDEX)         │
+│     ↓                                                │
+│  ACT: Execute with rollback safety                  │
+│     ↓                                                │
+│  LEARN: Measure improvement → Update model weights  │
+└──────────────────────────────────────────────────────┘
 ```
 
-## Contact
+## 🧪 Example Queries
 
-- **Documentation**: [https://docs.hartonomous.dev](https://docs.hartonomous.dev)
-- **Issues**: [GitHub Issues](https://github.com/YourOrg/Hartonomous/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/YourOrg/Hartonomous/discussions)
-- **Email**: support@hartonomous.dev
+### Semantic Search
+
+```csharp
+// Find atoms semantically similar to "machine learning optimization"
+var results = await context.AtomEmbeddings
+    .OrderBy(ae => ae.SpatialKey.STDistance(queryPoint))
+    .Take(10)
+    .Select(ae => ae.Atom)
+    .ToListAsync();
+```
+
+### Cross-Modal Reasoning
+
+```sql
+-- Find images related to code concept
+WITH CodeAtoms AS (
+  SELECT AtomId, SpatialKey 
+  FROM AtomEmbedding 
+  WHERE AtomId IN (SELECT AtomId FROM Atom WHERE SourceType = 'Code')
+),
+ImageAtoms AS (
+  SELECT AtomId, SpatialKey 
+  FROM AtomEmbedding 
+  WHERE AtomId IN (SELECT AtomId FROM Atom WHERE SourceType = 'Image')
+)
+SELECT i.AtomId, c.AtomId AS RelatedCodeAtomId,
+       i.SpatialKey.STDistance(c.SpatialKey) AS Distance
+FROM ImageAtoms i
+CROSS APPLY (
+  SELECT TOP 1 AtomId, SpatialKey 
+  FROM CodeAtoms c
+  ORDER BY i.SpatialKey.STDistance(c.SpatialKey)
+) c
+ORDER BY Distance;
+```
+
+### A* Pathfinding (Reasoning Chain)
+
+```sql
+EXEC sp_SpatialAStar 
+  @startAtomId = 123,  -- Problem statement
+  @goalAtomId = 456,   -- Desired solution
+  @maxDepth = 10,
+  @beamWidth = 5;
+-- Returns: Reasoning chain with spatial coherence
+```
+
+## 🔧 Technology Stack
+
+- **.NET 10**: ASP.NET Core Web API, EF Core 10 (DB-First)
+- **SQL Server 2025**: Spatial indices, CLR, DiskANN, Columnstore, Temporal Tables
+- **Neo4j 5.x**: Provenance graph, Merkle DAG
+- **Azure Services** (optional): Entra ID, Key Vault, App Configuration, Application Insights
+- **Deployment**: Azure Arc (on-prem servers), GitHub Actions CI/CD
+
+## 📊 Performance
+
+- **Spatial Index Performance**: O(log N) KNN queries on 100M+ atoms
+- **Inference Latency**: < 50ms for spatial search (vs seconds for model loading)
+- **Deduplication**: 60-80% storage savings on typical document corpora
+- **Throughput**: 10K+ atoms/second ingestion (bulk insert with CLR)
+
+## 🛣️ Roadmap
+
+### Current (Q4 2025)
+- ✅ Atomization pipeline (18 atomizers)
+- ✅ Spatial geometry layer
+- ✅ Basic inference via spatial KNN
+- ✅ Neo4j provenance sync
+- ⏳ Entra ID authentication (in progress)
+- ⏳ OODA autonomous loop (implementation phase)
+
+### Near-Term (Q1 2026)
+- Full model weight download and atomization
+- Training/fine-tuning via gradient descent on geometry
+- Advanced reasoning (Chain-of-Thought, ReAct, Tree-of-Thoughts)
+- Production deployment on Azure Arc
+
+### Future
+- Multi-modal generation (text → image, image → text)
+- Export functionality (reconstitute models from atoms)
+- Distributed spatial indices (sharding across databases)
+- GPU-accelerated CLR functions (CUDA.NET)
+
+## 📜 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions welcome! See [CONTRIBUTING.md](docs/contributing/contributing.md) for guidelines.
+
+## 📧 Contact
+
+- **Project Lead**: Adam Hart (@AHartTN)
+- **Repository**: https://github.com/AHartTN/Hartonomous
+- **Issues**: https://github.com/AHartTN/Hartonomous/issues
+
+---
+
+**Built with ❤️ in Tennessee • Powered by Spatial Reasoning**

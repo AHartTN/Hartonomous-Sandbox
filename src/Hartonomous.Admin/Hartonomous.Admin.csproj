@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Microsoft.Azure.AppConfiguration.AspNetCore" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.Configuration.Secrets" />
+    <PackageReference Include="Azure.Security.KeyVault.Secrets" />
+    <PackageReference Include="Microsoft.Identity.Web" />
+    <PackageReference Include="Microsoft.Identity.Web.UI" />
+    <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" />
+    <PackageReference Include="Microsoft.FeatureManagement.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Hartonomous.Core\Hartonomous.Core.csproj" />
+    <ProjectReference Include="..\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
+    <ProjectReference Include="..\Hartonomous.Shared.Contracts\Hartonomous.Shared.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,735 +1,448 @@
 # Installation Guide
 
-**Complete Setup for Hartonomous Platform**
+Complete installation guide for Hartonomous on Windows Server or Windows 11.
 
-## Prerequisites
+## System Requirements
 
-### SQL Server 2022+
+### Minimum Requirements
 
-**Required Version**: SQL Server 2022 (16.x) or later
+- **OS**: Windows Server 2022 or Windows 11
+- **Processor**: 4 cores, 2.5 GHz
+- **RAM**: 16 GB
+- **Storage**: 100 GB SSD (database and graph storage)
+- **Network**: Internet connection for package downloads
 
-**Reason**: Native `VECTOR` type support (introduced in SQL Server 2022)
+### Recommended Requirements
 
-**Recommended Edition**:
-- **Development**: Developer Edition (free, full features)
-- **Production**: Enterprise Edition (required for full feature set)
-- **Testing**: Evaluation Edition (180-day trial)
+- **OS**: Windows Server 2025
+- **Processor**: 8+ cores, 3.0+ GHz  
+- **RAM**: 32 GB+
+- **Storage**: 500 GB NVMe SSD (spatial indices benefit from fast I/O)
+- **Network**: Gigabit Ethernet or faster
 
-**Download**: https://www.microsoft.com/sql-server/sql-server-downloads
+## Installation Steps
 
-**Required Features**:
-- Database Engine Services
-- Full-Text and Semantic Extractions for Search
-- SQL Server Replication (for Service Broker)
-- Integration Services (optional, for ETL)
+### 1. Install .NET 10 SDK
 
-### .NET 8.0 SDK
+Download and install the .NET 10 SDK:
 
-**Required Version**: .NET 8.0 or later
-
-**Download**: https://dotnet.microsoft.com/download/dotnet/8.0
-
-**Verify Installation**:
 ```powershell
+# Download .NET 10 SDK
+$url = "https://dotnet.microsoft.com/download/dotnet/10.0"
+Start-Process $url
+
+# Verify installation
 dotnet --version
-# Expected output: 8.0.x
+# Expected: 10.0.x
 ```
 
-### Neo4j 5.x
+### 2. Install SQL Server 2025
 
-**Required Version**: Neo4j 5.13 or later
-
-**Recommended Edition**:
-- **Development**: Community Edition (free)
-- **Production**: Enterprise Edition (clustering, backup, security)
-
-**Download**: https://neo4j.com/download/
-
-**Alternative**: Neo4j Desktop (includes GUI)
-
-**Verify Installation**:
-```powershell
-neo4j version
-# Expected output: neo4j 5.13.0
-```
-
-### PowerShell 7+
-
-**Required Version**: PowerShell 7.0 or later
-
-**Download**: https://github.com/PowerShell/PowerShell/releases
-
-**Verify Installation**:
-```powershell
-$PSVersionTable.PSVersion
-# Expected output: 7.x.x
-```
-
-### Git
-
-**Download**: https://git-scm.com/downloads
-
-**Verify Installation**:
-```powershell
-git --version
-# Expected output: git version 2.x.x
-```
-
----
-
-## Step 1: Clone Repository
+#### Option A: SQL Server 2025 (Recommended)
 
 ```powershell
-# Clone repository
-git clone https://github.com/AHartTN/Hartonomous-Sandbox.git
-cd Hartonomous-Sandbox
+# Download SQL Server 2025 Developer Edition
+# https://www.microsoft.com/en-us/sql-server/sql-server-downloads
 
-# Verify structure
-Get-ChildItem
-# Expected: src/, docs/, scripts/, tests/, etc.
+# Run installer with default options
+# Select features:
+# - Database Engine Services
+# - Full-Text and Semantic Extractions for Search
+# - Client Tools Connectivity
+
+# During installation:
+# - Mixed Mode Authentication (set SA password)
+# - Add current user as SQL Server administrator
+# - Enable CLR integration
 ```
 
----
+#### Option B: SQL Server 2022 (Supported)
 
-## Step 2: Configure SQL Server
+```powershell
+# Download SQL Server 2022 Developer Edition
+# https://www.microsoft.com/sql-server/sql-server-2022
 
-### Enable CLR Integration
+# Same installation options as 2025
+```
+
+#### Post-Installation: Enable CLR
 
 ```sql
--- Connect to SQL Server instance
+-- Connect with SQL Server Management Studio (SSMS) or sqlcmd
 USE master;
 GO
 
--- Enable CLR integration (server-level setting)
+-- Enable CLR integration
 EXEC sp_configure 'clr enabled', 1;
 RECONFIGURE;
-GO
 
--- Enable CLR strict security (SQL Server 2017+)
-EXEC sp_configure 'clr strict security', 1;
+-- Disable CLR strict security (required for custom assemblies)
+EXEC sp_configure 'show advanced options', 1;
 RECONFIGURE;
-GO
 
--- Verify configuration
-SELECT name, value, value_in_use 
+EXEC sp_configure 'clr strict security', 0;
+RECONFIGURE;
+
+-- Verify
+SELECT name, value_in_use 
 FROM sys.configurations 
 WHERE name IN ('clr enabled', 'clr strict security');
 ```
 
-**Expected Output**:
-| name | value | value_in_use |
-|------|-------|--------------|
-| clr enabled | 1 | 1 |
-| clr strict security | 1 | 1 |
-
-### Enable Service Broker
-
-```sql
--- Create database
-CREATE DATABASE Hartonomous;
-GO
-
-USE Hartonomous;
-GO
-
--- Enable Service Broker (required for OODA loop)
-ALTER DATABASE Hartonomous SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE;
-GO
-
--- Verify Service Broker enabled
-SELECT name, is_broker_enabled 
-FROM sys.databases 
-WHERE name = 'Hartonomous';
-```
-
-**Expected Output**:
-| name | is_broker_enabled |
-|------|-------------------|
-| Hartonomous | 1 |
-
-### Set Database to TRUSTWORTHY (Development Only)
-
-```sql
--- Allow CLR assemblies to access external resources
-ALTER DATABASE Hartonomous SET TRUSTWORTHY ON;
-GO
-```
-
-⚠️ **Security Warning**: `TRUSTWORTHY ON` allows CLR code to access files, network, etc. Only use in development. For production, use assembly signing (see CLR Deployment guide).
-
----
-
-## Step 3: Deploy Database Schema
-
-### Option A: Using DACPAC (Recommended)
+### 3. Install Neo4j 5.x
 
 ```powershell
-# Navigate to scripts directory
-cd scripts
+# Download Neo4j Community Edition
+# https://neo4j.com/download-center/#community
 
-# Install SqlPackage if not present
-.\install-sqlpackage.ps1
+# Install using .exe installer
+# Or use Chocolatey:
+choco install neo4j-community
 
-# Build DACPAC
-.\build-dacpac.ps1
+# Configure Neo4j
+# Edit: C:\Program Files\Neo4j\conf\neo4j.conf
 
-# Deploy to local SQL Server
-.\deploy-dacpac.ps1 `
-    -SqlServer "localhost" `
-    -Database "Hartonomous" `
-    -DacpacPath "..\src\Hartonomous.Database\bin\Debug\Hartonomous.Database.dacpac"
+# Set initial heap size (adjust based on RAM)
+dbms.memory.heap.initial_size=2G
+dbms.memory.heap.max_size=4G
+
+# Enable bolt connector
+dbms.connector.bolt.enabled=true
+dbms.connector.bolt.listen_address=0.0.0.0:7687
+
+# Enable http connector
+dbms.connector.http.enabled=true
+dbms.connector.http.listen_address=0.0.0.0:7474
 ```
 
-### Option B: Using Migration Scripts
+Start Neo4j:
 
 ```powershell
-# Run migration scripts in order
-$server = "localhost"
-$database = "Hartonomous"
+# Start as console application (for testing)
+neo4j console
 
-# Execute scripts
-Get-ChildItem "..\src\Hartonomous.Database\Scripts\Migrations" -Filter "*.sql" | 
-    Sort-Object Name | 
-    ForEach-Object {
-        Write-Host "Executing: $($_.Name)" -ForegroundColor Cyan
-        Invoke-Sqlcmd -ServerInstance $server -Database $database -InputFile $_.FullName
-    }
-```
-
-### Verify Schema Deployment
-
-```sql
--- Check tables created
-SELECT TABLE_SCHEMA, TABLE_NAME 
-FROM INFORMATION_SCHEMA.TABLES 
-WHERE TABLE_TYPE = 'BASE TABLE'
-ORDER BY TABLE_SCHEMA, TABLE_NAME;
-
--- Expected tables:
--- dbo.Atoms
--- dbo.AtomRelations
--- dbo.AtomEmbeddings
--- dbo.TensorAtoms
--- dbo.Models
--- dbo.Tenants
--- dbo.InferenceRequests
--- dbo.HypothesisWeights
--- dbo.OodaExecutionLog
--- ... (and many more)
-```
-
----
-
-## Step 4: Deploy CLR Assembly
-
-⚠️ **CRITICAL**: Before proceeding, read `docs/operations/clr-deployment.md` for the **System.Collections.Immutable.dll incompatibility issue**.
-
-### Build CLR Assembly
-
-```powershell
-# Navigate to repository root
-cd D:\Repositories\Hartonomous-Sandbox
-
-# Restore dependencies
-dotnet restore Hartonomous.sln
-
-# Build CLR assembly (Release configuration)
-dotnet build src\Hartonomous.Clr\Hartonomous.Clr.csproj -c Release
-```
-
-**Expected Output**:
-```
-Build succeeded.
-    0 Warning(s)
-    0 Error(s)
-```
-
-⚠️ **Known Issue**: You may see warnings about `System.Collections.Immutable` not being supported. See CLR Deployment guide for resolution strategies.
-
-### Deploy CLR Assembly
-
-```powershell
-# Run deployment script
-.\scripts\deploy-clr-assemblies.ps1 `
-    -SqlServer "localhost" `
-    -Database "Hartonomous" `
-    -AssemblyPath "src\Hartonomous.Clr\bin\Release\net8.0\Hartonomous.Clr.dll"
-```
-
-**Expected Output**:
-```
-Deploying CLR assembly...
-Assembly 'HartonomousClr' created successfully.
-Creating CLR functions...
-  - clr_CosineSimilarity
-  - clr_EuclideanDistance
-  - clr_LandmarkProjection_ProjectTo3D
-  - ... (47 more functions)
-Deployment completed successfully!
-```
-
-### Verify CLR Functions
-
-```sql
--- List all CLR functions
-SELECT 
-    o.name AS FunctionName,
-    a.name AS AssemblyName,
-    p.permission_set_desc AS PermissionSet
-FROM sys.objects o
-INNER JOIN sys.assembly_modules am ON o.object_id = am.object_id
-INNER JOIN sys.assemblies a ON am.assembly_id = a.assembly_id
-INNER JOIN sys.assemblies p ON a.name = p.name
-WHERE o.type = 'FS'  -- CLR scalar function
-ORDER BY o.name;
-
--- Test a function
-DECLARE @vec1 VARBINARY(MAX) = 0x3F8000003F0000003E800000;  -- [1.0, 0.5, 0.25]
-DECLARE @vec2 VARBINARY(MAX) = 0x3F8000003F0000003E800000;  -- [1.0, 0.5, 0.25]
-
-SELECT dbo.clr_CosineSimilarity(@vec1, @vec2) AS similarity;
--- Expected: 1.0 (identical vectors)
-```
-
----
-
-## Step 5: Configure Neo4j
-
-### Start Neo4j
-
-```powershell
-# Start Neo4j service
+# Or install as Windows service
+neo4j install-service
 neo4j start
 
-# Or using Neo4j Desktop: Click "Start" on database
+# Access Neo4j Browser
+# Navigate to: http://localhost:7474
+# Default username: neo4j
+# Default password: neo4j (will prompt to change on first login)
 ```
 
-### Create Database
-
-```cypher
-// Connect to Neo4j (http://localhost:7474)
-// Default credentials: neo4j / neo4j (change on first login)
-
-// Create database
-CREATE DATABASE hartonomous;
-
-// Switch to database
-:use hartonomous;
-```
-
-### Create Schema (Indexes & Constraints)
-
-```cypher
-// Atom node indexes
-CREATE INDEX atom_hash_idx FOR (a:Atom) ON (a.atomHash);
-CREATE INDEX atom_tenant_idx FOR (a:Atom) ON (a.tenantId, a.createdAt);
-
-// Source node indexes
-CREATE INDEX source_identifier_idx FOR (s:Source) ON (s.identifier);
-
-// IngestionJob node indexes
-CREATE INDEX job_status_idx FOR (j:IngestionJob) ON (j.status, j.completedAt);
-
-// User node constraint (unique username)
-CREATE CONSTRAINT user_username_unique FOR (u:User) REQUIRE u.username IS UNIQUE;
-
-// Pipeline node indexes
-CREATE INDEX pipeline_name_version_idx FOR (p:Pipeline) ON (p.name, p.version);
-
-// Inference node indexes
-CREATE INDEX inference_executed_idx FOR (i:Inference) ON (i.executedAt);
-CREATE INDEX inference_context_idx FOR (i:Inference) ON (i.contextHash);
-```
-
-### Configure Connection String
-
-**File**: `src/Hartonomous.Workers.Neo4jSync/appsettings.json`
-
-```json
-{
-  "ConnectionStrings": {
-    "Neo4j": "neo4j://localhost:7687",
-    "SqlServer": "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
-  },
-  "Neo4j": {
-    "Username": "neo4j",
-    "Password": "your-password-here",
-    "Database": "hartonomous"
-  }
-}
-```
-
----
-
-## Step 6: Deploy Worker Services
-
-### Build Worker Services
+### 4. Install PowerShell 7+
 
 ```powershell
-# Build all worker services
-dotnet build src\Hartonomous.Workers.Ingestion\Hartonomous.Workers.Ingestion.csproj -c Release
-dotnet build src\Hartonomous.Workers.Neo4jSync\Hartonomous.Workers.Neo4jSync.csproj -c Release
-dotnet build src\Hartonomous.Workers.EmbeddingGenerator\Hartonomous.Workers.EmbeddingGenerator.csproj -c Release
-dotnet build src\Hartonomous.Workers.SpatialProjector\Hartonomous.Workers.SpatialProjector.csproj -c Release
+# Install PowerShell 7 using winget
+winget install Microsoft.PowerShell
+
+# Or download from GitHub
+# https://github.com/PowerShell/PowerShell/releases
+
+# Verify installation
+pwsh --version
+# Expected: PowerShell 7.x.x
 ```
 
-### Configure Connection Strings
+### 5. Clone Hartonomous Repository
 
-Update `appsettings.json` in each worker service:
+```powershell
+# Navigate to desired directory
+cd D:\Repositories  # Or your preferred location
+
+# Clone repository
+git clone https://github.com/AHartTN/Hartonomous.git
+cd Hartonomous
+
+# Verify repository structure
+dir
+# Expected: docs, scripts, src, tests, README.md, etc.
+```
+
+### 6. Configure Application
+
+```powershell
+# Copy template configuration
+Copy-Item src/Hartonomous.Api/appsettings.json.template src/Hartonomous.Api/appsettings.json
+
+# Edit configuration (use VS Code, notepad, or your preferred editor)
+code src/Hartonomous.Api/appsettings.json
+```
+
+#### Required Configuration
+
+Edit `appsettings.json`:
 
 ```json
 {
   "ConnectionStrings": {
-    "SqlServer": "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;"
+    "HartonomousDb": "Server=localhost;Database=Hartonomous;Integrated Security=true;TrustServerCertificate=true;",
+    "Neo4j": "neo4j://localhost:7687"
+  },
+  "Neo4jCredentials": {
+    "Username": "neo4j",
+    "Password": "your-secure-password"
   },
   "Logging": {
     "LogLevel": {
       "Default": "Information",
-      "Microsoft": "Warning"
+      "Microsoft.AspNetCore": "Warning",
+      "Hartonomous": "Debug"
     }
+  },
+  "AllowedHosts": "*"
+}
+```
+
+#### Optional: Azure Services Configuration
+
+For production deployments with Azure integration:
+
+```json
+{
+  "AzureAd": {
+    "Instance": "https://login.microsoftonline.com/",
+    "Domain": "yourdomain.onmicrosoft.com",
+    "TenantId": "your-tenant-id",
+    "ClientId": "your-client-id"
+  },
+  "AzureAppConfiguration": {
+    "Endpoint": "https://your-appconfig.azconfig.io"
+  },
+  "KeyVault": {
+    "VaultUri": "https://your-keyvault.vault.azure.net/"
+  },
+  "ApplicationInsights": {
+    "ConnectionString": "InstrumentationKey=your-key;IngestionEndpoint=..."
   }
 }
 ```
 
-### Run Workers (Development)
-
-**Option A: Run in separate terminals**
+### 7. Deploy Database
 
 ```powershell
-# Terminal 1: Ingestion Worker
-cd src\Hartonomous.Workers.Ingestion
-dotnet run
-
-# Terminal 2: Neo4jSync Worker
-cd src\Hartonomous.Workers.Neo4jSync
-dotnet run
-
-# Terminal 3: EmbeddingGenerator Worker
-cd src\Hartonomous.Workers.EmbeddingGenerator
-dotnet run
-
-# Terminal 4: SpatialProjector Worker
-cd src\Hartonomous.Workers.SpatialProjector
-dotnet run
+# Run database deployment script
+.\scripts\Deploy-Database.ps1 -ServerName "localhost" -DatabaseName "Hartonomous"
 ```
 
-**Option B: Install as Windows Services** (Production)
+The script performs:
+
+1. **Create Database**: Creates `Hartonomous` database if it doesn't exist
+2. **Deploy Schema**: Creates 40+ tables, indices, temporal tables
+3. **Register CLR Assemblies**: Deploys 49 SIMD-optimized functions
+4. **Create Spatial Indices**: R-tree indices for `GEOMETRY` columns
+5. **Enable Service Broker**: Activates OODA queue infrastructure
+6. **Set Permissions**: Configures row-level security
+
+**Expected output:**
+
+```
+Starting Hartonomous database deployment...
+✅ Database 'Hartonomous' created
+✅ Schema deployed (42 tables created)
+✅ CLR assemblies registered (16 assemblies, 49 functions)
+✅ Spatial indices created (3 R-tree indices)
+✅ Service Broker enabled (4 queues configured)
+✅ Temporal tables configured (12 tables with history)
+✅ Row-level security predicates created
+
+Deployment completed successfully!
+Database: Hartonomous
+Server: localhost
+CLR Permission Level: SAFE
+Spatial Index Type: GEOMETRY_AUTO_GRID
+```
+
+### 8. (Optional) Seed Cognitive Kernel
+
+For testing and validation:
 
 ```powershell
-# Publish workers
-dotnet publish src\Hartonomous.Workers.Ingestion -c Release -o C:\Hartonomous\Workers\Ingestion
-dotnet publish src\Hartonomous.Workers.Neo4jSync -c Release -o C:\Hartonomous\Workers\Neo4jSync
-
-# Install as Windows Service (requires admin)
-New-Service -Name "HartonomousIngestionWorker" `
-    -BinaryPathName "C:\Hartonomous\Workers\Ingestion\Hartonomous.Workers.Ingestion.exe" `
-    -DisplayName "Hartonomous Ingestion Worker" `
-    -Description "Processes ingestion events from SQL Service Broker" `
-    -StartupType Automatic
-
-New-Service -Name "HartonomousNeo4jSyncWorker" `
-    -BinaryPathName "C:\Hartonomous\Workers\Neo4jSync\Hartonomous.Workers.Neo4jSync.exe" `
-    -DisplayName "Hartonomous Neo4j Sync Worker" `
-    -Description "Synchronizes provenance data to Neo4j" `
-    -StartupType Automatic
-
-# Start services
-Start-Service -Name "HartonomousIngestionWorker"
-Start-Service -Name "HartonomousNeo4jSyncWorker"
+.\scripts\seed-cognitive-kernel.ps1 -ServerName "localhost" -DatabaseName "Hartonomous"
 ```
 
----
+This creates:
+- 3 orthogonal basis vectors (X/Y/Z axes)
+- A* pathfinding test chain (6 atoms: START → STEP_1 → STEP_2 → GOAL + 2 noise)
+- 1,000 landmark atoms for spatial trilateration
+- 10 OODA loop test cycles
 
-## Step 7: Configure OODA Loop
+### 9. Build and Run
 
-### Create SQL Agent Job (15-min scheduled trigger)
+```powershell
+# Restore NuGet packages and build
+dotnet restore
+dotnet build
 
-```sql
-USE msdb;
-GO
-
--- Create job
-EXEC dbo.sp_add_job 
-    @job_name = N'OodaCycle_15min',
-    @description = N'Autonomous OODA loop execution (Observe-Orient-Decide-Act-Learn)',
-    @enabled = 1;
-
--- Add execution step
-EXEC dbo.sp_add_jobstep 
-    @job_name = N'OodaCycle_15min',
-    @step_name = N'Trigger_Analyze',
-    @subsystem = N'TSQL',
-    @database_name = N'Hartonomous',
-    @command = N'
-        DECLARE @handle UNIQUEIDENTIFIER;
-        BEGIN DIALOG CONVERSATION @handle
-            FROM SERVICE [//Hartonomous/InitiatorService]
-            TO SERVICE ''//Hartonomous/AnalyzeService''
-            ON CONTRACT [//Hartonomous/OodaContract];
-        
-        SEND ON CONVERSATION @handle
-            MESSAGE TYPE [//Hartonomous/Analyze] ('''');
-    ';
-
--- Create schedule (every 15 minutes)
-EXEC dbo.sp_add_schedule 
-    @schedule_name = N'Every15Minutes',
-    @freq_type = 4,              -- Daily
-    @freq_interval = 1,          -- Every day
-    @freq_subday_type = 4,       -- Minutes
-    @freq_subday_interval = 15;
-
--- Attach schedule to job
-EXEC dbo.sp_attach_schedule 
-    @job_name = N'OodaCycle_15min',
-    @schedule_name = N'Every15Minutes';
-
--- Assign to job server
-EXEC dbo.sp_add_jobserver 
-    @job_name = N'OodaCycle_15min',
-    @server_name = N'(local)';
-
--- Start job
-EXEC dbo.sp_start_job @job_name = N'OodaCycle_15min';
-GO
+# Run API
+dotnet run --project src/Hartonomous.Api
 ```
 
-### Verify OODA Loop Configuration
+**Expected output:**
 
-```sql
--- Check Service Broker queues
-SELECT name, is_activation_enabled, activation_procedure
-FROM sys.service_queues
-WHERE name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue');
-
--- Check SQL Agent job
-SELECT 
-    j.name AS JobName,
-    s.name AS ScheduleName,
-    s.freq_subday_interval AS IntervalMinutes,
-    j.enabled AS IsEnabled
-FROM msdb.dbo.sysjobs j
-INNER JOIN msdb.dbo.sysjobschedules js ON j.job_id = js.job_id
-INNER JOIN msdb.dbo.sysschedules s ON js.schedule_id = s.schedule_id
-WHERE j.name = 'OodaCycle_15min';
+```
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: https://localhost:5001
+info: Microsoft.Hosting.Lifetime[14]
+      Now listening on: http://localhost:5000
+info: Microsoft.Hosting.Lifetime[0]
+      Application started. Press Ctrl+C to shut down.
 ```
 
----
+Navigate to: https://localhost:5001/swagger
 
-## Step 8: Create Initial Tenant
+## Verification
+
+### Verify SQL Server Connection
 
 ```sql
+-- Connect with SSMS or sqlcmd
 USE Hartonomous;
-GO
 
--- Create default tenant
-INSERT INTO dbo.Tenants (TenantName, AtomQuota, CreatedAt)
-VALUES ('DefaultTenant', 10000000000, SYSUTCDATETIME());  -- 10B atom quota
+-- Verify tables
+SELECT COUNT(*) AS TableCount 
+FROM INFORMATION_SCHEMA.TABLES 
+WHERE TABLE_TYPE = 'BASE TABLE';
+-- Expected: 42+
 
--- Get tenant ID
-DECLARE @TenantId INT = SCOPE_IDENTITY();
-SELECT @TenantId AS TenantId;
+-- Verify CLR assemblies
+SELECT name, permission_set_desc 
+FROM sys.assemblies 
+WHERE name LIKE 'Hartonomous%';
+-- Expected: 16 assemblies, permission_set_desc = SAFE_ACCESS
 
--- Create default user
-INSERT INTO dbo.Users (Username, Email, TenantId, Role, CreatedAt)
-VALUES ('admin', 'admin@hartonomous.local', @TenantId, 'admin', SYSUTCDATETIME());
+-- Verify spatial indices
+SELECT 
+    OBJECT_NAME(object_id) AS TableName,
+    name AS IndexName,
+    type_desc AS IndexType
+FROM sys.indexes
+WHERE type_desc = 'SPATIAL';
+-- Expected: 3 spatial indices on AtomEmbedding, SpatialLandmark, etc.
 ```
 
----
+### Verify Neo4j Connection
 
-## Step 9: Verify Installation
+```cypher
+// Open Neo4j Browser: http://localhost:7474
 
-### Run Health Checks
+// Verify connectivity
+RETURN "Connection Successful" AS status;
+
+// Check constraints
+SHOW CONSTRAINTS;
+// Expected: Constraints on Atom(id), Model(id), etc.
+```
+
+### Verify API Connectivity
 
 ```powershell
-# Navigate to scripts directory
-cd scripts
+# Health check
+curl https://localhost:5001/health
 
-# Run preflight check
-.\preflight-check.ps1 -SqlServer "localhost" -Database "Hartonomous"
+# Swagger UI (open in browser)
+Start-Process https://localhost:5001/swagger
 ```
-
-**Expected Output**:
-```
-✓ SQL Server connection successful
-✓ Database 'Hartonomous' exists
-✓ CLR enabled
-✓ Service Broker enabled
-✓ CLR assembly 'HartonomousClr' deployed
-✓ 49 CLR functions found
-✓ Core tables exist (Atoms, AtomRelations, AtomEmbeddings, TensorAtoms)
-✓ OODA loop configured (SQL Agent job running)
-✓ Neo4j connection successful
-✓ Worker services running (4/4)
-
-Installation verified successfully!
-```
-
-### Test Basic Query
-
-```sql
--- Test semantic search infrastructure
-DECLARE @queryVector VARBINARY(MAX) = dbo.fn_GenerateRandomVector(1536);
-
-SELECT TOP 10
-    a.AtomId,
-    a.AtomHash,
-    ae.SpatialGeometry.STDistance(
-        geometry::Point(0, 0, 0, 0)
-    ) AS Distance
-FROM dbo.Atoms a
-INNER JOIN dbo.AtomEmbeddings ae ON a.AtomId = ae.AtomId
-WHERE ae.SpatialGeometry.STIntersects(
-    geometry::Point(0, 0, 0, 0).STBuffer(10)
-) = 1;
-```
-
-**Expected**: Query executes without errors (returns 0 rows if no data ingested yet)
-
----
-
-## Step 10: Ingest Sample Data (Optional)
-
-### Download Sample Model
-
-```powershell
-# Download small GGUF model for testing
-Invoke-WebRequest -Uri "https://huggingface.co/TheBloke/Llama-2-7B-GGUF/resolve/main/llama-2-7b.Q4_K_M.gguf" `
-    -OutFile "C:\Temp\llama-2-7b.Q4_K_M.gguf"
-```
-
-### Ingest Model
-
-```sql
--- Ingest GGUF model
-DECLARE @ModelPath NVARCHAR(4000) = N'C:\Temp\llama-2-7b.Q4_K_M.gguf';
-DECLARE @TenantId INT = 1;  -- Use your tenant ID
-
-EXEC dbo.sp_IngestModel 
-    @ModelPath = @ModelPath,
-    @ModelName = 'Llama-2-7B-Q4',
-    @TenantId = @TenantId;
-```
-
-**Expected Duration**: 5-15 minutes for 7B parameter model
-
-**Verify Ingestion**:
-
-```sql
--- Check atoms created
-SELECT COUNT(*) AS TotalAtoms
-FROM dbo.TensorAtoms
-WHERE TenantId = @TenantId;
-
--- Check spatial projections
-SELECT COUNT(*) AS TotalProjected
-FROM dbo.TensorAtoms
-WHERE SpatialKey IS NOT NULL
-  AND TenantId = @TenantId;
-
--- Check Neo4j provenance
--- (In Neo4j Browser: http://localhost:7474)
-MATCH (m:Model {name: 'Llama-2-7B-Q4'})-[:INGESTED_FROM]->(s:Source)
-RETURN m, s;
-```
-
----
 
 ## Troubleshooting
 
-### SQL Server Connection Failed
+### SQL Server Installation Issues
 
-**Error**: "Cannot connect to SQL Server"
+**Problem**: SQL Server service won't start
 
-**Solution**:
-```powershell
-# Check SQL Server running
-Get-Service -Name "MSSQL*"
+**Solutions**:
+1. Check Windows Event Log: `eventvwr.msc` → Windows Logs → Application
+2. Verify SQL Server Configuration Manager: TCP/IP enabled
+3. Check port 1433 not in use: `netstat -ano | findstr :1433`
 
-# Start SQL Server if stopped
-Start-Service -Name "MSSQLSERVER"  # Or your instance name
-```
+### CLR Assembly Registration Failed
 
-### CLR Assembly Deployment Failed
+**Problem**: `Assembly 'Hartonomous.Clr' could not be loaded`
 
-**Error**: "Assembly references assembly 'netstandard, Version=2.0.0.0'"
+**Solutions**:
 
-**Solution**: See `docs/operations/clr-deployment.md` for CRITICAL dependency issue resolution.
-
-### Service Broker Not Enabled
-
-**Error**: "Service Broker is disabled"
-
-**Solution**:
 ```sql
-ALTER DATABASE Hartonomous SET ENABLE_BROKER WITH ROLLBACK IMMEDIATE;
+-- 1. Verify CLR is enabled
+SELECT value_in_use FROM sys.configurations WHERE name = 'clr enabled';
+-- Must be 1
+
+-- 2. Check assembly dependencies
+SELECT * FROM sys.assembly_files;
+
+-- 3. Manually register assembly (if deployment script failed)
+CREATE ASSEMBLY [Hartonomous.Clr]
+FROM 'D:\Repositories\Hartonomous\src\Hartonomous.Clr\bin\Release\net8.0\Hartonomous.Clr.dll'
+WITH PERMISSION_SET = SAFE;
 ```
 
-### Neo4j Connection Failed
+### Neo4j Connection Refused
 
-**Error**: "Unable to connect to Neo4j"
+**Problem**: `Unable to connect to neo4j://localhost:7687`
 
-**Solution**:
+**Solutions**:
+
+1. Verify Neo4j is running: `neo4j status`
+2. Check configuration: `C:\Program Files\Neo4j\conf\neo4j.conf`
+3. Verify firewall: Allow port 7687 (Bolt) and 7474 (HTTP)
+4. Test connection: `cypher-shell -a neo4j://localhost:7687 -u neo4j -p password`
+
+### Port Conflicts
+
+**Problem**: `Port 5001 already in use`
+
+**Solutions**:
+
 ```powershell
-# Check Neo4j running
-neo4j status
+# Find process using port 5001
+netstat -ano | findstr :5001
 
-# Start Neo4j
-neo4j start
+# Kill process (if safe to do so)
+taskkill /PID <process-id> /F
+
+# Or change API port in launchSettings.json
+code src/Hartonomous.Api/Properties/launchSettings.json
+# Change "applicationUrl": "https://localhost:5001;http://localhost:5000"
 ```
 
-### Worker Services Not Starting
+### Spatial Index Creation Timeout
 
-**Error**: "Worker service crashed on startup"
+**Problem**: Spatial index creation takes > 10 minutes
 
-**Solution**:
-```powershell
-# Check logs
-Get-Content "C:\Hartonomous\Workers\Ingestion\logs\app.log" -Tail 50
+**Solutions**:
 
-# Common issues:
-# 1. Connection string incorrect (check appsettings.json)
-# 2. SQL Server not accessible (check firewall)
-# 3. Service Broker queue not found (deploy schema first)
+```sql
+-- Check index creation progress
+SELECT 
+    r.command,
+    r.percent_complete,
+    CAST((r.estimated_completion_time / 60000.0) AS DECIMAL(10,2)) AS EstMinutesRemaining
+FROM sys.dm_exec_requests r
+WHERE r.command LIKE '%INDEX%';
+
+-- If stuck, cancel and retry with smaller bounding box
+DROP INDEX IX_AtomEmbedding_Spatial ON AtomEmbedding;
+
+CREATE SPATIAL INDEX IX_AtomEmbedding_Spatial
+ON AtomEmbedding(SpatialKey)
+USING GEOMETRY_GRID
+WITH (
+    BOUNDING_BOX = (-100, -100, 100, 100),
+    GRIDS = (MEDIUM, MEDIUM, MEDIUM, MEDIUM),
+    CELLS_PER_OBJECT = 16
+);
 ```
-
----
 
 ## Next Steps
 
-1. **Read**: `docs/getting-started/quickstart.md` - 10-minute tutorial
-2. **Read**: `docs/architecture/semantic-first.md` - Understand O(log N) + O(K) pattern
-3. **Read**: `docs/api/sql-procedures.md` - Learn stored procedures
-4. **Try**: Ingest your first model and run semantic queries
-5. **Monitor**: OODA loop autonomous improvements (check `dbo.OodaExecutionLog`)
+- **[Quickstart Guide](quickstart.md)** - Complete 5-minute quickstart
+- **[Configuration Guide](configuration.md)** - Advanced configuration options
+- **[First Ingestion](first-ingestion.md)** - Ingest your first model
+- **[Deployment Guide](../operations/deployment.md)** - Production deployment with Azure Arc
 
----
+## Additional Resources
 
-## Production Deployment
-
-For production deployment, see:
-- `docs/operations/clr-deployment.md` - Assembly signing, TRUSTWORTHY OFF
-- `docs/operations/monitoring.md` - Metrics, logging, alerts
-- `docs/operations/backup-recovery.md` - Backup strategies, disaster recovery
-- `docs/operations/performance-tuning.md` - Index optimization, scaling
-
----
-
-## Summary
-
-Installation complete! You now have:
-
-✅ SQL Server with CLR enabled and database schema deployed  
-✅ 49 CLR functions for O(K) refinement  
-✅ Neo4j provenance graph with schema  
-✅ 4 worker services processing events  
-✅ OODA autonomous loop running every 15 minutes  
-✅ Multi-tenant infrastructure ready  
-
-**Time to complete**: ~30-60 minutes (excluding model download)
-
-**System Ready For**:
-- Model ingestion (GGUF, SafeTensors, ONNX, PyTorch, TensorFlow, Stable Diffusion)
-- Semantic queries (O(log N) + O(K) pattern)
-- Provenance tracking (Neo4j Merkle DAG)
-- Autonomous optimization (OODA loop)
+- **[SQL Server Installation](https://learn.microsoft.com/en-us/sql/database-engine/install-windows/install-sql-server)**
+- **[Neo4j Installation](https://neo4j.com/docs/operations-manual/current/installation/windows/)**
+- **[.NET Installation](https://learn.microsoft.com/en-us/dotnet/core/install/windows)**
+- **[PowerShell Installation](https://learn.microsoft.com/en-us/powershell/scripting/install/installing-powershell-on-windows)**
