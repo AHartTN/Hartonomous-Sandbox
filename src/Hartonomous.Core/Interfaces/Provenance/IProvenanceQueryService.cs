@@ -3,55 +3,16 @@ namespace Hartonomous.Core.Interfaces.Provenance;
 /// <summary>
 /// Represents a service that queries provenance data from Neo4j graph database.
 /// Provides READ-ONLY analytical Cypher queries for lineage tracking and error analysis.
+/// This interface inherits from segregated interfaces following the Interface Segregation Principle.
 /// </summary>
-public interface IProvenanceQueryService
+public interface IProvenanceQueryService :
+    ILineageQueryService,
+    ISessionPathQueryService,
+    IErrorAnalysisService,
+    IInfluenceAnalysisService
 {
-    /// <summary>
-    /// Gets the complete lineage (ancestry chain) for a specific atom.
-    /// </summary>
-    /// <param name="atomId">The atom ID to trace lineage for.</param>
-    /// <param name="maxDepth">Maximum depth to traverse (default: unlimited).</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
-    /// <returns>The lineage tree showing all ancestor atoms and relationships.</returns>
-    Task<AtomLineage> GetAtomLineageAsync(
-        long atomId,
-        int? maxDepth = null,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Finds clusters of related errors in the provenance graph.
-    /// Useful for identifying systematic failures or recurring issues.
-    /// </summary>
-    /// <param name="sessionId">Optional session ID to scope the search.</param>
-    /// <param name="minClusterSize">Minimum number of errors to constitute a cluster.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
-    /// <returns>Collection of error clusters with common patterns.</returns>
-    Task<IEnumerable<ErrorCluster>> FindErrorClustersAsync(
-        long? sessionId = null,
-        int minClusterSize = 3,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Gets all reasoning paths taken within a session.
-    /// Shows the complete decision tree with branches explored.
-    /// </summary>
-    /// <param name="sessionId">The session ID to analyze.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
-    /// <returns>Collection of reasoning paths with decision points and outcomes.</returns>
-    Task<IEnumerable<ReasoningPath>> GetSessionPathsAsync(
-        long sessionId,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Finds atoms that influenced a specific conclusion or result.
-    /// Traces backward through the provenance graph to identify contributory factors.
-    /// </summary>
-    /// <param name="resultAtomId">The result atom to trace influences for.</param>
-    /// <param name="cancellationToken">Cancellation token to cancel the operation.</param>
-    /// <returns>Collection of atoms that contributed to the result, with influence weights.</returns>
-    Task<IEnumerable<AtomInfluence>> GetInfluencingAtomsAsync(
-        long resultAtomId,
-        CancellationToken cancellationToken = default);
+    // This interface now inherits all methods from the segregated interfaces
+    // No additional methods are defined here to maintain ISP compliance
 }
 
 /// <summary>
@@ -223,4 +184,71 @@ public sealed class AtomInfluence
     /// Gets or sets the path length from the influencing atom to the result.
     /// </summary>
     public int PathLength { get; set; }
+}
+
+/// <summary>
+/// Represents an error that occurred during atomization.
+/// </summary>
+public sealed class AtomizationError
+{
+    /// <summary>
+    /// Gets or sets the atom ID where the error occurred.
+    /// </summary>
+    public long AtomId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the session ID where the error occurred.
+    /// </summary>
+    public long SessionId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the error message.
+    /// </summary>
+    public required string ErrorMessage { get; set; }
+
+    /// <summary>
+    /// Gets or sets the error type or category.
+    /// </summary>
+    public required string ErrorType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the timestamp when the error occurred.
+    /// </summary>
+    public DateTime Timestamp { get; set; }
+
+    /// <summary>
+    /// Gets or sets the severity level of the error.
+    /// </summary>
+    public string? Severity { get; set; }
+}
+
+/// <summary>
+/// Represents an influence relationship between atoms.
+/// </summary>
+public sealed class InfluenceRelationship
+{
+    /// <summary>
+    /// Gets or sets the source atom ID (the one doing the influencing).
+    /// </summary>
+    public long SourceAtomId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the target atom ID (the one being influenced).
+    /// </summary>
+    public long TargetAtomId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the type of influence relationship.
+    /// </summary>
+    public required string RelationshipType { get; set; }
+
+    /// <summary>
+    /// Gets or sets the depth of the influence relationship.
+    /// </summary>
+    public int Depth { get; set; }
+
+    /// <summary>
+    /// Gets or sets the strength/weight of the influence.
+    /// </summary>
+    public double Weight { get; set; }
 }

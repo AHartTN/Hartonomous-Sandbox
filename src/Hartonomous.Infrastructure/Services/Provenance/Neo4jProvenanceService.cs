@@ -305,31 +305,117 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService
         }
     }
 
-    public async Task<IEnumerable<AtomInfluence>> GetInfluencingAtomsAsync(
-        long resultAtomId,
+    public async Task<IEnumerable<AtomizationError>> GetSessionErrorsAsync(
+        long sessionId,
         CancellationToken cancellationToken = default)
     {
-        _logger.LogDebug("Finding influencing atoms for result atom {ResultAtomId}", resultAtomId);
+        _logger.LogDebug("Querying errors for session {SessionId}", sessionId);
 
         var query = """
-            MATCH path = (influencer:Atom)-[r:INFLUENCES|DERIVED_FROM*1..5]->(result:Atom {atomId: $resultAtomId})
-            WITH influencer, result, path, length(path) as pathLength
+            MATCH (error:Error)-[:OCCURRED_IN]->(session:Session {sessionId: $sessionId})
             RETURN 
-                influencer.atomId as atomId,
-                pathLength,
-                CASE WHEN pathLength = 1 THEN 'Direct' ELSE 'Indirect' END as influenceType,
-                1.0 / pathLength as weight
+                error.atomId as atomId,
+                session.sessionId as sessionId,
+                error.message as errorMessage,
+                error.errorType as errorType,
+                error.timestamp as timestamp,
+                error.severity as severity
+            ORDER BY error.timestamp DESC
+            """;
+
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.GetSessionErrors",
+            Type = "Neo4j",
+            Target = _neo4jEndpoint,
+            Data = $"Get errors for sessionId: {sessionId}"
+        };
+        dependency.Properties["SessionId"] = sessionId.ToString();
+        dependency.Properties["Database"] = _database;
+
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await using var session = _driver.AsyncSession(o => o
+                .WithDatabase(_database)
+                .WithDefaultAccessMode(AccessMode.Read));
+
+            var errors = await session.ExecuteReadAsync(async tx =>
+            {
+                var cursor = await tx.RunAsync(query, new { sessionId });
+
+                var results = new List<AtomizationError>();
+
+                await foreach (var record in cursor)
+                {
+                    var atomId = record["atomId"].As<long>();
+                    var sessionIdResult = record["sessionId"].As<long>();
+                    var errorMessage = record["errorMessage"].As<string>();
+                    var errorType = record["errorType"].As<string>();
+                    var timestamp = record["timestamp"].As<DateTime>();
+                    var severity = record["severity"]?.As<string>();
+
+                    results.Add(new AtomizationError
+                    {
+                        AtomId = atomId,
+                        SessionId = sessionIdResult,
+                        ErrorMessage = errorMessage,
+                        ErrorType = errorType,
+                        Timestamp = timestamp,
+                        Severity = severity
+                    });
+                }
+
+                return results;
+            });
+
+            _logger.LogDebug("Found {ErrorCount} errors for session.", errors.Count);
+
+            dependency.Success = true;
+            dependency.Metrics["ErrorCount"] = errors.Count;
+            return errors;
+        }
+        catch (Exception ex)
+        {
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to get errors for sessionId {SessionId}", sessionId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
+        }
+    }
+
+    public async Task<IEnumerable<InfluenceRelationship>> GetInfluencesAsync(
+        long atomId,
+        int maxDepth = 5,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Finding influence relationships for atom {AtomId} with max depth {MaxDepth}", atomId, maxDepth);
+
+        var query = """
+            MATCH path = (source:Atom)-[r:INFLUENCES|DERIVED_FROM*1..{maxDepth}]->(target:Atom {atomId: $atomId})
+            WITH source, target, path, length(path) as depth, relationships(path)[0] as relationship
+            RETURN 
+                source.atomId as sourceAtomId,
+                target.atomId as targetAtomId,
+                type(relationship) as relationshipType,
+                depth,
+                1.0 / depth as weight
             ORDER BY weight DESC
             """;
 
         var dependency = new DependencyTelemetry
         {
-            Name = "Neo4j.GetInfluencingAtoms",
+            Name = "Neo4j.GetInfluences",
             Type = "Neo4j",
             Target = _neo4jEndpoint,
-            Data = $"Find influencing atoms for resultAtomId: {resultAtomId}"
+            Data = $"Find influence relationships for atomId: {atomId}, maxDepth: {maxDepth}"
         };
-        dependency.Properties["ResultAtomId"] = resultAtomId.ToString();
+        dependency.Properties["AtomId"] = atomId.ToString();
+        dependency.Properties["MaxDepth"] = maxDepth.ToString();
         dependency.Properties["Database"] = _database;
 
         var sw = Stopwatch.StartNew();
@@ -340,31 +426,33 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService
                 .WithDefaultAccessMode(AccessMode.Read));
 
             var influences = await session.ExecuteReadAsync(async tx =>
-        {
-            var cursor = await tx.RunAsync(query, new { resultAtomId });
-
-            var results = new List<AtomInfluence>();
-
-            await foreach (var record in cursor)
             {
-                var atomId = record["atomId"].As<long>();
-                var pathLength = record["pathLength"].As<int>();
-                var influenceType = record["influenceType"].As<string>();
-                var weight = record["weight"].As<double>();
+                var cursor = await tx.RunAsync(query, new { atomId, maxDepth });
 
-                results.Add(new AtomInfluence
+                var results = new List<InfluenceRelationship>();
+
+                await foreach (var record in cursor)
                 {
-                    AtomId = atomId,
-                    Weight = weight,
-                    InfluenceType = influenceType,
-                    PathLength = pathLength
-                });
-            }
+                    var sourceAtomId = record["sourceAtomId"].As<long>();
+                    var targetAtomId = record["targetAtomId"].As<long>();
+                    var relationshipType = record["relationshipType"].As<string>();
+                    var depth = record["depth"].As<int>();
+                    var weight = record["weight"].As<double>();
 
-            return results;
-        });
+                    results.Add(new InfluenceRelationship
+                    {
+                        SourceAtomId = sourceAtomId,
+                        TargetAtomId = targetAtomId,
+                        RelationshipType = relationshipType,
+                        Depth = depth,
+                        Weight = weight
+                    });
+                }
 
-            _logger.LogDebug("Found {InfluenceCount} influencing atoms.", influences.Count);
+                return results;
+            });
+
+            _logger.LogDebug("Found {InfluenceCount} influence relationships.", influences.Count);
 
             dependency.Success = true;
             dependency.Metrics["InfluenceCount"] = influences.Count;
@@ -373,7 +461,74 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService
         catch (Exception ex)
         {
             dependency.Success = false;
-            _logger.LogError(ex, "Failed to get influencing atoms for resultAtomId {ResultAtomId}", resultAtomId);
+            _logger.LogError(ex, "Failed to get influence relationships for atomId {AtomId}", atomId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
+        }
+    }
+
+    public async Task<IEnumerable<AtomInfluence>> GetInfluencingAtomsAsync(
+        long atomId,
+        CancellationToken cancellationToken = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.GetInfluencingAtoms",
+            Target = _neo4jEndpoint,
+            Type = "Neo4j",
+            Data = $"atomId: {atomId}"
+        };
+
+        try
+        {
+            _logger.LogDebug("Querying influencing atoms for {AtomId}", atomId);
+
+            var session = _driver.AsyncSession(o => o.WithDatabase(_database));
+            await using (session.ConfigureAwait(false))
+            {
+                var results = await session.ExecuteReadAsync(async tx =>
+                {
+                    var cursor = await tx.RunAsync("""
+                        MATCH (influencing:Atom)-[r:INFLUENCES]->(atom:Atom {atomId: $atomId})
+                        RETURN influencing.atomId as atomId, 
+                               r.weight as weight, 
+                               r.influenceType as influenceType,
+                               length(shortestPath((influencing)-[*]->(atom))) as pathLength
+                        ORDER BY r.weight DESC
+                        """,
+                        new { atomId });
+
+                    var influences = new List<AtomInfluence>();
+                    await foreach (var record in cursor.ConfigureAwait(false))
+                    {
+                        influences.Add(new AtomInfluence
+                        {
+                            AtomId = record["atomId"].As<long>(),
+                            Weight = record["weight"].As<double>(),
+                            InfluenceType = record["influenceType"].As<string>(),
+                            PathLength = record["pathLength"].As<int>()
+                        });
+                    }
+
+                    return influences;
+                });
+
+                _logger.LogDebug("Found {InfluenceCount} influencing atoms.", results.Count());
+
+                dependency.Success = true;
+                dependency.Metrics["InfluenceCount"] = results.Count();
+                return results;
+            }
+        }
+        catch (Exception ex)
+        {
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to get influencing atoms for atomId {AtomId}", atomId);
             throw;
         }
         finally

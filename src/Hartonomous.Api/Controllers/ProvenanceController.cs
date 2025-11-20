@@ -2,6 +2,7 @@ using Asp.Versioning;
 using Hartonomous.Api.DTOs.MLOps;
 using Hartonomous.Api.DTOs.Provenance;
 using Hartonomous.Core.Interfaces.Provenance;
+using Hartonomous.Core.Interfaces.Validation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -19,14 +20,26 @@ namespace Hartonomous.Api.Controllers;
 [EnableRateLimiting("query")]
 public class ProvenanceController : ControllerBase
 {
-    private readonly IProvenanceQueryService _provenanceService;
+    private readonly ILineageQueryService _lineageService;
+    private readonly IErrorAnalysisService _errorAnalysisService;
+    private readonly ISessionPathQueryService _sessionPathService;
+    private readonly IInfluenceAnalysisService _influenceAnalysisService;
+    private readonly IValidationService _validationService;
     private readonly ILogger<ProvenanceController> _logger;
 
     public ProvenanceController(
-        IProvenanceQueryService provenanceService,
+        ILineageQueryService lineageService,
+        IErrorAnalysisService errorAnalysisService,
+        ISessionPathQueryService sessionPathService,
+        IInfluenceAnalysisService influenceAnalysisService,
+        IValidationService validationService,
         ILogger<ProvenanceController> logger)
     {
-        _provenanceService = provenanceService ?? throw new ArgumentNullException(nameof(provenanceService));
+        _lineageService = lineageService ?? throw new ArgumentNullException(nameof(lineageService));
+        _errorAnalysisService = errorAnalysisService ?? throw new ArgumentNullException(nameof(errorAnalysisService));
+        _sessionPathService = sessionPathService ?? throw new ArgumentNullException(nameof(sessionPathService));
+        _influenceAnalysisService = influenceAnalysisService ?? throw new ArgumentNullException(nameof(influenceAnalysisService));
+        _validationService = validationService ?? throw new ArgumentNullException(nameof(validationService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -50,17 +63,14 @@ public class ProvenanceController : ControllerBase
         [FromQuery] int? maxDepth = 5,
         CancellationToken cancellationToken = default)
     {
-        if (atomId <= 0)
-            return BadRequest("Atom ID must be greater than 0");
-
-        if (maxDepth < 1)
-            return BadRequest("Max depth must be at least 1");
+        var request = new AtomLineageRequest { AtomId = atomId, MaxDepth = maxDepth };
+        _validationService.ValidateAndThrow(request);
 
         try
         {
             _logger.LogInformation("Retrieving lineage for atom {AtomId} with max depth {MaxDepth}", atomId, maxDepth);
 
-            var lineage = await _provenanceService.GetAtomLineageAsync(atomId, maxDepth, cancellationToken);
+            var lineage = await _lineageService.GetAtomLineageAsync(atomId, maxDepth, cancellationToken);
 
             // Create rich response with spatial data for visualization
             var response = new AtomLineageResponse
@@ -108,14 +118,14 @@ public class ProvenanceController : ControllerBase
         [FromRoute] long sessionId,
         CancellationToken cancellationToken = default)
     {
-        if (sessionId <= 0)
-            return BadRequest("Session ID must be greater than 0");
+        var request = new SessionPathsRequest { SessionId = sessionId };
+        _validationService.ValidateAndThrow(request);
 
         try
         {
             _logger.LogInformation("Retrieving reasoning paths for session {SessionId}", sessionId);
 
-            var paths = await _provenanceService.GetSessionPathsAsync(sessionId, cancellationToken);
+            var paths = await _sessionPathService.GetSessionPathsAsync(sessionId, cancellationToken);
 
             var response = new SessionPathsResponse
             {
@@ -159,6 +169,9 @@ public class ProvenanceController : ControllerBase
         [FromQuery] int minClusterSize = 3,
         CancellationToken cancellationToken = default)
     {
+        var request = new ErrorClustersRequest { SessionId = sessionId, MinClusterSize = minClusterSize };
+        _validationService.ValidateAndThrow(request);
+
         try
         {
             _logger.LogInformation(
@@ -166,7 +179,7 @@ public class ProvenanceController : ControllerBase
                 minClusterSize,
                 sessionId);
 
-            var clusters = await _provenanceService.FindErrorClustersAsync(sessionId, minClusterSize, cancellationToken);
+            var clusters = await _errorAnalysisService.FindErrorClustersAsync(sessionId, minClusterSize, cancellationToken);
 
             var response = new ErrorClustersResponse
             {
@@ -213,11 +226,8 @@ public class ProvenanceController : ControllerBase
         [FromQuery] double minInfluence = 0.1,
         CancellationToken cancellationToken = default)
     {
-        if (atomId <= 0)
-            return BadRequest("Atom ID must be greater than 0");
-
-        if (minInfluence < 0 || minInfluence > 1)
-            return BadRequest("Influence threshold must be between 0.0 and 1.0");
+        var request = new InfluencingAtomsRequest { AtomId = atomId, MinInfluence = minInfluence };
+        _validationService.ValidateAndThrow(request);
 
         try
         {
@@ -226,7 +236,7 @@ public class ProvenanceController : ControllerBase
                 atomId,
                 minInfluence);
 
-            var influences = await _provenanceService.GetInfluencingAtomsAsync(atomId, cancellationToken);
+            var influences = await _influenceAnalysisService.GetInfluencingAtomsAsync(atomId, cancellationToken);
 
             var response = new InfluencingAtomsResponse
             {

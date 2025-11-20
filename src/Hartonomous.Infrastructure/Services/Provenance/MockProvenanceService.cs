@@ -151,45 +151,119 @@ public class MockProvenanceService : IProvenanceQueryService
         };
     }
 
-    public async Task<IEnumerable<AtomInfluence>> GetInfluencingAtomsAsync(
-        long resultAtomId,
+    public async Task<IEnumerable<AtomizationError>> GetSessionErrorsAsync(
+        long sessionId,
         CancellationToken cancellationToken = default)
     {
         _logger.LogInformation(
-            "MockProvenanceService: Finding influencing atoms for result {ResultAtomId}",
-            resultAtomId);
+            "MockProvenanceService: Retrieving errors for session {SessionId}",
+            sessionId);
 
-        await Task.Delay(55, cancellationToken);
+        await Task.Delay(45, cancellationToken);
+
+        return new List<AtomizationError>
+        {
+            new()
+            {
+                AtomId = sessionId * 10 + 1,
+                SessionId = sessionId,
+                ErrorMessage = "Semantic ambiguity detected in inference context",
+                ErrorType = "SemanticError",
+                Timestamp = DateTime.UtcNow.AddHours(-2),
+                Severity = "Warning"
+            },
+            new()
+            {
+                AtomId = sessionId * 10 + 3,
+                SessionId = sessionId,
+                ErrorMessage = "Low confidence threshold violation",
+                ErrorType = "ConfidenceError",
+                Timestamp = DateTime.UtcNow.AddHours(-1),
+                Severity = "Error"
+            }
+        };
+    }
+
+    public async Task<IEnumerable<InfluenceRelationship>> GetInfluencesAsync(
+        long atomId,
+        int maxDepth = 5,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "MockProvenanceService: Finding influence relationships for atom {AtomId} with max depth {MaxDepth}",
+            atomId,
+            maxDepth);
+
+        await Task.Delay(50, cancellationToken);
+
+        return new List<InfluenceRelationship>
+        {
+            new()
+            {
+                SourceAtomId = atomId - 3,
+                TargetAtomId = atomId,
+                RelationshipType = "DERIVED_FROM",
+                Depth = 1,
+                Weight = 0.87
+            },
+            new()
+            {
+                SourceAtomId = atomId - 7,
+                TargetAtomId = atomId,
+                RelationshipType = "INFLUENCED_BY",
+                Depth = 2,
+                Weight = 0.65
+            },
+            new()
+            {
+                SourceAtomId = atomId - 15,
+                TargetAtomId = atomId,
+                RelationshipType = "VALIDATED_BY",
+                Depth = 3,
+                Weight = 0.42
+            }
+        };
+    }
+
+    public async Task<IEnumerable<AtomInfluence>> GetInfluencingAtomsAsync(
+        long atomId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "MockProvenanceService: Generating influencing atoms for atom {AtomId}",
+            atomId);
+
+        await Task.Delay(30, cancellationToken);
 
         return new List<AtomInfluence>
         {
             new()
             {
-                AtomId = resultAtomId - 3,
-                Weight = 0.87,
+                AtomId = atomId - 1,
+                Weight = 0.92,
                 InfluenceType = "Direct",
                 PathLength = 1
             },
             new()
             {
-                AtomId = resultAtomId - 7,
+                AtomId = atomId - 3,
+                Weight = 0.78,
+                InfluenceType = "Direct",
+                PathLength = 1
+            },
+            new()
+            {
+                AtomId = atomId - 7,
                 Weight = 0.65,
                 InfluenceType = "Indirect",
                 PathLength = 2
             },
             new()
             {
-                AtomId = resultAtomId - 15,
-                Weight = 0.42,
+                AtomId = atomId - 15,
+                Weight = 0.43,
                 InfluenceType = "Indirect",
                 PathLength = 3
-            },
-            new()
-            {
-                AtomId = resultAtomId - 21,
-                Weight = 0.28,
-                InfluenceType = "Indirect",
-                PathLength = 4
             }
         };
     }

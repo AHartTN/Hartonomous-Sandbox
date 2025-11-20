@@ -2,11 +2,16 @@ using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Provenance;
 using Hartonomous.Core.Interfaces.Reasoning;
 using Hartonomous.Core.Interfaces.SpatialSearch;
+using Hartonomous.Core.Interfaces.Validation;
+using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Health;
 using Hartonomous.Infrastructure.Services.Provenance;
 using Hartonomous.Infrastructure.Services.Reasoning;
 using Hartonomous.Infrastructure.Services.SpatialSearch;
-using Microsoft.Extensions.Configuration;
+using Hartonomous.Infrastructure.Services.Validation;
+using Hartonomous.Infrastructure.Services.Ingestion;
+using Hartonomous.Infrastructure.Services.Ingestion.Strategies;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Neo4j.Driver;
@@ -45,6 +50,28 @@ public static class ServiceCollectionExtensions
 
         // Provenance query services (Neo4j READ-ONLY)
         services.AddScoped<IProvenanceQueryService, Neo4jProvenanceService>();
+
+        // Validation services
+        services.AddScoped<IValidationService, ValidationService>();
+
+        // Content type strategy services (Strategy pattern for OCP compliance)
+        services.AddSingleton<IContentTypeStrategyRegistry, ContentTypeStrategyRegistry>();
+        services.AddSingleton<IContentTypeStrategy, TextContentTypeStrategy>();
+        services.AddSingleton<IContentTypeStrategy, ImageContentTypeStrategy>();
+        services.AddSingleton<IContentTypeStrategy, VideoContentTypeStrategy>();
+        services.AddSingleton<IContentTypeStrategy, ModelContentTypeStrategy>();
+
+        // Initialize strategy registry with all strategies
+        services.AddSingleton<IContentTypeStrategyRegistry>(sp =>
+        {
+            var registry = new ContentTypeStrategyRegistry();
+            var strategies = sp.GetServices<IContentTypeStrategy>();
+            foreach (var strategy in strategies)
+            {
+                registry.RegisterStrategy(strategy);
+            }
+            return registry;
+        });
 
         // Health checks
         services.AddHealthChecks()
