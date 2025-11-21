@@ -467,7 +467,7 @@ jobs:
           Write-Host "Running unit tests with hybrid database testing..."
           Write-Host "Environment: CI=${{ env.CI }} (will use Docker/Testcontainers)"
           
-          dotnet test tests/**/*Tests.csproj `
+          dotnet test Hartonomous.Tests.sln `
             --configuration ${{ env.BUILD_CONFIGURATION }} `
             --no-build `
             --collect:"XPlat Code Coverage" `
