@@ -3,173 +3,148 @@
 # Hartonomous Linux Runner Prerequisites - Fully Automated Installer
 # Run with: sudo ./setup-linux-runner.sh
 #
-# This script is IDEMPOTENT - safe to run multiple times
-# It will detect what's already installed and only install what's missing
-#
+# IDEMPOTENT - Safe to run multiple times
+# Based on official Microsoft documentation for Ubuntu 22.04
 
 set -e
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-echo ""
-echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${CYAN}  Hartonomous Linux Runner - Automated Setup${NC}"
-echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-echo ""
-
-# Check root
 if [ "$EUID" -ne 0 ]; then
-    echo -e "${RED}ERROR: Must run as root${NC}"
+    echo "ERROR: Must run as root"
     echo "Run: sudo $0"
     exit 1
 fi
+
+echo ""
+echo "=== Hartonomous Linux Runner Prerequisites Setup ==="
+echo ""
 
 installed=0
 skipped=0
 
 # =============================================================================
-# STEP 1: .NET 10 SDK (SYSTEM-WIDE via apt)
+# STEP 1: .NET 10 SDK (Official Microsoft method for Ubuntu 22.04)
 # =============================================================================
-echo -e "${CYAN}[1/5] .NET 10 SDK${NC}"
+echo "[1/4] .NET 10 SDK"
 
-if command -v dotnet &>/dev/null && [ $(dotnet --version | cut -d. -f1) -ge 10 ]; then
+if command -v dotnet &>/dev/null && [ $(dotnet --version 2>/dev/null | cut -d. -f1) -ge 10 ] 2>/dev/null; then
     VER=$(dotnet --version)
-    echo -e "      ${GREEN}✓ Already installed: $VER${NC}"
+    echo "      ✓ Already installed: $VER"
     skipped=$((skipped + 1))
 else
-    echo "      Installing system-wide..."
+    echo "      Installing via Ubuntu backports PPA..."
     
-    # Add Microsoft package repo
-    wget -q https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
-    dpkg -i /tmp/packages-microsoft-prod.deb >/dev/null 2>&1
-    rm /tmp/packages-microsoft-prod.deb
-    
-    # Install .NET SDK
+    # Add .NET backports repository (official method for .NET 10 on Ubuntu 22.04)
+    add-apt-repository -y ppa:dotnet/backports >/dev/null 2>&1 || true
     apt-get update >/dev/null 2>&1
+    
+    # Install .NET 10 SDK
     apt-get install -y dotnet-sdk-10.0 >/dev/null 2>&1
     
-    VER=$(dotnet --version)
-    echo -e "      ${GREEN}✓ Installed: $VER (system-wide)${NC}"
-    installed=$((installed + 1))
+    if command -v dotnet &>/dev/null; then
+        VER=$(dotnet --version)
+        echo "      ✓ Installed: $VER"
+        installed=$((installed + 1))
+    else
+        echo "      ✗ Installation failed"
+        exit 1
+    fi
 fi
 
 # =============================================================================
 # STEP 2: PowerShell 7
 # =============================================================================
-echo -e "${CYAN}[2/5] PowerShell 7${NC}"
+echo "[2/4] PowerShell 7"
 
 if command -v pwsh &>/dev/null; then
     VER=$(pwsh --version | grep -oP '\d+\.\d+\.\d+' || echo "installed")
-    echo -e "      ${GREEN}✓ Already installed: $VER${NC}"
+    echo "      ✓ Already installed: $VER"
     skipped=$((skipped + 1))
 else
-    if [ -f /etc/os-release ]; then
-        . /etc/os-release
-        if [[ "$ID" == "ubuntu" ]]; then
-            echo "      Installing..."
-            apt-get update >/dev/null 2>&1
-            apt-get install -y powershell >/dev/null 2>&1
-            
-            VER=$(pwsh --version | grep -oP '\d+\.\d+\.\d+' || echo "installed")
-            echo -e "      ${GREEN}✓ Installed: $VER${NC}"
-            installed=$((installed + 1))
-        else
-            echo -e "      ${YELLOW}⚠ Unsupported OS: $ID${NC}"
-        fi
+    echo "      Installing..."
+    apt-get update >/dev/null 2>&1
+    apt-get install -y powershell >/dev/null 2>&1
+    
+    if command -v pwsh &>/dev/null; then
+        VER=$(pwsh --version | grep -oP '\d+\.\d+\.\d+' || echo "installed")
+        echo "      ✓ Installed: $VER"
+        installed=$((installed + 1))
     fi
 fi
 
 # =============================================================================
 # STEP 3: Git
 # =============================================================================
-echo -e "${CYAN}[3/5] Git${NC}"
+echo "[3/4] Git"
 
 if command -v git &>/dev/null; then
     VER=$(git --version | cut -d' ' -f3)
-    echo -e "      ${GREEN}✓ Already installed: $VER${NC}"
+    echo "      ✓ Already installed: $VER"
     skipped=$((skipped + 1))
 else
     echo "      Installing..."
-    apt-get update >/dev/null 2>&1
     apt-get install -y git >/dev/null 2>&1
-    
     VER=$(git --version | cut -d' ' -f3)
-    echo -e "      ${GREEN}✓ Installed: $VER${NC}"
+    echo "      ✓ Installed: $VER"
     installed=$((installed + 1))
 fi
 
 # =============================================================================
 # STEP 4: Docker
 # =============================================================================
-echo -e "${CYAN}[4/5] Docker${NC}"
+echo "[4/4] Docker"
 
-# Detect runner user
 RUNNER_USER=$(ps aux | grep -E 'actions.runner.*Runner.Listener' | grep -v grep | awk '{print $1}' | head -1)
 if [ -z "$RUNNER_USER" ]; then
-    RUNNER_USER="ahart"  # fallback
+    RUNNER_USER="ahart"
 fi
 
 if command -v docker &>/dev/null; then
     VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
     
-    if sudo -u $RUNNER_USER docker ps &>/dev/null 2>&1; then
-        echo -e "      ${GREEN}✓ Already installed: $VER (permissions OK)${NC}"
+    if groups $RUNNER_USER | grep -q docker; then
+        echo "      ✓ Already installed: $VER (permissions OK)"
         skipped=$((skipped + 1))
     else
-        echo "      Fixing permissions..."
+        echo "      Adding $RUNNER_USER to docker group..."
         usermod -aG docker $RUNNER_USER
-        echo -e "      ${GREEN}✓ Added $RUNNER_USER to docker group${NC}"
+        echo "      ✓ Permissions fixed"
         installed=$((installed + 1))
     fi
 else
     echo "      Installing..."
-    apt-get update >/dev/null 2>&1
     apt-get install -y docker.io >/dev/null 2>&1
     systemctl enable docker >/dev/null 2>&1
     systemctl start docker >/dev/null 2>&1
     usermod -aG docker $RUNNER_USER
     
     VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
-    echo -e "      ${GREEN}✓ Installed: $VER${NC}"
+    echo "      ✓ Installed: $VER"
     installed=$((installed + 1))
 fi
 
 # =============================================================================
-# STEP 5: Restart Runner Service
+# Restart Runner Service
 # =============================================================================
-echo -e "${CYAN}[5/5] Runner Service${NC}"
-
 RUNNER_SERVICE=$(systemctl list-units --type=service --all | grep -i "actions.runner" | awk '{print $1}' | head -1)
 
 if [ -n "$RUNNER_SERVICE" ]; then
-    echo "      Restarting $RUNNER_SERVICE..."
-    systemctl restart "$RUNNER_SERVICE"
+    echo ""
+    echo "Restarting $RUNNER_SERVICE..."
+    systemctl restart "$RUNNER_SERVICE" 2>/dev/null || true
     sleep 2
     
     if systemctl is-active --quiet "$RUNNER_SERVICE"; then
-        echo -e "      ${GREEN}✓ Service restarted${NC}"
-    else
-        echo -e "      ${RED}✗ Service restart failed${NC}"
+        echo "✓ Service restarted"
     fi
-else
-    echo -e "      ${YELLOW}⚠ Could not detect runner service${NC}"
 fi
 
 # =============================================================================
 # SUMMARY
 # =============================================================================
 echo ""
-echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-echo -e "${GREEN}✅ SETUP COMPLETE${NC}"
-echo -e "${CYAN}═══════════════════════════════════════════════════════════════${NC}"
-echo ""
-echo "  Installed:       $installed"
-echo "  Already present: $skipped"
+echo "=== Setup Complete ==="
+echo "  Already installed: $skipped"
+echo "  Newly installed:   $installed"
 echo ""
 echo "Verify: dotnet --version"
 echo ""
