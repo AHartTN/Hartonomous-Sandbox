@@ -21,7 +21,7 @@
 
 .PARAMETER SqlServer
     Name of the SQL Server instance (Arc-enabled or Azure SQL).
-    Default: HART-DESKTOP
+    Default: Uses HARTONOMOUS_SQL_SERVER env var or 'localhost'
 
 .PARAMETER GitHubOrg
     GitHub organization or user account name.
@@ -50,16 +50,19 @@
 param(
     [Parameter()]
     [string]$ResourceGroupName = "rg-hartonomous",
-    
+
     [Parameter()]
-    [string]$SqlServer = "HART-DESKTOP",
-    
+    [string]$SqlServer = $env:HARTONOMOUS_SQL_SERVER,
+
     [Parameter()]
     [string]$GitHubOrg = "AHartTN",
-    
+
     [Parameter()]
     [string]$GitHubRepo = "Hartonomous-Sandbox"
 )
+
+# Apply defaults
+if (-not $SqlServer) { $SqlServer = "localhost" }
 
 $ErrorActionPreference = 'Stop'
 $WarningPreference = 'Continue'

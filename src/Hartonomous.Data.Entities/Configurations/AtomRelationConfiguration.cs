@@ -107,8 +107,16 @@ public class AtomRelationConfiguration : IEntityTypeConfiguration<AtomRelation>
             .HasForeignKey(d => new { d.TargetAtomId })
             ;
 
+        builder.HasIndex(e => new { e.CreatedAt })
+            .HasDatabaseName("IX_AtomRelation_CreatedAt")
+            ;
+
         builder.HasIndex(e => new { e.RelationType })
             .HasDatabaseName("IX_AtomRelation_RelationType")
+            ;
+
+        builder.HasIndex(e => new { e.RelationType, e.Weight })
+            .HasDatabaseName("IX_AtomRelation_RelationType_Weight")
             ;
 
         builder.HasIndex(e => new { e.SourceAtomId, e.SequenceIndex })
@@ -129,6 +137,10 @@ public class AtomRelationConfiguration : IEntityTypeConfiguration<AtomRelation>
 
         builder.HasIndex(e => new { e.TenantId, e.RelationType })
             .HasDatabaseName("IX_AtomRelation_Tenant")
+            ;
+
+        builder.HasIndex(e => new { e.TenantId, e.CreatedAt })
+            .HasDatabaseName("IX_AtomRelation_TenantId_CreatedAt")
             ;
     }
 }

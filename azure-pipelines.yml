@@ -3,6 +3,17 @@
 # Complete CI/CD for SQL Server Database + CLR + .NET 10 Applications
 # Based on Microsoft Docs 2024/2025 Official Guidance
 # ============================================================================
+#
+# Usage:
+#   - Automatic: Triggers on main branch push
+#   - Manual: Can override sqlServer/sqlDatabase parameters via pipeline UI
+#
+# Environments:
+#   - localhost: Local development (Windows Auth)
+#   - development: Dev server (Azure AD or Windows Auth)
+#   - staging: Staging server (Azure AD)
+#   - production: Production server (Azure AD + Arc)
+# ============================================================================
 
 name: Hartonomous-$(Date:yyyyMMdd)$(Rev:.r)
 
@@ -16,8 +27,35 @@ trigger:
       - '*.md'
       - LICENSE
 
+# Pipeline parameters - can be overridden at queue time
+parameters:
+  - name: environment
+    displayName: 'Target Environment'
+    type: string
+    default: 'development'
+    values:
+      - localhost
+      - development
+      - staging
+      - production
+
+  - name: sqlServer
+    displayName: 'SQL Server Instance'
+    type: string
+    default: 'localhost'
+
+  - name: sqlDatabase
+    displayName: 'Database Name'
+    type: string
+    default: 'Hartonomous'
+
+  - name: agentPool
+    displayName: 'Agent Pool'
+    type: string
+    default: 'Local Agent Pool'
+
 pool:
-  name: 'Local Agent Pool'
+  name: ${{ parameters.agentPool }}
 
 variables:
   - name: buildConfiguration
@@ -25,9 +63,11 @@ variables:
   - name: dotnetSdkVersion
     value: '10.x'
   - name: sqlServer
-    value: 'HART-DESKTOP'
+    value: ${{ parameters.sqlServer }}
   - name: sqlDatabase
-    value: 'Hartonomous'
+    value: ${{ parameters.sqlDatabase }}
+  - name: targetEnvironment
+    value: ${{ parameters.environment }}
 
 stages:
 # ============================================================================
@@ -190,16 +230,16 @@ stages:
                 Write-Host "This DACPAC includes Hartonomous.Clr.dll assembly embedded as hex binary"
                 
                 # Deploy using SqlPackage with Windows integrated auth
+                # Post-deployment scripts include Service Broker activation
                 sqlpackage /Action:Publish `
                   /SourceFile:"$dacpacPath" `
                   /TargetConnectionString:"$connectionString" `
                   /p:DropObjectsNotInSource=False `
-                  /p:BlockOnPossibleDataLoss=True `
-                  /p:IgnorePreDeployScript=True `
-                  /p:IgnorePostDeployScript=True
+                  /p:BlockOnPossibleDataLoss=True
                 
                 if ($LASTEXITCODE -ne 0) { throw "DACPAC deployment failed" }
                 Write-Host "✓ DACPAC deployed successfully with Hartonomous.Clr assembly"
+                Write-Host "✓ Post-deployment scripts executed (Service Broker activation, CLR dependencies)"
               pwsh: true
 
           # Step 5: Verify CLR Assembly Signatures and Security (Production Validation)

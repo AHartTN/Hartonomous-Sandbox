@@ -52,7 +52,7 @@ public class PendingActionConfiguration : IEntityTypeConfiguration<PendingAction
             ;
 
         builder.Property(e => e.Parameters)
-            .HasColumnType("nvarchar(max)")
+            .HasColumnType("json")
             ;
 
         builder.Property(e => e.Priority)
@@ -60,7 +60,7 @@ public class PendingActionConfiguration : IEntityTypeConfiguration<PendingAction
             ;
 
         builder.Property(e => e.ResultJson)
-            .HasColumnType("nvarchar(max)")
+            .HasColumnType("json")
             ;
 
         builder.Property(e => e.RiskLevel)

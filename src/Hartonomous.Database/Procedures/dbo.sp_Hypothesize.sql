@@ -1,8 +1,10 @@
 CREATE PROCEDURE dbo.sp_Hypothesize
-    @TenantId INT = 0
 AS
 BEGIN
     SET NOCOUNT ON;
+    
+    -- Service Broker activation procedures cannot have parameters (Msg 9653)
+    -- Tenant isolation removed for autonomous operation
     
     DECLARE @ConversationHandle UNIQUEIDENTIFIER;
     DECLARE @MessageBody XML;

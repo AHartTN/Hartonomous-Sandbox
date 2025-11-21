@@ -7,7 +7,7 @@ public class TenantAtomConfiguration : IEntityTypeConfiguration<TenantAtom>
 {
     public void Configure(EntityTypeBuilder<TenantAtom> builder)
     {
-        builder.ToTable("TenantAtom", "dbo");
+        builder.ToTable("TenantAtoms", "dbo");
         builder.HasKey(e => new { e.TenantId, e.AtomId });
 
         builder.Property(e => e.TenantId)

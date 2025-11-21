@@ -69,5 +69,17 @@ public class TensorAtomConfiguration : IEntityTypeConfiguration<TensorAtom>
             .HasForeignKey(d => new { d.ModelId })
             .OnDelete(DeleteBehavior.ClientSetNull)
             ;
+
+        builder.HasIndex(e => new { e.AtomType, e.ModelId })
+            .HasDatabaseName("IX_TensorAtom_AtomType")
+            ;
+
+        builder.HasIndex(e => new { e.CreatedAt })
+            .HasDatabaseName("IX_TensorAtom_CreatedAt")
+            ;
+
+        builder.HasIndex(e => new { e.ModelId, e.LayerId })
+            .HasDatabaseName("IX_TensorAtom_ModelId_LayerId")
+            ;
     }
 }

@@ -397,6 +397,159 @@ function Set-DatabaseTrustworthy {
     Write-Log "Database set to TRUSTWORTHY ON" -Level Success
 }
 
+function Enable-ServiceBroker {
+    <#
+    .SYNOPSIS
+    Enables Service Broker and ensures all queues are healthy (idempotent).
+    Fixes queues disabled by poison message handling.
+    #>
+    Write-Log "Checking Service Broker status..." -Level Info
+    
+    # Check if Service Broker is enabled
+    $brokerCheckQuery = @"
+SELECT is_broker_enabled 
+FROM sys.databases 
+WHERE name = '$Database'
+"@
+    $brokerResult = Invoke-SqlCmdSafe -Query $brokerCheckQuery -DatabaseName 'master'
+    
+    if (-not $brokerResult.is_broker_enabled) {
+        Write-Log "  Enabling Service Broker..." -Level Info
+        
+        # Check for active connections that would block SINGLE_USER mode
+        $activeConnQuery = @"
+SELECT COUNT(*) as ConnectionCount
+FROM sys.dm_exec_sessions
+WHERE database_id = DB_ID('$Database')
+  AND session_id <> @@SPID
+"@
+        $activeConns = Invoke-SqlCmdSafe -Query $activeConnQuery -DatabaseName 'master'
+        
+        if ($activeConns.ConnectionCount -gt 0) {
+            Write-Log "  Warning: $($activeConns.ConnectionCount) active connections detected" -Level Warning
+            Write-Log "  Attempting ENABLE_BROKER WITH ROLLBACK IMMEDIATE" -Level Info
+        }
+        
+        $enableBrokerSql = @"
+ALTER DATABASE [$Database] SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
+ALTER DATABASE [$Database] SET ENABLE_BROKER;
+ALTER DATABASE [$Database] SET MULTI_USER;
+"@
+        
+        try {
+            Invoke-SqlCmdSafe -Query $enableBrokerSql -DatabaseName 'master' -QueryTimeout 60
+            Write-Log "  ✓ Service Broker enabled" -Level Success
+        }
+        catch {
+            Write-Log "  ✗ Failed to enable Service Broker: $($_.Exception.Message)" -Level Error
+            throw
+        }
+    }
+    else {
+        Write-Log "  ○ Service Broker already enabled" -Level Debug
+    }
+    
+    # Check and fix queue status (poison message handling may disable queues)
+    Write-Log "Checking queue health..." -Level Info
+    
+    $queueCheckQuery = @"
+SELECT 
+    name,
+    is_receive_enabled,
+    is_enqueue_enabled,
+    is_poison_message_handling_enabled
+FROM sys.service_queues
+WHERE is_ms_shipped = 0
+  AND (is_receive_enabled = 0 OR is_enqueue_enabled = 0)
+"@
+    
+    $disabledQueues = Invoke-SqlCmdSafe -Query $queueCheckQuery -DatabaseName $Database
+    
+    if ($disabledQueues -and $disabledQueues.Count -gt 0) {
+        foreach ($queue in $disabledQueues) {
+            Write-Log "  Re-enabling disabled queue: $($queue.name)" -Level Warning
+            
+            # Clear any stuck messages first
+            $clearQueueSql = @"
+DECLARE @ConvHandle UNIQUEIDENTIFIER;
+WHILE EXISTS (SELECT 1 FROM dbo.[$($queue.name)])
+BEGIN
+    RECEIVE TOP(1) @ConvHandle = conversation_handle FROM dbo.[$($queue.name)];
+    IF @ConvHandle IS NOT NULL
+        END CONVERSATION @ConvHandle WITH CLEANUP;
+END
+"@
+            
+            try {
+                Invoke-SqlCmdSafe -Query $clearQueueSql -DatabaseName $Database -QueryTimeout 30
+                Write-Log "    • Cleared stuck messages from queue" -Level Debug
+            }
+            catch {
+                Write-Log "    • Warning: Could not clear queue messages: $($_.Exception.Message)" -Level Warning
+            }
+            
+            # Re-enable the queue
+            $enableQueueSql = "ALTER QUEUE dbo.[$($queue.name)] WITH STATUS = ON;"
+            
+            try {
+                Invoke-SqlCmdSafe -Query $enableQueueSql -DatabaseName $Database
+                Write-Log "    ✓ Queue re-enabled: $($queue.name)" -Level Success
+            }
+            catch {
+                Write-Log "    ✗ Failed to re-enable queue: $($_.Exception.Message)" -Level Error
+                throw
+            }
+        }
+    }
+    else {
+        Write-Log "  ○ All queues healthy" -Level Debug
+    }
+    
+    # Clean up orphaned conversations
+    Write-Log "Cleaning orphaned conversations..." -Level Info
+    
+    $cleanConversationsSql = @"
+DECLARE @ConvHandle UNIQUEIDENTIFIER;
+DECLARE @CleanedCount INT = 0;
+
+DECLARE conv_cursor CURSOR FOR
+SELECT conversation_handle
+FROM sys.conversation_endpoints
+WHERE state IN ('DI', 'CD', 'ER')  -- Disconnected, Closed, Error
+  AND is_initiator = 1;
+
+OPEN conv_cursor;
+FETCH NEXT FROM conv_cursor INTO @ConvHandle;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+    END CONVERSATION @ConvHandle WITH CLEANUP;
+    SET @CleanedCount = @CleanedCount + 1;
+    FETCH NEXT FROM conv_cursor INTO @ConvHandle;
+END
+
+CLOSE conv_cursor;
+DEALLOCATE conv_cursor;
+
+SELECT @CleanedCount AS CleanedConversations;
+"@
+    
+    try {
+        $cleanResult = Invoke-SqlCmdSafe -Query $cleanConversationsSql -DatabaseName $Database -QueryTimeout 30
+        if ($cleanResult.CleanedConversations -gt 0) {
+            Write-Log "  ✓ Cleaned $($cleanResult.CleanedConversations) orphaned conversations" -Level Success
+        }
+        else {
+            Write-Log "  ○ No orphaned conversations found" -Level Debug
+        }
+    }
+    catch {
+        Write-Log "  Warning: Could not clean orphaned conversations: $($_.Exception.Message)" -Level Warning
+    }
+    
+    Write-Log "Service Broker configuration complete" -Level Success
+}
+
 function Test-DeploymentSuccess {
     <#
     .SYNOPSIS
@@ -495,7 +648,12 @@ try {
     Set-DatabaseTrustworthy
     Write-Log "" -Level Info
 
-    # Step 6: Validation
+    # Step 6: Enable Service Broker and fix queue status
+    Write-Log "STEP 6: Configuring Service Broker..." -Level Info
+    Enable-ServiceBroker
+    Write-Log "" -Level Info
+
+    # Step 7: Validation
     if (-not $SkipValidation) {
         Write-Log "STEP 6: Validating deployment..." -Level Info
         Test-DeploymentSuccess

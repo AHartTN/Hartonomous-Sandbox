@@ -1,19 +1,48 @@
 #!/usr/bin/env pwsh
 <#
 .SYNOPSIS
-    Deploy Hartonomous services to HART-SERVER
+    Deploy Hartonomous services to a remote Linux server via SSH.
+
 .DESCRIPTION
-    Deploys API, CesConsumer, Neo4jSync, and ModelIngestion to HART-SERVER via SSH
+    Deploys API, CesConsumer, Neo4jSync, and ModelIngestion workers to a remote
+    Linux server via SSH. Supports both local development and production deployments.
+
+.PARAMETER Server
+    SSH connection string (user@hostname or user@ip).
+    Default: Uses HARTONOMOUS_DEPLOY_SERVER env var or 'deploy@localhost'.
+
+.PARAMETER DeployRoot
+    Remote deployment directory.
+    Default: Uses HARTONOMOUS_DEPLOY_ROOT env var or '/srv/www/hartonomous'.
+
 .PARAMETER SkipBuild
-    Skip building the services (use existing publish folders)
+    Skip building the services (use existing publish folders).
+
+.EXAMPLE
+    .\deploy-to-hart-server.ps1 -Server "ahart@192.168.1.2"
+    .\deploy-to-hart-server.ps1 -Server "deploy@prod.example.com" -DeployRoot "/opt/hartonomous"
 #>
 param(
+    [Parameter()]
+    [string]$Server = $env:HARTONOMOUS_DEPLOY_SERVER,
+
+    [Parameter()]
+    [string]$DeployRoot = $env:HARTONOMOUS_DEPLOY_ROOT,
+
     [switch]$SkipBuild
 )
 
 $ErrorActionPreference = 'Stop'
-$server = "ahart@192.168.1.2"
-$deployRoot = "/srv/www/hartonomous"
+
+# Apply defaults if not provided
+if (-not $Server) { $Server = "deploy@localhost" }
+if (-not $DeployRoot) { $DeployRoot = "/srv/www/hartonomous" }
+
+# Legacy support: Allow old hardcoded value via env var
+if ($env:HART_SERVER_IP) {
+    $Server = "ahart@$($env:HART_SERVER_IP)"
+    Write-Host "Using HART_SERVER_IP environment variable: $Server" -ForegroundColor Yellow
+}
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  Hartonomous Deployment to HART-SERVER" -ForegroundColor Cyan
@@ -98,7 +127,9 @@ Write-Host "========================================" -ForegroundColor Green
 Write-Host "  Deployment Complete!" -ForegroundColor Green
 Write-Host "========================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "API should be available at: http://192.168.1.2:5000" -ForegroundColor Yellow
+# Extract hostname/IP from server connection string (user@host)
+$serverHost = $Server -replace '^[^@]+@', ''
+Write-Host "API should be available at: http://${serverHost}:5000" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "To view logs:" -ForegroundColor Cyan
 Write-Host "  journalctl --user -u hartonomous-api -f" -ForegroundColor White

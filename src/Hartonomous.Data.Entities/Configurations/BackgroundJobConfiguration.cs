@@ -56,7 +56,7 @@ public class BackgroundJobConfiguration : IEntityTypeConfiguration<BackgroundJob
             ;
 
         builder.Property(e => e.Payload)
-            .HasColumnType("nvarchar(max)")
+            .HasColumnType("json")
             ;
 
         builder.Property(e => e.Priority)
@@ -64,7 +64,7 @@ public class BackgroundJobConfiguration : IEntityTypeConfiguration<BackgroundJob
             ;
 
         builder.Property(e => e.ResultData)
-            .HasColumnType("nvarchar(max)")
+            .HasColumnType("json")
             ;
 
         builder.Property(e => e.ScheduledAtUtc)

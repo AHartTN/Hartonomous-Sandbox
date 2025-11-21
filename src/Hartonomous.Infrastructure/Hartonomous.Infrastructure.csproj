@@ -38,6 +38,8 @@
     <PackageReference Include="Newtonsoft.Json" />
     <!-- Image Processing -->
     <PackageReference Include="SixLabors.ImageSharp" />
+    <!-- Code Analysis (Roslyn) -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!-- Video/Audio Processing -->
     <PackageReference Include="FFMpegCore" />
     <!-- System.Drawing for legacy OCR -->

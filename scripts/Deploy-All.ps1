@@ -195,6 +195,16 @@ try {
     
     Write-Phase "PHASE 5: Autonomous Operations"
     
+    Invoke-Step "Configure Service Broker activation" {
+        $activationScript = Join-Path $scriptRoot "Configure-ServiceBrokerActivation.ps1"
+        if (Test-Path $activationScript) {
+            & $activationScript -Server $Server -Database $Database
+        }
+        else {
+            Write-Host "Warning: Configure-ServiceBrokerActivation.ps1 not found" -ForegroundColor Yellow
+        }
+    }
+    
     Invoke-Step "Provision SQL Server Agent Job" {
         $jobScript = Join-Path $scriptRoot "sql\Create-AutonomousAgentJob.sql"
         if (Test-Path $jobScript) {

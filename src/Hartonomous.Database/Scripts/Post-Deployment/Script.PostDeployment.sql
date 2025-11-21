@@ -99,6 +99,27 @@ PRINT '✓ External CLR assemblies deployed successfully';
 PRINT '';
 GO
 
+-- ============================================================================
+-- Step 3: Configure Service Broker Queue Activation
+-- ============================================================================
+PRINT 'Step 3: Configuring Service Broker queue activation...';
+PRINT '';
+GO
+
+-- Configure OODA Loop queue activation (Hypothesize, Act, Learn)
+:r .\Configure.OODALoopActivation.sql
+
+-- Configure Inference queue activation (async model inference)
+:r .\Configure.InferenceQueueActivation.sql
+
+-- Configure Neo4j Sync queue activation (graph sync)
+:r .\Configure.Neo4jSyncActivation.sql
+
+PRINT '';
+PRINT '✓ Service Broker queue activation configured';
+PRINT '';
+GO
+
 PRINT '================================================================================';
 PRINT 'POST-DEPLOYMENT COMPLETE: Database ready for use';
 PRINT '================================================================================';

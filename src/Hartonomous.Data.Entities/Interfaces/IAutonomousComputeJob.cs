@@ -13,5 +13,6 @@ public interface IAutonomousComputeJob
     string? Results { get; set; }
     DateTime CreatedAt { get; set; }
     DateTime UpdatedAt { get; set; }
+    DateTime? LastHeartbeat { get; set; }
     DateTime? CompletedAt { get; set; }
 }

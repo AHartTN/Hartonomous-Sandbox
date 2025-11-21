@@ -66,6 +66,14 @@ public class IngestionJobConfiguration : IEntityTypeConfiguration<IngestionJob>
             .HasForeignKey(d => new { d.ParentAtomId })
             ;
 
+        builder.HasIndex(e => new { e.LastUpdatedAt })
+            .HasDatabaseName("IX_IngestionJob_LastUpdatedAt")
+            ;
+
+        builder.HasIndex(e => new { e.ParentAtomId, e.JobStatus })
+            .HasDatabaseName("IX_IngestionJob_ParentAtomId")
+            ;
+
         builder.HasIndex(e => new { e.JobStatus, e.TenantId })
             .HasDatabaseName("IX_IngestionJobs_Status")
             ;

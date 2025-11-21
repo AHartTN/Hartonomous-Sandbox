@@ -37,6 +37,10 @@ public class AutonomousComputeJobConfiguration : IEntityTypeConfiguration<Autono
             .IsRequired()
             ;
 
+        builder.Property(e => e.LastHeartbeat)
+            .HasColumnType("datetime2")
+            ;
+
         builder.Property(e => e.Results)
             .HasColumnType("json")
             ;

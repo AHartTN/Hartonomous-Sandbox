@@ -23,4 +23,5 @@ public interface IAutonomousImprovementHistory
     DateTime StartedAt { get; set; }
     DateTime? CompletedAt { get; set; }
     DateTime? RolledBackAt { get; set; }
+    ICollection<LearningMetric> LearningMetrics { get; set; }
 }

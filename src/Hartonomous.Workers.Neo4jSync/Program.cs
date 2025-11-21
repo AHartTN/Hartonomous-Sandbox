@@ -71,8 +71,8 @@ if (!string.IsNullOrEmpty(appInsightsConnection))
     });
 }
 
-// Register business services (includes Neo4j provenance service)
-builder.Services.AddBusinessServices();
+// Register business services (Neo4j driver only - skip IngestionService)
+builder.Services.AddBusinessServices(includeIngestion: false);
 
 // Register the Neo4j Sync worker
 builder.Services.AddHostedService<Neo4jSyncWorker>();

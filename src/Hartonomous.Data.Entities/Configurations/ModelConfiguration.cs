@@ -81,12 +81,20 @@ public class ModelConfiguration : IEntityTypeConfiguration<Model>
             .HasColumnType("bigint")
             ;
 
+        builder.HasIndex(e => new { e.IsActive, e.ModelType, e.ModelName })
+            .HasDatabaseName("IX_Model_IsActive_ModelType")
+            ;
+
         builder.HasIndex(e => new { e.ModelName })
             .HasDatabaseName("IX_Model_ModelName")
             ;
 
         builder.HasIndex(e => new { e.ModelType })
             .HasDatabaseName("IX_Model_ModelType")
+            ;
+
+        builder.HasIndex(e => new { e.TenantId, e.LastUsed })
+            .HasDatabaseName("IX_Model_TenantId_LastUsed")
             ;
     }
 }

@@ -5,11 +5,13 @@
 -- Sends LearnMessage to Service Broker for measurement phase
 
 CREATE PROCEDURE dbo.sp_Act
-    @TenantId INT = 0,
-    @AutoApproveThreshold INT = 3 -- Auto-approve hypotheses with priority >= this value
 AS
 BEGIN
     SET NOCOUNT ON;
+    
+    -- Service Broker activation procedures cannot have parameters (Msg 9653)
+    -- Tenant isolation and auto-approve threshold hardcoded for autonomous operation
+    DECLARE @AutoApproveThreshold INT = 3; -- Auto-approve hypotheses with priority >= this value
     
     DECLARE @ConversationHandle UNIQUEIDENTIFIER;
     DECLARE @MessageBody XML;
@@ -342,6 +344,54 @@ BEGIN
         
         -- 7. END ORIGINAL CONVERSATION
         END CONVERSATION @ConversationHandle;
+        
+        -- 8. LOG TO AUTONOMOUS IMPROVEMENT HISTORY
+        INSERT INTO dbo.AutonomousImprovementHistory (
+            ImprovementId,
+            AnalysisResults,
+            GeneratedCode,
+            TargetFile,
+            ChangeType,
+            RiskLevel,
+            EstimatedImpact,
+            GitCommitHash,
+            SuccessScore,
+            TestsPassed,
+            TestsFailed,
+            PerformanceDelta,
+            ErrorMessage,
+            WasDeployed,
+            WasRolledBack,
+            StartedAt,
+            CompletedAt
+        )
+        SELECT 
+            HypothesisId,
+            @HypothesesJson,
+            ISNULL(ExecutedActions, '{}'),
+            'Runtime Optimization',
+            HypothesisType,
+            CASE 
+                WHEN HypothesisType IN ('IndexOptimization', 'CacheWarming', 'ConceptDiscovery') THEN 'Low'
+                WHEN HypothesisType = 'QueryRegression' THEN 'Medium'
+                ELSE 'High'
+            END,
+            'Performance',
+            NULL, -- No git commits for runtime changes
+            CASE 
+                WHEN ActionStatus = 'Executed' THEN 1.0
+                WHEN ActionStatus = 'QueuedForApproval' THEN 0.5
+                ELSE 0.0
+            END,
+            CASE WHEN ActionStatus = 'Executed' THEN 1 ELSE 0 END,
+            CASE WHEN ActionStatus = 'Failed' THEN 1 ELSE 0 END,
+            CASE WHEN ExecutionTimeMs > 0 THEN CAST(ExecutionTimeMs AS DECIMAL(10,4)) ELSE NULL END,
+            ErrorMessage,
+            CASE WHEN ActionStatus = 'Executed' THEN 1 ELSE 0 END,
+            0, -- Never rolled back for runtime changes
+            DATEADD(MILLISECOND, -ExecutionTimeMs, SYSUTCDATETIME()),
+            CASE WHEN ActionStatus IN ('Executed', 'Failed') THEN SYSUTCDATETIME() ELSE NULL END
+        FROM @ActionResults;
         
         DECLARE @ExecutedActionsCount INT;
         SELECT @ExecutedActionsCount = COUNT(*) FROM @ActionResults WHERE ActionStatus = 'Executed';

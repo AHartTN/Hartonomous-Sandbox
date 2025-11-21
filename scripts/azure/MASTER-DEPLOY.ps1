@@ -7,11 +7,21 @@
 param(
     [ValidateSet('All', 'Infrastructure', 'Pipelines', 'Deploy', 'Validate')]
     [string]$Phase = 'All',
-    
+
+    [Parameter()]
+    [string]$SqlServer = $env:HARTONOMOUS_SQL_SERVER,
+
+    [Parameter()]
+    [string]$SqlDatabase = $env:HARTONOMOUS_SQL_DATABASE,
+
     [switch]$SkipInfrastructure,
     [switch]$SkipPipelines,
     [switch]$WhatIf
 )
+
+# Apply defaults
+if (-not $SqlServer) { $SqlServer = "localhost" }
+if (-not $SqlDatabase) { $SqlDatabase = "Hartonomous" }
 
 $ErrorActionPreference = "Stop"
 
@@ -124,16 +134,16 @@ if ($Phase -eq 'All' -or $Phase -eq 'Deploy') {
 # =====================================================
 if ($Phase -eq 'All' -or $Phase -eq 'Deploy') {
     Write-Host "??????????????????????????????????????????????????????????" -ForegroundColor Yellow
-    Write-Host "?   PHASE 4: Deploy Database to HART-DESKTOP             ?" -ForegroundColor Yellow
+    Write-Host "?   PHASE 4: Deploy Database to $SqlServer             ?" -ForegroundColor Yellow
     Write-Host "??????????????????????????????????????????????????????????" -ForegroundColor Yellow
     Write-Host ""
     
     if ($WhatIf) {
-        Write-Host "[WHATIF] Would deploy DACPAC to HART-DESKTOP SQL Server" -ForegroundColor Gray
+        Write-Host "[WHATIF] Would deploy DACPAC to $SqlServer SQL Server" -ForegroundColor Gray
     } else {
         & .\scripts\deploy-complete.ps1 `
-            -Server "localhost" `
-            -Database "Hartonomous" `
+            -Server $SqlServer `
+            -Database $SqlDatabase `
             -IntegratedSecurity `
             -SkipValidation
         
@@ -231,7 +241,7 @@ Write-Host "Deployed Components:" -ForegroundColor Cyan
 Write-Host "  ? Azure Key Vault (kv-hartonomous-production)" -ForegroundColor Green
 Write-Host "  ? Azure App Configuration (appconfig-hartonomous-production)" -ForegroundColor Green
 Write-Host "  ? Entra ID App Registrations (API + Blazor)" -ForegroundColor Green
-Write-Host "  ? Database (HART-DESKTOP SQL Server)" -ForegroundColor Green
+Write-Host "  ? Database ($SqlServer/$SqlDatabase)" -ForegroundColor Green
 Write-Host "  ? Azure DevOps Pipelines (YAML created)" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next Steps:" -ForegroundColor Cyan

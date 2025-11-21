@@ -5,11 +5,20 @@
 # Creates: Key Vault, App Configuration, Entra ID App Registrations
 
 param(
-    [string]$SubscriptionId = "ed614e1a-7d8b-4608-90c8-66e86c37080b",
+    [string]$SubscriptionId = $env:AZURE_SUBSCRIPTION_ID,
     [string]$ResourceGroup = "rg-hartonomous-prod",
     [string]$Location = "eastus",
-    [string]$Environment = "Production"
+    [string]$Environment = "Production",
+
+    # SQL Server configuration for Key Vault secrets
+    [string]$SqlServer = $env:HARTONOMOUS_SQL_SERVER,
+    [string]$SqlDatabase = $env:HARTONOMOUS_SQL_DATABASE
 )
+
+# Apply defaults
+if (-not $SubscriptionId) { $SubscriptionId = "ed614e1a-7d8b-4608-90c8-66e86c37080b" }  # Your default sub
+if (-not $SqlServer) { $SqlServer = "localhost" }
+if (-not $SqlDatabase) { $SqlDatabase = "Hartonomous" }
 
 $ErrorActionPreference = "Stop"
 
@@ -100,10 +109,11 @@ az keyvault secret set `
     --value $appConfigConnectionString
 
 # Placeholder secrets (update these later)
+$sqlConnectionString = "Server=$SqlServer;Database=$SqlDatabase;Integrated Security=True;TrustServerCertificate=True;"
 az keyvault secret set `
     --vault-name $keyVaultName `
     --name "SqlServerConnectionString" `
-    --value "Server=HART-DESKTOP;Database=Hartonomous;Integrated Security=True;TrustServerCertificate=True;"
+    --value $sqlConnectionString
 
 az keyvault secret set `
     --vault-name $keyVaultName `

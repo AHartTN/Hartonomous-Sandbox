@@ -36,7 +36,7 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
             ;
 
         builder.Property(e => e.Metadata)
-            .HasColumnType("nvarchar(max)")
+            .HasColumnType("json")
             ;
 
         builder.Property(e => e.Modality)
@@ -78,6 +78,10 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
 
         builder.HasIndex(e => new { e.ReferenceCount })
             .HasDatabaseName("IX_Atom_ReferenceCount")
+            ;
+
+        builder.HasIndex(e => new { e.SourceType, e.Modality })
+            .HasDatabaseName("IX_Atom_SourceType")
             ;
 
         builder.HasIndex(e => new { e.TenantId, e.Modality })

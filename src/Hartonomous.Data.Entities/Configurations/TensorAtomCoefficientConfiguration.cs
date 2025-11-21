@@ -65,6 +65,10 @@ public class TensorAtomCoefficientConfiguration : IEntityTypeConfiguration<Tenso
             .HasForeignKey(d => new { d.TensorAtomId })
             ;
 
+        builder.HasIndex(e => new { e.ModelId, e.LayerIdx })
+            .HasDatabaseName("IX_TensorAtomCoefficient_ModelId_LayerIdx")
+            ;
+
         builder.HasIndex(e => new { e.SpatialKey })
             .HasDatabaseName("SIX_TensorAtomCoefficients_SpatialKey")
             ;

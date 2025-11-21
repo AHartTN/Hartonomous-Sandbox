@@ -7,6 +7,7 @@ CREATE TABLE dbo.AutonomousComputeJobs (
     Results JSON NULL, -- Native JSON for computation results
     CreatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
     UpdatedAt DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
+    LastHeartbeat DATETIME2 NULL, -- Track when job last reported progress
     CompletedAt DATETIME2 NULL,
     CONSTRAINT PK_AutonomousComputeJobs PRIMARY KEY (JobId),
     CONSTRAINT CK_AutonomousComputeJobs_Status CHECK (Status IN ('Pending', 'Running', 'Completed', 'Failed', 'Cancelled')),

@@ -72,23 +72,53 @@ public class ProvenanceController : ControllerBase
 
             var lineage = await _lineageService.GetAtomLineageAsync(atomId, maxDepth, cancellationToken);
 
-            // Create rich response with spatial data for visualization
+            // Convert domain model to API response
+            var nodes = lineage.Parents.Select((p, i) => new DTOs.Provenance.LineageNode
+            {
+                AtomId = p.AtomId,
+                Type = LineageNodeType.Source,
+                Depth = 1,
+                Label = p.Metadata ?? $"Atom {p.AtomId}",
+                Confidence = 0.9,
+                Location = new GeoJsonPoint { Type = GeoJsonType.Point, Coordinates = new double[] { 0, 0 } }
+            }).ToList();
+
+            // Add root node
+            nodes.Insert(0, new DTOs.Provenance.LineageNode
+            {
+                AtomId = atomId,
+                Type = LineageNodeType.Result,
+                Depth = 0,
+                Label = "Target Atom",
+                Confidence = 1.0,
+                Location = new GeoJsonPoint { Type = GeoJsonType.Point, Coordinates = new double[] { 0, 0 } }
+            });
+
+            var edges = lineage.Parents.Select(p => new LineageEdge
+            {
+                From = p.AtomId,
+                To = atomId,
+                Type = p.RelationshipType,
+                Weight = 0.8,
+                Label = p.RelationshipType.ToLowerInvariant()
+            }).ToList();
+
             var response = new AtomLineageResponse
             {
                 AtomId = atomId,
                 MaxDepth = maxDepth ?? 5,
-                Nodes = ProvenanceControllerMockData.GenerateMockLineageNodes(atomId, maxDepth ?? 5),
-                Edges = ProvenanceControllerMockData.GenerateMockLineageEdges(atomId),
-                SpatialData = ProvenanceControllerMockData.GenerateMockSpatialData(atomId),
+                Nodes = nodes,
+                Edges = edges,
+                SpatialData = new SpatialVisualizationData { Type = GeoJsonType.FeatureCollection, Features = new List<GeoJsonFeature>() },
                 Statistics = new LineageStatistics
                 {
-                    TotalNodes = 24,
-                    TotalEdges = 31,
-                    MaxDepthReached = maxDepth ?? 5,
-                    SpatialCoverage = "37.8 km²",
-                    TemporalSpan = "14 days"
+                    TotalNodes = nodes.Count,
+                    TotalEdges = edges.Count,
+                    MaxDepthReached = lineage.Depth,
+                    SpatialCoverage = "N/A",
+                    TemporalSpan = "N/A"
                 },
-                DemoMode = true
+                DemoMode = false
             };
 
             return Ok(response);
@@ -126,22 +156,32 @@ public class ProvenanceController : ControllerBase
             _logger.LogInformation("Retrieving reasoning paths for session {SessionId}", sessionId);
 
             var paths = await _sessionPathService.GetSessionPathsAsync(sessionId, cancellationToken);
+            var pathList = paths.ToList();
+
+            var apiPaths = pathList.Select(p => new DTOs.Reasoning.ReasoningPath
+            {
+                PathId = p.PathId,
+                Status = p.IsSuccessful ? PathStatus.Completed : PathStatus.Pruned,
+                Confidence = p.IsSuccessful ? 0.9 : 0.5,
+                Steps = p.AtomSequence.Count,
+                Waypoints = new List<GeoJsonPoint>()
+            }).ToList();
 
             var response = new SessionPathsResponse
             {
                 SessionId = sessionId,
-                Paths = ProvenanceControllerMockData.GenerateMockSessionPaths(sessionId),
-                SpatialTraversal = ProvenanceControllerMockData.GenerateMockPathSpatialData(),
+                Paths = apiPaths,
+                SpatialTraversal = new SpatialVisualizationData { Type = GeoJsonType.FeatureCollection, Features = new List<GeoJsonFeature>() },
                 Statistics = new PathStatistics
                 {
-                    TotalPaths = 7,
-                    PathsTaken = 3,
-                    PathsPruned = 4,
-                    DecisionPoints = 12,
-                    AverageConfidence = 0.87,
-                    SpatialDistance = "142.5 km"
+                    TotalPaths = pathList.Count,
+                    PathsTaken = pathList.Count(p => p.IsSuccessful),
+                    PathsPruned = pathList.Count(p => !p.IsSuccessful),
+                    DecisionPoints = pathList.Sum(p => p.Decisions.Count),
+                    AverageConfidence = pathList.Count > 0 ? pathList.Average(p => p.IsSuccessful ? 0.9 : 0.5) : 0,
+                    SpatialDistance = "N/A"
                 },
-                DemoMode = true
+                DemoMode = false
             };
 
             return Ok(response);
@@ -180,23 +220,36 @@ public class ProvenanceController : ControllerBase
                 sessionId);
 
             var clusters = await _errorAnalysisService.FindErrorClustersAsync(sessionId, minClusterSize, cancellationToken);
+            var clusterList = clusters.ToList();
+
+            var apiClusters = clusterList.Select(c => new DTOs.MLOps.ErrorCluster
+            {
+                ClusterId = c.ClusterId,
+                ErrorType = c.Pattern,
+                ErrorCount = c.ErrorCount,
+                Centroid = new GeoJsonPoint { Type = GeoJsonType.Point, Coordinates = new double[] { 0, 0 } },
+                Radius = 0.5,
+                FirstOccurrence = c.FirstOccurrence,
+                LastOccurrence = c.LastOccurrence,
+                Severity = ErrorSeverity.Medium
+            }).ToList();
 
             var response = new ErrorClustersResponse
             {
                 SessionFilter = sessionId,
                 MinClusterSize = minClusterSize,
-                Clusters = ProvenanceControllerMockData.GenerateMockErrorClusters(),
-                SpatialHeatmap = ProvenanceControllerMockData.GenerateMockErrorHeatmap(),
+                Clusters = apiClusters,
+                SpatialHeatmap = new SpatialVisualizationData { Type = GeoJsonType.FeatureCollection, Features = new List<GeoJsonFeature>() },
                 Statistics = new ErrorStatistics
                 {
-                    TotalErrors = 156,
-                    ClustersFound = 8,
-                    AverageClusterSize = 19,
-                    SpatialSpread = "2.1 km",
-                    TemporalWindow = "7 days",
-                    MostCommonErrorType = "SemanticAmbiguity"
+                    TotalErrors = clusterList.Sum(c => c.ErrorCount),
+                    ClustersFound = clusterList.Count,
+                    AverageClusterSize = clusterList.Count > 0 ? clusterList.Average(c => c.ErrorCount) : 0,
+                    SpatialSpread = "N/A",
+                    TemporalWindow = clusterList.Count > 0 ? $"{(clusterList.Max(c => c.LastOccurrence) - clusterList.Min(c => c.FirstOccurrence)).Days} days" : "N/A",
+                    MostCommonErrorType = clusterList.OrderByDescending(c => c.ErrorCount).FirstOrDefault()?.Pattern ?? "None"
                 },
-                DemoMode = true
+                DemoMode = false
             };
 
             return Ok(response);
@@ -237,23 +290,35 @@ public class ProvenanceController : ControllerBase
                 minInfluence);
 
             var influences = await _influenceAnalysisService.GetInfluencingAtomsAsync(atomId, cancellationToken);
+            var influenceList = influences.Where(i => i.Weight >= minInfluence).ToList();
 
+            var apiInfluences = influenceList.Select(i => new InfluencingAtom
+            {
+                AtomId = i.AtomId,
+                InfluenceWeight = i.Weight,
+                InfluenceType = i.InfluenceType == "Direct" ? InfluenceType.Direct : InfluenceType.Indirect,
+                Label = $"Atom {i.AtomId}",
+                Location = new GeoJsonPoint { Type = GeoJsonType.Point, Coordinates = new double[] { 0, 0 } },
+                Distance = i.PathLength
+            }).ToList();
+
+            var directCount = influenceList.Count(i => i.InfluenceType == "Direct");
             var response = new InfluencingAtomsResponse
             {
                 ResultAtomId = atomId,
                 MinInfluenceThreshold = minInfluence,
-                Influences = ProvenanceControllerMockData.GenerateMockInfluences(atomId, minInfluence),
-                SpatialDistribution = ProvenanceControllerMockData.GenerateMockInfluenceSpatialData(),
+                Influences = apiInfluences,
+                SpatialDistribution = new SpatialVisualizationData { Type = GeoJsonType.FeatureCollection, Features = new List<GeoJsonFeature>() },
                 Statistics = new InfluenceStatistics
                 {
-                    TotalInfluencingAtoms = 42,
-                    DirectInfluences = 12,
-                    IndirectInfluences = 30,
-                    AverageInfluenceWeight = 0.34,
-                    MaxInfluenceWeight = 0.89,
-                    SpatialRadius = "18.3 km"
+                    TotalInfluencingAtoms = influenceList.Count,
+                    DirectInfluences = directCount,
+                    IndirectInfluences = influenceList.Count - directCount,
+                    AverageInfluenceWeight = influenceList.Count > 0 ? influenceList.Average(i => i.Weight) : 0,
+                    MaxInfluenceWeight = influenceList.Count > 0 ? influenceList.Max(i => i.Weight) : 0,
+                    SpatialRadius = "N/A"
                 },
-                DemoMode = true
+                DemoMode = false
             };
 
             return Ok(response);
