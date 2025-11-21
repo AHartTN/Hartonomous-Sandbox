@@ -1,5 +1,6 @@
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Atomization;
+using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Core.Interfaces.Billing;
 using Hartonomous.Core.Interfaces.Concept;
 using Hartonomous.Core.Interfaces.Generation;
@@ -114,6 +115,9 @@ public static class BusinessServiceRegistration
 
         // ===== PHASE 3: Atomization Services (DATA INGESTION) =====
         services.AddScoped<IAtomizationService, SqlAtomizationService>();
+
+        // ===== PHASE 3.5: Background Job Service (JOB QUEUE) =====
+        services.AddScoped<IBackgroundJobService, BackgroundJobService>();
 
         return services;
     }

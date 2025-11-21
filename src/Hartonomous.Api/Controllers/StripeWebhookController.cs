@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Stripe;
-using Stripe.Events;
 using System;
 using System.IO;
 using System.Threading.Tasks;
@@ -54,63 +53,63 @@ public class StripeWebhookController : ControllerBase
             switch (stripeEvent.Type)
             {
                 // Invoice events
-                case Events.InvoiceCreated:
+                case "invoice.created":
                     await HandleInvoiceCreatedAsync(stripeEvent);
                     break;
 
-                case Events.InvoicePaid:
+                case "invoice.paid":
                     await HandleInvoicePaidAsync(stripeEvent);
                     break;
 
-                case Events.InvoicePaymentFailed:
+                case "invoice.payment_failed":
                     await HandleInvoicePaymentFailedAsync(stripeEvent);
                     break;
 
-                case Events.InvoiceFinalized:
+                case "invoice.finalized":
                     await HandleInvoiceFinalizedAsync(stripeEvent);
                     break;
 
                 // Payment events
-                case Events.PaymentIntentSucceeded:
+                case "payment_intent.succeeded":
                     await HandlePaymentSucceededAsync(stripeEvent);
                     break;
 
-                case Events.PaymentIntentPaymentFailed:
+                case "payment_intent.payment_failed":
                     await HandlePaymentFailedAsync(stripeEvent);
                     break;
 
                 // Subscription events
-                case Events.CustomerSubscriptionCreated:
+                case "customer.subscription.created":
                     await HandleSubscriptionCreatedAsync(stripeEvent);
                     break;
 
-                case Events.CustomerSubscriptionUpdated:
+                case "customer.subscription.updated":
                     await HandleSubscriptionUpdatedAsync(stripeEvent);
                     break;
 
-                case Events.CustomerSubscriptionDeleted:
+                case "customer.subscription.deleted":
                     await HandleSubscriptionDeletedAsync(stripeEvent);
                     break;
 
-                case Events.CustomerSubscriptionTrialWillEnd:
+                case "customer.subscription.trial_will_end":
                     await HandleSubscriptionTrialEndingAsync(stripeEvent);
                     break;
 
                 // Customer events
-                case Events.CustomerCreated:
+                case "customer.created":
                     await HandleCustomerCreatedAsync(stripeEvent);
                     break;
 
-                case Events.CustomerUpdated:
+                case "customer.updated":
                     await HandleCustomerUpdatedAsync(stripeEvent);
                     break;
 
-                case Events.CustomerDeleted:
+                case "customer.deleted":
                     await HandleCustomerDeletedAsync(stripeEvent);
                     break;
 
                 // Charge events (for refunds)
-                case Events.ChargeRefunded:
+                case "charge.refunded":
                     await HandleChargeRefundedAsync(stripeEvent);
                     break;
 

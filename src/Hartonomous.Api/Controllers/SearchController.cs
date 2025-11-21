@@ -98,10 +98,26 @@ public class SearchController : ControllerBase
     {
         _logger.LogInformation("FusionSearch API called: TopK {TopK}", request.TopK);
 
-        (float x, float y, float z)? spatialRegion = null;
+        // Convert spatial coordinates to Geometry if provided
+        NetTopologySuite.Geometries.Geometry? spatialRegion = null;
         if (request.SpatialX.HasValue && request.SpatialY.HasValue && request.SpatialZ.HasValue)
         {
-            spatialRegion = (request.SpatialX.Value, request.SpatialY.Value, request.SpatialZ.Value);
+            spatialRegion = new NetTopologySuite.Geometries.Point(
+                request.SpatialX.Value,
+                request.SpatialY.Value,
+                request.SpatialZ.Value);
+        }
+
+        // Parse weights array into individual weights (vectorWeight, keywordWeight, spatialWeight)
+        float vectorWeight = 0.5f;
+        float keywordWeight = 0.3f;
+        float spatialWeight = 0.2f;
+
+        if (request.Weights != null && request.Weights.Length >= 3)
+        {
+            vectorWeight = request.Weights[0];
+            keywordWeight = request.Weights[1];
+            spatialWeight = request.Weights[2];
         }
 
         var results = await _searchService.FusionSearchAsync(
@@ -109,8 +125,10 @@ public class SearchController : ControllerBase
             request.Keywords,
             spatialRegion,
             request.TopK ?? 10,
-            request.Weights,
-            request.TenantId ?? 0,
+            vectorWeight,
+            keywordWeight,
+            spatialWeight,
+            request.TenantId,
             cancellationToken);
 
         return Ok(results);

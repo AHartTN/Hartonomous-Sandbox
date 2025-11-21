@@ -1,18 +1,26 @@
+using Hartonomous.Core.Interfaces.BackgroundJob;
+using Hartonomous.Core.Interfaces.Services;
 using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using NetTopologySuite.Geometries;
+using NetTopologySuite.IO;
+using System.Data;
 
 namespace Hartonomous.Workers.EmbeddingGenerator;
 
 /// <summary>
 /// Background worker that polls for atoms without embeddings
-/// and generates embeddings using configured model (ONNX or Azure OpenAI).
+/// and generates embeddings using CLR functions (fn_ComputeEmbedding).
 /// 
-/// OPTIONAL: This worker is for future embedding generation.
-/// Currently atoms use existing embeddings from source models.
+/// PHASE 2 IMPLEMENTATION: Real embeddings with spatial projection
+/// - Calls CLR fn_ComputeEmbedding for real embedding computation
+/// - Calls CLR fn_ProjectTo3D for 3D spatial projection
+/// - Calls CLR clr_ComputeHilbertValue for cache-friendly indexing
+/// - Computes spatial buckets for grid-based retrieval
 /// 
 /// CRITICAL: Uses IServiceScopeFactory to create scopes for DbContext
 /// since BackgroundService is a singleton.
@@ -24,6 +32,8 @@ public class EmbeddingGeneratorWorker : BackgroundService
     private readonly IConfiguration _configuration;
     private readonly int _batchSize;
     private readonly TimeSpan _pollInterval;
+    private readonly string _connectionString;
+    private readonly int _defaultModelId;
 
     public EmbeddingGeneratorWorker(
         IServiceScopeFactory scopeFactory,
@@ -35,6 +45,9 @@ public class EmbeddingGeneratorWorker : BackgroundService
         _logger = logger;
         _batchSize = configuration.GetValue<int>("EmbeddingGenerator:BatchSize", 100);
         _pollInterval = TimeSpan.FromSeconds(configuration.GetValue<int>("EmbeddingGenerator:PollIntervalSeconds", 30));
+        _connectionString = configuration.GetConnectionString("HartonomousDb") 
+            ?? throw new InvalidOperationException("HartonomousDb connection string not configured");
+        _defaultModelId = configuration.GetValue<int>("EmbeddingGenerator:DefaultModelId", 1);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -69,23 +82,59 @@ public class EmbeddingGeneratorWorker : BackgroundService
         var serviceProvider = scope.ServiceProvider;
 
         var dbContext = serviceProvider.GetRequiredService<HartonomousDbContext>();
+        var backgroundJobService = serviceProvider.GetRequiredService<IBackgroundJobService>();
         var telemetry = serviceProvider.GetService<TelemetryClient>();
 
-        // Find atoms without embeddings
+        // ===== FIX 1: Check job queue for pending embedding jobs =====
+        var pendingJobs = await backgroundJobService.GetPendingJobsAsync(
+            "GenerateEmbedding",
+            _batchSize,
+            stoppingToken);
+
+        var pendingJobList = pendingJobs.ToList();
+
+        if (pendingJobList.Count == 0)
+        {
+            _logger.LogDebug("No pending embedding jobs found");
+            return;
+        }
+
+        _logger.LogInformation("Found {Count} pending embedding jobs", pendingJobList.Count);
+
+        // Extract AtomIds from job parameters
+        var atomIds = new List<long>();
+        var jobLookup = new Dictionary<long, Guid>(); // AtomId -> JobId
+        
+        foreach (var (jobId, parameters) in pendingJobList)
+        {
+            try
+            {
+                var jobParams = System.Text.Json.JsonSerializer.Deserialize<EmbeddingJobParameters>(parameters);
+                if (jobParams != null)
+                {
+                    atomIds.Add(jobParams.AtomId);
+                    jobLookup[jobParams.AtomId] = jobId;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse job parameters for JobId={JobId}", jobId);
+            }
+        }
+
+        // Load atoms for these jobs
         var atomsWithoutEmbeddings = await dbContext.Atoms
-            .Where(a => !a.AtomEmbeddings.Any())
-            .Where(a => a.CanonicalText != null) // Only atoms with text to embed
-            .OrderBy(a => a.AtomId)
-            .Take(_batchSize)
+            .Where(a => atomIds.Contains(a.AtomId))
             .ToListAsync(stoppingToken);
 
         if (atomsWithoutEmbeddings.Count == 0)
         {
-            _logger.LogDebug("No atoms without embeddings found");
+            _logger.LogWarning("No atoms found for {Count} jobs", atomIds.Count);
             return;
         }
+        // ===== END FIX 1 =====
 
-        _logger.LogInformation("Found {Count} atoms without embeddings", atomsWithoutEmbeddings.Count);
+        _logger.LogInformation("Processing embeddings for {Count} atoms", atomsWithoutEmbeddings.Count);
 
         using var operation = telemetry?.StartOperation<RequestTelemetry>("EmbeddingGenerator.ProcessBatch");
 
@@ -93,58 +142,141 @@ public class EmbeddingGeneratorWorker : BackgroundService
         {
             operation?.Telemetry.Properties.Add("AtomCount", atomsWithoutEmbeddings.Count.ToString());
 
+            var processedJobIds = new List<Guid>();
+
             foreach (var atom in atomsWithoutEmbeddings)
             {
                 if (stoppingToken.IsCancellationRequested)
                     break;
 
+                // Find the corresponding job
+                Guid? jobId = null;
+                if (jobLookup.TryGetValue(atom.AtomId, out var foundJobId))
+                {
+                    jobId = foundJobId;
+                }
+
                 try
                 {
-                    // TODO: Implement actual embedding generation
-                    // For now, this is a placeholder that would call:
-                    // - Azure OpenAI embeddings API
-                    // - Local ONNX embedding model
-                    // - Sentence-BERT model
-                    
                     _logger.LogInformation(
-                        "Generating embedding for atom: {AtomHash}, Text length: {Length}",
-                        Convert.ToHexString(atom.ContentHash ?? Array.Empty<byte>()), 
-                        atom.CanonicalText?.Length ?? 0);
+                        "Generating embedding for atom: AtomId={AtomId}, Modality={Modality}, TenantId={TenantId}",
+                        atom.AtomId, atom.Modality, atom.TenantId);
 
-                    // Placeholder: Generate random embedding (1536 dimensions for OpenAI compatibility)
-                    // In production, replace with actual model inference
-                    var embedding = GeneratePlaceholderEmbedding();
+                    // STEP 1: Compute embedding using CLR function (calls EmbeddingFunctions.cs)
+                    var embeddingBytes = await ComputeEmbeddingAsync(
+                        atom.AtomId, 
+                        _defaultModelId, 
+                        atom.TenantId, 
+                        stoppingToken);
+                        
+                    if (embeddingBytes == null || embeddingBytes.Length == 0)
+                    {
+                        _logger.LogWarning("Empty embedding returned for AtomId={AtomId}", atom.AtomId);
+                        
+                        if (jobId.HasValue)
+                        {
+                            await backgroundJobService.UpdateJobStatusAsync(
+                                jobId.Value,
+                                "Failed",
+                                "Empty embedding returned",
+                                stoppingToken);
+                        }
+                        continue;
+                    }
+
+                    // STEP 2: Project to 3D spatial key using CLR function
+                    var spatialKey = await ProjectTo3DAsync(embeddingBytes, stoppingToken);
                     
-                    // Create AtomEmbedding record
-                    // Note: Requires spatial data - using default point for placeholder
+                    if (spatialKey == null)
+                    {
+                        _logger.LogWarning("Spatial projection failed for AtomId={AtomId}", atom.AtomId);
+                        
+                        if (jobId.HasValue)
+                        {
+                            await backgroundJobService.UpdateJobStatusAsync(
+                                jobId.Value,
+                                "Failed",
+                                "Spatial projection failed",
+                                stoppingToken);
+                        }
+                        continue;
+                    }
+
+                    // STEP 3: Compute Hilbert curve value for cache locality
+                    var hilbertValue = await ComputeHilbertValueAsync(spatialKey, 21, stoppingToken);
+
+                    // STEP 4: Compute spatial buckets for grid-based indexing
+                    var (bucketX, bucketY, bucketZ) = ComputeSpatialBuckets(spatialKey);
+
+                    // STEP 5: Convert embedding bytes to SqlVector<float>
+                    var embedding = BytesToFloatArray(embeddingBytes);
+                    var dimension = embedding.Length;
+                    
+                    // STEP 6: Create AtomEmbedding record with ALL spatial indices populated
                     var atomEmbedding = new AtomEmbedding
                     {
                         AtomId = atom.AtomId,
                         TenantId = atom.TenantId,
-                        ModelId = 1, // TODO: Get from configuration
-                        EmbeddingType = "text-embedding-ada-002", // TODO: Make configurable
-                        Dimension = embedding.Length,
+                        ModelId = _defaultModelId,
+                        EmbeddingType = "semantic", // From CLR model inference
+                        Dimension = dimension,
                         EmbeddingVector = new Microsoft.Data.SqlTypes.SqlVector<float>(embedding),
-                        SpatialKey = new Point(0, 0), // Placeholder - should be computed from embedding
+                        SpatialKey = spatialKey,  // ? REAL 3D GEOMETRY from CLR
+                        HilbertValue = hilbertValue,  // ? REAL HILBERT VALUE from CLR
+                        SpatialBucketX = bucketX,
+                        SpatialBucketY = bucketY,
+                        SpatialBucketZ = bucketZ,
                         CreatedAt = DateTime.UtcNow
                     };
                     
                     dbContext.AtomEmbeddings.Add(atomEmbedding);
+
+                    _logger.LogInformation(
+                        "Embedding created: AtomId={AtomId}, Dimension={Dimension}, Hilbert={Hilbert}, Bucket=({BX},{BY},{BZ})",
+                        atom.AtomId, dimension, hilbertValue, bucketX, bucketY, bucketZ);
+
+                    // Mark job as complete
+                    if (jobId.HasValue)
+                    {
+                        processedJobIds.Add(jobId.Value);
+                    }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to generate embedding for atom {AtomHash}",
-                        Convert.ToHexString(atom.ContentHash ?? Array.Empty<byte>()));
+                    _logger.LogError(ex, "Failed to generate embedding for atom {AtomId}",
+                        atom.AtomId);
+
+                    // Mark job as failed
+                    if (jobId.HasValue)
+                    {
+                        await backgroundJobService.UpdateJobStatusAsync(
+                            jobId.Value,
+                            "Failed",
+                            ex.Message,
+                            stoppingToken);
+                    }
                 }
             }
 
             // Save all embeddings in one transaction
             var savedCount = await dbContext.SaveChangesAsync(stoppingToken);
 
+            // Update all successful jobs
+            foreach (var jobId in processedJobIds)
+            {
+                await backgroundJobService.UpdateJobStatusAsync(
+                    jobId,
+                    "Completed",
+                    $"Embedding generated successfully",
+                    stoppingToken);
+            }
+
             telemetry?.TrackMetric("EmbeddingGenerator.EmbeddingsGenerated", savedCount);
+            telemetry?.TrackMetric("EmbeddingGenerator.JobsCompleted", processedJobIds.Count);
             telemetry?.TrackEvent("EmbeddingGenerator.BatchCompleted", new Dictionary<string, string>
             {
                 ["EmbeddingsGenerated"] = savedCount.ToString(),
+                ["JobsCompleted"] = processedJobIds.Count.ToString(),
                 ["BatchSize"] = _batchSize.ToString()
             });
 
@@ -153,7 +285,9 @@ public class EmbeddingGeneratorWorker : BackgroundService
                 operation.Telemetry.Success = true;
             }
 
-            _logger.LogInformation("Batch processing completed: {Count} embeddings generated", savedCount);
+            _logger.LogInformation(
+                "Batch processing completed: {Count} embeddings generated, {JobCount} jobs completed", 
+                savedCount, processedJobIds.Count);
         }
         catch (Exception ex)
         {
@@ -168,27 +302,130 @@ public class EmbeddingGeneratorWorker : BackgroundService
     }
 
     /// <summary>
-    /// Placeholder embedding generator
-    /// TODO: Replace with actual model inference (ONNX, Azure OpenAI, etc.)
+    /// Compute embedding using CLR function dbo.fn_ComputeEmbedding
+    /// This calls EmbeddingFunctions.cs which loads transformer weights from TensorAtoms
+    /// and runs proper forward pass
     /// </summary>
-    private static float[] GeneratePlaceholderEmbedding()
+    private async Task<byte[]?> ComputeEmbeddingAsync(
+        long atomId,
+        int modelId,
+        int tenantId,
+        CancellationToken cancellationToken)
     {
-        // Generate 1536-dimensional embedding (OpenAI ada-002 compatible)
-        var embedding = new float[1536];
-        var random = new Random();
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(@"
+            SELECT dbo.fn_ComputeEmbedding(@AtomId, @ModelId, @TenantId)", connection);
         
-        for (int i = 0; i < embedding.Length; i++)
+        command.Parameters.Add("@AtomId", SqlDbType.BigInt).Value = atomId;
+        command.Parameters.Add("@ModelId", SqlDbType.Int).Value = modelId;
+        command.Parameters.Add("@TenantId", SqlDbType.Int).Value = tenantId;
+        command.CommandTimeout = 120; // Embedding computation can take time
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        
+        if (result == null || result == DBNull.Value)
         {
-            embedding[i] = (float)(random.NextDouble() * 2 - 1); // Random values between -1 and 1
+            return null;
         }
 
-        // Normalize the vector
-        var magnitude = Math.Sqrt(embedding.Sum(x => x * x));
-        for (int i = 0; i < embedding.Length; i++)
-        {
-            embedding[i] = (float)(embedding[i] / magnitude);
-        }
-
-        return embedding;
+        return (byte[])result;
     }
+
+    /// <summary>
+    /// Project 1998D embedding to 3D spatial point using CLR function dbo.fn_ProjectTo3D
+    /// Uses landmark projection with SVD for dimensionality reduction
+    /// </summary>
+    private async Task<Geometry?> ProjectTo3DAsync(
+        byte[] embeddingBytes,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        await using var command = new SqlCommand(@"
+            SELECT dbo.fn_ProjectTo3D(@EmbeddingVector).ToString()", connection);
+        
+        command.Parameters.Add("@EmbeddingVector", SqlDbType.VarBinary, -1).Value = embeddingBytes;
+
+        var wkt = await command.ExecuteScalarAsync(cancellationToken) as string;
+        
+        if (string.IsNullOrEmpty(wkt))
+        {
+            return null;
+        }
+
+        // Parse WKT to Geometry
+        var reader = new WKTReader();
+        return reader.Read(wkt);
+    }
+
+    /// <summary>
+    /// Compute Hilbert curve value for cache-friendly spatial indexing
+    /// Uses CLR function dbo.clr_ComputeHilbertValue
+    /// </summary>
+    private async Task<long> ComputeHilbertValueAsync(
+        Geometry spatialKey,
+        int precision,
+        CancellationToken cancellationToken)
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync(cancellationToken);
+
+        // Convert Geometry to SqlGeometry
+        var writer = new WKTWriter();
+        var wkt = writer.Write(spatialKey);
+
+        await using var command = new SqlCommand(@"
+            SELECT dbo.clr_ComputeHilbertValue(geometry::STGeomFromText(@WKT, 0), @Precision)", connection);
+        
+        command.Parameters.Add("@WKT", SqlDbType.NVarChar, -1).Value = wkt;
+        command.Parameters.Add("@Precision", SqlDbType.Int).Value = precision;
+
+        var result = await command.ExecuteScalarAsync(cancellationToken);
+        
+        if (result == null || result == DBNull.Value)
+        {
+            return 0;
+        }
+
+        return Convert.ToInt64(result);
+    }
+
+    /// <summary>
+    /// Compute spatial buckets for grid-based indexing
+    /// Divides 3D space into 0.1 unit cubes for efficient range queries
+    /// </summary>
+    private static (int bucketX, int bucketY, int bucketZ) ComputeSpatialBuckets(Geometry spatialKey)
+    {
+        var point = (Point)spatialKey;
+        var bucketSize = 0.1;
+        
+        return (
+            (int)Math.Floor(point.X / bucketSize),
+            (int)Math.Floor(point.Y / bucketSize),
+            (int)Math.Floor(point.Coordinate.Z / bucketSize)
+        );
+    }
+
+    /// <summary>
+    /// Convert byte array to float array
+    /// </summary>
+    private static float[] BytesToFloatArray(byte[] bytes)
+    {
+        var floats = new float[bytes.Length / sizeof(float)];
+        Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
+        return floats;
+    }
+}
+
+/// <summary>
+/// Parameters for embedding generation job
+/// </summary>
+internal class EmbeddingJobParameters
+{
+    public long AtomId { get; set; }
+    public int TenantId { get; set; }
+    public string? Modality { get; set; }
 }
