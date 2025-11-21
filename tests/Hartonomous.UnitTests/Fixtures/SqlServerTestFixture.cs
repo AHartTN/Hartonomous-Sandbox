@@ -8,6 +8,10 @@ namespace Hartonomous.UnitTests.Fixtures;
 /// Thread-safe, idempotent test fixture for SQL Server integration tests.
 /// Uses EnsureDeleted/EnsureCreated pattern for guaranteed clean state.
 /// Safe for parallel test execution with transaction-based isolation.
+/// 
+/// NOTE: This fixture is for LOCAL DEVELOPMENT ONLY (Windows with LocalDB).
+/// In CI environments, tests should use DatabaseTestBase from Hartonomous.DatabaseTests
+/// which provides Testcontainers support.
 /// </summary>
 public class SqlServerTestFixture : IDisposable
 {
@@ -19,6 +23,19 @@ public class SqlServerTestFixture : IDisposable
 
     public SqlServerTestFixture()
     {
+        // Check if running in CI - if so, fail fast with helpful message
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ||
+                   !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+
+        if (isCI)
+        {
+            throw new PlatformNotSupportedException(
+                "SqlServerTestFixture is not supported in CI environments (LocalDB is Windows-only). " +
+                "This test should either: " +
+                "1. Inherit from DatabaseTestBase (from Hartonomous.DatabaseTests) which uses Testcontainers in CI, or " +
+                "2. Be marked with [Fact(Skip = \"LocalDB only\")] to skip in CI.");
+        }
+
         _connectionString = TestConfiguration.GetConnectionString();
         
         lock (_lock)

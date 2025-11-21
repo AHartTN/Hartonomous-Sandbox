@@ -4,7 +4,7 @@ namespace Hartonomous.UnitTests;
 
 /// <summary>
 /// Centralized test configuration for connection strings and other test settings.
-/// Priority: Environment variable > Local config file > Default
+/// Priority: Environment variable > Local config file > CI Default (Testcontainers)
 /// </summary>
 public static class TestConfiguration
 {
@@ -28,8 +28,12 @@ public static class TestConfiguration
             return localConnectionString;
         }
 
-        // Priority 3: Default (SQL Server LocalDB)
-        return GetDefaultConnectionString();
+        // Priority 3: Check if running in CI
+        var isCI = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("CI")) ||
+                   !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"));
+
+        // Priority 4: Default based on environment
+        return isCI ? GetCIDefaultConnectionString() : GetDefaultConnectionString();
     }
 
     private static string? GetLocalConnectionString()
@@ -56,8 +60,18 @@ public static class TestConfiguration
 
     private static string GetDefaultConnectionString()
     {
-        // Default for local development using SQL Server LocalDB
+        // Default for local development using SQL Server LocalDB (Windows only)
         return @"Server=(localdb)\mssqllocaldb;Database=Hartonomous_UnitTests;Trusted_Connection=True;ConnectRetryCount=0;TrustServerCertificate=True;";
+    }
+
+    private static string GetCIDefaultConnectionString()
+    {
+        // CI environments should use DatabaseTestBase with Testcontainers
+        // This connection string won't actually be used because SqlServerTestFixture
+        // will detect CI and skip - tests should use DatabaseTestBase instead
+        throw new PlatformNotSupportedException(
+            "LocalDB is not supported in CI environments. " +
+            "Tests requiring SQL Server should inherit from DatabaseTestBase which uses Testcontainers in CI.");
     }
 
     private class LocalTestConfig
