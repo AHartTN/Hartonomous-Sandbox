@@ -286,7 +286,8 @@ stages:
                 ORDER BY a.name;
                 "@
                 
-                $result = sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q $query -W -s "," -h -1
+                # Use sqlcmd with TrustServerCertificate option (-C flag)
+                $result = sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -C -Q $query -W -s "," -h -1
                 
                 Write-Host "`n=== CLR Security Verification Results ==="
                 Write-Host $result
@@ -302,7 +303,7 @@ stages:
                 if ($result -match 'clr strict security.*,0,') {
                   Write-Host "`n⚠️ WARNING: CLR Strict Security is DISABLED!"
                   Write-Host "Enabling CLR Strict Security for production..."
-                  sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -Q "EXEC sp_configure 'clr strict security', 1; RECONFIGURE;"
+                  sqlcmd -S "$(sqlServer)" -d "$(sqlDatabase)" -E -C -Q "EXEC sp_configure 'clr strict security', 1; RECONFIGURE;"
                 }
                 
                 Write-Host "`n✓ CLR security verification complete - all assemblies signed"
