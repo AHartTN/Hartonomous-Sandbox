@@ -332,12 +332,15 @@ jobs:
           
           Import-Module SqlServer
           
+          # Build connection string with TrustServerCertificate
+          $connectionString = "Server=${{ secrets.SQL_SERVER }};Database=${{ secrets.SQL_DATABASE }};Encrypt=True;TrustServerCertificate=True;"
+          
           $result = Invoke-Sqlcmd `
-            -ServerInstance "${{ secrets.SQL_SERVER }}" `
-            -Database "${{ secrets.SQL_DATABASE }}" `
+            -ConnectionString $connectionString `
             -AccessToken $token `
             -Query $query `
-            -QueryTimeout 30
+            -QueryTimeout 30 `
+            -TrustServerCertificate
           
           Write-Host "`n=== CLR Security Verification Results ==="
           $result | Format-Table -AutoSize
