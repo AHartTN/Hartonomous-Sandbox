@@ -69,7 +69,8 @@ echo -n "[2/2] Docker... "
 if command -v docker &>/dev/null; then
     VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
     
-    if groups "$RUNNER_USER" 2>/dev/null | grep -q '\bdocker\b'; then
+    # Test if user can actually run docker commands
+    if sudo -u "$RUNNER_USER" docker ps &>/dev/null; then
         echo "OK ($VER, permissions OK)"
     else
         echo "fixing permissions"
