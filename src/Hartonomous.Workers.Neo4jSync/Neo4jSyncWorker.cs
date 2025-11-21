@@ -93,18 +93,28 @@ public class Neo4jSyncWorker : BackgroundService
                     messageTypeName, messageBody.Length);
 
                 // Process the sync message
-                await ProcessSyncMessageAsync(messageBody, stoppingToken);
+                var syncSuccess = await ProcessSyncMessageAsync(messageBody, stoppingToken);
 
-                // End conversation
-                await using var endConversation = new SqlCommand(
-                    $"END CONVERSATION @ConversationHandle",
-                    connection, transaction);
-                endConversation.Parameters.AddWithValue("@ConversationHandle", conversationHandle);
-                await endConversation.ExecuteNonQueryAsync(stoppingToken);
+                // Only END CONVERSATION if Neo4j sync succeeded
+                // This ensures message stays in queue if sync fails (for retry)
+                if (syncSuccess)
+                {
+                    await using var endConversation = new SqlCommand(
+                        $"END CONVERSATION @ConversationHandle",
+                        connection, transaction);
+                    endConversation.Parameters.AddWithValue("@ConversationHandle", conversationHandle);
+                    await endConversation.ExecuteNonQueryAsync(stoppingToken);
 
-                await transaction.CommitAsync(stoppingToken);
+                    await transaction.CommitAsync(stoppingToken);
 
-                _logger.LogInformation("Neo4j sync message processed successfully");
+                    _logger.LogInformation("Neo4j sync message processed successfully");
+                }
+                else
+                {
+                    // Rollback to leave message in queue for retry
+                    await transaction.RollbackAsync(stoppingToken);
+                    _logger.LogWarning("Neo4j sync failed, message left in queue for retry");
+                }
             }
             else
             {
@@ -120,7 +130,7 @@ public class Neo4jSyncWorker : BackgroundService
         }
     }
 
-    private async Task ProcessSyncMessageAsync(string messageBody, CancellationToken stoppingToken)
+    private async Task<bool> ProcessSyncMessageAsync(string messageBody, CancellationToken stoppingToken)
     {
         // Parse XML message from Service Broker
         var messageXml = XDocument.Parse(messageBody);
@@ -128,7 +138,7 @@ public class Neo4jSyncWorker : BackgroundService
         if (root == null || root.Name != "Neo4jSync")
         {
             _logger.LogWarning("Invalid Neo4j sync message format: {MessageBody}", messageBody);
-            return;
+            return false; // Invalid message, don't retry
         }
 
         // Extract values from XML
@@ -170,19 +180,19 @@ public class Neo4jSyncWorker : BackgroundService
                 "Syncing to Neo4j: EntityType={EntityType}, EntityId={EntityId}, SyncType={SyncType}, TenantId={TenantId}",
                 request.EntityType, request.EntityId, request.SyncType, request.TenantId);
 
-            // Sync provenance data to Neo4j
-            // For now, create basic entity node - full provenance relationships
-            // will be implemented when the provenance write service is available
+            // CRITICAL: Use MERGE instead of CREATE to ensure idempotency
+            // If the queue message is processed twice, we won't create duplicate nodes
             await using var session = driver.AsyncSession();
             await session.ExecuteWriteAsync(async tx =>
             {
-                // Create or update entity node in Neo4j
-                await tx.RunAsync(@"
-                    MERGE (e:" + request.EntityType + @" {id: $entityId})
+                // MERGE creates node only if it doesn't exist, updates if it does
+                var query = $@"
+                    MERGE (e:{request.EntityType} {{id: $entityId, tenantId: $tenantId}})
                     SET e.syncType = $syncType,
-                        e.tenantId = $tenantId,
                         e.lastSynced = datetime()
-                    RETURN e",
+                    RETURN e";
+
+                await tx.RunAsync(query,
                     new { entityId = request.EntityId, syncType = request.SyncType, tenantId = request.TenantId });
             });
 
@@ -201,6 +211,7 @@ public class Neo4jSyncWorker : BackgroundService
             }
 
             _logger.LogInformation("Neo4j sync completed: {EntityType} {EntityId}", request.EntityType, request.EntityId);
+            return true; // Success - message can be removed from queue
         }
         catch (Exception ex)
         {
@@ -211,8 +222,8 @@ public class Neo4jSyncWorker : BackgroundService
 
             _logger.LogError(ex, "Failed to sync to Neo4j");
             
-            // Don't rethrow - we'll retry on next message
-            // The message stays in the queue and will be retried
+            // Return false to keep message in queue for retry
+            return false;
         }
     }
 }

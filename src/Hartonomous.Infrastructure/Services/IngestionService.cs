@@ -7,7 +7,11 @@ using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using System.Data;
+using System.Text.Json;
+using Microsoft.Data.SqlClient;
 
 namespace Hartonomous.Infrastructure.Services;
 
@@ -121,9 +125,10 @@ public class IngestionService : ServiceBase<IngestionService>, IIngestionService
                 $"Failed to atomize {fileName} using {atomizer.GetType().Name}", ex);
         }
 
-        // Save to database - DbContext = Repository + Unit of Work
-        await _context.Atoms.AddRangeAsync(allAtoms);
-        await _context.SaveChangesAsync();
+        // CRITICAL: Call sp_IngestAtoms to preserve deduplication and Service Broker triggers
+        // Do NOT use _context.Atoms.AddRangeAsync - it bypasses kernel logic
+        var atomsJson = SerializeAtomsToJson(allAtoms);
+        var batchId = await CallSpIngestAtomsAsync(atomsJson, tenantId);
 
         // Track custom metrics
         _telemetry?.TrackMetric("Atoms.Ingested", allAtoms.Count);
@@ -132,12 +137,13 @@ public class IngestionService : ServiceBase<IngestionService>, IIngestionService
             ["FileName"] = fileName,
             ["FileType"] = fileType.ContentType,
             ["AtomCount"] = allAtoms.Count.ToString(),
-            ["TenantId"] = tenantId.ToString()
+            ["TenantId"] = tenantId.ToString(),
+            ["BatchId"] = batchId.ToString()
         });
 
         Logger.LogInformation(
-            "Ingestion complete: {FileName} → {AtomCount} atoms created, Tenant: {TenantId}",
-            fileName, allAtoms.Count, tenantId);
+            "Ingestion complete: {FileName} → {AtomCount} atoms created, Tenant: {TenantId}, BatchId: {BatchId}",
+            fileName, allAtoms.Count, tenantId, batchId);
 
         return new IngestionResult
         {
@@ -145,6 +151,42 @@ public class IngestionService : ServiceBase<IngestionService>, IIngestionService
             ItemsProcessed = allAtoms.Count,
             Message = $"Successfully ingested {allAtoms.Count} atoms from {fileName}"
         };
+    }
+
+    /// <summary>
+    /// Serialize atoms to JSON format expected by sp_IngestAtoms
+    /// </summary>
+    private string SerializeAtomsToJson(List<Atom> atoms)
+    {
+        var atomDtos = atoms.Select(a => new
+        {
+            AtomicValue = a.AtomicValue,
+            CanonicalText = a.CanonicalText,
+            Modality = a.Modality,
+            Subtype = a.Subtype,
+            Metadata = a.Metadata
+        });
+
+        return JsonSerializer.Serialize(atomDtos);
+    }
+
+    /// <summary>
+    /// Call sp_IngestAtoms stored procedure to leverage kernel-level deduplication and Service Broker
+    /// </summary>
+    private async Task<Guid> CallSpIngestAtomsAsync(string atomsJson, int tenantId)
+    {
+        var batchIdParam = new SqlParameter("@batchId", SqlDbType.UniqueIdentifier)
+        {
+            Direction = ParameterDirection.Output
+        };
+
+        await _context.Database.ExecuteSqlRawAsync(
+            "EXEC dbo.sp_IngestAtoms @atomsJson = {0}, @tenantId = {1}, @batchId = {2} OUTPUT",
+            atomsJson,
+            tenantId,
+            batchIdParam);
+
+        return (Guid)(batchIdParam.Value ?? Guid.Empty);
     }
 
     public async Task<IngestionResult> IngestUrlAsync(string url, int tenantId)

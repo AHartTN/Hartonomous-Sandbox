@@ -191,9 +191,18 @@ function Deploy-ClrAssembly {
     
     $query = @"
 USE [$Database];
-CREATE ASSEMBLY [$AssemblyName]
-FROM $assemblyHex
-WITH PERMISSION_SET = $PermissionSet;
+
+-- Idempotent assembly creation
+IF NOT EXISTS (SELECT 1 FROM sys.assemblies WHERE name = '$AssemblyName' AND is_user_defined = 1)
+BEGIN
+    CREATE ASSEMBLY [$AssemblyName]
+    FROM $assemblyHex
+    WITH PERMISSION_SET = $PermissionSet;
+END
+ELSE
+BEGIN
+    PRINT 'Assembly [$AssemblyName] already exists. Skipping creation.';
+END
 "@
     
     try {
