@@ -27,6 +27,7 @@
     <ProjectReference Include="..\..\src\Hartonomous.Core\Hartonomous.Core.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Infrastructure\Hartonomous.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\Hartonomous.Api\Hartonomous.Api.csproj" />
+    <ProjectReference Include="..\Hartonomous.DatabaseTests\Hartonomous.DatabaseTests.csproj" />
   </ItemGroup>
 
 </Project>
