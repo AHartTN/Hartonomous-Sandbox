@@ -426,6 +426,9 @@ jobs:
     runs-on: [self-hosted, linux]
     needs: scaffold-entities
     
+    env:
+      DOTNET_INSTALL_DIR: /var/workload/GitHub/github-runner/actions-tool-cache/dotnet
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
