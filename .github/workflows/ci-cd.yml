@@ -143,52 +143,9 @@ jobs:
       - name: Sign CLR Assemblies
         shell: pwsh
         run: |
-          $ErrorActionPreference = 'Stop'
-          
-          Write-Host "Checking for CLR assemblies to sign..."
-          
-          # The DACPAC build outputs DLLs to src\Hartonomous.Database\bin\Release\
-          $buildOutput = "src\Hartonomous.Database\bin\Release"
-          
-          # Check if directory exists
-          if (-not (Test-Path $buildOutput)) {
-            Write-Host "⚠️ Build output directory not found: $buildOutput"
-            Write-Host "Attempting to locate DACPAC build output..."
-            
-            # Try to find where DLLs actually are
-            $possiblePaths = @(
-              "src\Hartonomous.Database\bin\Release",
-              "src\Hartonomous.Database\bin\Debug",
-              "src\Hartonomous.Database\obj\Release"
-            )
-            
-            foreach ($path in $possiblePaths) {
-              if (Test-Path $path) {
-                Write-Host "Found build output at: $path"
-                $buildOutput = $path
-                break
-              }
-            }
-          }
-          
-          # List DLLs found
-          if (Test-Path $buildOutput) {
-            $dlls = Get-ChildItem -Path $buildOutput -Filter "*.dll" -Recurse -ErrorAction SilentlyContinue
-            Write-Host "Found $($dlls.Count) DLL files in $buildOutput"
-            
-            if ($dlls.Count -eq 0) {
-              Write-Host "ℹ️ No DLLs found to sign - skipping"
-              exit 0
-            }
-            
-            # Call signing script
-            & ./scripts/Sign-CLRAssemblies.ps1 -Configuration Release -Verbose
-            
-            Write-Host "✓ CLR assemblies signed"
-          } else {
-            Write-Host "ℹ️ No CLR assemblies found - skipping signing step"
-            Write-Host "Note: DACPAC may embed assemblies directly without intermediate DLL files"
-          }
+          Write-Host "ℹ️ CLR signing step skipped in GitHub Actions"
+          Write-Host "Assemblies are signed during local DACPAC build"
+          Write-Host "DACPAC embeds signed assemblies as hex binary"
       
       - name: Upload DACPAC artifact
         uses: actions/upload-artifact@v4
