@@ -14,7 +14,7 @@ echo "=== Hartonomous Linux Runner Setup ==="
 echo ""
 
 # Detect runner service and user
-RUNNER_SVC=$(systemctl list-units 'actions.runner*' --no-legend | awk '{print $1}' | head -1)
+RUNNER_SVC=$(systemctl list-units 'actions.runner*' --no-legend --full | awk '{print $1}' | head -1)
 
 if [ -z "$RUNNER_SVC" ]; then
     echo "ERROR: No GitHub Actions runner service found"
@@ -39,7 +39,7 @@ if command -v dotnet &>/dev/null; then
     if [ "$VER" -ge 10 ] 2>/dev/null; then
         echo "OK ($(dotnet --version))"
     else
-        echo "upgrading from $(dotdev version)"
+        echo "upgrading from $(dotnet --version)"
         add-apt-repository -y ppa:dotnet/backports >/dev/null 2>&1
         apt-get update >/dev/null 2>&1
         apt-get install -y dotnet-sdk-10.0 >/dev/null 2>&1
@@ -77,18 +77,18 @@ fi
 # Docker
 echo -n "[4/4] Docker... "
 if command -v docker &>/dev/null; then
-    if groups $RUNNER_USER 2>/dev/null | grep -q docker; then
+    if groups "$RUNNER_USER" 2>/dev/null | grep -q docker; then
         echo "OK ($(docker --version | cut -d' ' -f3 | tr -d ','))"
     else
         echo "fixing permissions"
-        usermod -aG docker $RUNNER_USER
+        usermod -aG docker "$RUNNER_USER"
         echo "        User $RUNNER_USER added to docker group"
     fi
 else
     echo "installing"
     apt-get install -y docker.io >/dev/null 2>&1
     systemctl enable --now docker >/dev/null 2>&1
-    usermod -aG docker $RUNNER_USER
+    usermod -aG docker "$RUNNER_USER"
     echo "        Installed: $(docker --version | cut -d' ' -f3 | tr -d ',')"
 fi
 
