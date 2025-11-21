@@ -97,7 +97,7 @@ deploy/SqlClrFunctions.dll
 *.dacpac
 
 # CLR Signing (certificates and private keys - exclude PFX/CER but allow config)
-certificates/*.pfx
-certificates/*.cer
-*.pfx
-*.snk
+#certificates/*.pfx
+#certificates/*.cer
+#*.pfx
+#*.snk
