@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_GetInferenceJobStatus
+CREATE OR ALTER PROCEDURE dbo.sp_GetInferenceJobStatus
     @inferenceId BIGINT
 AS
 BEGIN

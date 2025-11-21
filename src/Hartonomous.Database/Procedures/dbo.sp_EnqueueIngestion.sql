@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_EnqueueIngestion
+CREATE OR ALTER PROCEDURE dbo.sp_EnqueueIngestion
     @FileName NVARCHAR(500),
     @FileData VARBINARY(MAX),
     @TenantId INT,

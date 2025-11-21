@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_OrchestrateSensorStream
+CREATE OR ALTER PROCEDURE dbo.sp_OrchestrateSensorStream
     @SensorType NVARCHAR(100),
     @TimeWindowStart DATETIME2,
     @TimeWindowEnd DATETIME2,

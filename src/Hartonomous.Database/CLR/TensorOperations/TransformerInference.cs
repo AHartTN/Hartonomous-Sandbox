@@ -1,6 +1,7 @@
 using System;
 using System.Data.SqlTypes;
 using System.Linq;
+using System.Numerics;
 using Microsoft.SqlServer.Server;
 using Hartonomous.Clr.Contracts;
 using Hartonomous.Clr.Core;
@@ -13,14 +14,32 @@ namespace Hartonomous.Clr.TensorOperations
     /// <summary>
     /// Proper transformer inference implementation, accelerated with MathNet.Numerics.
     /// REPLACES: All manual for-loop based linear algebra with optimized library calls.
+    /// PHASE 3: Hardware intrinsics enabled via MKL and System.Numerics.Vectors SIMD
     /// </summary>
     public class TransformerInference
     {
         private readonly ITensorProvider _tensorProvider;
+        private static bool _mklInitialized = false;
 
         public TransformerInference(ITensorProvider tensorProvider)
         {
             _tensorProvider = tensorProvider ?? throw new ArgumentNullException(nameof(tensorProvider));
+
+            // PHASE 3: Initialize MKL once per AppDomain for hardware acceleration
+            if (!_mklInitialized)
+            {
+                try
+                {
+                    MathNet.Numerics.Control.UseNativeMKL();
+                    _mklInitialized = true;
+                    SqlContext.Pipe?.Send("? MKL Native Provider initialized");
+                }
+                catch
+                {
+                    // MKL not available - will fall back to managed implementation
+                    SqlContext.Pipe?.Send("? MKL not available - using managed implementation");
+                }
+            }
         }
 
         public float[] GenerateEmbedding(int[] tokenIds, int embeddingDim = 1536, int numHeads = 12, int numLayers = 12)

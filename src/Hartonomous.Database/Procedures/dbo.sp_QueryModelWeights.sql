@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_QueryModelWeights
+CREATE OR ALTER PROCEDURE dbo.sp_QueryModelWeights
     @ModelId INT,
     @LayerIdx INT = NULL,
     @atom_type NVARCHAR(128) = NULL

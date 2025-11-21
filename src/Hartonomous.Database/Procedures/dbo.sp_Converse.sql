@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_Converse
+CREATE OR ALTER PROCEDURE dbo.sp_Converse
     @Prompt NVARCHAR(MAX),
     @Debug BIT = 0
 AS

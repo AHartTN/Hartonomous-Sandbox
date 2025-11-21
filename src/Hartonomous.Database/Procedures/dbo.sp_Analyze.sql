@@ -74,7 +74,7 @@ BEGIN
             CompletedAt DATETIME2,
             DurationMs INT,
             TokenCount INT,
-            PerformanceVector VECTOR(1998)
+            PerformanceVector VECTOR(1536)
         );
         
         INSERT INTO @RecentInferences
@@ -88,7 +88,7 @@ BEGIN
             (LEN(CAST(ir.InputData AS NVARCHAR(MAX))) + LEN(CAST(ir.OutputData AS NVARCHAR(MAX)))) / 4 AS TokenCount,
             -- Create performance vector for anomaly detection
             -- [duration_normalized, tokens_normalized, hour_of_day, day_of_week, ...]
-            CAST(NULL AS VECTOR(1998)) -- Placeholder, would compute actual vector
+            CAST(NULL AS VECTOR(1536)) -- Placeholder, would compute actual vector
         FROM dbo.InferenceRequest ir
         WHERE ir.RequestTimestamp >= DATEADD(HOUR, -@LookbackHours, SYSUTCDATETIME())
             AND ir.Status IN ('Completed', 'Failed')

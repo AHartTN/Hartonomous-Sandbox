@@ -65,6 +65,15 @@ public interface IBackgroundJobService
         long entityId,
         string syncType = "CREATE",
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets pending jobs of a specific type for worker polling.
+    /// Returns (JobId, ParametersJson) tuples.
+    /// </summary>
+    Task<IEnumerable<(Guid JobId, string ParametersJson)>> GetPendingJobsAsync(
+        string jobType,
+        int batchSize = 100,
+        CancellationToken cancellationToken = default);
 }
 
 public record BackgroundJobInfo(

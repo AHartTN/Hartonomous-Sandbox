@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_SpatialNextToken
+CREATE OR ALTER PROCEDURE dbo.sp_SpatialNextToken
     @context_atom_ids NVARCHAR(MAX),
     @temperature FLOAT = 1.0,
     @top_k INT = 3

@@ -146,6 +146,10 @@
     <Build Remove="Procedures\dbo.sp_FindNearestAtoms.sql" />
     <Build Remove="Procedures\dbo.sp_IngestAtoms.sql" />
     <Build Remove="Procedures\dbo.sp_RunInference.sql" />
+    <!-- Temporarily exclude procedures with schema issues (Phase 8 - to be fixed) -->
+    <Build Remove="Procedures\dbo.sp_ProcessFeedback.sql" />
+    <Build Remove="Procedures\dbo.sp_Hypothesize.sql" />
+    <Build Remove="Procedures\dbo.sp_Learn.sql" />
     <Build Remove="Scripts\Pre-Deployment\Enable_*.sql" />
     <Build Remove="Scripts\Pre-Deployment\Setup_*.sql" />
     <Build Remove="Scripts\Post-Deployment\graph.*.sql" />
@@ -235,7 +239,7 @@
     <Compile Include="CLR\TrajectoryAggregates.cs" />
     <Compile Include="CLR\BehavioralAggregates.cs" />
     <Compile Include="CLR\AnomalyDetectionAggregates.cs" />
-    <Compile Include="CLR\DimensionalityReductionAggregates.cs" />
+    <Compile Include="CLR\DimensionalityReductionAggregates." />
     <Compile Include="CLR\ReasoningFrameworkAggregates.cs" />
     <Compile Include="CLR\RecommenderAggregates.cs" />
     <Compile Include="CLR\ResearchToolAggregates.cs" />

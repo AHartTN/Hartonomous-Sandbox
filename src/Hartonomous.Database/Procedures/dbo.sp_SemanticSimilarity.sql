@@ -10,7 +10,7 @@ BEGIN
     SET NOCOUNT ON;
     
     BEGIN TRY
-        DECLARE @SourceEmbedding VECTOR(1998);
+        DECLARE @SourceEmbedding VECTOR(1536);
         
         -- Get source embedding
         SELECT @SourceEmbedding = EmbeddingVector

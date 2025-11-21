@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_DetectDuplicates
+CREATE OR ALTER PROCEDURE dbo.sp_DetectDuplicates
     @SimilarityThreshold FLOAT = 0.95,
     @BatchSize INT = 1000,
     @TenantId INT = 0

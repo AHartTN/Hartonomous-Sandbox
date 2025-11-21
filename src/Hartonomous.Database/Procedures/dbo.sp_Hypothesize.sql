@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_Hypothesize
+CREATE OR ALTER PROCEDURE dbo.sp_Hypothesize
 AS
 BEGIN
     SET NOCOUNT ON;

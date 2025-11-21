@@ -36,7 +36,7 @@ BEGIN
         -- Prepare input features
         DECLARE @InputFeatures TABLE (
             AtomId BIGINT,
-            SpatialKey VECTOR(1998)
+            SpatialKey VECTOR(1536)
         );
         
         INSERT INTO @InputFeatures

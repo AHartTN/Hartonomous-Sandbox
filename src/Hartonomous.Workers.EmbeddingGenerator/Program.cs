@@ -67,7 +67,8 @@ if (!string.IsNullOrEmpty(appInsightsConnection))
 }
 
 // Register business services (includes DbContext)
-builder.Services.AddBusinessServices();
+// NOTE: Worker only needs DbContext and BackgroundJobService, not full business services
+builder.Services.AddBusinessServices(includeIngestion: false);
 
 // Register the Embedding Generator worker
 builder.Services.AddHostedService<EmbeddingGeneratorWorker>();

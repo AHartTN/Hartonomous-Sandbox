@@ -1,34 +1,26 @@
 using FluentAssertions;
+using Hartonomous.DatabaseTests.Infrastructure;
 using Microsoft.Data.SqlClient;
-using Testcontainers.MsSql;
+using Xunit;
 
 namespace Hartonomous.DatabaseTests.Tests.Infrastructure;
 
-public class DatabaseConnectionTests : IAsyncLifetime
+/// <summary>
+/// Database connection tests using hybrid LocalDB/Docker/Azure SQL
+/// Auto-detects environment and uses appropriate database:
+/// - Local dev: LocalDB (no Docker required)
+/// - CI/CD: Docker container (Testcontainers)
+/// - Staging/Prod: Azure SQL (via connection string)
+/// </summary>
+public class DatabaseConnectionTests : DatabaseTestBase
 {
-    private readonly MsSqlContainer _sqlContainer = new MsSqlBuilder()
-        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
-        .WithPassword("YourStrong@Passw0rd")
-        .Build();
-
-    public async Task InitializeAsync()
-    {
-        await _sqlContainer.StartAsync();
-    }
-
-    public async Task DisposeAsync()
-    {
-        await _sqlContainer.DisposeAsync();
-    }
-
     [Fact]
     public async Task Connection_CanConnectToDatabase()
     {
         // Arrange
-        var connectionString = _sqlContainer.GetConnectionString();
+        await using var connection = new SqlConnection(ConnectionString);
 
         // Act
-        await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
 
         // Assert
@@ -39,9 +31,7 @@ public class DatabaseConnectionTests : IAsyncLifetime
     public async Task Database_CanExecuteQuery()
     {
         // Arrange
-        var connectionString = _sqlContainer.GetConnectionString();
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync();
+        await using var connection = await GetConnectionAsync();
 
         // Act
         await using var command = connection.CreateCommand();
@@ -56,9 +46,7 @@ public class DatabaseConnectionTests : IAsyncLifetime
     public async Task Database_SupportsGeographyType()
     {
         // Arrange
-        var connectionString = _sqlContainer.GetConnectionString();
-        await using var connection = new SqlConnection(connectionString);
-        await connection.OpenAsync();
+        await using var connection = await GetConnectionAsync();
 
         // Act
         await using var command = connection.CreateCommand();

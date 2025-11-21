@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_CalculateBill
+CREATE OR ALTER PROCEDURE dbo.sp_CalculateBill
     @TenantId INT,
     @BillingPeriodStart DATETIME2 = NULL,
     @BillingPeriodEnd DATETIME2 = NULL,

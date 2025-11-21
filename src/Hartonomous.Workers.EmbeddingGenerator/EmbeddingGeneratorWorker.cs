@@ -1,5 +1,4 @@
 using Hartonomous.Core.Interfaces.BackgroundJob;
-using Hartonomous.Core.Interfaces.Services;
 using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
 using Microsoft.ApplicationInsights;
@@ -105,11 +104,11 @@ public class EmbeddingGeneratorWorker : BackgroundService
         var atomIds = new List<long>();
         var jobLookup = new Dictionary<long, Guid>(); // AtomId -> JobId
         
-        foreach (var (jobId, parameters) in pendingJobList)
+        foreach (var (jobId, parametersJson) in pendingJobList)
         {
             try
             {
-                var jobParams = System.Text.Json.JsonSerializer.Deserialize<EmbeddingJobParameters>(parameters);
+                var jobParams = System.Text.Json.JsonSerializer.Deserialize<EmbeddingJobParameters>(parametersJson);
                 if (jobParams != null)
                 {
                     atomIds.Add(jobParams.AtomId);
@@ -175,11 +174,11 @@ public class EmbeddingGeneratorWorker : BackgroundService
                         
                         if (jobId.HasValue)
                         {
-                            await backgroundJobService.UpdateJobStatusAsync(
+                            await backgroundJobService.UpdateJobAsync(
                                 jobId.Value,
                                 "Failed",
-                                "Empty embedding returned",
-                                stoppingToken);
+                                errorMessage: "Empty embedding returned",
+                                cancellationToken: stoppingToken);
                         }
                         continue;
                     }
@@ -193,11 +192,11 @@ public class EmbeddingGeneratorWorker : BackgroundService
                         
                         if (jobId.HasValue)
                         {
-                            await backgroundJobService.UpdateJobStatusAsync(
+                            await backgroundJobService.UpdateJobAsync(
                                 jobId.Value,
                                 "Failed",
-                                "Spatial projection failed",
-                                stoppingToken);
+                                errorMessage: "Spatial projection failed",
+                                cancellationToken: stoppingToken);
                         }
                         continue;
                     }
@@ -249,11 +248,11 @@ public class EmbeddingGeneratorWorker : BackgroundService
                     // Mark job as failed
                     if (jobId.HasValue)
                     {
-                        await backgroundJobService.UpdateJobStatusAsync(
+                        await backgroundJobService.UpdateJobAsync(
                             jobId.Value,
                             "Failed",
-                            ex.Message,
-                            stoppingToken);
+                            errorMessage: ex.Message,
+                            cancellationToken: stoppingToken);
                     }
                 }
             }
@@ -264,11 +263,11 @@ public class EmbeddingGeneratorWorker : BackgroundService
             // Update all successful jobs
             foreach (var jobId in processedJobIds)
             {
-                await backgroundJobService.UpdateJobStatusAsync(
+                await backgroundJobService.UpdateJobAsync(
                     jobId,
                     "Completed",
-                    $"Embedding generated successfully",
-                    stoppingToken);
+                    resultJson: "Embedding generated successfully",
+                    cancellationToken: stoppingToken);
             }
 
             telemetry?.TrackMetric("EmbeddingGenerator.EmbeddingsGenerated", savedCount);

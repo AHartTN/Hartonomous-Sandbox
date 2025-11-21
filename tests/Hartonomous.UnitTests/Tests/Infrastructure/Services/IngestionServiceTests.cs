@@ -1,5 +1,6 @@
 using FluentAssertions;
 using Hartonomous.Core.Exceptions;
+using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Services;
 using Hartonomous.Data.Entities;
@@ -35,8 +36,9 @@ public class IngestionServiceTests : IClassFixture<SqlServerTestFixture>
         
         var fileTypeDetector = Substitute.For<IFileTypeDetector>();
         var atomizers = Enumerable.Empty<IAtomizer<byte[]>>();
+        var backgroundJobService = Substitute.For<IBackgroundJobService>();
         var logger = Substitute.For<ILogger<IngestionService>>();
-        var service = new IngestionService(context, fileTypeDetector, atomizers, logger);
+        var service = new IngestionService(context, fileTypeDetector, atomizers, backgroundJobService, logger);
         byte[]? nullFile = null;
 
         // Act & Assert - Read-only validation test (no transaction needed)
@@ -52,8 +54,9 @@ public class IngestionServiceTests : IClassFixture<SqlServerTestFixture>
         
         var fileTypeDetector = Substitute.For<IFileTypeDetector>();
         var atomizers = Enumerable.Empty<IAtomizer<byte[]>>();
+        var backgroundJobService = Substitute.For<IBackgroundJobService>();
         var logger = Substitute.For<ILogger<IngestionService>>();
-        var service = new IngestionService(context, fileTypeDetector, atomizers, logger);
+        var service = new IngestionService(context, fileTypeDetector, atomizers, backgroundJobService, logger);
         var emptyFile = Array.Empty<byte>();
 
         // Act & Assert
@@ -69,8 +72,9 @@ public class IngestionServiceTests : IClassFixture<SqlServerTestFixture>
         
         var fileTypeDetector = Substitute.For<IFileTypeDetector>();
         var atomizers = Enumerable.Empty<IAtomizer<byte[]>>();
+        var backgroundJobService = Substitute.For<IBackgroundJobService>();
         var logger = Substitute.For<ILogger<IngestionService>>();
-        var service = new IngestionService(context, fileTypeDetector, atomizers, logger);
+        var service = new IngestionService(context, fileTypeDetector, atomizers, backgroundJobService, logger);
         var fileData = new byte[] { 1, 2, 3 };
 
         // Act & Assert
@@ -86,8 +90,9 @@ public class IngestionServiceTests : IClassFixture<SqlServerTestFixture>
         
         var fileTypeDetector = Substitute.For<IFileTypeDetector>();
         var atomizers = Enumerable.Empty<IAtomizer<byte[]>>();
+        var backgroundJobService = Substitute.For<IBackgroundJobService>();
         var logger = Substitute.For<ILogger<IngestionService>>();
-        var service = new IngestionService(context, fileTypeDetector, atomizers, logger);
+        var service = new IngestionService(context, fileTypeDetector, atomizers, backgroundJobService, logger);
         var fileData = new byte[] { 1, 2, 3 };
 
         // Act & Assert
@@ -103,8 +108,9 @@ public class IngestionServiceTests : IClassFixture<SqlServerTestFixture>
         
         var fileTypeDetector = Substitute.For<IFileTypeDetector>();
         var atomizers = Enumerable.Empty<IAtomizer<byte[]>>();
+        var backgroundJobService = Substitute.For<IBackgroundJobService>();
         var logger = Substitute.For<ILogger<IngestionService>>();
-        var service = new IngestionService(context, fileTypeDetector, atomizers, logger);
+        var service = new IngestionService(context, fileTypeDetector, atomizers, backgroundJobService, logger);
 
         // Act & Assert
         await Assert.ThrowsAsync<NotImplementedException>(
@@ -119,8 +125,9 @@ public class IngestionServiceTests : IClassFixture<SqlServerTestFixture>
         
         var fileTypeDetector = Substitute.For<IFileTypeDetector>();
         var atomizers = Enumerable.Empty<IAtomizer<byte[]>>();
+        var backgroundJobService = Substitute.For<IBackgroundJobService>();
         var logger = Substitute.For<ILogger<IngestionService>>();
-        var service = new IngestionService(context, fileTypeDetector, atomizers, logger);
+        var service = new IngestionService(context, fileTypeDetector, atomizers, backgroundJobService, logger);
 
         // Act & Assert
         await Assert.ThrowsAsync<NotImplementedException>(

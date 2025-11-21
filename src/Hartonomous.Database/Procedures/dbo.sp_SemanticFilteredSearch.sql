@@ -1,5 +1,5 @@
-CREATE PROCEDURE dbo.sp_SemanticFilteredSearch
-    @query_vector VECTOR(1998),
+CREATE OR ALTER PROCEDURE dbo.sp_SemanticFilteredSearch
+    @query_vector VECTOR(1536),
     @top_k INT = 10,
     @TenantId INT, -- V3: Added for security
     @EmbeddingType NVARCHAR(50) = NULL, -- V3: Added for filtering

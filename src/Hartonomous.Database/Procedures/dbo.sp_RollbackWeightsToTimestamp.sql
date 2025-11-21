@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_RollbackWeightsToTimestamp
+CREATE OR ALTER PROCEDURE dbo.sp_RollbackWeightsToTimestamp
     @TargetDateTime DATETIME2(7),
     @ModelId INT = NULL,
     @DryRun BIT = 1  -- Safety: default to dry run

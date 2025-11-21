@@ -1,6 +1,8 @@
 using Microsoft.SqlServer.Server;
 using Hartonomous.Clr.Contracts;
 using System;
+using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Data.SqlTypes;
 
@@ -9,10 +11,15 @@ namespace Hartonomous.Clr.TensorOperations
     /// <summary>
     /// An implementation of ITensorProvider that loads tensor data from the
     /// atomized storage within the SQL Server database.
+    /// PHASE 3 OPTIMIZATION: Static cache for hot model weights in RAM
     /// </summary>
     public class ClrTensorProvider : ITensorProvider
     {
         private readonly int _modelId;
+
+        // PHASE 3: Static weight cache (shared across all instances for same AppDomain)
+        private static readonly ConcurrentDictionary<string, float[]> _weightCache 
+            = new ConcurrentDictionary<string, float[]>();
 
         public ClrTensorProvider(int modelId)
         {
@@ -22,11 +29,20 @@ namespace Hartonomous.Clr.TensorOperations
         /// <summary>
         /// Loads tensor weights by querying the database for the corresponding tensor atom
         /// and retrieving its payload from FILESTREAM storage.
+        /// PHASE 3: Implements static caching to avoid repeated FILESTREAM reads
         /// </summary>
         public float[]? LoadWeights(string tensorName, int maxElements)
         {
             try
             {
+                // PHASE 3: Check cache first
+                string cacheKey = $"{_modelId}:{tensorName}";
+                if (_weightCache.TryGetValue(cacheKey, out float[]? cachedWeights))
+                {
+                    // Cache hit - return immediately
+                    return cachedWeights;
+                }
+
                 long tensorAtomId = -1;
 
                 // Use a context connection to find the TensorAtomId for the given tensor name and model.
@@ -75,6 +91,10 @@ namespace Hartonomous.Clr.TensorOperations
                 byte[] bytes = payload.Value;
                 float[] floats = new float[bytes.Length / sizeof(float)];
                 Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
+
+                // PHASE 3: Store in cache for future requests
+                _weightCache.TryAdd(cacheKey, floats);
+
                 return floats;
             }
             catch (Exception ex)
@@ -83,6 +103,22 @@ namespace Hartonomous.Clr.TensorOperations
                 SqlContext.Pipe?.Send($"Error loading tensor {tensorName}: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>
+        /// PHASE 3: Cache management - clear stale entries
+        /// </summary>
+        public static void ClearCache()
+        {
+            _weightCache.Clear();
+        }
+
+        /// <summary>
+        /// PHASE 3: Cache statistics
+        /// </summary>
+        public static int GetCacheSize()
+        {
+            return _weightCache.Count;
         }
 
         /// <summary>

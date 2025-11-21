@@ -6,7 +6,7 @@ GO
 CREATE PROCEDURE dbo.sp_TextToEmbedding
     @text NVARCHAR(MAX),
     @ModelName NVARCHAR(100) = NULL,
-    @embedding VECTOR(1998) OUTPUT,
+    @embedding VECTOR(1536) OUTPUT,
     @dimension INT OUTPUT
 AS
 BEGIN
@@ -147,7 +147,7 @@ BEGIN
     END;
     
     SET @embeddingJson = @embeddingJson + ']';
-    SET @embedding = TRY_CAST(@embeddingJson AS VECTOR(1998));
+    SET @embedding = TRY_CAST(@embeddingJson AS VECTOR(1536));
 
     IF @embedding IS NULL
         THROW 50082, 'Failed to construct embedding vector from vocabulary projection.', 1;

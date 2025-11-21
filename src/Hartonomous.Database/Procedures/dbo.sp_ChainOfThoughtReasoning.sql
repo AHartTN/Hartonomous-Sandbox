@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_ChainOfThoughtReasoning
+CREATE OR ALTER PROCEDURE dbo.sp_ChainOfThoughtReasoning
     @ProblemId UNIQUEIDENTIFIER,
     @InitialPrompt NVARCHAR(MAX),
     @MaxSteps INT = 5,
@@ -19,7 +19,7 @@ BEGIN
         StepNumber INT,
         Prompt NVARCHAR(MAX),
         Response NVARCHAR(MAX),
-        ResponseVector VECTOR(1998),
+        ResponseVector VECTOR(1536),
         Confidence FLOAT,
         StepTime DATETIME2
     );
@@ -32,7 +32,7 @@ BEGIN
     BEGIN
         DECLARE @StepStartTime DATETIME2 = SYSUTCDATETIME();
         DECLARE @StepResponse NVARCHAR(MAX);
-        DECLARE @ResponseEmbedding VECTOR(1998);
+        DECLARE @ResponseEmbedding VECTOR(1536);
         DECLARE @EmbeddingDim INT;
 
         -- Generate reasoning step using text generation

@@ -1,5 +1,5 @@
-CREATE PROCEDURE dbo.sp_CognitiveActivation
-    @query_embedding VECTOR(1998),
+CREATE OR ALTER PROCEDURE dbo.sp_CognitiveActivation
+    @query_embedding VECTOR(1536),
     @activation_threshold FLOAT = 0.8,
     @max_activated INT = 50
 AS

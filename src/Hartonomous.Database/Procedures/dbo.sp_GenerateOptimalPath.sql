@@ -3,16 +3,51 @@
 -- =============================================
 -- Uses A* algorithm to find optimal path through semantic space
 -- from start atom to target concept region
+-- PHASE 1: Includes semantic path caching
+-- IDEMPOTENT: Uses CREATE OR ALTER
 -- =============================================
 
-CREATE PROCEDURE [dbo].[sp_GenerateOptimalPath]
+CREATE OR ALTER PROCEDURE [dbo].[sp_GenerateOptimalPath]
     @StartAtomId BIGINT,
     @TargetConceptId INT,
     @MaxSteps INT = 50,
-    @NeighborRadius FLOAT = 0.5  -- Spatial radius for neighbor search
+    @NeighborRadius FLOAT = 0.5,  -- Spatial radius for neighbor search
+    @CacheTTLMinutes INT = 60     -- Cache expiration time
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    -- ===== PHASE 1: CHECK CACHE FIRST =====
+    DECLARE @CachedPathJson NVARCHAR(MAX);
+    DECLARE @CachedCost FLOAT;
+
+    SELECT 
+        @CachedPathJson = PathJson,
+        @CachedCost = TotalCost
+    FROM provenance.SemanticPathCache
+    WHERE StartAtomId = @StartAtomId
+      AND TargetConceptId = @TargetConceptId
+      AND ExpiresAt > SYSUTCDATETIME();
+
+    IF @CachedPathJson IS NOT NULL
+    BEGIN
+        -- Update cache statistics
+        UPDATE provenance.SemanticPathCache
+        SET HitCount = HitCount + 1,
+            LastAccessedAt = SYSUTCDATETIME()
+        WHERE StartAtomId = @StartAtomId
+          AND TargetConceptId = @TargetConceptId;
+
+        -- Return cached path
+        SELECT 
+            [value] AS PathNode,
+            @CachedCost AS TotalCost,
+            1 AS FromCache
+        FROM OPENJSON(@CachedPathJson);
+        
+        RETURN 0;
+    END
+    -- ===== END CACHE CHECK =====
 
     DECLARE @StartPoint GEOMETRY;
     DECLARE @TargetRegion GEOMETRY;
@@ -84,11 +119,12 @@ BEGIN
         END
 
         -- 3. Move current node from Open to Closed
-        DELETE FROM @OpenSet WHERE AtomId = @CurrentAtomId;
         INSERT INTO #ClosedSet (AtomId, ParentAtomId)
         SELECT AtomId, ParentAtomId 
         FROM @OpenSet 
         WHERE AtomId = @CurrentAtomId;
+        
+        DELETE FROM @OpenSet WHERE AtomId = @CurrentAtomId;
 
         -- 4. Find neighbors using spatial index
         DECLARE @NeighborSearchRegion GEOMETRY = @CurrentPoint.STBuffer(@NeighborRadius);
@@ -132,6 +168,12 @@ BEGIN
         FROM @OpenSet 
         WHERE AtomId = @GoalAtomId;
 
+        -- Calculate total path cost
+        DECLARE @TotalPathCost FLOAT;
+        SELECT @TotalPathCost = gCost 
+        FROM @OpenSet 
+        WHERE AtomId = @GoalAtomId;
+
         -- Reconstruct path using recursive CTE
         ;WITH PathCTE AS (
             -- Start from goal
@@ -146,19 +188,46 @@ BEGIN
             FROM #ClosedSet cs
             JOIN PathCTE p ON cs.AtomId = p.ParentAtomId
             WHERE p.ParentAtomId IS NOT NULL
+        ),
+        PathResults AS (
+            SELECT 
+                p.Depth AS StepNumber,
+                p.AtomId,
+                a.Modality,
+                a.Subtype,
+                a.[AtomicValue],
+                ae.[SpatialKey].ToString() AS SpatialPosition,
+                ae.[SpatialKey].STDistance(@TargetCentroid) AS DistanceToGoal
+            FROM PathCTE p
+            JOIN dbo.Atom a ON p.AtomId = a.AtomId
+            LEFT JOIN dbo.AtomEmbedding ae ON p.AtomId = ae.AtomId
+        )
+        -- ===== PHASE 1: CACHE THE PATH RESULT =====
+        , PathJson AS (
+            SELECT 
+                (SELECT * FROM PathResults FOR JSON PATH) AS JsonPath
+        )
+        INSERT INTO provenance.SemanticPathCache (
+            StartAtomId,
+            TargetConceptId,
+            PathJson,
+            TotalCost,
+            CreatedAt,
+            ExpiresAt
         )
         SELECT 
-            p.Depth AS StepNumber,
-            p.AtomId,
-            a.Modality,
-            a.Subtype,
-            a.[AtomicValue],
-            ae.[SpatialKey].ToString() AS SpatialPosition,
-            ae.[SpatialKey].STDistance(@TargetCentroid) AS DistanceToGoal
-        FROM PathCTE p
-        JOIN dbo.Atom a ON p.AtomId = a.AtomId
-        LEFT JOIN dbo.AtomEmbedding ae ON p.AtomId = ae.AtomId
-        ORDER BY p.Depth DESC; -- Start to goal order
+            @StartAtomId,
+            @TargetConceptId,
+            JsonPath,
+            @TotalPathCost,
+            SYSUTCDATETIME(),
+            DATEADD(MINUTE, @CacheTTLMinutes, SYSUTCDATETIME())
+        FROM PathJson;
+        -- ===== END CACHE WRITE =====
+
+        -- Return the path
+        SELECT * FROM PathResults
+        ORDER BY StepNumber ASC; -- Start to goal order
     END
     ELSE
     BEGIN

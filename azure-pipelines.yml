@@ -410,12 +410,18 @@ stages:
 
     # Run unit tests
     - task: DotNetCoreCLI@2
-      displayName: 'Run Unit Tests'
+      displayName: 'Run Unit Tests (Hybrid Database Testing)'
       inputs:
         command: 'test'
         projects: 'tests/**/*Tests.csproj'
         arguments: '--configuration $(buildConfiguration) --no-build --collect:"XPlat Code Coverage" --logger trx'
         publishTestResults: true
+      env:
+        # DatabaseTestBase auto-detects environment:
+        # - Windows agent without CI var → LocalDB (fast)
+        # - Linux agent with CI var → Docker (consistent)
+        # - Staging/Prod → Azure SQL (via connection string)
+        CI: $(Build.BuildId)  # Presence of CI var triggers CI mode
 
     # Publish applications
     - task: DotNetCoreCLI@2

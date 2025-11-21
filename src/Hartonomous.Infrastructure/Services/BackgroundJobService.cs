@@ -3,6 +3,7 @@ using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Data;
 
@@ -17,11 +18,11 @@ public class BackgroundJobService : IBackgroundJobService
     public BackgroundJobService(
         HartonomousDbContext context,
         ILogger<BackgroundJobService> logger,
-        Microsoft.Extensions.Configuration.IConfiguration configuration)
+        IConfiguration configuration)
     {
         _context = context;
         _logger = logger;
-        _connectionString = configuration.GetConnectionString("HartonomousDb") 
+        _connectionString = configuration["ConnectionStrings:HartonomousDb"] 
             ?? throw new InvalidOperationException("HartonomousDb connection string not configured");
     }
 
@@ -31,14 +32,19 @@ public class BackgroundJobService : IBackgroundJobService
         int tenantId,
         CancellationToken cancellationToken = default)
     {
-        var job = new Data.Entities.Entities.BackgroundJob
+        var correlationId = Guid.NewGuid();
+        
+        var job = new Hartonomous.Data.Entities.Entities.BackgroundJob
         {
-            JobId = Guid.NewGuid(),
             JobType = jobType,
-            Parameters = parametersJson,
+            Payload = parametersJson,
             TenantId = tenantId,
-            Status = "Pending",
-            CreatedAt = DateTime.UtcNow
+            Status = 0, // Pending
+            Priority = 5,
+            MaxRetries = 3,
+            AttemptCount = 0,
+            CreatedAtUtc = DateTime.UtcNow,
+            CorrelationId = correlationId.ToString()
         };
 
         _context.BackgroundJobs.Add(job);
@@ -48,7 +54,7 @@ public class BackgroundJobService : IBackgroundJobService
             "Created background job: JobId={JobId}, Type={JobType}, TenantId={TenantId}",
             job.JobId, jobType, tenantId);
 
-        return job.JobId;
+        return correlationId;
     }
 
     public async Task<BackgroundJobInfo?> GetJobAsync(
@@ -56,21 +62,21 @@ public class BackgroundJobService : IBackgroundJobService
         CancellationToken cancellationToken = default)
     {
         var job = await _context.BackgroundJobs
-            .FirstOrDefaultAsync(j => j.JobId == jobId, cancellationToken);
+            .FirstOrDefaultAsync(j => j.CorrelationId == jobId.ToString(), cancellationToken);
 
         if (job == null)
             return null;
 
         return new BackgroundJobInfo(
-            job.JobId,
+            Guid.Parse(job.CorrelationId ?? Guid.Empty.ToString()),
             job.JobType,
-            job.Status,
-            job.Parameters,
-            job.Result,
-            null, // ErrorMessage not in entity
-            job.TenantId,
-            job.CreatedAt,
-            job.CompletedAt);
+            GetStatusString(job.Status),
+            job.Payload,
+            job.ResultData,
+            job.ErrorMessage,
+            job.TenantId ?? 0,
+            job.CreatedAtUtc,
+            job.CompletedAtUtc);
     }
 
     public async Task UpdateJobAsync(
@@ -81,7 +87,7 @@ public class BackgroundJobService : IBackgroundJobService
         CancellationToken cancellationToken = default)
     {
         var job = await _context.BackgroundJobs
-            .FirstOrDefaultAsync(j => j.JobId == jobId, cancellationToken);
+            .FirstOrDefaultAsync(j => j.CorrelationId == jobId.ToString(), cancellationToken);
 
         if (job == null)
         {
@@ -89,9 +95,10 @@ public class BackgroundJobService : IBackgroundJobService
             return;
         }
 
-        job.Status = status;
-        job.Result = resultJson ?? errorMessage; // Store error in Result field if present
-        job.CompletedAt = DateTime.UtcNow;
+        job.Status = GetStatusInt(status);
+        job.ResultData = resultJson;
+        job.ErrorMessage = errorMessage;
+        job.CompletedAtUtc = DateTime.UtcNow;
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -111,24 +118,24 @@ public class BackgroundJobService : IBackgroundJobService
 
         if (!string.IsNullOrEmpty(statusFilter))
         {
-            query = query.Where(j => j.Status == statusFilter);
+            query = query.Where(j => j.Status == GetStatusInt(statusFilter));
         }
 
         var jobs = await query
-            .OrderByDescending(j => j.CreatedAt)
+            .OrderByDescending(j => j.CreatedAtUtc)
             .Take(limit)
             .ToListAsync(cancellationToken);
 
         return jobs.Select(j => new BackgroundJobInfo(
-            j.JobId,
+            Guid.Parse(j.CorrelationId ?? Guid.Empty.ToString()),
             j.JobType,
-            j.Status,
-            j.Parameters,
-            j.Result,
-            null,
-            j.TenantId,
-            j.CreatedAt,
-            j.CompletedAt));
+            GetStatusString(j.Status),
+            j.Payload,
+            j.ResultData,
+            j.ErrorMessage,
+            j.TenantId ?? 0,
+            j.CreatedAtUtc,
+            j.CompletedAtUtc));
     }
 
     public async Task EnqueueIngestionAsync(
@@ -184,17 +191,37 @@ public class BackgroundJobService : IBackgroundJobService
     /// <summary>
     /// Gets pending jobs for a specific job type (for workers to poll)
     /// </summary>
-    public async Task<IEnumerable<(Guid JobId, string Parameters)>> GetPendingJobsAsync(
+    public async Task<IEnumerable<(Guid JobId, string ParametersJson)>> GetPendingJobsAsync(
         string jobType,
         int batchSize = 100,
         CancellationToken cancellationToken = default)
     {
         var jobs = await _context.BackgroundJobs
-            .Where(j => j.JobType == jobType && j.Status == "Pending")
-            .OrderBy(j => j.CreatedAt)
+            .Where(j => j.JobType == jobType && j.Status == 0) // 0 = Pending
+            .OrderBy(j => j.CreatedAtUtc)
             .Take(batchSize)
             .ToListAsync(cancellationToken);
 
-        return jobs.Select(j => (j.JobId, j.Parameters));
+        return jobs.Select(j => (
+            JobId: Guid.Parse(j.CorrelationId ?? Guid.Empty.ToString()), 
+            ParametersJson: j.Payload ?? "{}"));
     }
+
+    private static string GetStatusString(int status) => status switch
+    {
+        0 => "Pending",
+        1 => "Running",
+        2 => "Completed",
+        3 => "Failed",
+        _ => "Unknown"
+    };
+
+    private static int GetStatusInt(string status) => status.ToLowerInvariant() switch
+    {
+        "pending" => 0,
+        "running" => 1,
+        "completed" => 2,
+        "failed" => 3,
+        _ => 0
+    };
 }

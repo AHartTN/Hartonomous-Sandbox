@@ -2,9 +2,11 @@
 -- sp_AtomizeImage_Governed: Governed Image Pixel Atomization
 -- =============================================
 -- Implements chunked, resumable image atomization with XYZM structural storage
+-- PHASE 2: Self-Indexing Geometry with M-value (Hilbert)
+-- IDEMPOTENT: Uses CREATE OR ALTER
 -- =============================================
 
-CREATE PROCEDURE [dbo].[sp_AtomizeImage_Governed]
+CREATE OR ALTER PROCEDURE [dbo].[sp_AtomizeImage_Governed]
     @IngestionJobId BIGINT,
     @ImageData VARBINARY(MAX),
     @ImageWidth INT,
@@ -163,7 +165,8 @@ BEGIN
                     GROUP BY pta.[AtomId]
                 ) AS counts ON a.[AtomId] = counts.[AtomId];
 
-                -- Insert XYZM structural representation
+                -- Insert XYZM structural representation with Self-Indexing Geometry
+                -- CRITICAL: Store Hilbert value in M dimension for "Self-Aware Atoms"
                 INSERT INTO [dbo].[AtomComposition] (
                     [ParentAtomId], 
                     [ComponentAtomId], 
@@ -174,17 +177,29 @@ BEGIN
                     @ParentAtomId,
                     pta.[AtomId],
                     cp.[SequenceIndex],
-                    [sys].[geometry]::Point(
-                        cp.[PositionX],  -- X = Pixel X
-                        cp.[PositionY],  -- Y = Pixel Y
-                        0                -- Z = unused (could be used for layers/channels)
+                    -- MANDATORY: Use STGeomFromText to preserve M-value (Hilbert Index)
+                    geometry::STGeomFromText(
+                        'POINT (' +
+                        CAST(cp.[PositionX] AS VARCHAR(20)) + ' ' +
+                        CAST(cp.[PositionY] AS VARCHAR(20)) + ' ' +
+                        '0 ' +  -- Z (Layer/Depth - could be channel index for multi-channel images)
+                        CAST(dbo.fn_ComputeHilbertValue(
+                            geometry::Point(cp.[PositionX], cp.[PositionY], 0), 
+                            16  -- 16-bit precision for image dimensions up to 65536x65536
+                        ) AS VARCHAR(20)) +  -- M (Hilbert Index for cache locality)
+                        ')',
+                        0  -- SRID
                     )
                 FROM #ChunkPixels cp
                 JOIN #PixelToAtomId pta 
                     ON cp.[R] = pta.[R] 
                     AND cp.[G] = pta.[G] 
                     AND cp.[B] = pta.[B] 
-                    AND cp.[A] = pta.[A];
+                    AND cp.[A] = pta.[A]
+                ORDER BY dbo.fn_ComputeHilbertValue(
+                    geometry::Point(cp.[PositionX], cp.[PositionY], 0), 
+                    16
+                );  -- Pre-sort by Hilbert for optimal Columnstore compression
 
             COMMIT TRANSACTION;
 

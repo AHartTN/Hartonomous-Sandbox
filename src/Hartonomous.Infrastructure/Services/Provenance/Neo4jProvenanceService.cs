@@ -537,4 +537,78 @@ public sealed class Neo4jProvenanceService : IProvenanceQueryService
             _telemetry?.TrackDependency(dependency);
         }
     }
+
+    /// <summary>
+    /// PHASE 4: Sync atom to Neo4j for graph analysis
+    /// Executes MERGE operation to create or update atom node
+    /// </summary>
+    public async Task SyncAtomAsync(
+        long atomId,
+        string modality,
+        string? canonicalText,
+        int tenantId,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Syncing atom {AtomId} to Neo4j", atomId);
+
+        var query = """
+            MERGE (a:Atom {atomId: $atomId})
+            ON CREATE SET 
+                a.modality = $modality,
+                a.canonicalText = $canonicalText,
+                a.tenantId = $tenantId,
+                a.createdAt = datetime()
+            ON MATCH SET
+                a.modality = $modality,
+                a.canonicalText = $canonicalText,
+                a.tenantId = $tenantId,
+                a.lastSyncedAt = datetime()
+            RETURN a.atomId as atomId
+            """;
+
+        var dependency = new DependencyTelemetry
+        {
+            Name = "Neo4j.SyncAtom",
+            Type = "Neo4j",
+            Target = _neo4jEndpoint,
+            Data = $"MERGE atom: atomId={atomId}, modality={modality}"
+        };
+        dependency.Properties["AtomId"] = atomId.ToString();
+        dependency.Properties["Modality"] = modality;
+        dependency.Properties["TenantId"] = tenantId.ToString();
+
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await using var session = _driver.AsyncSession(o => o
+                .WithDatabase(_database)
+                .WithDefaultAccessMode(AccessMode.Write)); // WRITE mode for MERGE
+
+            await session.ExecuteWriteAsync(async tx =>
+            {
+                await tx.RunAsync(query, new 
+                { 
+                    atomId, 
+                    modality, 
+                    canonicalText, 
+                    tenantId 
+                });
+            });
+
+            _logger.LogDebug("Atom {AtomId} synced to Neo4j successfully", atomId);
+
+            dependency.Success = true;
+        }
+        catch (Exception ex)
+        {
+            dependency.Success = false;
+            _logger.LogError(ex, "Failed to sync atom {AtomId} to Neo4j", atomId);
+            throw;
+        }
+        finally
+        {
+            dependency.Duration = sw.Elapsed;
+            _telemetry?.TrackDependency(dependency);
+        }
+    }
 }

@@ -1,10 +1,11 @@
-CREATE PROCEDURE dbo.sp_CrossModalQuery
+CREATE OR ALTER PROCEDURE dbo.sp_CrossModalQuery
     @text_query NVARCHAR(MAX) = NULL,
     @spatial_query_x FLOAT = NULL,
     @spatial_query_y FLOAT = NULL,
     @spatial_query_z FLOAT = NULL,
     @modality_filter NVARCHAR(50) = NULL,
-    @top_k INT = 10
+    @top_k INT = 10,
+    @TenantId INT = 0  -- PHASE 7.2: Multi-tenancy
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -24,8 +25,6 @@ BEGIN
             ae.AtomId,
             a.Modality,
             a.Subtype,
-            a.SourceType,
-            a.SourceUri,
             a.CanonicalText,
             ae.EmbeddingType,
             ae.ModelId,
@@ -34,27 +33,31 @@ BEGIN
         INNER JOIN dbo.Atom AS a ON a.AtomId = ae.AtomId
         WHERE ae.SpatialKey IS NOT NULL
           AND (@modality_filter IS NULL OR a.Modality = @modality_filter)
-          AND (@text_query IS NULL OR CONVERT(NVARCHAR(256), a.AtomicValue) LIKE '%' + @text_query + '%') -- Changed: CanonicalText → AtomicValue
+          AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
+          -- PHASE 7.2: Multi-tenancy filter
+          AND (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
         ORDER BY ae.SpatialKey.STDistance(@query_pt);
     END
     ELSE
     BEGIN
+        -- Default: Return recent atoms (not random)
         SELECT TOP (@top_k)
             ae.AtomEmbeddingId,
             ae.AtomId,
             a.Modality,
             a.Subtype,
-            a.Modality AS SourceType, -- Replaced
-            NULL AS SourceUri, -- Removed
-            CONVERT(NVARCHAR(256), a.AtomicValue) AS CanonicalText, -- Derived
-            ae.AtomEmbeddingId,
+            a.CanonicalText,
+            ae.EmbeddingType,
             ae.ModelId
         FROM dbo.Atom a
-        LEFT JOIN dbo.AtomEmbedding ae ON a.AtomId = ae.AtomId
+        INNER JOIN dbo.AtomEmbedding ae ON a.AtomId = ae.AtomId
         WHERE (@modality_filter IS NULL OR a.Modality = @modality_filter)
-          AND (@text_query IS NULL OR CONVERT(NVARCHAR(256), a.AtomicValue) LIKE '%' + @text_query + '%') -- Changed
-        ORDER BY NEWID();
+          AND (@text_query IS NULL OR a.CanonicalText LIKE '%' + @text_query + '%')
+          -- PHASE 7.2: Multi-tenancy filter
+          AND (a.TenantId = @TenantId OR EXISTS (SELECT 1 FROM dbo.TenantAtoms ta WHERE ta.AtomId = a.AtomId AND ta.TenantId = @TenantId))
+        ORDER BY a.CreatedAt DESC;  -- Recent atoms, not random
     END;
 
     PRINT '✓ Cross-modal results returned';
-END
+END;
+GO

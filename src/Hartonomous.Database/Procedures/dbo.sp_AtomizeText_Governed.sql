@@ -2,9 +2,11 @@
 -- sp_AtomizeText_Governed: Governed Text Tokenization and Atomization
 -- =============================================
 -- Implements chunked, resumable text atomization with XYZM structural storage
+-- PHASE 2: Self-Indexing Geometry with M-value (Hilbert)
+-- IDEMPOTENT: Uses CREATE OR ALTER
 -- =============================================
 
-CREATE PROCEDURE [dbo].[sp_AtomizeText_Governed]
+CREATE OR ALTER PROCEDURE [dbo].[sp_AtomizeText_Governed]
     @IngestionJobId BIGINT,
     @TextData NVARCHAR(MAX)
 AS
@@ -145,6 +147,7 @@ BEGIN
                 JOIN #TokenToAtomId tta ON a.[AtomId] = tta.[AtomId];
 
                 -- Insert structural representation with XYZM spatial key
+                -- CRITICAL: Store Hilbert value in M dimension for Self-Indexing Geometry
                 INSERT INTO [dbo].[AtomComposition] (
                     [ParentAtomId], 
                     [ComponentAtomId], 
@@ -155,13 +158,25 @@ BEGIN
                     @ParentAtomId,
                     tta.[AtomId],
                     ct.[SequenceIndex],
-                    [sys].[geometry]::Point(
-                        ct.[SequenceIndex],  -- X = Position
-                        tta.[AtomId] % 10000, -- Y = Value (modulo for scaling)
-                        0                     -- Z = unused
+                    -- MANDATORY: Use STGeomFromText to preserve M-value (Hilbert Index)
+                    geometry::STGeomFromText(
+                        'POINT (' +
+                        CAST(ct.[SequenceIndex] AS VARCHAR(20)) + ' ' +  -- X = Position in sequence
+                        CAST(tta.[AtomId] % 10000 AS VARCHAR(20)) + ' ' + -- Y = Value (scaled)
+                        '0 ' +  -- Z = Layer/Depth (0 for flat text)
+                        CAST(dbo.fn_ComputeHilbertValue(
+                            geometry::Point(ct.[SequenceIndex], tta.[AtomId] % 10000, 0),
+                            21  -- 21-bit precision for text sequences
+                        ) AS VARCHAR(20)) +  -- M = Hilbert Index for cache locality
+                        ')',
+                        0  -- SRID
                     )
                 FROM #ChunkTokens ct
-                JOIN #TokenToAtomId tta ON ct.[TokenText] = tta.[TokenText];
+                JOIN #TokenToAtomId tta ON ct.[TokenText] = tta.[TokenText]
+                ORDER BY dbo.fn_ComputeHilbertValue(
+                    geometry::Point(ct.[SequenceIndex], tta.[AtomId] % 10000, 0),
+                    21
+                );  -- Pre-sort by Hilbert for optimal Columnstore RLE compression
 
             COMMIT TRANSACTION;
 

@@ -51,6 +51,33 @@ ELSE
     PRINT '○ AutonomousImprovementHistory already compressed';
 GO
 
+-- AtomComposition: CLUSTERED COLUMNSTORE (CRITICAL for pixel-level atomization)
+IF NOT EXISTS (
+    SELECT 1 
+    FROM sys.indexes 
+    WHERE object_id = OBJECT_ID('dbo.AtomComposition') 
+      AND type = 5  -- Clustered Columnstore
+)
+BEGIN
+    -- Drop existing clustered index first
+    IF EXISTS (SELECT 1 FROM sys.indexes WHERE object_id = OBJECT_ID('dbo.AtomComposition') AND name = 'PK_AtomComposition')
+    BEGIN
+        ALTER TABLE dbo.AtomComposition DROP CONSTRAINT PK_AtomComposition;
+        PRINT '✓ Dropped PK_AtomComposition';
+    END
+
+    -- Create Clustered Columnstore Index with ARCHIVE compression (95%+ compression)
+    CREATE CLUSTERED COLUMNSTORE INDEX CCI_AtomComposition
+    ON dbo.AtomComposition
+    WITH (DATA_COMPRESSION = COLUMNSTORE_ARCHIVE, MAXDOP = 0);
+    
+    PRINT '✓ Applied CLUSTERED COLUMNSTORE to AtomComposition (ARCHIVE compression)';
+    PRINT '  Expected: 95%+ compression ratio for pixel/token sequences';
+END
+ELSE
+    PRINT '○ AtomComposition already has Clustered Columnstore';
+GO
+
 PRINT '✓ Table compression optimization complete';
 PRINT '';
 GO

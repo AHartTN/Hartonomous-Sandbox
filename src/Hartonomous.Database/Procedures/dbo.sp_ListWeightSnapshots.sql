@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_ListWeightSnapshots
+CREATE OR ALTER PROCEDURE dbo.sp_ListWeightSnapshots
 AS
 BEGIN
     SET NOCOUNT ON;

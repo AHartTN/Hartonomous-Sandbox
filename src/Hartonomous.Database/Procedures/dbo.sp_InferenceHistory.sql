@@ -1,4 +1,4 @@
-CREATE PROCEDURE dbo.sp_InferenceHistory
+CREATE OR ALTER PROCEDURE dbo.sp_InferenceHistory
     @time_window_hours INT = 24,
     @TaskType NVARCHAR(50) = NULL
 AS

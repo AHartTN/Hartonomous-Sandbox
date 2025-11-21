@@ -260,6 +260,26 @@ public sealed class SqlBackgroundJobService : IBackgroundJobService
         _logger.LogInformation("Enqueued Neo4j sync for {EntityType} {EntityId}", entityType, entityId);
     }
 
+    public async Task<IEnumerable<(Guid JobId, string ParametersJson)>> GetPendingJobsAsync(
+        string jobType,
+        int batchSize = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var jobs = await _context.BackgroundJobs
+            .AsNoTracking()
+            .Where(j => j.JobType == jobType && j.Status == 0) // 0 = Pending
+            .OrderBy(j => j.CreatedAtUtc)
+            .Take(batchSize)
+            .ToListAsync(cancellationToken);
+
+        return jobs.Select(j =>
+        {
+            var guidBytes = new byte[16];
+            BitConverter.GetBytes(j.JobId).CopyTo(guidBytes, 0);
+            return (JobId: new Guid(guidBytes), ParametersJson: j.Payload ?? "{}");
+        });
+    }
+
     private async Task SetupConnectionAsync(SqlConnection connection, CancellationToken cancellationToken)
     {
         if (!_connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase) &&
