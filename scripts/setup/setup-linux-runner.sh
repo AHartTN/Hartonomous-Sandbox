@@ -23,7 +23,7 @@ if command -v dotnet &> /dev/null; then
         echo " ? Version $dotnet_version is too old (need 10.0+)"
         echo "      Install: wget https://dot.net/v1/dotnet-install.sh && bash dotnet-install.sh --channel 10.0"
         checks+=(".NET SDK|?|$dotnet_version")
-        ((fail_count++))
+        fail_count=$((fail_count + 1))
     fi
 else
     echo " ? Not installed"
@@ -31,13 +31,13 @@ else
     echo "               export PATH=\"\$HOME/.dotnet:\$PATH\""
     echo "               echo 'export PATH=\"\$HOME/.dotnet:\$PATH\"' >> ~/.bashrc"
     checks+=(".NET SDK|?|Not found")
-    ((fail_count++))
+    fail_count=$((fail_count + 1))
 fi
 
 # Check 2: PowerShell
 echo -n "[2/5] Checking PowerShell..."
 if command -v pwsh &> /dev/null; then
-    pwsh_version=$(pwsh --version | grep -oP '\d+\.\d+\.\d+')
+    pwsh_version=$(pwsh --version | grep -oP '\d+\.\d+\.\d+' || echo "unknown")
     echo " ? $pwsh_version"
     checks+=("PowerShell|?|$pwsh_version")
 else
@@ -47,7 +47,7 @@ else
     echo "              sudo dpkg -i powershell_7.4.0-1.deb_amd64.deb"
     echo "              sudo apt-get install -f"
     checks+=("PowerShell|?|Not found")
-    ((fail_count++))
+    fail_count=$((fail_count + 1))
 fi
 
 # Check 3: Git
@@ -60,7 +60,7 @@ else
     echo " ? Not installed"
     echo "      Install: sudo apt install git"
     checks+=("Git|?|Not found")
-    ((fail_count++))
+    fail_count=$((fail_count + 1))
 fi
 
 # Check 4: Docker
@@ -76,14 +76,14 @@ if command -v docker &> /dev/null; then
         echo "      Fix: sudo usermod -aG docker \$USER"
         echo "           newgrp docker  # Or logout/login"
         checks+=("Docker|??|No permissions")
-        ((warn_count++))
+        warn_count=$((warn_count + 1))
     fi
 else
     echo " ?? Not installed (optional, for test containers)"
     echo "      Install: sudo apt install docker.io"
     echo "               sudo usermod -aG docker \$USER"
     checks+=("Docker|??|Not found")
-    ((warn_count++))
+    warn_count=$((warn_count + 1))
 fi
 
 # Check 5: GitHub Actions Runner
@@ -95,7 +95,7 @@ else
     echo " ? Not running or not installed"
     echo "      Install: See docs/ci-cd/RUNNER-SETUP.md"
     checks+=("GitHub Runner|?|Not found")
-    ((fail_count++))
+    fail_count=$((fail_count + 1))
 fi
 
 # Summary
