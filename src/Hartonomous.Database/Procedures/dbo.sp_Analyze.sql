@@ -242,38 +242,39 @@ BEGIN
         -- High Pressure (many embeddings) + Low Velocity (rarely used) = Untapped potential
         DECLARE @UntappedKnowledge NVARCHAR(MAX);
         
-        SELECT @UntappedKnowledge = (
-            SELECT TOP 20
-                RankedRegions.HilbertValue,
-                RankedRegions.Pressure,
-                RankedRegions.Velocity,
-                RankedRegions.PressureRank,
-                RankedRegions.VelocityRank
-            FROM (
-                SELECT 
-                    ae.[HilbertValue],
-                    COUNT_BIG(ae.AtomId) AS Pressure,
-                    ISNULL((
-                        SELECT COUNT_BIG(1) 
-                        FROM [dbo].[InferenceTracking] it 
-                        WHERE it.AtomId = ae.AtomId
-                    ), 0) AS Velocity,
-                    PERCENT_RANK() OVER (ORDER BY COUNT_BIG(ae.AtomId) DESC) AS PressureRank,
-                    PERCENT_RANK() OVER (ORDER BY ISNULL((
-                        SELECT COUNT_BIG(1) 
-                        FROM [dbo].[InferenceTracking] it 
-                        WHERE it.AtomId = ae.AtomId
-                    ), 0) ASC) AS VelocityRank
-                FROM [dbo].[AtomEmbedding] ae
-                WHERE ae.[HilbertValue] IS NOT NULL 
-                  AND ae.[HilbertValue] <> 0
-                GROUP BY ae.[HilbertValue], ae.AtomId
-            ) AS RankedRegions
-            WHERE RankedRegions.PressureRank < 0.1  -- Top 10% most dense
-              AND RankedRegions.VelocityRank < 0.1  -- Bottom 10% least used
-            ORDER BY (RankedRegions.PressureRank + RankedRegions.VelocityRank) ASC
-            FOR JSON PATH
-        );
+        -- Check if InferenceTracking table exists (optional feature)
+        IF OBJECT_ID('dbo.InferenceTracking', 'U') IS NOT NULL
+        BEGIN
+            SELECT @UntappedKnowledge = (
+                SELECT TOP 20
+                    RankedRegions.HilbertValue,
+                    RankedRegions.Pressure,
+                    RankedRegions.Velocity,
+                    RankedRegions.PressureRank,
+                    RankedRegions.VelocityRank
+                FROM (
+                    SELECT 
+                        ae.[HilbertValue],
+                        COUNT_BIG(ae.AtomId) AS Pressure,
+                        0 AS Velocity,
+                        PERCENT_RANK() OVER (ORDER BY COUNT_BIG(ae.AtomId) DESC) AS PressureRank,
+                        0.0 AS VelocityRank
+                    FROM [dbo].[AtomEmbedding] ae
+                    WHERE ae.[HilbertValue] IS NOT NULL 
+                      AND ae.[HilbertValue] <> 0
+                    GROUP BY ae.[HilbertValue], ae.AtomId
+                ) AS RankedRegions
+                WHERE RankedRegions.PressureRank < 0.1  -- Top 10% most dense
+                  AND RankedRegions.VelocityRank < 0.1  -- Bottom 10% least used
+                ORDER BY (RankedRegions.PressureRank + RankedRegions.VelocityRank) ASC
+                FOR JSON PATH
+            );
+        END
+        ELSE
+        BEGIN
+            -- If InferenceTracking doesn't exist, return empty array
+            SET @UntappedKnowledge = '[]';
+        END
         
         -- 6. COMPILE OBSERVATIONS
         SET @Observations = JSON_OBJECT(

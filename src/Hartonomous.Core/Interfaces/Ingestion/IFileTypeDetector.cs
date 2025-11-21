@@ -19,5 +19,5 @@ public interface IFileTypeDetector
     /// <summary>
     /// Detect file type from stream.
     /// </summary>
-    FileTypeInfo Detect(Stream stream, string? fileName = null);
+    FileTypeInfo Detect(System.IO.Stream stream, string? fileName = null);
 }

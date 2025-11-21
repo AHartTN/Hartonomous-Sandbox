@@ -31,12 +31,31 @@ Write-Host "Using MSBuild: $msbuild"
 # Build DACPAC
 & $msbuild $ProjectPath `
   /p:Configuration=$Configuration `
-  /p:OutDir="$OutputDir" `
   /v:minimal
 
 if ($LASTEXITCODE -ne 0) {
   Write-Error "MSBuild failed with exit code $LASTEXITCODE"
   exit $LASTEXITCODE
+}
+
+# SQL projects always output to bin\Output, not bin\<Configuration>
+# Copy to expected location if different
+$projectDir = Split-Path $ProjectPath -Parent
+$defaultOutput = Join-Path $projectDir "bin\Output"
+$dacpacName = [System.IO.Path]::GetFileNameWithoutExtension($ProjectPath) + ".dacpac"
+$sourceDacpac = Join-Path $defaultOutput $dacpacName
+
+if (Test-Path $sourceDacpac) {
+    if ($OutputDir -ne $defaultOutput) {
+        # Ensure output directory exists
+        if (-not (Test-Path $OutputDir)) {
+            New-Item -ItemType Directory -Path $OutputDir -Force | Out-Null
+        }
+        
+        $targetDacpac = Join-Path $OutputDir $dacpacName
+        Copy-Item $sourceDacpac $targetDacpac -Force
+        Write-Host "✓ DACPAC copied to: $targetDacpac"
+    }
 }
 
 Write-Host "✓ DACPAC built successfully"

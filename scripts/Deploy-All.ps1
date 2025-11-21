@@ -173,20 +173,21 @@ try {
     }
     
     # =============================================================================
-    # PHASE 4: CLR ASSEMBLIES
+    # PHASE 4: CLR ASSEMBLIES (SKIPPED - EMBEDDED IN DACPAC)
     # =============================================================================
     
-    Write-Phase "PHASE 4: CLR Assemblies"
+    Write-Phase "PHASE 4: CLR Assemblies (Skipped)"
+    Write-Host "⊘ CLR assembly already deployed via DACPAC (Phase 3)" -ForegroundColor Yellow
+    Write-Host "  ✓ Hartonomous.Clr embedded in DACPAC as hex binary" -ForegroundColor Gray
+    Write-Host "  ✓ External dependencies deployed separately if needed" -ForegroundColor Gray
     
-    Invoke-Step "Deploy CLR assemblies" {
-        $clrScript = Join-Path $scriptRoot "deploy-clr-assemblies.ps1"
-        if (Test-Path $clrScript) {
-            & $clrScript -Server $Server -Database $Database
-        }
-        else {
-            throw "deploy-clr-assemblies.ps1 not found"
-        }
-    }
+    # Uncomment below if you need to deploy external dependencies separately:
+    # Invoke-Step "Deploy external CLR dependencies" {
+    #     $clrScript = Join-Path $scriptRoot "deploy-clr-assemblies.ps1"
+    #     if (Test-Path $clrScript) {
+    #         & $clrScript -Server $Server -Database $Database -DependenciesPath "dependencies"
+    #     }
+    # }
     
     # =============================================================================
     # PHASE 5: AUTONOMOUS OPERATIONS
@@ -197,7 +198,7 @@ try {
     Invoke-Step "Provision SQL Server Agent Job" {
         $jobScript = Join-Path $scriptRoot "sql\Create-AutonomousAgentJob.sql"
         if (Test-Path $jobScript) {
-            sqlcmd -S $Server -d msdb -i $jobScript -b
+            sqlcmd -S $Server -d msdb -C -i $jobScript -b
             if ($LASTEXITCODE -ne 0) {
                 throw "SQL Server Agent Job provisioning failed with exit code $LASTEXITCODE"
             }

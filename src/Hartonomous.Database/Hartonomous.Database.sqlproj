@@ -270,7 +270,8 @@
     <Compile Include="CLR\PrimeNumberSearch.cs" />
     <Compile Include="CLR\Core\BinarySerializationHelpers.cs" />
     <Compile Include="CLR\Core\VectorUtilities.cs" />
-    <Compile Include="CLR\Core\VectorMath.cs" />
+    <!-- VectorMath.cs excluded: requires System.Runtime.Intrinsics (NET Core 3.0+), not available in NET Framework 4.8.1 -->
+    <!-- <Compile Include="CLR\Core\VectorMath.cs" /> -->
     <Compile Include="CLR\Core\TimestampedVector.cs" />
     <Compile Include="CLR\Core\TensorMetadata.cs" />
     <Compile Include="CLR\Core\SqlTensorProvider.cs" />
@@ -280,6 +281,7 @@
     <Compile Include="CLR\Core\GpuAccelerator.cs" />
     <Compile Include="CLR\Core\JsonFormatter.cs" />
     <Compile Include="CLR\Core\AggregateBase.cs" />
+    <Compile Include="CLR\Core\VectorMath.cs" />
     <Compile Include="CLR\MachineLearning\DTWAlgorithm.cs" />
     <Compile Include="CLR\MachineLearning\CUSUMDetector.cs" />
     <Compile Include="CLR\MachineLearning\IsolationForest.cs" />

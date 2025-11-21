@@ -470,6 +470,7 @@
       "hartonomous.core": {
         "type": "Project",
         "dependencies": {
+          "Hartonomous.Shared.Contracts": "[1.0.0, )",
           "NetTopologySuite": "[2.6.0, )"
         }
       },

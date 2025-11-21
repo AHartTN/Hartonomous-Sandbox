@@ -124,7 +124,11 @@ if (-not (Test-Path $BuildOutputPath)) {
     exit 1
 }
 
-$allDlls = Get-ChildItem -Path $BuildOutputPath -Filter "*.dll" -Recurse
+$allDlls = Get-ChildItem -Path $BuildOutputPath -Filter "*.dll" -Recurse -ErrorAction SilentlyContinue
+
+if (-not $allDlls) {
+    $allDlls = @()
+}
 
 # Filter: Skip Microsoft-signed system assemblies
 $systemAssemblyPrefixes = @(

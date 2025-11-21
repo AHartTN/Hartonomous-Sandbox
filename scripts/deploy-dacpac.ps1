@@ -56,6 +56,7 @@ if ($UseAzureAD -and $AccessToken) {
       /TargetDatabaseName:"$Database" `
       /AccessToken:"$AccessToken" `
       /p:DropObjectsNotInSource=False `
+      /p:DropConstraintsNotInSource=True `
       /p:BlockOnPossibleDataLoss=True `
       /p:IgnorePreDeployScript=True `
       /p:IgnorePostDeployScript=True
@@ -67,6 +68,7 @@ if ($UseAzureAD -and $AccessToken) {
       /SourceFile:"$DacpacPath" `
       /TargetConnectionString:"$connectionString" `
       /p:DropObjectsNotInSource=False `
+      /p:DropConstraintsNotInSource=True `
       /p:BlockOnPossibleDataLoss=True `
       /p:IgnorePreDeployScript=True `
       /p:IgnorePostDeployScript=True

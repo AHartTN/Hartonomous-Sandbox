@@ -59,7 +59,8 @@ $scriptRoot = $PSScriptRoot
 $repoRoot = Split-Path $scriptRoot -Parent
 $solutionPath = Join-Path $repoRoot "Hartonomous.sln"
 $dacpacProject = Join-Path $repoRoot "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
-$buildOutput = Join-Path $repoRoot "src\Hartonomous.Database\bin\$Configuration"
+# SQL projects output to bin\Output by default, but we want bin\Release for consistency
+$buildOutput = Join-Path $repoRoot "src\Hartonomous.Database\bin\Release"
 
 Write-Host ""
 Write-Host "╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
@@ -125,33 +126,10 @@ try {
 }
 
 # ============================================================================
-# STEP 3: Sign CLR Assemblies
-# ============================================================================
-if (-not $SkipSigning) {
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-    Write-Host "STEP 3: Sign CLR Assemblies (Auto-Discovery)" -ForegroundColor Cyan
-    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-    Write-Host ""
-    
-    try {
-        & (Join-Path $scriptRoot "Sign-CLRAssemblies.ps1") -Configuration $Configuration
-        if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
-    } catch {
-        Write-Host ""
-        Write-Host "✗ Assembly signing failed: $_" -ForegroundColor Red
-        Write-Host ""
-        Write-Host "To skip signing (dev mode): .\Build-WithSigning.ps1 -SkipSigning" -ForegroundColor Yellow
-        exit 1
-    }
-    
-    Write-Host ""
-}
-
-# ============================================================================
-# STEP 4: Build DACPAC
+# STEP 3: Build DACPAC
 # ============================================================================
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
-Write-Host "STEP 4: Build DACPAC" -ForegroundColor Cyan
+Write-Host "STEP 3: Build DACPAC" -ForegroundColor Cyan
 Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
 Write-Host ""
 
@@ -170,6 +148,29 @@ try {
     Write-Host ""
     Write-Host "✗ DACPAC build failed: $_" -ForegroundColor Red
     exit 1
+}
+
+# ============================================================================
+# STEP 4: Sign CLR Assemblies
+# ============================================================================
+if (-not $SkipSigning) {
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host "STEP 4: Sign CLR Assemblies (Auto-Discovery)" -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor Cyan
+    Write-Host ""
+    
+    try {
+        & (Join-Path $scriptRoot "Sign-CLRAssemblies.ps1") -Configuration $Configuration
+        if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
+    } catch {
+        Write-Host ""
+        Write-Host "✗ Assembly signing failed: $_" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "To skip signing (dev mode): .\Build-WithSigning.ps1 -SkipSigning" -ForegroundColor Yellow
+        exit 1
+    }
+    
+    Write-Host ""
 }
 
 # ============================================================================

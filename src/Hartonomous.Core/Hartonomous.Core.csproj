@@ -8,4 +8,7 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
     <PackageReference Include="NetTopologySuite" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Hartonomous.Shared.Contracts\Hartonomous.Shared.Contracts.csproj" />
+  </ItemGroup>
 </Project>

@@ -280,7 +280,7 @@ public class DataIngestionController : ControllerBase
             StartedAt = DateTime.UtcNow,
             TenantId = request.TenantId
         };
-        _jobs[jobId] = job;
+        // Job tracked via IBackgroundJobService
 
         try
         {
@@ -352,7 +352,7 @@ public class DataIngestionController : ControllerBase
             StartedAt = DateTime.UtcNow,
             TenantId = request.TenantId
         };
-        _jobs[jobId] = job;
+        // Job tracked via IBackgroundJobService
 
         try
         {
@@ -430,7 +430,7 @@ public class DataIngestionController : ControllerBase
             StartedAt = DateTime.UtcNow,
             TenantId = request.TenantId
         };
-        _jobs[jobId] = job;
+        // Job tracked via IBackgroundJobService
 
         try
         {
@@ -508,7 +508,7 @@ public class DataIngestionController : ControllerBase
             StartedAt = DateTime.UtcNow,
             TenantId = tenantId
         };
-        _jobs[childJobId] = childJob;
+        // Job tracked via IBackgroundJobService
 
         try
         {

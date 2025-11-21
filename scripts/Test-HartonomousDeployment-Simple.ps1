@@ -11,7 +11,7 @@ Write-Host "=== HARTONOMOUS KERNEL VALIDATION ===" -ForegroundColor Cyan
 
 # 1. PHYSICS CHECK (AVX2)
 try {
-    $res = Invoke-Sql "SELECT dbo.fn_VectorDotProduct(0x0000803F00000040, 0x0000803F00000040) as V"
+    $res = Invoke-Sql "SELECT dbo.clr_VectorDotProduct(0x0000803F00000040, 0x0000803F00000040) as V"
     if ($res.V -eq 5.0) { Write-Host "[PASS] Physics Engine (AVX2)" -ForegroundColor Green }
     else { Write-Host "[FAIL] Physics Engine Math Error" -ForegroundColor Red }
 } catch { Write-Host "[FAIL] CLR Not Loaded: $_" -ForegroundColor Red }

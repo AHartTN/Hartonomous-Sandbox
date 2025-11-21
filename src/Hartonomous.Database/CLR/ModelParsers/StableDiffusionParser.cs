@@ -22,7 +22,7 @@ namespace Hartonomous.Clr.ModelParsers
         private static readonly string[] VAE_PATTERNS = { "first_stage_model", "vae", "encoder", "decoder", "quant_conv" };
         private static readonly string[] TEXT_ENCODER_PATTERNS = { "cond_stage_model", "text_model", "transformer.text_model", "embeddings" };
 
-        private IModelFormatReader underlyingParser;
+        private IModelFormatReader? underlyingParser;
 
         public bool ValidateFormat(Stream stream)
         {
@@ -31,7 +31,7 @@ namespace Hartonomous.Clr.ModelParsers
 
             // Stable Diffusion models use SafeTensors or PyTorch format
             // Detect underlying format first
-            underlyingParser = DetectUnderlyingFormat(stream);
+            underlyingParser = DetectUnderlyingFormat(stream)!;
             
             if (underlyingParser == null)
                 return false;
@@ -52,7 +52,7 @@ namespace Hartonomous.Clr.ModelParsers
         {
             if (underlyingParser == null)
             {
-                underlyingParser = DetectUnderlyingFormat(stream);
+                underlyingParser = DetectUnderlyingFormat(stream)!;
                 if (underlyingParser == null)
                     throw new ArgumentException("Invalid Stable Diffusion format", nameof(stream));
             }

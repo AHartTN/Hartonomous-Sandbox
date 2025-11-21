@@ -64,11 +64,11 @@ public class ResearchController : ControllerBase
         {
             AtomId = r.AtomId,
             Title = r.ContentPreview?.Split('\n').FirstOrDefault() ?? "Untitled",
-            Snippet = r.ContentPreview,
+            Snippet = r.ContentPreview ?? string.Empty,
             RelevanceScore = r.Score,
             Source = "Hartonomous Knowledge Base",
             AtomType = r.Modality ?? "Unknown",
-            Location = null, // Spatial data would come from extended query
+            Location = new GeoPoint(),
             Tags = new List<string>()
         }).ToList();
 
@@ -88,7 +88,7 @@ public class ResearchController : ControllerBase
                 },
                 TopTags = new List<string>()
             },
-            SpatialCoverage = null,
+            SpatialCoverage = new SpatialBounds(),
             DemoMode = false
         };
 

@@ -27,7 +27,7 @@ public class CorrelationIdMiddleware
         {
             // X-Correlation-ID: Root trace ID for the entire distributed trace (GUID format)
             string correlationId;
-            if (activity?.TraceId != default)
+            if (activity != null && activity.TraceId != default)
             {
                 // Use Activity TraceId if available (W3C format: 32 hex chars)
                 correlationId = activity.TraceId.ToHexString();

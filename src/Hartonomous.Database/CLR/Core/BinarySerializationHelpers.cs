@@ -347,7 +347,9 @@ namespace Hartonomous.Clr.Core
             var list = new List<float[]>(count);
             for (int i = 0; i < count; i++)
             {
-                list.Add(reader.ReadFloatArray());
+                var array = reader.ReadFloatArray();
+                if (array != null)
+                    list.Add(array);
             }
             return list;
         }
@@ -389,7 +391,7 @@ namespace Hartonomous.Clr.Core
 
             return new TensorInfo
             {
-                Name = name,
+                Name = name ?? string.Empty,
                 Dtype = dtype,
                 Quantization = quantization,
                 Shape = shape,

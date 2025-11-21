@@ -213,11 +213,15 @@ BEGIN
                 );
             END
 
-            -- HYPOTHESIS 6: Refactor code based on duplicate AST signatures
+            -- HYPOTHESIS 6: Refactor code based on duplicate content hashes
             DECLARE @DuplicateCodeAtoms NVARCHAR(MAX) = (
-                SELECT TOP 10 SpatialSignature.ToString() AS Signature, COUNT(*) AS DuplicateCount
-                FROM dbo.CodeAtom
-                GROUP BY SpatialSignature.ToString()
+                SELECT TOP 10 
+                    CONVERT(NVARCHAR(64), ContentHash, 2) AS ContentHashHex, 
+                    COUNT(*) AS DuplicateCount,
+                    MAX(CanonicalText) AS SampleCode
+                FROM dbo.Atom
+                WHERE ContentType = 'code'
+                GROUP BY ContentHash
                 HAVING COUNT(*) > 1
                 ORDER BY COUNT(*) DESC
                 FOR JSON PATH
@@ -229,7 +233,7 @@ BEGIN
                 VALUES (
                     'RefactorCode',
                     6,
-                    'Detected multiple code blocks with identical abstract syntax tree (AST) signatures, indicating duplicated logic.',
+                    'Detected multiple code blocks with identical content hashes, indicating duplicated logic.',
                     '{"codebaseReduction": "1-2%", "maintainabilityIncrease": "medium"}',
                     @DuplicateCodeAtoms
                 );

@@ -45,45 +45,65 @@ public sealed class SqlBackgroundJobService : IBackgroundJobService
         int tenantId,
         CancellationToken cancellationToken = default)
     {
-        var jobId = Guid.NewGuid();
-
         var job = new Data.Entities.Entities.BackgroundJob
         {
-            JobId = jobId,
             JobType = jobType,
-            Status = "Pending",
-            ParametersJson = parametersJson,
+            Status = 0, // Pending
+            Payload = parametersJson,
             TenantId = tenantId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAtUtc = DateTime.UtcNow
         };
 
         _context.BackgroundJobs.Add(job);
         await _context.SaveChangesAsync(cancellationToken);
 
-        _logger.LogInformation("Created background job {JobId} of type {JobType}", jobId, jobType);
-        return jobId;
+        _logger.LogInformation("Created background job {JobId} of type {JobType}", job.JobId, jobType);
+        
+        // Return a deterministic Guid based on the JobId for backwards compatibility
+        var guidBytes = new byte[16];
+        BitConverter.GetBytes(job.JobId).CopyTo(guidBytes, 0);
+        return new Guid(guidBytes);
     }
 
     public async Task<BackgroundJobInfo?> GetJobAsync(
         Guid jobId,
         CancellationToken cancellationToken = default)
     {
+        // Convert Guid back to long JobId
+        var longJobId = BitConverter.ToInt64(jobId.ToByteArray(), 0);
+        
         var job = await _context.BackgroundJobs
             .AsNoTracking()
-            .FirstOrDefaultAsync(j => j.JobId == jobId, cancellationToken);
+            .FirstOrDefaultAsync(j => j.JobId == longJobId, cancellationToken);
 
         if (job == null) return null;
 
+        var statusString = job.Status switch
+        {
+            0 => "Pending",
+            1 => "InProgress",
+            2 => "Completed",
+            3 => "Failed",
+            4 => "DeadLettered",
+            5 => "Cancelled",
+            6 => "Scheduled",
+            _ => "Unknown"
+        };
+
+        var guidBytes = new byte[16];
+        BitConverter.GetBytes(job.JobId).CopyTo(guidBytes, 0);
+        var resultGuid = new Guid(guidBytes);
+
         return new BackgroundJobInfo(
-            job.JobId,
+            resultGuid,
             job.JobType,
-            job.Status,
-            job.ParametersJson,
-            job.ResultJson,
+            statusString,
+            job.Payload,
+            job.ResultData,
             job.ErrorMessage,
-            job.TenantId,
-            job.CreatedAt,
-            job.CompletedAt);
+            job.TenantId ?? 0,
+            job.CreatedAtUtc,
+            job.CompletedAtUtc);
     }
 
     public async Task UpdateJobAsync(
@@ -93,8 +113,11 @@ public sealed class SqlBackgroundJobService : IBackgroundJobService
         string? errorMessage = null,
         CancellationToken cancellationToken = default)
     {
+        // Convert Guid back to long JobId
+        var longJobId = BitConverter.ToInt64(jobId.ToByteArray(), 0);
+        
         var job = await _context.BackgroundJobs
-            .FirstOrDefaultAsync(j => j.JobId == jobId, cancellationToken);
+            .FirstOrDefaultAsync(j => j.JobId == longJobId, cancellationToken);
 
         if (job == null)
         {
@@ -102,13 +125,23 @@ public sealed class SqlBackgroundJobService : IBackgroundJobService
             return;
         }
 
-        job.Status = status;
-        job.ResultJson = resultJson;
+        job.Status = status switch
+        {
+            "Pending" => 0,
+            "InProgress" => 1,
+            "Completed" => 2,
+            "Failed" => 3,
+            "DeadLettered" => 4,
+            "Cancelled" => 5,
+            "Scheduled" => 6,
+            _ => job.Status
+        };
+        job.ResultData = resultJson;
         job.ErrorMessage = errorMessage;
 
         if (status == "Completed" || status == "Failed")
         {
-            job.CompletedAt = DateTime.UtcNow;
+            job.CompletedAtUtc = DateTime.UtcNow;
         }
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -127,24 +160,58 @@ public sealed class SqlBackgroundJobService : IBackgroundJobService
 
         if (!string.IsNullOrEmpty(statusFilter))
         {
-            query = query.Where(j => j.Status == statusFilter);
+            var statusInt = statusFilter switch
+            {
+                "Pending" => 0,
+                "InProgress" => 1,
+                "Completed" => 2,
+                "Failed" => 3,
+                "DeadLettered" => 4,
+                "Cancelled" => 5,
+                "Scheduled" => 6,
+                _ => -1
+            };
+            
+            if (statusInt >= 0)
+            {
+                query = query.Where(j => j.Status == statusInt);
+            }
         }
 
         var jobs = await query
-            .OrderByDescending(j => j.CreatedAt)
+            .OrderByDescending(j => j.CreatedAtUtc)
             .Take(limit)
             .ToListAsync(cancellationToken);
 
-        return jobs.Select(j => new BackgroundJobInfo(
-            j.JobId,
-            j.JobType,
-            j.Status,
-            j.ParametersJson,
-            j.ResultJson,
-            j.ErrorMessage,
-            j.TenantId,
-            j.CreatedAt,
-            j.CompletedAt));
+        return jobs.Select(j =>
+        {
+            var statusString = j.Status switch
+            {
+                0 => "Pending",
+                1 => "InProgress",
+                2 => "Completed",
+                3 => "Failed",
+                4 => "DeadLettered",
+                5 => "Cancelled",
+                6 => "Scheduled",
+                _ => "Unknown"
+            };
+
+            var guidBytes = new byte[16];
+            BitConverter.GetBytes(j.JobId).CopyTo(guidBytes, 0);
+            var resultGuid = new Guid(guidBytes);
+
+            return new BackgroundJobInfo(
+                resultGuid,
+                j.JobType,
+                statusString,
+                j.Payload,
+                j.ResultData,
+                j.ErrorMessage,
+                j.TenantId ?? 0,
+                j.CreatedAtUtc,
+                j.CompletedAtUtc);
+        });
     }
 
     public async Task EnqueueIngestionAsync(
