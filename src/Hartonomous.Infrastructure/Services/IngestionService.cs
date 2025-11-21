@@ -147,10 +147,117 @@ public class IngestionService : ServiceBase<IngestionService>, IIngestionService
         };
     }
 
-    public Task<IngestionResult> IngestUrlAsync(string url, int tenantId)
+    public async Task<IngestionResult> IngestUrlAsync(string url, int tenantId)
     {
-        // TODO: Implement URL ingestion
-        throw new NotImplementedException("URL ingestion not yet implemented");
+        return await ExecuteWithTelemetryAsync(
+            $"IngestUrl ({url})",
+            async () => await IngestUrlInternalAsync(url, tenantId),
+            CancellationToken.None);
+    }
+
+    private async Task<IngestionResult> IngestUrlInternalAsync(string url, int tenantId)
+    {
+        // Validation using Guard clauses
+        Guard.NotNullOrWhiteSpace(url, nameof(url));
+        Guard.Positive(tenantId, nameof(tenantId));
+
+        // Validate URL format
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            throw new ArgumentException($"Invalid URL format: {url}", nameof(url));
+        }
+
+        // Security: Only allow HTTP and HTTPS schemes
+        if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new InvalidOperationException($"Unsupported URL scheme: {uri.Scheme}. Only HTTP and HTTPS are allowed.");
+        }
+
+        Logger.LogInformation(
+            "Ingesting URL: {Url}, Tenant: {TenantId}",
+            url, tenantId);
+
+        byte[] fileData;
+        string fileName;
+        string? contentType = null;
+
+        try
+        {
+            // Download content using HttpClient
+            using var httpClient = new HttpClient();
+            httpClient.Timeout = TimeSpan.FromMinutes(5); // Configurable timeout
+            
+            // Set user agent for better server compatibility
+            httpClient.DefaultRequestHeaders.Add("User-Agent", "Hartonomous/1.0 (Cognitive Database System)");
+
+            var response = await httpClient.GetAsync(uri);
+            response.EnsureSuccessStatusCode();
+
+            // Extract content type and data
+            contentType = response.Content.Headers.ContentType?.MediaType;
+            fileData = await response.Content.ReadAsByteArrayAsync();
+
+            // Extract filename from URL or Content-Disposition header
+            fileName = GetFileNameFromUrl(uri, response.Content.Headers.ContentDisposition?.FileName);
+
+            Logger.LogInformation(
+                "Downloaded {Size} bytes from {Url}, ContentType: {ContentType}, FileName: {FileName}",
+                fileData.Length, url, contentType ?? "unknown", fileName);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new InvalidOperationException($"Failed to download content from URL: {url}", ex);
+        }
+        catch (TaskCanceledException ex)
+        {
+            throw new TimeoutException($"URL download timed out: {url}", ex);
+        }
+
+        // Validate downloaded content
+        if (fileData == null || fileData.Length == 0)
+        {
+            throw new InvalidOperationException($"No content retrieved from URL: {url}");
+        }
+
+        // Track telemetry
+        _telemetry?.TrackEvent("UrlDownloadCompleted", new Dictionary<string, string>
+        {
+            ["Url"] = url,
+            ["ContentType"] = contentType ?? "unknown",
+            ["Size"] = fileData.Length.ToString(),
+            ["TenantId"] = tenantId.ToString()
+        });
+
+        // Delegate to existing file ingestion logic with tenant isolation
+        return await IngestFileInternalAsync(fileData, fileName, tenantId);
+    }
+
+    /// <summary>
+    /// Extracts a meaningful filename from a URL or fallback to generated name.
+    /// </summary>
+    private static string GetFileNameFromUrl(Uri uri, string? contentDispositionFileName)
+    {
+        // First, try Content-Disposition header filename
+        if (!string.IsNullOrWhiteSpace(contentDispositionFileName))
+        {
+            return contentDispositionFileName.Trim('"', '\'');
+        }
+
+        // Extract from URL path
+        var segments = uri.Segments;
+        if (segments.Length > 0)
+        {
+            var lastSegment = segments[^1].Trim('/');
+            if (!string.IsNullOrWhiteSpace(lastSegment) && lastSegment.Contains('.'))
+            {
+                return lastSegment;
+            }
+        }
+
+        // Fallback: Generate filename from domain and timestamp
+        var domain = uri.Host.Replace("www.", "");
+        var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+        return $"{domain}_{timestamp}.dat";
     }
 
     public Task<IngestionResult> IngestDatabaseAsync(string connectionString, string query, int tenantId)

@@ -141,31 +141,59 @@ BEGIN
         SET @duplicateAtoms = @totalAtoms - @newAtoms;
 
         -- =====================================================
-        -- Trigger Neo4j Provenance Sync
+        -- Trigger Neo4j Provenance Sync (Service Broker)
         -- =====================================================
-        -- Background workers will process this queue
-        -- Creates nodes in Neo4j for provenance tracking
+        -- Enqueue atoms for async background processing via Service Broker
+        -- Workers poll the queue and sync to Neo4j graph database
         
-        IF @newAtoms > 0 AND OBJECT_ID('dbo.Neo4jSyncQueue', 'U') IS NOT NULL
+        IF @newAtoms > 0
         BEGIN
-            INSERT INTO dbo.Neo4jSyncQueue (
-                EntityType,
-                EntityId,
-                Operation,
-                TenantId,
-                QueuedAt,
-                BatchId,
-                Status
-            )
-            SELECT
-                'Atom' AS EntityType,
-                AtomId AS EntityId,
-                'INSERT' AS Operation,
-                @tenantId AS TenantId,
-                SYSUTCDATETIME() AS QueuedAt,
-                @batchId AS BatchId,
-                'Pending' AS Status
-            FROM @newAtomIds;
+            -- Enqueue each new atom for Neo4j sync using Service Broker
+            DECLARE @atomCursor CURSOR;
+            DECLARE @currentAtomId BIGINT;
+            
+            SET @atomCursor = CURSOR FOR
+                SELECT AtomId FROM @newAtomIds;
+            
+            OPEN @atomCursor;
+            FETCH NEXT FROM @atomCursor INTO @currentAtomId;
+            
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                -- Use Service Broker for reliable async messaging
+                EXEC dbo.sp_EnqueueNeo4jSync
+                    @EntityType = 'Atom',
+                    @EntityId = @currentAtomId,
+                    @SyncType = 'CREATE';
+                    
+                FETCH NEXT FROM @atomCursor INTO @currentAtomId;
+            END
+            
+            CLOSE @atomCursor;
+            DEALLOCATE @atomCursor;
+            
+            -- Also maintain direct table queue for monitoring/fallback
+            IF OBJECT_ID('dbo.Neo4jSyncQueue', 'U') IS NOT NULL
+            BEGIN
+                INSERT INTO dbo.Neo4jSyncQueue (
+                    EntityType,
+                    EntityId,
+                    Operation,
+                    TenantId,
+                    QueuedAt,
+                    BatchId,
+                    Status
+                )
+                SELECT
+                    'Atom' AS EntityType,
+                    AtomId AS EntityId,
+                    'INSERT' AS Operation,
+                    @tenantId AS TenantId,
+                    SYSUTCDATETIME() AS QueuedAt,
+                    @batchId AS BatchId,
+                    'Pending' AS Status
+                FROM @newAtomIds;
+            END
         END
 
         -- =====================================================
