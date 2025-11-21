@@ -239,7 +239,7 @@
     <Compile Include="CLR\TrajectoryAggregates.cs" />
     <Compile Include="CLR\BehavioralAggregates.cs" />
     <Compile Include="CLR\AnomalyDetectionAggregates.cs" />
-    <Compile Include="CLR\DimensionalityReductionAggregates." />
+    <Compile Include="CLR\DimensionalityReductionAggregates.cs" />
     <Compile Include="CLR\ReasoningFrameworkAggregates.cs" />
     <Compile Include="CLR\RecommenderAggregates.cs" />
     <Compile Include="CLR\ResearchToolAggregates.cs" />
@@ -372,3 +372,4 @@
     </ArtifactReference>
   </ItemGroup>
 </Project>
+
