@@ -12,6 +12,7 @@ CREATE TABLE [dbo].[Atom] (
     -- Core classification
     [ContentType]     NVARCHAR(100)    NULL,  -- Semantic type: 'text', 'code', 'image', 'weight', etc.
     [SourceType]      NVARCHAR(100)    NULL,  -- Origin type: 'upload', 'generated', 'extracted', etc.
+    [ConceptId]       BIGINT           NULL,  -- Semantic concept/cluster assignment
 
     -- Source tracking
     [SourceUri]       NVARCHAR(2048)   NULL,  -- Original source location or reference
@@ -36,6 +37,7 @@ CREATE TABLE [dbo].[Atom] (
 
     CONSTRAINT [PK_Atom] PRIMARY KEY CLUSTERED ([AtomId] ASC),
     CONSTRAINT [UX_Atom_ContentHash] UNIQUE NONCLUSTERED ([ContentHash] ASC),
+    CONSTRAINT [FK_Atom_Concept] FOREIGN KEY ([ConceptId]) REFERENCES [dbo].[Concept]([ConceptId]),
     PERIOD FOR SYSTEM_TIME ([CreatedAt], [ModifiedAt])
 )
 WITH (SYSTEM_VERSIONING = ON (HISTORY_TABLE = [dbo].[AtomHistory]));
@@ -67,4 +69,10 @@ CREATE NONCLUSTERED INDEX [IX_Atom_BatchId]
     ON [dbo].[Atom]([BatchId])
     INCLUDE ([AtomId], [TenantId], [CreatedAt])
     WHERE [BatchId] IS NOT NULL;
+GO
+
+CREATE NONCLUSTERED INDEX [IX_Atom_ConceptId]
+    ON [dbo].[Atom]([ConceptId])
+    INCLUDE ([AtomId], [TenantId], [Modality])
+    WHERE [ConceptId] IS NOT NULL;
 GO

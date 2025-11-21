@@ -25,10 +25,11 @@ CREATE TABLE [dbo].[TenantGuidMapping]
 );
 GO
 
--- Index for reverse lookups (INT -> GUID)
+-- Index for active tenant lookups (filtered index for performance)
 CREATE NONCLUSTERED INDEX [IX_TenantGuidMapping_IsActive]
     ON [dbo].[TenantGuidMapping]([IsActive])
-    INCLUDE ([TenantId], [TenantGuid], [TenantName], [StripeCustomerId]);
+    INCLUDE ([TenantGuid], [TenantName], [CreatedAt])
+    WHERE [IsActive] = 1;
 GO
 
 EXEC sys.sp_addextendedproperty
