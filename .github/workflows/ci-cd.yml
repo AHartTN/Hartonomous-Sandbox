@@ -208,10 +208,10 @@ jobs:
           
           Write-Host "Deploying CLR signing certificate to SQL Server (production mode)..."
           
-          # Call script - will throw on error
+          # Call script - Deploy-CLRCertificate.ps1 only accepts -Server and -EnableStrictSecurity
+          # It does NOT accept -Database parameter
           & ./scripts/Deploy-CLRCertificate.ps1 `
             -Server "${{ secrets.SQL_SERVER }}" `
-            -Database "${{ secrets.SQL_DATABASE }}" `
             -EnableStrictSecurity $true
           
           Write-Host "✓ CLR signing certificate deployed with CLR Strict Security enabled"
