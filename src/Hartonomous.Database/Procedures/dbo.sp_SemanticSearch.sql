@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_SemanticSearch
+CREATE PROCEDURE dbo.sp_SemanticSearch
     @query_text NVARCHAR(MAX) = NULL,
     @query_embedding VECTOR(1536) = NULL,
     @query_dimension INT = 768,

@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_SubmitInferenceJob
+CREATE PROCEDURE dbo.sp_SubmitInferenceJob
     @taskType NVARCHAR(50),
     @inputData NVARCHAR(MAX),
     @modelId INT = NULL,

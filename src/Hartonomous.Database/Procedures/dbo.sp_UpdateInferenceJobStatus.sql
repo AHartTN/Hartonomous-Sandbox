@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_UpdateInferenceJobStatus
+CREATE PROCEDURE dbo.sp_UpdateInferenceJobStatus
     @inferenceId BIGINT,
     @status NVARCHAR(50),
     @outputData NVARCHAR(MAX) = NULL,

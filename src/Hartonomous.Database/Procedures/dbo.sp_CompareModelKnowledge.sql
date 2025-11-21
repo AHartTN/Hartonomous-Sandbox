@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_CompareModelKnowledge
+CREATE PROCEDURE dbo.sp_CompareModelKnowledge
     @ModelAId INT,
     @ModelBId INT
 AS

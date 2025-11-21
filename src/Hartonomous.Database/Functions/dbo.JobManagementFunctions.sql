@@ -4,7 +4,7 @@
 -- =============================================
 
 -- Function 1: Calculate complexity score (1-100)
-CREATE OR ALTER FUNCTION dbo.fn_CalculateComplexity (
+CREATE FUNCTION dbo.fn_CalculateComplexity (
     @TokenCount INT,
     @RequiresMultiModal BIT,
     @RequiresToolUse BIT
@@ -40,7 +40,7 @@ END;
 GO
 
 -- Function 2: Determine SLA tier
-CREATE OR ALTER FUNCTION dbo.fn_DetermineSla (
+CREATE FUNCTION dbo.fn_DetermineSla (
     @Priority NVARCHAR(50),
     @Complexity INT
 )
@@ -64,7 +64,7 @@ END;
 GO
 
 -- Function 3: Estimate response time (milliseconds)
-CREATE OR ALTER FUNCTION dbo.fn_EstimateResponseTime (
+CREATE FUNCTION dbo.fn_EstimateResponseTime (
     @ModelName NVARCHAR(255),
     @Complexity INT
 )
@@ -93,7 +93,7 @@ END;
 GO
 
 -- Function 4: Binary to Float32 conversion
-CREATE OR ALTER FUNCTION dbo.fn_BinaryToFloat32 (
+CREATE FUNCTION dbo.fn_BinaryToFloat32 (
     @BinaryValue VARBINARY(4)
 )
 RETURNS FLOAT

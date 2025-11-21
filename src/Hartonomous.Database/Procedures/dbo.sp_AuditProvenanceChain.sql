@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_AuditProvenanceChain
+CREATE PROCEDURE dbo.sp_AuditProvenanceChain
     @StartDate DATETIME2 = NULL,
     @EndDate DATETIME2 = NULL,
     @Scope NVARCHAR(100) = NULL,

@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_GenerateTextSpatial
+CREATE PROCEDURE dbo.sp_GenerateTextSpatial
     @prompt NVARCHAR(MAX),
     @max_tokens INT = 10,
     @temperature FLOAT = 1.0

@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_ChainOfThoughtReasoning
+CREATE PROCEDURE dbo.sp_ChainOfThoughtReasoning
     @ProblemId UNIQUEIDENTIFIER,
     @InitialPrompt NVARCHAR(MAX),
     @MaxSteps INT = 5,

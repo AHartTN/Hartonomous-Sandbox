@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_FuseMultiModalStreams
+CREATE PROCEDURE dbo.sp_FuseMultiModalStreams
     @StreamIds NVARCHAR(MAX), -- Comma-separated stream IDs
     @FusionType NVARCHAR(50) = 'weighted_average', -- 'weighted_average', 'max_pooling', 'attention_fusion'
     @Weights NVARCHAR(MAX) = NULL, -- JSON weights for each stream

@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_MultiModelEnsemble
+CREATE PROCEDURE dbo.sp_MultiModelEnsemble
     @QueryVector1 VECTOR(1536), -- Model 1 embedding (OpenAI standard)
     @QueryVector2 VECTOR(1536), -- Model 2 embedding
     @QueryVector3 VECTOR(1536), -- Model 3 embedding

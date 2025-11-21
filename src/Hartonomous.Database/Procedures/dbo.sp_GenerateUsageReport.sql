@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_GenerateUsageReport
+CREATE PROCEDURE dbo.sp_GenerateUsageReport
     @TenantId INT,
     @ReportType NVARCHAR(50) = 'Summary', -- 'Summary', 'Detailed', 'Forecast'
     @TimeRange NVARCHAR(20) = 'Month' -- 'Day', 'Week', 'Month', 'Year'

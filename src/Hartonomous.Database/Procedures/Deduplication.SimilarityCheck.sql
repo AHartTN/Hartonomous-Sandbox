@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE [Deduplication].[SimilarityCheck]
+CREATE PROCEDURE [Deduplication].[SimilarityCheck]
     @QuerySpatialKey GEOMETRY,
     @Threshold FLOAT,
     @ModelId INT = NULL

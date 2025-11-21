@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_GenerateEventsFromStream
+CREATE PROCEDURE dbo.sp_GenerateEventsFromStream
     @StreamId INT,
     @EventType NVARCHAR(100),
     @Threshold FLOAT = 0.5, -- Minimum weight threshold for event generation

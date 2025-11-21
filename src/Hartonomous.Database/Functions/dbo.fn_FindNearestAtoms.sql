@@ -10,7 +10,7 @@
 -- Stage 2: Hilbert clustering for cache locality
 -- Stage 3: O(K) SIMD vector refinement
 
-CREATE OR ALTER FUNCTION dbo.fn_FindNearestAtoms
+CREATE FUNCTION dbo.fn_FindNearestAtoms
 (
     @queryVector VARBINARY(MAX),
     @topK INT,

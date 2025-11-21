@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_ComputeAllSemanticFeatures
+CREATE PROCEDURE dbo.sp_ComputeAllSemanticFeatures
 AS
 BEGIN
     SET NOCOUNT ON;

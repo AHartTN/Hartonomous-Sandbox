@@ -6,7 +6,7 @@
 -- Triggers Neo4j provenance graph sync for new atoms
 -- Returns JSON summary of ingestion results
 
-CREATE OR ALTER PROCEDURE dbo.sp_IngestAtoms
+CREATE PROCEDURE dbo.sp_IngestAtoms
     @atomsJson NVARCHAR(MAX),
     @sourceId BIGINT = NULL,
     @tenantId INT = 0,

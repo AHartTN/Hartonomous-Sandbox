@@ -10,7 +10,7 @@
 -- This procedure implements the fundamental breakthrough:
 -- High-dimensional similarity search using 3D spatial indexes
 
-CREATE OR ALTER PROCEDURE dbo.sp_FindNearestAtoms
+CREATE PROCEDURE dbo.sp_FindNearestAtoms
     @queryVector VARBINARY(MAX),
     @topK INT = 10,
     @spatialPoolSize INT = 1000,

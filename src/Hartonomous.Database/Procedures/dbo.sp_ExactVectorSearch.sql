@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_ExactVectorSearch
+CREATE PROCEDURE dbo.sp_ExactVectorSearch
     @query_vector VECTOR(1536),
     @top_k INT = 10,
     @TenantId INT, -- V3: Added for security

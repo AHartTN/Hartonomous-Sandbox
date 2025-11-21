@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_CrossModalQuery
+CREATE PROCEDURE dbo.sp_CrossModalQuery
     @text_query NVARCHAR(MAX) = NULL,
     @spatial_query_x FLOAT = NULL,
     @spatial_query_y FLOAT = NULL,

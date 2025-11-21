@@ -4,7 +4,7 @@
 -- Finds atoms similar to concept centroid
 -- =============================================
 
-CREATE OR ALTER FUNCTION dbo.fn_BindAtomsToCentroid (
+CREATE FUNCTION dbo.fn_BindAtomsToCentroid (
     @CentroidVector VARBINARY(MAX),
     @SimilarityThreshold FLOAT,
     @TenantId INT

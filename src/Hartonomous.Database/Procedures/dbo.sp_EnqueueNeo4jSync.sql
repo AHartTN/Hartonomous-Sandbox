@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_EnqueueNeo4jSync
+CREATE PROCEDURE dbo.sp_EnqueueNeo4jSync
     @EntityType NVARCHAR(50),
     @EntityId BIGINT,
     @SyncType NVARCHAR(50) = 'CREATE'

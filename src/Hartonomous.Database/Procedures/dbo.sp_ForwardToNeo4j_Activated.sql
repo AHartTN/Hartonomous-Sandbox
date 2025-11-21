@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_ForwardToNeo4j_Activated
+CREATE PROCEDURE dbo.sp_ForwardToNeo4j_Activated
 AS
 BEGIN
     SET NOCOUNT ON;

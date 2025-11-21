@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_MultiPathReasoning
+CREATE PROCEDURE dbo.sp_MultiPathReasoning
     @ProblemId UNIQUEIDENTIFIER,
     @BasePrompt NVARCHAR(MAX),
     @NumPaths INT = 3,

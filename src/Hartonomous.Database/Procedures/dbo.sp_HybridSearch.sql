@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_HybridSearch
+CREATE PROCEDURE dbo.sp_HybridSearch
     @query_vector VECTOR(1536),
     @query_dimension INT,
     @query_spatial_x FLOAT,

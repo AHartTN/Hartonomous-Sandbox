@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_ValidateOperationProvenance
+CREATE PROCEDURE dbo.sp_ValidateOperationProvenance
     @OperationId UNIQUEIDENTIFIER,
     @ExpectedScope NVARCHAR(100) = NULL,
     @ExpectedModel NVARCHAR(100) = NULL,

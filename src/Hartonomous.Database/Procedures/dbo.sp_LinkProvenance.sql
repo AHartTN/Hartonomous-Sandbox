@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_LinkProvenance
+CREATE PROCEDURE dbo.sp_LinkProvenance
     @ParentAtomIds NVARCHAR(MAX), -- Comma-separated list
     @ChildAtomId BIGINT,
     @DependencyType NVARCHAR(50) = 'DerivedFrom',

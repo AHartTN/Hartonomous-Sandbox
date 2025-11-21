@@ -5,7 +5,7 @@
 -- CLR is for per-row RBAR operations, T-SQL for set operations
 -- PHASE 7.2: Added TenantId for security
 -- =============================================
-CREATE OR ALTER PROCEDURE dbo.sp_TemporalVectorSearch
+CREATE PROCEDURE dbo.sp_TemporalVectorSearch
     @QueryVector VECTOR(1536),
     @TopK INT = 10,
     @StartTime DATETIME2,

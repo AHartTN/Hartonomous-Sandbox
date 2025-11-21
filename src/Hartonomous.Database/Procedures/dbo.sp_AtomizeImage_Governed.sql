@@ -6,7 +6,7 @@
 -- IDEMPOTENT: Uses CREATE OR ALTER
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_AtomizeImage_Governed]
+CREATE PROCEDURE [dbo].[sp_AtomizeImage_Governed]
     @IngestionJobId BIGINT,
     @ImageData VARBINARY(MAX),
     @ImageWidth INT,

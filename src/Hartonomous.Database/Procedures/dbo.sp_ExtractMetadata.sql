@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_ExtractMetadata
+CREATE PROCEDURE dbo.sp_ExtractMetadata
     @AtomId BIGINT,
     @TenantId INT = 0
 AS

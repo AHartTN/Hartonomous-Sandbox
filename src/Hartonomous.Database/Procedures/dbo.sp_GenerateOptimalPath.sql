@@ -7,7 +7,7 @@
 -- IDEMPOTENT: Uses CREATE OR ALTER
 -- =============================================
 
-CREATE OR ALTER PROCEDURE [dbo].[sp_GenerateOptimalPath]
+CREATE PROCEDURE [dbo].[sp_GenerateOptimalPath]
     @StartAtomId BIGINT,
     @TargetConceptId INT,
     @MaxSteps INT = 50,

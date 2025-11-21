@@ -6,7 +6,7 @@
 -- Supports temperature-based stochastic sampling
 -- Logs inference requests for OODA loop analysis
 
-CREATE OR ALTER PROCEDURE dbo.sp_RunInference
+CREATE PROCEDURE dbo.sp_RunInference
     @contextAtomIds NVARCHAR(MAX),
     @temperature FLOAT = 1.0,
     @topK INT = 10,

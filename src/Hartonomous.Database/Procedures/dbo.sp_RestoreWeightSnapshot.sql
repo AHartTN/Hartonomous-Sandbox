@@ -1,4 +1,4 @@
-CREATE OR ALTER PROCEDURE dbo.sp_RestoreWeightSnapshot
+CREATE PROCEDURE dbo.sp_RestoreWeightSnapshot
     @SnapshotName NVARCHAR(255),
     @DryRun BIT = 1
 AS
