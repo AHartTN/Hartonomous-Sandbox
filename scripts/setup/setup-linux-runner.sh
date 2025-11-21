@@ -7,6 +7,21 @@ echo "Target: hart-server (Linux)"
 echo "This script will automatically install missing prerequisites"
 echo ""
 
+# Detect the user running the GitHub Actions runner service
+RUNNER_USER=$(ps aux | grep -E 'actions.runner.*Runner.Listener' | grep -v grep | awk '{print $1}' | head -1)
+
+if [ -z "$RUNNER_USER" ]; then
+    echo "?? Warning: Could not detect GitHub Actions runner user"
+    echo "   Will install for current user: $USER"
+    RUNNER_USER=$USER
+else
+    echo "? Detected GitHub Actions runner user: $RUNNER_USER"
+fi
+
+RUNNER_HOME=$(eval echo "~$RUNNER_USER")
+echo "? Runner home directory: $RUNNER_HOME"
+echo ""
+
 declare -a checks=()
 fail_count=0
 warn_count=0
@@ -25,41 +40,51 @@ if command -v dotnet &> /dev/null; then
         echo " ?? Version $dotnet_version is too old (need 10.0+)"
         echo "      Upgrading to .NET 10..."
         
-        wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
-        chmod +x /tmp/dotnet-install.sh
-        /tmp/dotnet-install.sh --channel 10.0 --install-dir $HOME/.dotnet
+        # Install for runner user
+        sudo -u $RUNNER_USER bash -c "wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install-runner.sh && chmod +x /tmp/dotnet-install-runner.sh && /tmp/dotnet-install-runner.sh --channel 10.0 --install-dir $RUNNER_HOME/.dotnet"
         
-        # Add to PATH for current session
-        export PATH="$HOME/.dotnet:$PATH"
-        
-        # Add to .bashrc if not already there
-        if ! grep -q 'export PATH="$HOME/.dotnet:$PATH"' ~/.bashrc; then
-            echo 'export PATH="$HOME/.dotnet:$PATH"' >> ~/.bashrc
+        # Add to runner user's .bashrc
+        if ! sudo -u $RUNNER_USER grep -q 'export PATH="$HOME/.dotnet:$PATH"' $RUNNER_HOME/.bashrc; then
+            sudo -u $RUNNER_USER bash -c "echo 'export PATH=\"\$HOME/.dotnet:\$PATH\"' >> $RUNNER_HOME/.bashrc"
         fi
         
-        dotnet_version=$(dotnet --version)
-        echo "      ? Installed .NET $dotnet_version"
+        # Add to runner user's .profile (for systemd service)
+        if ! sudo -u $RUNNER_USER grep -q 'export PATH="$HOME/.dotnet:$PATH"' $RUNNER_HOME/.profile 2>/dev/null; then
+            sudo -u $RUNNER_USER bash -c "echo 'export PATH=\"\$HOME/.dotnet:\$PATH\"' >> $RUNNER_HOME/.profile"
+        fi
+        
+        dotnet_version=$($RUNNER_HOME/.dotnet/dotnet --version)
+        echo "      ? Installed .NET $dotnet_version for user $RUNNER_USER"
         checks+=(".NET SDK|?|$dotnet_version (installed)")
         installed_count=$((installed_count + 1))
     fi
 else
     echo " ? Not installed"
-    echo "      Installing .NET 10..."
+    echo "      Installing .NET 10 for runner user: $RUNNER_USER..."
     
-    wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install.sh
-    chmod +x /tmp/dotnet-install.sh
-    /tmp/dotnet-install.sh --channel 10.0 --install-dir $HOME/.dotnet
+    # Install for runner user
+    sudo -u $RUNNER_USER bash -c "wget -q https://dot.net/v1/dotnet-install.sh -O /tmp/dotnet-install-runner.sh && chmod +x /tmp/dotnet-install-runner.sh && /tmp/dotnet-install-runner.sh --channel 10.0 --install-dir $RUNNER_HOME/.dotnet"
     
-    # Add to PATH for current session
-    export PATH="$HOME/.dotnet:$PATH"
-    
-    # Add to .bashrc if not already there
-    if ! grep -q 'export PATH="$HOME/.dotnet:$PATH"' ~/.bashrc; then
-        echo 'export PATH="$HOME/.dotnet:$PATH"' >> ~/.bashrc
+    # Add to runner user's .bashrc
+    if ! sudo -u $RUNNER_USER grep -q 'export PATH="$HOME/.dotnet:$PATH"' $RUNNER_HOME/.bashrc; then
+        sudo -u $RUNNER_USER bash -c "echo 'export PATH=\"\$HOME/.dotnet:\$PATH\"' >> $RUNNER_HOME/.bashrc"
     fi
     
-    dotnet_version=$(dotnet --version)
-    echo "      ? Installed .NET $dotnet_version"
+    # Add to runner user's .profile (for systemd service)
+    if ! sudo -u $RUNNER_USER grep -q 'export PATH="$HOME/.dotnet:$PATH"' $RUNNER_HOME/.profile 2>/dev/null; then
+        sudo -u $RUNNER_USER bash -c "echo 'export PATH=\"\$HOME/.dotnet:\$PATH\"' >> $RUNNER_HOME/.profile"
+    fi
+    
+    # Restart runner service to pick up new PATH
+    echo "      Restarting GitHub Actions runner service..."
+    if systemctl --user is-active --quiet actions.runner.* 2>/dev/null; then
+        sudo -u $RUNNER_USER systemctl --user restart actions.runner.* || true
+    elif systemctl is-active --quiet actions.runner.* 2>/dev/null; then
+        sudo systemctl restart actions.runner.* || true
+    fi
+    
+    dotnet_version=$($RUNNER_HOME/.dotnet/dotnet --version)
+    echo "      ? Installed .NET $dotnet_version for user $RUNNER_USER"
     checks+=(".NET SDK|?|$dotnet_version (installed)")
     installed_count=$((installed_count + 1))
 fi
@@ -79,7 +104,7 @@ else
         . /etc/os-release
         
         if [[ "$ID" == "ubuntu" ]]; then
-            # Ubuntu installation
+            # Ubuntu installation (system-wide)
             wget -q https://packages.microsoft.com/config/ubuntu/$VERSION_ID/packages-microsoft-prod.deb -O /tmp/packages-microsoft-prod.deb
             sudo dpkg -i /tmp/packages-microsoft-prod.deb
             sudo apt-get update > /dev/null 2>&1
@@ -126,18 +151,26 @@ echo -n "[4/5] Checking Docker..."
 if command -v docker &> /dev/null; then
     docker_version=$(docker --version | cut -d' ' -f3 | tr -d ',')
     
-    # Check if current user can run docker
-    if docker ps &> /dev/null; then
+    # Check if runner user can run docker
+    if sudo -u $RUNNER_USER docker ps &> /dev/null; then
         echo " ? $docker_version (already installed, permissions OK)"
         checks+=("Docker|?|$docker_version")
     else
         echo " ?? $docker_version (fixing permissions...)"
-        echo "      Adding $USER to docker group..."
+        echo "      Adding $RUNNER_USER to docker group..."
         
-        sudo usermod -aG docker $USER
+        sudo usermod -aG docker $RUNNER_USER
         
-        echo "      ? User added to docker group"
-        echo "      ?? You must logout/login or run: newgrp docker"
+        echo "      ? User $RUNNER_USER added to docker group"
+        echo "      ?? Runner service will be restarted to apply group changes"
+        
+        # Restart runner service to pick up group membership
+        if systemctl --user is-active --quiet actions.runner.* 2>/dev/null; then
+            sudo -u $RUNNER_USER systemctl --user restart actions.runner.* || true
+        elif systemctl is-active --quiet actions.runner.* 2>/dev/null; then
+            sudo systemctl restart actions.runner.* || true
+        fi
+        
         checks+=("Docker|?|$docker_version (permissions fixed)")
         installed_count=$((installed_count + 1))
     fi
@@ -150,12 +183,20 @@ else
     sudo systemctl enable docker > /dev/null 2>&1
     sudo systemctl start docker > /dev/null 2>&1
     
-    # Add user to docker group
-    sudo usermod -aG docker $USER
+    # Add runner user to docker group
+    sudo usermod -aG docker $RUNNER_USER
     
     docker_version=$(docker --version | cut -d' ' -f3 | tr -d ',')
     echo "      ? Installed Docker $docker_version"
-    echo "      ?? You must logout/login or run: newgrp docker"
+    echo "      ? User $RUNNER_USER added to docker group"
+    
+    # Restart runner service to pick up group membership
+    if systemctl --user is-active --quiet actions.runner.* 2>/dev/null; then
+        sudo -u $RUNNER_USER systemctl --user restart actions.runner.* || true
+    elif systemctl is-active --quiet actions.runner.* 2>/dev/null; then
+        sudo systemctl restart actions.runner.* || true
+    fi
+    
     checks+=("Docker|?|$docker_version (installed)")
     installed_count=$((installed_count + 1))
 fi
@@ -191,13 +232,20 @@ if [ $warn_count -gt 0 ]; then
     echo "  ?? Manual setup needed: $warn_count components"
 fi
 echo ""
+echo "Runner user: $RUNNER_USER"
+echo "Runner home: $RUNNER_HOME"
+echo ""
 
 if [ $fail_count -eq 0 ] && [ $warn_count -eq 0 ]; then
     echo "? ALL PREREQUISITES INSTALLED - Runner is ready!"
+    echo ""
+    echo "?? GitHub Actions runner service has been restarted to apply changes"
     exit 0
 elif [ $fail_count -eq 0 ]; then
     echo "?? SETUP COMPLETE with $warn_count warnings"
     echo "   Some components require manual configuration (see above)"
+    echo ""
+    echo "?? GitHub Actions runner service has been restarted to apply changes"
     exit 0
 else
     echo "? INSTALLATION FAILED - $fail_count critical issues"
