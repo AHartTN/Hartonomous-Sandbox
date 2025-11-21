@@ -193,7 +193,27 @@ BEGIN
                 );
             END
 
-            -- HYPOTHESIS 5: Prune model based on low-importance tensor atoms
+            -- HYPOTHESIS 5: Discover new concepts through unsupervised clustering
+            DECLARE @OrphanAtomCount INT = (
+                SELECT COUNT(*)
+                FROM dbo.Atom
+                WHERE ConceptId IS NULL
+                  AND SpatialKey IS NOT NULL
+            );
+
+            IF @OrphanAtomCount > 20 -- Threshold for running concept discovery
+            BEGIN
+                INSERT INTO @HypothesisList (HypothesisType, Priority, Description, ExpectedImpact, RequiredActions)
+                VALUES (
+                    'ConceptDiscovery',
+                    3,
+                    'Detected ' + CAST(@OrphanAtomCount AS NVARCHAR(10)) + ' orphan atoms. Unsupervised clustering may reveal emergent concepts.',
+                    '{"newConceptsExpected": ' + CAST(@OrphanAtomCount / 10 AS NVARCHAR(10)) + ', "orphanReduction": "80-90%"}',
+                    '["RunConceptClustering", "ProposeNewConcepts", "AssignAtomsToConceptsoncepts"]'
+                );
+            END;
+
+            -- HYPOTHESIS 6: Prune model based on low-importance tensor atoms
             DECLARE @PruneThreshold FLOAT = 0.01; -- Define a threshold for low importance
             DECLARE @PruneableAtoms NVARCHAR(MAX) = (
                 SELECT ta.TensorAtomId, tac.Coefficient
@@ -215,7 +235,7 @@ BEGIN
                 );
             END
 
-            -- HYPOTHESIS 6: Refactor code based on duplicate content hashes
+            -- HYPOTHESIS 7: Refactor code based on duplicate content hashes
             DECLARE @DuplicateCodeAtoms NVARCHAR(MAX) = (
                 SELECT TOP 10 
                     CONVERT(NVARCHAR(64), ContentHash, 2) AS ContentHashHex, 
@@ -241,7 +261,7 @@ BEGIN
                 );
             END
 
-            -- HYPOTHESIS 7: Fix UX based on sessions ending in an error state
+            -- HYPOTHESIS 8: Fix UX based on sessions ending in an error state
             -- This assumes an @ErrorRegion GEOMETRY variable is defined, representing error states.
             DECLARE @ErrorRegion GEOMETRY = geometry::Point(0, 0, 0).STBuffer(10); -- Placeholder for error region
             DECLARE @FailingSessions NVARCHAR(MAX) = (

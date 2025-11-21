@@ -152,7 +152,80 @@ BEGIN
             (@AnalysisId, 'ActionsQueued', @QueuedCount, SYSUTCDATETIME()),
             (@AnalysisId, 'ActionsFailed', @FailedCount, SYSUTCDATETIME());
         
-        -- 5. END CONVERSATION
+        -- 5. RLHF FEEDBACK LOOP: Process accumulated feedback
+        -- This is the critical connection between user feedback and system learning
+        DECLARE @PendingFeedbackCount INT;
+
+        SELECT @PendingFeedbackCount = COUNT(*)
+        FROM dbo.InferenceFeedback f
+        WHERE f.FeedbackTimestamp >= DATEADD(HOUR, -1, SYSUTCDATETIME())
+          AND NOT EXISTS (
+              -- Check if feedback was already processed
+              SELECT 1 FROM dbo.AutonomousImprovementHistory aih
+              WHERE aih.TargetEntity = 'AtomRelation'
+                AND aih.ImprovementType = 'FeedbackWeightAdjustment'
+                AND aih.TargetId = f.InferenceRequestId
+          );
+
+        IF @PendingFeedbackCount >= 5 -- Batch threshold
+        BEGIN
+            PRINT 'sp_Learn: Triggering weight adjustments for ' + CAST(@PendingFeedbackCount AS NVARCHAR(10)) + ' feedback items';
+            
+            -- Process feedback in batch
+            DECLARE @FeedbackInferenceId BIGINT, @FeedbackRating INT, @FeedbackComments NVARCHAR(2000), @FeedbackUserId NVARCHAR(128);
+            
+            DECLARE feedback_cursor CURSOR LOCAL FAST_FORWARD FOR
+                SELECT f.InferenceRequestId, f.Rating, f.Comments, f.UserId
+                FROM dbo.InferenceFeedback f
+                WHERE f.FeedbackTimestamp >= DATEADD(HOUR, -1, SYSUTCDATETIME())
+                  AND NOT EXISTS (
+                      SELECT 1 FROM dbo.AutonomousImprovementHistory aih
+                      WHERE aih.TargetEntity = 'AtomRelation'
+                        AND aih.ImprovementType = 'FeedbackWeightAdjustment'
+                        AND aih.TargetId = f.InferenceRequestId
+                  );
+            
+            OPEN feedback_cursor;
+            FETCH NEXT FROM feedback_cursor INTO @FeedbackInferenceId, @FeedbackRating, @FeedbackComments, @FeedbackUserId;
+            
+            WHILE @@FETCH_STATUS = 0
+            BEGIN
+                -- Call sp_ProcessFeedback for each pending feedback
+                BEGIN TRY
+                    EXEC dbo.sp_ProcessFeedback 
+                        @InferenceId = @FeedbackInferenceId,
+                        @Rating = @FeedbackRating,
+                        @Comments = @FeedbackComments,
+                        @UserId = @FeedbackUserId;
+                END TRY
+                BEGIN CATCH
+                    PRINT 'sp_Learn: Error processing feedback for inference ' + CAST(@FeedbackInferenceId AS NVARCHAR(20)) + ': ' + ERROR_MESSAGE();
+                END CATCH;
+                
+                FETCH NEXT FROM feedback_cursor INTO @FeedbackInferenceId, @FeedbackRating, @FeedbackComments, @FeedbackUserId;
+            END;
+            
+            CLOSE feedback_cursor;
+            DEALLOCATE feedback_cursor;
+            
+            PRINT 'sp_Learn: Weight adjustments completed';
+            
+            -- Track feedback processing metrics
+            INSERT INTO dbo.LearningMetrics (
+                AnalysisId,
+                MetricType,
+                MetricValue,
+                MeasuredAt
+            )
+            VALUES 
+                (@AnalysisId, 'FeedbackProcessed', @PendingFeedbackCount, SYSUTCDATETIME());
+        END
+        ELSE IF @PendingFeedbackCount > 0
+        BEGIN
+            PRINT 'sp_Learn: ' + CAST(@PendingFeedbackCount AS NVARCHAR(10)) + ' feedback items pending (threshold: 5)';
+        END;
+        
+        -- 6. END CONVERSATION
         END CONVERSATION @ConversationHandle;
         
         PRINT 'sp_Learn completed: OODA loop cycle finished';
