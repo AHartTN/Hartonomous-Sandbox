@@ -1,84 +1,76 @@
 ﻿#!/bin/bash
-# Hartonomous Linux Runner Prerequisites Setup
-# IDEMPOTENT - Safe to run multiple times without side effects
-# Based on official Microsoft documentation
+# GitHub Actions Runner Prerequisites
+# Minimal setup script for self-hosted Linux runners
+# Based on Microsoft best practices documentation
 
-set -e
+set -euo pipefail
 
 if [ "$EUID" -ne 0 ]; then
     echo "ERROR: Must run as root"
     exit 1
 fi
 
-echo "=== Hartonomous Linux Runner Setup ==="
+echo "=== GitHub Actions Runner Prerequisites Setup ==="
 echo ""
 
-# Detect runner service and user
+# Detect runner service
 RUNNER_SVC=$(systemctl list-units 'actions.runner*' --no-legend --full | awk '{print $1}' | head -1)
 
 if [ -z "$RUNNER_SVC" ]; then
     echo "ERROR: No GitHub Actions runner service found"
+    echo "Install the runner first: https://docs.github.com/en/actions/hosting-your-own-runners"
     exit 1
 fi
 
+# Get runner user
 RUNNER_USER=$(systemctl show "$RUNNER_SVC" -p User --value)
 
-if [ -z "$RUNNER_USER" ]; then
-    echo "ERROR: Could not determine runner user from service $RUNNER_SVC"
+if [ -z "$RUNNER_USER" ] || [ "$RUNNER_USER" = "root" ]; then
+    echo "ERROR: Runner must not run as root"
+    exit 1
+fi
+
+# Get runner home directory
+RUNNER_HOME=$(getent passwd "$RUNNER_USER" | cut -d: -f6)
+
+if [ -z "$RUNNER_HOME" ] || [ ! -d "$RUNNER_HOME" ]; then
+    echo "ERROR: Runner user home directory not found"
     exit 1
 fi
 
 echo "Runner service: $RUNNER_SVC"
 echo "Runner user: $RUNNER_USER"
+echo "Runner home: $RUNNER_HOME"
 echo ""
 
-# .NET 10 SDK
-echo -n "[1/4] .NET 10 SDK... "
-if command -v dotnet &>/dev/null; then
-    VER=$(dotnet --version 2>/dev/null | cut -d. -f1)
-    if [ "$VER" -ge 10 ] 2>/dev/null; then
-        echo "OK ($(dotnet --version))"
-    else
-        echo "upgrading from $(dotnet --version)"
-        add-apt-repository -y ppa:dotnet/backports >/dev/null 2>&1
-        apt-get update >/dev/null 2>&1
-        apt-get install -y dotnet-sdk-10.0 >/dev/null 2>&1
-        echo "        Installed: $(dotnet --version)"
-    fi
-else
-    echo "installing"
-    add-apt-repository -y ppa:dotnet/backports >/dev/null 2>&1
-    apt-get update >/dev/null 2>&1
-    apt-get install -y dotnet-sdk-10.0 >/dev/null 2>&1
-    echo "        Installed: $(dotnet --version)"
-fi
-
-# PowerShell
-echo -n "[2/4] PowerShell... "
-if command -v pwsh &>/dev/null; then
-    echo "OK ($(pwsh --version | grep -oP '\d+\.\d+\.\d+'))"
-else
-    echo "installing"
-    apt-get update >/dev/null 2>&1
-    apt-get install -y powershell >/dev/null 2>&1
-    echo "        Installed: $(pwsh --version | grep -oP '\d+\.\d+\.\d+')"
+# Create tool cache directory with correct permissions
+TOOL_CACHE="$RUNNER_HOME/actions-tool-cache"
+if [ ! -d "$TOOL_CACHE" ]; then
+    echo "Creating tool cache directory..."
+    mkdir -p "$TOOL_CACHE"
+    chown -R "$RUNNER_USER:$RUNNER_USER" "$TOOL_CACHE"
+    chmod 755 "$TOOL_CACHE"
+    echo "  Created: $TOOL_CACHE"
 fi
 
 # Git
-echo -n "[3/4] Git... "
+echo -n "[1/2] Git... "
 if command -v git &>/dev/null; then
     echo "OK ($(git --version | cut -d' ' -f3))"
 else
     echo "installing"
+    apt-get update -qq
     apt-get install -y git >/dev/null 2>&1
     echo "        Installed: $(git --version | cut -d' ' -f3)"
 fi
 
-# Docker
-echo -n "[4/4] Docker... "
+# Docker + permissions
+echo -n "[2/2] Docker... "
 if command -v docker &>/dev/null; then
-    if groups "$RUNNER_USER" 2>/dev/null | grep -q docker; then
-        echo "OK ($(docker --version | cut -d' ' -f3 | tr -d ','))"
+    VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
+    
+    if groups "$RUNNER_USER" 2>/dev/null | grep -q '\bdocker\b'; then
+        echo "OK ($VER, permissions OK)"
     else
         echo "fixing permissions"
         usermod -aG docker "$RUNNER_USER"
@@ -86,13 +78,15 @@ if command -v docker &>/dev/null; then
     fi
 else
     echo "installing"
+    apt-get update -qq
     apt-get install -y docker.io >/dev/null 2>&1
     systemctl enable --now docker >/dev/null 2>&1
     usermod -aG docker "$RUNNER_USER"
-    echo "        Installed: $(docker --version | cut -d' ' -f3 | tr -d ',')"
+    VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
+    echo "        Installed: $VER"
 fi
 
-# Restart runner
+# Restart runner service to apply group changes
 echo ""
 echo "Restarting $RUNNER_SVC..."
 systemctl restart "$RUNNER_SVC"
@@ -101,8 +95,23 @@ sleep 2
 if systemctl is-active --quiet "$RUNNER_SVC"; then
     echo "OK"
 else
-    echo "Failed (check: systemctl status $RUNNER_SVC)"
+    echo "FAILED - check: systemctl status $RUNNER_SVC"
+    exit 1
 fi
 
 echo ""
-echo "Setup complete. Verify: dotnet --version"
+echo "=== Setup Complete ==="
+echo ""
+echo "IMPORTANT: .NET SDK Installation"
+echo "  This script does NOT install .NET"
+echo "  Add this to your GitHub Actions workflow:"
+echo ""
+echo "    - name: Setup .NET SDK"
+echo "      uses: actions/setup-dotnet@v4"
+echo "      with:"
+echo "        dotnet-version: '10.x'"
+echo ""
+echo "  This is the Microsoft-recommended approach."
+echo "  It automatically manages the tool cache at:"
+echo "  $TOOL_CACHE"
+echo ""
