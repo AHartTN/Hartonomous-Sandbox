@@ -1,9 +1,26 @@
 using Hartonomous.Core.Configuration;
+using Hartonomous.Core.Interfaces.Atomization;
+using Hartonomous.Core.Interfaces.Billing;
+using Hartonomous.Core.Interfaces.Concept;
+using Hartonomous.Core.Interfaces.Generation;
+using Hartonomous.Core.Interfaces.Inference;
+using Hartonomous.Core.Interfaces.Ooda;
 using Hartonomous.Core.Interfaces.Provenance;
 using Hartonomous.Core.Interfaces.Reasoning;
+using Hartonomous.Core.Interfaces.Search;
+using Hartonomous.Core.Interfaces.Semantic;
 using Hartonomous.Core.Services;
 using Hartonomous.Data.Entities;
 using Hartonomous.Infrastructure.Services;
+using Hartonomous.Infrastructure.Services.Atomization;
+using Hartonomous.Infrastructure.Services.Billing;
+using Hartonomous.Infrastructure.Services.Concept;
+using Hartonomous.Infrastructure.Services.Generation;
+using Hartonomous.Infrastructure.Services.Inference;
+using Hartonomous.Infrastructure.Services.Ooda;
+using Hartonomous.Infrastructure.Services.Reasoning;
+using Hartonomous.Infrastructure.Services.Search;
+using Hartonomous.Infrastructure.Services.Semantic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -68,6 +85,35 @@ public static class BusinessServiceRegistration
 
         // ===== PHASE 2: Context Retrieval Service (Reasoning) =====
         services.AddScoped<IContextRetrievalService, ContextRetrievalService>();
+
+        // ===== PHASE 3: SQL-backed AI Services =====
+        
+        // Reasoning Services (Existing)
+        services.AddScoped<IReasoningService, SqlReasoningService>();
+        
+        // Generation Services (Existing)
+        services.AddScoped<IGenerationService, SqlGenerationService>();
+        
+        // OODA Loop Services (Existing)
+        services.AddScoped<IOodaService, SqlOodaService>();
+        
+        // Search Services (Phase 1 - High Priority)
+        services.AddScoped<ISearchService, SqlSearchService>();
+        
+        // Inference Services (Phase 1 - High Priority)
+        services.AddScoped<IInferenceService, SqlInferenceService>();
+        
+        // Concept Services (Phase 2)
+        services.AddScoped<IConceptService, SqlConceptService>();
+        
+        // Semantic Services (Phase 2)
+        services.AddScoped<ISemanticService, SqlSemanticService>();
+
+        // ===== PHASE 3: Billing Services (ENTERPRISE GRADE) =====
+        services.AddScoped<IBillingService, SqlBillingService>();
+
+        // ===== PHASE 3: Atomization Services (DATA INGESTION) =====
+        services.AddScoped<IAtomizationService, SqlAtomizationService>();
 
         return services;
     }

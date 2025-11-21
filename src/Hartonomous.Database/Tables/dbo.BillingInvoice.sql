@@ -12,8 +12,17 @@ CREATE TABLE [dbo].[BillingInvoice] (
     [GeneratedUtc]       DATETIME2 (7)   NOT NULL DEFAULT (SYSUTCDATETIME()),
     [PaidUtc]            DATETIME2 (7)   NULL,
     [MetadataJson]       NVARCHAR (MAX)  NULL,
+    
+    -- Stripe integration columns
+    [StripeInvoiceId]    NVARCHAR (255)  NULL,
+    [StripeStatus]       NVARCHAR (50)   NULL,
+    [StripePdfUrl]       NVARCHAR (500)  NULL,
+    [StripeHostedUrl]    NVARCHAR (500)  NULL,
+    
     CONSTRAINT [PK_BillingInvoices] PRIMARY KEY CLUSTERED ([InvoiceId] ASC),
     CONSTRAINT [UQ_BillingInvoices_Number] UNIQUE NONCLUSTERED ([InvoiceNumber]),
+    CONSTRAINT [UQ_BillingInvoices_StripeId] UNIQUE NONCLUSTERED ([StripeInvoiceId]) WHERE [StripeInvoiceId] IS NOT NULL,
     INDEX [IX_BillingInvoices_Tenant] ([TenantId], [GeneratedUtc] DESC),
-    INDEX [IX_BillingInvoices_Status] ([Status], [GeneratedUtc] DESC)
+    INDEX [IX_BillingInvoices_Status] ([Status], [GeneratedUtc] DESC),
+    INDEX [IX_BillingInvoices_StripeId] ([StripeInvoiceId]) INCLUDE ([InvoiceId], [TenantId], [Status])
 );

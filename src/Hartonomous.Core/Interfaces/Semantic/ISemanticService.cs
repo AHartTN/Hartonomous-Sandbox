@@ -57,4 +57,6 @@ public interface ISemanticService
 public record DuplicateResult(
     long AtomId1,
     long AtomId2,
-    float Similarity);
+    float Similarity,
+    string Atom1Text,
+    string Atom2Text);

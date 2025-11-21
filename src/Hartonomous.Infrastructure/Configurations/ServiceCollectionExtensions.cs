@@ -2,11 +2,15 @@ using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Atomization;
 using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Core.Interfaces.Billing;
+using Hartonomous.Core.Interfaces.Cognition;
 using Hartonomous.Core.Interfaces.Concept;
+using Hartonomous.Core.Interfaces.Conversation;
+using Hartonomous.Core.Interfaces.Discovery;
 using Hartonomous.Core.Interfaces.Generation;
 using Hartonomous.Core.Interfaces.Inference;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Interfaces.ModelWeight;
+using Hartonomous.Core.Interfaces.Models;
 using Hartonomous.Core.Interfaces.Ooda;
 using Hartonomous.Core.Interfaces.Provenance;
 using Hartonomous.Core.Interfaces.Reasoning;
@@ -15,17 +19,23 @@ using Hartonomous.Core.Interfaces.Search;
 using Hartonomous.Core.Interfaces.Semantic;
 using Hartonomous.Core.Interfaces.SpatialSearch;
 using Hartonomous.Core.Interfaces.Stream;
+using Hartonomous.Core.Interfaces.Streaming;
 using Hartonomous.Core.Interfaces.Validation;
 using Hartonomous.Infrastructure.Health;
 using Hartonomous.Infrastructure.Services.BackgroundJob;
+using Hartonomous.Infrastructure.Services.Cognition;
+using Hartonomous.Infrastructure.Services.Conversation;
+using Hartonomous.Infrastructure.Services.Discovery;
 using Hartonomous.Infrastructure.Services.Generation;
 using Hartonomous.Infrastructure.Services.Ingestion;
 using Hartonomous.Infrastructure.Services.Ingestion.Strategies;
+using Hartonomous.Infrastructure.Services.Models;
 using Hartonomous.Infrastructure.Services.Ooda;
 using Hartonomous.Infrastructure.Services.Provenance;
 using Hartonomous.Infrastructure.Services.Reasoning;
 using Hartonomous.Infrastructure.Services.Search;
 using Hartonomous.Infrastructure.Services.SpatialSearch;
+using Hartonomous.Infrastructure.Services.Streaming;
 using Hartonomous.Infrastructure.Services.Validation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
@@ -104,6 +114,21 @@ public static class ServiceCollectionExtensions
 
         // Provenance write services
         services.AddScoped<IProvenanceWriteService, SqlProvenanceWriteService>();
+
+        // NEW: Conversation services (multi-turn dialogue)
+        services.AddScoped<IConversationService, SqlConversationService>();
+
+        // NEW: Cognitive services (activation spreading, spatial projection)
+        services.AddScoped<ICognitiveService, SqlCognitiveService>();
+
+        // NEW: Discovery services (concept clustering, unsupervised learning)
+        services.AddScoped<IDiscoveryService, SqlDiscoveryService>();
+
+        // NEW: Stream processing services (real-time event orchestration)
+        services.AddScoped<IStreamProcessingService, SqlStreamProcessingService>();
+
+        // NEW: Model management services (weight snapshots, versioning)
+        services.AddScoped<IModelManagementService, SqlModelManagementService>();
 
         // Content type strategy services (Strategy pattern for OCP compliance)
         services.AddSingleton<IContentTypeStrategyRegistry, ContentTypeStrategyRegistry>();

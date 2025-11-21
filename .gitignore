@@ -101,3 +101,20 @@ deploy/SqlClrFunctions.dll
 #certificates/*.cer
 #*.pfx
 #*.snk
+
+# ============================================
+# SENSITIVE DOCUMENTATION (DO NOT COMMIT)
+# ============================================
+# Deployment guides with passwords, keys, IPs
+docs/deployment/*-COMPLETE-AUDIT.md
+docs/deployment/*-SETUP-GUIDE.md
+docs/deployment/PRODUCTION-DEPLOYMENT-PLAN.md
+docs/STRIPE-CONFIGURATION-COMPLETE.md
+
+# Work batch documentation with sensitive context
+docs/work-batches/
+
+# Local environment-specific configs
+*.local.md
+*-local.md
+*-secrets.md

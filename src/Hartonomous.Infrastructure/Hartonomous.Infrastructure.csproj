@@ -42,6 +42,7 @@
     <PackageReference Include="Microsoft.CodeAnalysis.CSharp" />
     <!-- Video/Audio Processing -->
     <PackageReference Include="FFMpegCore" />
+    <PackageReference Include="Stripe.net" />
     <!-- System.Drawing for legacy OCR -->
     <PackageReference Include="System.Drawing.Common" />
   </ItemGroup>

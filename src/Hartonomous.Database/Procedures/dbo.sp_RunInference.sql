@@ -132,7 +132,7 @@ BEGIN
         INDEX IX_Candidates_Score NONCLUSTERED (Score DESC)
     );
 
-    -- Use sp_FindNearestAtoms for spatial similarity search
+    -- Use fn_FindNearestAtoms (inline table-valued function) for spatial similarity search
     INSERT INTO @candidates (AtomId, CanonicalText, Modality, Score, SpatialDistance, Rank)
     SELECT
         AtomId,
@@ -141,13 +141,13 @@ BEGIN
         Score,
         SpatialDistance,
         ROW_NUMBER() OVER (ORDER BY Score DESC) AS Rank
-    FROM dbo.sp_FindNearestAtoms(
-        @queryVector = @contextVector,
-        @topK = @topK * 2, -- Get more candidates for diversity
-        @spatialPoolSize = 2000,
-        @tenantId = @tenantId,
-        @modalityFilter = @modalityFilter,
-        @useHilbertClustering = 1
+    FROM dbo.fn_FindNearestAtoms(
+        @contextVector,      -- @queryVector
+        @topK * 2,           -- @topK - Get more candidates for diversity
+        2000,                -- @spatialPoolSize
+        @tenantId,           -- @tenantId
+        @modalityFilter,     -- @modalityFilter
+        1                    -- @useHilbertClustering
     );
 
     IF NOT EXISTS (SELECT 1 FROM @candidates)

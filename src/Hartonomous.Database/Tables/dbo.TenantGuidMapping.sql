@@ -15,21 +15,25 @@ CREATE TABLE [dbo].[TenantGuidMapping]
     [CreatedBy] NVARCHAR(100) NULL,
     [ModifiedAt] DATETIME2(7) NULL,
     [ModifiedBy] NVARCHAR(100) NULL,
+    
+    -- Stripe integration column
+    [StripeCustomerId] NVARCHAR(255) NULL,
 
     CONSTRAINT [PK_TenantGuidMapping] PRIMARY KEY CLUSTERED ([TenantId] ASC),
-    CONSTRAINT [UQ_TenantGuidMapping_TenantGuid] UNIQUE NONCLUSTERED ([TenantGuid])
+    CONSTRAINT [UQ_TenantGuidMapping_TenantGuid] UNIQUE NONCLUSTERED ([TenantGuid]),
+    CONSTRAINT [UQ_TenantGuidMapping_StripeId] UNIQUE NONCLUSTERED ([StripeCustomerId]) WHERE [StripeCustomerId] IS NOT NULL
 );
 GO
 
 -- Index for reverse lookups (INT -> GUID)
 CREATE NONCLUSTERED INDEX [IX_TenantGuidMapping_IsActive]
     ON [dbo].[TenantGuidMapping]([IsActive])
-    INCLUDE ([TenantId], [TenantGuid], [TenantName]);
+    INCLUDE ([TenantId], [TenantGuid], [TenantName], [StripeCustomerId]);
 GO
 
 EXEC sys.sp_addextendedproperty
     @name = N'MS_Description',
-    @value = N'Maps Azure Entra External ID tenant GUIDs to internal integer tenant IDs. Replaces unsafe GetHashCode() approach. Each Azure AD tenant GUID gets a stable, unique integer ID for use throughout the system.',
+    @value = N'Maps Azure Entra External ID tenant GUIDs to internal integer tenant IDs. Replaces unsafe GetHashCode() approach. Each Azure AD tenant GUID gets a stable, unique integer ID for use throughout the system. Includes Stripe customer ID for billing integration.',
     @level0type = N'SCHEMA', @level0name = N'dbo',
     @level1type = N'TABLE',  @level1name = N'TenantGuidMapping';
 GO

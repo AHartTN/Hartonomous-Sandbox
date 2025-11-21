@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 namespace Hartonomous.Core.Interfaces.Billing;
 
 /// <summary>
-/// Service for billing and usage operations.
+/// Service for billing and usage operations with Stripe integration.
 /// </summary>
 public interface IBillingService
 {
@@ -18,6 +18,7 @@ public interface IBillingService
         int tenantId,
         DateTime periodStart,
         DateTime periodEnd,
+        bool generateInvoice = false,
         CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -38,38 +39,103 @@ public interface IBillingService
         int tenantId,
         DateTime startDate,
         DateTime endDate,
+        string bucketInterval = "HOUR",
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Creates a subscription for a tenant using Stripe.
+    /// </summary>
+    Task<SubscriptionResult> CreateSubscriptionAsync(
+        int tenantId,
+        string planId,
+        string? paymentMethodId = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Cancels a subscription for a tenant.
+    /// </summary>
+    Task<SubscriptionResult> CancelSubscriptionAsync(
+        int tenantId,
+        bool immediately = false,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Processes a one-time payment using Stripe.
+    /// </summary>
+    Task<PaymentResult> ProcessPaymentAsync(
+        int tenantId,
+        decimal amount,
+        string paymentMethodId,
+        string? description = null,
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Bill calculation result with line items.
+/// </summary>
 public record BillResult(
     int TenantId,
     DateTime PeriodStart,
     DateTime PeriodEnd,
-    decimal TotalAmount,
-    IEnumerable<BillLineItem> LineItems);
+    decimal Subtotal,
+    decimal Discount,
+    decimal Tax,
+    decimal Total,
+    IEnumerable<UsageLineItem> UsageBreakdown);
 
-public record BillLineItem(
+/// <summary>
+/// Individual usage line item in a bill.
+/// </summary>
+public record UsageLineItem(
     string UsageType,
-    long Quantity,
-    decimal UnitPrice,
-    decimal Amount);
+    long TotalQuantity,
+    decimal TotalCost);
 
+/// <summary>
+/// Usage report result.
+/// </summary>
 public record UsageReport(
     int TenantId,
     string ReportType,
-    DateTime GeneratedAt,
-    string ReportDataJson);
+    string TimeRange,
+    string ReportJson,
+    DateTime GeneratedAt);
 
+/// <summary>
+/// Usage analytics with time-series data.
+/// </summary>
 public record UsageAnalytics(
     int TenantId,
-    long TotalInferences,
-    long TotalAtoms,
-    long TotalTokens,
-    decimal AverageLatencyMs,
-    IEnumerable<DailyUsage> DailyBreakdown);
+    DateTime StartDate,
+    DateTime EndDate,
+    string BucketInterval,
+    IEnumerable<TimeBucket> TimeSeries);
 
-public record DailyUsage(
-    DateTime Date,
-    long Inferences,
-    long Tokens,
+/// <summary>
+/// Time bucket for usage analytics.
+/// </summary>
+public record TimeBucket(
+    DateTime BucketStart,
+    long EventCount,
     decimal Cost);
+
+/// <summary>
+/// Stripe subscription result.
+/// </summary>
+public record SubscriptionResult(
+    string SubscriptionId,
+    int TenantId,
+    string PlanId,
+    string Status,
+    DateTime CurrentPeriodStart,
+    DateTime CurrentPeriodEnd);
+
+/// <summary>
+/// Stripe payment result.
+/// </summary>
+public record PaymentResult(
+    string PaymentIntentId,
+    int TenantId,
+    decimal Amount,
+    string Status,
+    DateTime ProcessedAt);

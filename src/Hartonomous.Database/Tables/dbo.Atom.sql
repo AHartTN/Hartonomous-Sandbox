@@ -15,6 +15,7 @@ CREATE TABLE [dbo].[Atom] (
 
     -- Source tracking
     [SourceUri]       NVARCHAR(2048)   NULL,  -- Original source location or reference
+    [SourceId]        BIGINT           NULL,  -- Optional source entity reference
     [CanonicalText]   NVARCHAR(MAX)    NULL,  -- Normalized text representation (for text atoms)
 
     -- Extensible metadata (native JSON for SQL Server 2025+)
@@ -22,6 +23,9 @@ CREATE TABLE [dbo].[Atom] (
 
     -- Schema-level governance: Max 64 bytes enforces atomic decomposition
     [AtomicValue]     VARBINARY(64)    NULL,
+
+    -- Ingestion tracking
+    [BatchId]         UNIQUEIDENTIFIER NULL,  -- Ingestion batch identifier for bulk operations
 
     -- Temporal columns
     [CreatedAt]       DATETIME2(7)     GENERATED ALWAYS AS ROW START NOT NULL,
@@ -57,4 +61,10 @@ GO
 CREATE NONCLUSTERED INDEX [IX_Atom_ReferenceCount]
     ON [dbo].[Atom]([ReferenceCount] DESC)
     INCLUDE ([AtomId], [Modality]);
+GO
+
+CREATE NONCLUSTERED INDEX [IX_Atom_BatchId]
+    ON [dbo].[Atom]([BatchId])
+    INCLUDE ([AtomId], [TenantId], [CreatedAt])
+    WHERE [BatchId] IS NOT NULL;
 GO
