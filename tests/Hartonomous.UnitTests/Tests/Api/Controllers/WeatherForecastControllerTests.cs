@@ -1,6 +1,5 @@
 using Hartonomous.Api;
 using Hartonomous.Api.Controllers;
-using Hartonomous.Core.DTOs;
 using FluentAssertions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -29,7 +28,7 @@ public class WeatherForecastControllerTests
         // Assert
         result.Should().BeOfType<OkObjectResult>();
         var okResult = result as OkObjectResult;
-        okResult!.Value.Should().BeOfType<ApiResponse<WeatherForecast[]>>();
+        okResult!.Value.Should().BeOfType<WeatherForecast[]>();
     }
 
     [Fact]
@@ -37,8 +36,7 @@ public class WeatherForecastControllerTests
     {
         // Act
         var result = _controller.Get() as OkObjectResult;
-        var apiResponse = result!.Value as ApiResponse<WeatherForecast[]>;
-        var forecasts = apiResponse!.Data!;
+        var forecasts = result!.Value as WeatherForecast[];
 
         // Assert
         forecasts.Should().HaveCount(5);
@@ -49,8 +47,7 @@ public class WeatherForecastControllerTests
     {
         // Act
         var result = _controller.Get() as OkObjectResult;
-        var apiResponse = result!.Value as ApiResponse<WeatherForecast[]>;
-        var forecasts = apiResponse!.Data!.ToList();
+        var forecasts = (result!.Value as WeatherForecast[])!.ToList();
 
         // Assert
         forecasts.Should().AllSatisfy(forecast =>
@@ -66,8 +63,7 @@ public class WeatherForecastControllerTests
     {
         // Act
         var result = _controller.Get() as OkObjectResult;
-        var apiResponse = result!.Value as ApiResponse<WeatherForecast[]>;
-        var forecasts = apiResponse!.Data!.ToList();
+        var forecasts = (result!.Value as WeatherForecast[])!.ToList();
 
         // Assert
         forecasts.Select(f => f.Date).Should().OnlyHaveUniqueItems();
@@ -78,8 +74,7 @@ public class WeatherForecastControllerTests
     {
         // Act
         var result = _controller.Get() as OkObjectResult;
-        var apiResponse = result!.Value as ApiResponse<WeatherForecast[]>;
-        var forecasts = apiResponse!.Data!.OrderBy(f => f.Date).ToList();
+        var forecasts = (result!.Value as WeatherForecast[])!.OrderBy(f => f.Date).ToList();
 
         // Assert
         for (int i = 1; i < forecasts.Count; i++)
@@ -94,8 +89,7 @@ public class WeatherForecastControllerTests
     {
         // Act
         var result = _controller.Get() as OkObjectResult;
-        var apiResponse = result!.Value as ApiResponse<WeatherForecast[]>;
-        var forecasts = apiResponse!.Data!.ToList();
+        var forecasts = (result!.Value as WeatherForecast[])!.ToList();
 
         // Assert
         forecasts.Should().AllSatisfy(forecast =>

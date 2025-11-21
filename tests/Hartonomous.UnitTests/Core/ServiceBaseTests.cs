@@ -136,9 +136,9 @@ public class ServiceBaseTests
         var service = new TestService(_logger);
 
         // Act & Assert
-        var ex = Assert.Throws<ArgumentException>(() =>
+        var ex = Assert.Throws<ArgumentNullException>(() =>
             service.TestValidateNotNullOrWhiteSpace(null, "testParam"));
-        
+
         ex.ParamName.Should().Be("testParam");
     }
 
@@ -185,9 +185,9 @@ public class ServiceBaseTests
         var service = new TestService(_logger);
 
         // Act & Assert
-        var ex = Assert.Throws<ArgumentException>(() =>
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() =>
             service.TestValidateRange(0, "testParam", 1, 100));
-        
+
         ex.ParamName.Should().Be("testParam");
         ex.Message.Should().Contain("must be between 1 and 100");
     }
@@ -199,9 +199,9 @@ public class ServiceBaseTests
         var service = new TestService(_logger);
 
         // Act & Assert
-        var ex = Assert.Throws<ArgumentException>(() =>
+        var ex = Assert.Throws<ArgumentOutOfRangeException>(() =>
             service.TestValidateRange(101, "testParam", 1, 100));
-        
+
         ex.ParamName.Should().Be("testParam");
         ex.Message.Should().Contain("must be between 1 and 100");
     }

@@ -171,7 +171,7 @@ jobs:
   deploy-database:
     needs: build-dacpac
     runs-on: [self-hosted, windows, sql-server]
-    environment: production
+    environment: ${{ github.event.inputs.environment || 'development' }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -300,7 +300,7 @@ jobs:
     name: Scaffold EF Core Entities
     runs-on: [self-hosted, windows, sql-server]
     needs: deploy-database
-    environment: production
+    environment: ${{ github.event.inputs.environment || 'development' }}
     permissions:
       contents: write
       id-token: write
@@ -461,7 +461,11 @@ jobs:
             --no-restore `
             --verbosity minimal
         shell: pwsh
-      
+
+      - name: Install Playwright browsers
+        run: pwsh tests/Hartonomous.EndToEndTests/bin/Release/net10.0/playwright.ps1 install chromium
+        shell: pwsh
+
       - name: Run unit tests
         run: |
           Write-Host "Running unit tests with hybrid database testing..."
