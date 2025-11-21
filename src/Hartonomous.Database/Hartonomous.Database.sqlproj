@@ -136,6 +136,9 @@
     <Build Remove="Tables\*StreamOrchestrationTables.sql" />
     <Build Remove="Tables\*InferenceTracking.sql" />
     <Build Remove="Tables\*ModelStructure.sql" />
+    <!-- Multi-table files not compatible with DACPAC (deploy via migration scripts) -->
+    <Build Remove="Tables\provenance.SemanticPathCache.sql" />
+    <Build Remove="Tables\dbo.ReasoningTables.sql" />
     <Build Remove="Procedures\*WeightRollback*.sql" />
     <Build Remove="Procedures\*SelfImprovement*.sql" />
     <Build Remove="Procedures\*InsertUsageRecord_Native*.sql" />
@@ -146,10 +149,12 @@
     <Build Remove="Procedures\dbo.sp_FindNearestAtoms.sql" />
     <Build Remove="Procedures\dbo.sp_IngestAtoms.sql" />
     <Build Remove="Procedures\dbo.sp_RunInference.sql" />
+    <!-- Re-enabled after schema fixes in Phase 9:
     <Build Remove="Procedures\dbo.sp_ProcessFeedback.sql" />
     <Build Remove="Procedures\dbo.sp_Hypothesize.sql" />
     <Build Remove="Procedures\dbo.sp_Learn.sql" />
     <Build Remove="Procedures\dbo.sp_ClusterConcepts.sql" />
+    -->
     <Build Remove="Scripts\Pre-Deployment\Enable_*.sql" />
     <Build Remove="Scripts\Pre-Deployment\Setup_*.sql" />
     <Build Remove="Scripts\Post-Deployment\graph.*.sql" />

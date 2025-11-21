@@ -20,9 +20,14 @@ CREATE TABLE [dbo].[TenantGuidMapping]
     [StripeCustomerId] NVARCHAR(255) NULL,
 
     CONSTRAINT [PK_TenantGuidMapping] PRIMARY KEY CLUSTERED ([TenantId] ASC),
-    CONSTRAINT [UQ_TenantGuidMapping_TenantGuid] UNIQUE NONCLUSTERED ([TenantGuid]),
-    CONSTRAINT [UQ_TenantGuidMapping_StripeId] UNIQUE NONCLUSTERED ([StripeCustomerId]) WHERE [StripeCustomerId] IS NOT NULL
+    CONSTRAINT [UQ_TenantGuidMapping_TenantGuid] UNIQUE NONCLUSTERED ([TenantGuid])
 );
+GO
+
+-- Unique index on StripeCustomerId (filtered to allow multiple NULL values)
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_TenantGuidMapping_StripeId]
+    ON [dbo].[TenantGuidMapping]([StripeCustomerId])
+    WHERE [StripeCustomerId] IS NOT NULL;
 GO
 
 -- Index for active tenant lookups (filtered index for performance)
