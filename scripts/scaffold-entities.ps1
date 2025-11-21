@@ -15,14 +15,14 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-# Load local dev config
+# Default configuration (inline - no external config file needed)
 $scriptRoot = $PSScriptRoot
-$localConfig = & (Join-Path $scriptRoot "local-dev-config.ps1")
+$repoRoot = Split-Path $scriptRoot -Parent
 
-# Use config defaults if not specified
-if (-not $Server) { $Server = $localConfig.SqlServer }
-if (-not $Database) { $Database = $localConfig.Database }
-if (-not $ProjectPath) { $ProjectPath = Join-Path (Split-Path $scriptRoot -Parent) $localConfig.EFCoreProject }
+# Use inline defaults if not specified
+if (-not $Server) { $Server = "localhost" }
+if (-not $Database) { $Database = "Hartonomous" }
+if (-not $ProjectPath) { $ProjectPath = Join-Path $repoRoot "src\Hartonomous.Data.Entities" }
 
 Write-Host "Scaffolding entities from database..."
 Set-Location $ProjectPath
