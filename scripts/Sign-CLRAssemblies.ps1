@@ -130,16 +130,17 @@ if (-not $allDlls) {
     $allDlls = @()
 }
 
-# Filter: Skip Microsoft-signed system assemblies
+# Filter: Skip Microsoft-signed system assemblies and SQL project scaffolding DLLs
 $systemAssemblyPrefixes = @(
     'mscorlib',
     'System.',
     'Microsoft.',
     'netstandard',
-    'WindowsBase'
+    'WindowsBase',
+    'Hartonomous.Database'  # SQL project scaffolding DLL (not deployed to SQL Server)
 )
 
-$dllsToSign = $allDlls | Where-Object {
+$dllsToSign = @($allDlls | Where-Object {
     $name = $_.Name
     $skip = $false
     
@@ -155,7 +156,7 @@ $dllsToSign = $allDlls | Where-Object {
     }
     
     -not $skip
-}
+})
 
 Write-Host "Discovered DLLs:" -ForegroundColor Cyan
 Write-Host "  Total: $($allDlls.Count)" -ForegroundColor Gray
@@ -164,7 +165,7 @@ Write-Host "  To process: $($dllsToSign.Count)" -ForegroundColor Yellow
 Write-Host ""
 
 if ($dllsToSign.Count -eq 0) {
-    Write-Host "✓ No assemblies to sign" -ForegroundColor Green
+    Write-Host "✓ No assemblies to sign (build output may not contain DLLs yet)" -ForegroundColor Green
     exit 0
 }
 

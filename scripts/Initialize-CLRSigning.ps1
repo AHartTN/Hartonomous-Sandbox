@@ -168,3 +168,5 @@ return @{
     PfxPath = $pfxPath
     CerPath = $cerPath
 }
+
+exit 0
