@@ -1,0 +1,70 @@
+{
+  "description": "Production environment configuration (HART-DESKTOP + HART-SERVER)",
+
+  "database": {
+    "server": "HART-DESKTOP",
+    "authentication": "AzureAD",
+    "trustServerCertificate": false,
+    "encrypt": true,
+    "clr": {
+      "enableStrictSecurity": true,
+      "trustworthy": false
+    }
+  },
+
+  "build": {
+    "configuration": "Release"
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "logLevel": "Info",
+    "enableFileLogging": true,
+    "logFilePath": "${TEMP}/hartonomous-deploy-prod.log",
+    "appInsightsName": "ai-hartonomous-prod",
+    "appInsightsKey": "${KeyVault:AppInsightsKey}"
+  },
+
+  "neo4j": {
+    "enabled": true,
+    "uri": "bolt://HART-DESKTOP:7687",
+    "username": "${KeyVault:Neo4jUsername}",
+    "password": "${KeyVault:Neo4jPassword}"
+  },
+
+  "application": {
+    "deployEnabled": true,
+    "deployTarget": "ahart@HART-SERVER",
+    "deployPath": "/srv/www/hartonomous",
+    "healthCheckUrl": "http://HART-SERVER/health",
+    "blueGreenDeployment": true,
+    "rollbackOnFailure": true
+  },
+
+  "workers": {
+    "cesConsumer": {
+      "enabled": true
+    },
+    "neo4jSync": {
+      "enabled": true
+    },
+    "embeddingGenerator": {
+      "enabled": true
+    },
+    "modelIngestion": {
+      "enabled": true
+    }
+  },
+
+  "keyVault": {
+    "vaultUri": "https://kv-hartonomous-prod.vault.azure.net/",
+    "useManagedIdentity": true
+  },
+
+  "deployment": {
+    "skipPrerequisiteCheck": false,
+    "skipValidation": false,
+    "retryCount": 3,
+    "retryDelaySeconds": 30
+  }
+}

@@ -18,4 +18,9 @@ public interface IBillingInvoice
     DateTime GeneratedUtc { get; set; }
     DateTime? PaidUtc { get; set; }
     string? MetadataJson { get; set; }
+    string? StripeInvoiceId { get; set; }
+    string? StripeStatus { get; set; }
+    string? StripePdfUrl { get; set; }
+    string? StripeHostedUrl { get; set; }
+    ICollection<BillingCredit> BillingCredits { get; set; }
 }

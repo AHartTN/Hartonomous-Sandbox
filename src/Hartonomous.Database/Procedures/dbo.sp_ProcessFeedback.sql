@@ -78,8 +78,7 @@ BEGIN
         IF @WeightAdjustment <> 0
         BEGIN
             UPDATE ar
-            SET ar.Weight = GREATEST(0.01, LEAST(1.0, ar.Weight + @WeightAdjustment)),
-                ar.UpdatedAt = SYSUTCDATETIME()
+            SET ar.Weight = GREATEST(0.01, LEAST(1.0, ar.Weight + @WeightAdjustment))
             FROM dbo.AtomRelation ar
             INNER JOIN dbo.InferenceAtomUsage iau ON ar.AtomRelationId = iau.AtomRelationId
             WHERE iau.InferenceRequestId = @InferenceId;
@@ -182,27 +181,5 @@ BEGIN
     SELECT @Success AS Success,
            @Message AS Message,
            @AffectedRelations AS AffectedRelations;
-END;
-GO
-
--- Create feedback table if not exists
-IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'dbo.InferenceFeedback') AND type = 'U')
-BEGIN
-    CREATE TABLE dbo.InferenceFeedback (
-        FeedbackId BIGINT IDENTITY(1,1) PRIMARY KEY,
-        InferenceRequestId BIGINT NOT NULL,
-        Rating INT NOT NULL CHECK (Rating BETWEEN 1 AND 5),
-        Comments NVARCHAR(2000) NULL,
-        UserId NVARCHAR(128) NULL,
-        FeedbackTimestamp DATETIME2 NOT NULL DEFAULT SYSUTCDATETIME(),
-
-        CONSTRAINT FK_InferenceFeedback_InferenceRequest
-            FOREIGN KEY (InferenceRequestId) REFERENCES dbo.InferenceRequests(InferenceRequestId)
-    );
-
-    CREATE INDEX IX_InferenceFeedback_InferenceRequestId
-        ON dbo.InferenceFeedback(InferenceRequestId);
-    CREATE INDEX IX_InferenceFeedback_Rating
-        ON dbo.InferenceFeedback(Rating);
 END;
 GO

@@ -27,6 +27,7 @@ public interface IAtomRelation
     string? Metadata { get; set; }
     int TenantId { get; set; }
     DateTime CreatedAt { get; set; }
+    ICollection<InferenceAtomUsage> InferenceAtomUsages { get; set; }
     Atom SourceAtom { get; set; }
     Atom TargetAtom { get; set; }
 }

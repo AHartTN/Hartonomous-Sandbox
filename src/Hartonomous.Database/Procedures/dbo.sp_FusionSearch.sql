@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_FusionSearch
-    @QueryVector VECTOR(1536),
+    @QueryVector VECTOR(1998),
     @Keywords NVARCHAR(MAX) = NULL,
     @SpatialRegion GEOMETRY = NULL,
     @TopK INT = 10,

@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_ExactVectorSearch
-    @query_vector VECTOR(1536),
+    @query_vector VECTOR(1998),
     @top_k INT = 10,
     @TenantId INT, -- V3: Added for security
     @distance_metric NVARCHAR(20) = 'cosine',

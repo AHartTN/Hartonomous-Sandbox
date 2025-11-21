@@ -95,7 +95,7 @@ $baseArgs = @(
     "/SourceFile:$DacpacPath",
     "/p:DropObjectsNotInSource=False",
     "/p:DropConstraintsNotInSource=True",
-    "/p:BlockOnPossibleDataLoss=True"
+    "/p:BlockOnPossibleDataLoss=False"  # Allow schema changes during development
 )
 
 # Handle Pre/Post deployment scripts

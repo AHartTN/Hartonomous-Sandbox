@@ -44,6 +44,7 @@ public class TenantGuidMappingConfiguration : IEntityTypeConfiguration<TenantGui
         builder.Property(e => e.TenantName)
             .HasColumnType("nvarchar(200)")
             .HasMaxLength(200)
+            .IsRequired()
             ;
 
         builder.HasIndex(e => new { e.IsActive })

@@ -1,0 +1,63 @@
+{
+  "description": "Development environment configuration (GitHub/Azure DevOps)",
+
+  "database": {
+    "server": "HART-DESKTOP",
+    "authentication": "AzureAD",
+    "trustServerCertificate": true,
+    "clr": {
+      "enableStrictSecurity": true,
+      "trustworthy": false
+    }
+  },
+
+  "build": {
+    "configuration": "Release"
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "logLevel": "Info",
+    "enableFileLogging": true,
+    "logFilePath": "${TEMP}/hartonomous-deploy-dev.log"
+  },
+
+  "neo4j": {
+    "enabled": true,
+    "uri": "bolt://HART-DESKTOP:7687",
+    "username": "${KeyVault:Neo4jUsername-Dev}",
+    "password": "${KeyVault:Neo4jPassword-Dev}"
+  },
+
+  "application": {
+    "deployEnabled": true,
+    "deployTarget": "ahart@HART-SERVER",
+    "deployPath": "/srv/www/hartonomous/dev",
+    "healthCheckUrl": "http://HART-SERVER/dev/health"
+  },
+
+  "workers": {
+    "cesConsumer": {
+      "enabled": true
+    },
+    "neo4jSync": {
+      "enabled": true
+    },
+    "embeddingGenerator": {
+      "enabled": false
+    },
+    "modelIngestion": {
+      "enabled": false
+    }
+  },
+
+  "keyVault": {
+    "vaultUri": "https://kv-hartonomous-dev.vault.azure.net/",
+    "useManagedIdentity": false
+  },
+
+  "deployment": {
+    "skipPrerequisiteCheck": false,
+    "skipValidation": false
+  }
+}

@@ -12,10 +12,13 @@ public interface IAtom
     byte[] ContentHash { get; set; }
     string? ContentType { get; set; }
     string? SourceType { get; set; }
+    long? ConceptId { get; set; }
     string? SourceUri { get; set; }
+    long? SourceId { get; set; }
     string? CanonicalText { get; set; }
     string? Metadata { get; set; }
     byte[]? AtomicValue { get; set; }
+    Guid? BatchId { get; set; }
     long ReferenceCount { get; set; }
     ICollection<AtomComposition> AtomCompositionComponentAtoms { get; set; }
     ICollection<AtomComposition> AtomCompositionParentAtoms { get; set; }
@@ -23,6 +26,7 @@ public interface IAtom
     ICollection<AtomEmbedding> AtomEmbeddings { get; set; }
     ICollection<AtomRelation> AtomRelationSourceAtoms { get; set; }
     ICollection<AtomRelation> AtomRelationTargetAtoms { get; set; }
+    Concept? Concept { get; set; }
     ICollection<EventAtom> EventAtoms { get; set; }
     ICollection<IngestionJobAtom> IngestionJobAtoms { get; set; }
     ICollection<IngestionJob> IngestionJobs { get; set; }

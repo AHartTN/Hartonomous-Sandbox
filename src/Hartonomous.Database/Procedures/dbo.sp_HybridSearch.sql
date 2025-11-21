@@ -1,5 +1,5 @@
 CREATE PROCEDURE dbo.sp_HybridSearch
-    @query_vector VECTOR(1536),
+    @query_vector VECTOR(1998),
     @query_dimension INT,
     @query_spatial_x FLOAT,
     @query_spatial_y FLOAT,

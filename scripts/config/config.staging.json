@@ -1,0 +1,67 @@
+{
+  "description": "Staging environment configuration (pre-production validation)",
+
+  "database": {
+    "server": "HART-DESKTOP",
+    "authentication": "AzureAD",
+    "trustServerCertificate": true,
+    "clr": {
+      "enableStrictSecurity": true,
+      "trustworthy": false
+    }
+  },
+
+  "build": {
+    "configuration": "Release"
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "logLevel": "Info",
+    "enableFileLogging": true,
+    "logFilePath": "${TEMP}/hartonomous-deploy-staging.log",
+    "appInsightsName": "ai-hartonomous-staging",
+    "appInsightsKey": "${KeyVault:AppInsightsKey-Staging}"
+  },
+
+  "neo4j": {
+    "enabled": true,
+    "uri": "bolt://HART-DESKTOP:7687",
+    "username": "${KeyVault:Neo4jUsername-Staging}",
+    "password": "${KeyVault:Neo4jPassword-Staging}"
+  },
+
+  "application": {
+    "deployEnabled": true,
+    "deployTarget": "ahart@HART-SERVER",
+    "deployPath": "/srv/www/hartonomous/staging",
+    "healthCheckUrl": "http://HART-SERVER/staging/health",
+    "blueGreenDeployment": true
+  },
+
+  "workers": {
+    "cesConsumer": {
+      "enabled": true
+    },
+    "neo4jSync": {
+      "enabled": true
+    },
+    "embeddingGenerator": {
+      "enabled": true
+    },
+    "modelIngestion": {
+      "enabled": true
+    }
+  },
+
+  "keyVault": {
+    "vaultUri": "https://kv-hartonomous-staging.vault.azure.net/",
+    "useManagedIdentity": false
+  },
+
+  "deployment": {
+    "skipPrerequisiteCheck": false,
+    "skipValidation": false,
+    "retryCount": 2
+  }
+}

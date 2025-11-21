@@ -53,6 +53,10 @@ public class InferenceRequestConfiguration : IEntityTypeConfiguration<InferenceR
             .HasMaxLength(32)
             ;
 
+        builder.Property(e => e.MaxTokens)
+            .HasColumnType("int")
+            ;
+
         builder.Property(e => e.ModelId)
             .HasColumnType("int")
             ;
@@ -85,6 +89,22 @@ public class InferenceRequestConfiguration : IEntityTypeConfiguration<InferenceR
         builder.Property(e => e.TaskType)
             .HasColumnType("nvarchar(50)")
             .HasMaxLength(50)
+            ;
+
+        builder.Property(e => e.Temperature)
+            .HasColumnType("float")
+            ;
+
+        builder.Property(e => e.TenantId)
+            .HasColumnType("int")
+            ;
+
+        builder.Property(e => e.TopK)
+            .HasColumnType("int")
+            ;
+
+        builder.Property(e => e.TopP)
+            .HasColumnType("float")
             ;
 
         builder.Property(e => e.TotalDurationMs)

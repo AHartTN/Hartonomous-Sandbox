@@ -23,7 +23,7 @@ BEGIN
         -- 1. Vector embedding similarity (replaces old SEMANTICSIMILARITYTABLE)
         IF @IncludeVectorSimilarity = 1
         BEGIN
-            DECLARE @QueryEmbedding VECTOR(1536);
+            DECLARE @QueryEmbedding VECTOR(1998);
             
             SELECT @QueryEmbedding = EmbeddingVector
             FROM dbo.AtomEmbedding

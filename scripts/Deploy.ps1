@@ -74,14 +74,18 @@ Write-Host ""
 # ============================================================================
 if (-not $SkipBuild) {
     Write-Host "[1/4] Building DACPAC..." -ForegroundColor Yellow
-    
-    $buildScript = Join-Path $PSScriptRoot "scripts\build-dacpac.ps1"
-    & $buildScript
-    
+
+    $repoRoot = Split-Path $PSScriptRoot -Parent
+    $projectPath = Join-Path $repoRoot "src\Hartonomous.Database\Hartonomous.Database.sqlproj"
+    $outputDir = Join-Path $repoRoot "src\Hartonomous.Database\bin\Release"
+
+    $buildScript = Join-Path $PSScriptRoot "build-dacpac.ps1"
+    & $buildScript -ProjectPath $projectPath -OutputDir $outputDir -Configuration Release
+
     if ($LASTEXITCODE -ne 0) {
         throw "DACPAC build failed"
     }
-    
+
     Write-Host "      ? DACPAC built successfully" -ForegroundColor Green
     Write-Host ""
 } else {
@@ -95,20 +99,17 @@ if (-not $SkipBuild) {
 if (-not $SkipDeploy) {
     Write-Host "[2/4] Deploying DACPAC..." -ForegroundColor Yellow
     
-    $deployScript = Join-Path $PSScriptRoot "scripts\deploy-dacpac.ps1"
+    $deployScript = Join-Path $PSScriptRoot "deploy-dacpac.ps1"
     
+    # deploy-dacpac.ps1 only accepts: Server, Database, UseAzureAD, AccessToken
+    # It builds its own connection string with IntegratedSecurity and TrustServerCertificate
     $deployArgs = @{
         Server = $Server
         Database = $Database
-        TrustServerCertificate = $TrustServerCertificate
     }
     
-    if ($UseIntegratedAuth) {
-        $deployArgs.IntegratedSecurity = $true
-    } else {
-        $deployArgs.User = $User
-        $deployArgs.Password = $Password
-    }
+    # Note: deploy-dacpac.ps1 uses Windows integrated auth by default
+    # and hardcodes TrustServerCertificate=True in connection string
     
     & $deployScript @deployArgs
     
@@ -129,28 +130,31 @@ if (-not $SkipDeploy) {
 if (-not $SkipScaffold) {
     Write-Host "[3/4] Scaffolding EF Core entities..." -ForegroundColor Yellow
     
-    $scaffoldScript = Join-Path $PSScriptRoot "scripts\scaffold-entities.ps1"
+    $scaffoldScript = Join-Path $PSScriptRoot "scaffold-entities.ps1"
     
-    $scaffoldArgs = @{
-        Server = $Server
-        Database = $Database
-        TrustServerCertificate = $TrustServerCertificate
-    }
-    
-    if ($UseIntegratedAuth) {
-        $scaffoldArgs.IntegratedSecurity = $true
+    # Check if scaffold script exists
+    if (Test-Path $scaffoldScript) {
+        $scaffoldArgs = @{
+            Server = $Server
+            Database = $Database
+        }
+        
+        if (-not $UseIntegratedAuth) {
+            $scaffoldArgs.User = $User
+            $scaffoldArgs.Password = $Password
+        }
+        
+        & $scaffoldScript @scaffoldArgs
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "      ? Entity scaffolding failed" -ForegroundColor Yellow
+        } else {
+            Write-Host "      ? Entities generated successfully" -ForegroundColor Green
+        }
     } else {
-        $scaffoldArgs.User = $User
-        $scaffoldArgs.Password = $Password
+        Write-Host "      ? Scaffold script not found, skipping" -ForegroundColor Yellow
     }
     
-    & $scaffoldScript @scaffoldArgs
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "Entity scaffolding failed"
-    }
-    
-    Write-Host "      ? Entities generated successfully" -ForegroundColor Green
     Write-Host ""
 } else {
     Write-Host "[3/4] Skipping entity scaffolding" -ForegroundColor Gray

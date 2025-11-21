@@ -38,16 +38,17 @@ BEGIN
         INSERT INTO #OrphanAtoms (AtomId, SpatialKey, X, Y, Z, CanonicalText, Modality)
         SELECT 
             a.AtomId,
-            a.SpatialKey,
-            a.SpatialKey.GetLevel() AS X, -- Simplified: Use hierarchy level as X
-            CAST(a.SpatialKey.GetDescendant(NULL, NULL).ToString() AS FLOAT) AS Y, -- Simplified Y
-            a.AtomId % 100 AS Z, -- Simplified Z (replace with actual vector projection)
+            NULL AS SpatialKey, -- TODO: Get from AtomEmbedding.SpatialKey (GEOMETRY type)
+            a.AtomId % 1000 AS X, -- Simplified: Use AtomId hash as X (replace with actual vector projection)
+            a.AtomId % 100 AS Y, -- Simplified Y (replace with actual vector projection)
+            a.AtomId % 10 AS Z, -- Simplified Z (replace with actual vector projection)
             a.CanonicalText,
             a.Modality
         FROM dbo.Atom a
         WHERE (@TenantId IS NULL OR a.TenantId = @TenantId)
           AND a.ConceptId IS NULL -- Orphaned: no concept assigned
-          AND a.SpatialKey IS NOT NULL;
+          -- TODO: Join to AtomEmbedding to filter on ae.SpatialKey IS NOT NULL
+        ;
 
         SET @TotalOrphanAtoms = @@ROWCOUNT;
         
@@ -262,5 +263,5 @@ END;
 GO
 
 -- Grant execution permissions
-GRANT EXECUTE ON dbo.sp_ClusterConcepts TO HartonomousAppUser;
+-- GRANT EXECUTE ON dbo.sp_ClusterConcepts TO HartonomousAppUser; -- Moved to Post-Deployment/ApplicationUsers.sql
 GO

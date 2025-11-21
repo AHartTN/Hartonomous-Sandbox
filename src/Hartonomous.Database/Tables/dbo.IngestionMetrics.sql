@@ -33,10 +33,10 @@ CREATE NONCLUSTERED INDEX [IX_IngestionMetrics_IngestedAt]
 GO
 
 -- Index for high deduplication rate queries (optimization opportunities)
+-- Note: Cannot use WHERE clause on computed column, so indexing all rows
 CREATE NONCLUSTERED INDEX [IX_IngestionMetrics_HighDedup]
     ON [dbo].[IngestionMetrics]([DeduplicationRate] DESC, [IngestedAt] DESC)
-    INCLUDE ([BatchId], [TotalAtoms])
-    WHERE [DeduplicationRate] > 0.5; -- 50%+ deduplication
+    INCLUDE ([BatchId], [TotalAtoms]);
 GO
 
 EXEC sys.sp_addextendedproperty

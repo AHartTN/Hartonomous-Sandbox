@@ -4,7 +4,7 @@
 -- Enterprise-grade implementation with proper error handling
 -- =============================================
 CREATE PROCEDURE [dbo].[sp_ComputeSpatialProjection]
-    @input_vector VECTOR(1536),
+    @input_vector VECTOR(1998),
     @input_dimension INT,
     @output_x FLOAT OUTPUT,
     @output_y FLOAT OUTPUT,

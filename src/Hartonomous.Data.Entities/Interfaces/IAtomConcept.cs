@@ -15,5 +15,5 @@ public interface IAtomConcept
     DateTime AssignedAt { get; set; }
     int TenantId { get; set; }
     Atom Atom { get; set; }
-    Concept Concept { get; set; }
+    Concept1 Concept { get; set; }
 }

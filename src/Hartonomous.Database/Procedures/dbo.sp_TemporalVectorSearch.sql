@@ -6,7 +6,7 @@
 -- PHASE 7.2: Added TenantId for security
 -- =============================================
 CREATE PROCEDURE dbo.sp_TemporalVectorSearch
-    @QueryVector VECTOR(1536),
+    @QueryVector VECTOR(1998),
     @TopK INT = 10,
     @StartTime DATETIME2,
     @EndTime DATETIME2,

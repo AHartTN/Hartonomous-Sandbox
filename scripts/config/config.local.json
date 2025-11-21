@@ -1,0 +1,41 @@
+{
+  "description": "Local development environment configuration",
+
+  "database": {
+    "server": "localhost",
+    "authentication": "IntegratedSecurity",
+    "trustServerCertificate": true,
+    "clr": {
+      "enableStrictSecurity": false,
+      "trustworthy": true
+    }
+  },
+
+  "build": {
+    "configuration": "Debug"
+  },
+
+  "monitoring": {
+    "enabled": false,
+    "logLevel": "Debug",
+    "enableFileLogging": true,
+    "logFilePath": "logs/deployment-local.log"
+  },
+
+  "neo4j": {
+    "enabled": true,
+    "uri": "bolt://localhost:7687",
+    "username": "neo4j",
+    "password": "neo4jneo4j"
+  },
+
+  "application": {
+    "deployEnabled": false,
+    "healthCheckUrl": "http://localhost:5000/health"
+  },
+
+  "deployment": {
+    "skipPrerequisiteCheck": false,
+    "skipValidation": false
+  }
+}

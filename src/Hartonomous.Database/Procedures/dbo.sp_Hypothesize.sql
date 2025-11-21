@@ -195,10 +195,11 @@ BEGIN
 
             -- HYPOTHESIS 5: Discover new concepts through unsupervised clustering
             DECLARE @OrphanAtomCount INT = (
-                SELECT COUNT(*)
-                FROM dbo.Atom
-                WHERE ConceptId IS NULL
-                  AND SpatialKey IS NOT NULL
+                SELECT COUNT(DISTINCT a.AtomId)
+                FROM dbo.Atom a
+                INNER JOIN dbo.AtomEmbedding ae ON a.AtomId = ae.AtomId
+                WHERE a.ConceptId IS NULL
+                  AND ae.SpatialKey IS NOT NULL
             );
 
             IF @OrphanAtomCount > 20 -- Threshold for running concept discovery

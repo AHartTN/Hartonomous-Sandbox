@@ -25,7 +25,7 @@ public interface IModel
     ICollection<AttentionGenerationLog> AttentionGenerationLogs { get; set; }
     ICollection<AttentionInferenceResult> AttentionInferenceResults { get; set; }
     ICollection<CachedActivation> CachedActivations { get; set; }
-    ICollection<Concept> Concepts { get; set; }
+    ICollection<Concept1> Concept1s { get; set; }
     ICollection<GenerationStream> GenerationStreams { get; set; }
     ICollection<InferenceCache> InferenceCaches { get; set; }
     ICollection<InferenceRequest> InferenceRequests { get; set; }

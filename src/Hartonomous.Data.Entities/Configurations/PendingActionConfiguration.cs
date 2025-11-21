@@ -30,6 +30,10 @@ public class PendingActionConfiguration : IEntityTypeConfiguration<PendingAction
             .HasColumnType("datetime2")
             ;
 
+        builder.Property(e => e.CreatedAt)
+            .HasColumnType("datetime2")
+            ;
+
         builder.Property(e => e.CreatedUtc)
             .HasColumnType("datetime2")
             ;
@@ -51,12 +55,18 @@ public class PendingActionConfiguration : IEntityTypeConfiguration<PendingAction
             .HasColumnType("datetime2")
             ;
 
+        builder.Property(e => e.Metadata)
+            .HasColumnType("json")
+            ;
+
         builder.Property(e => e.Parameters)
             .HasColumnType("json")
             ;
 
         builder.Property(e => e.Priority)
-            .HasColumnType("int")
+            .HasColumnType("nvarchar(20)")
+            .HasMaxLength(20)
+            .IsRequired()
             ;
 
         builder.Property(e => e.ResultJson)
@@ -79,16 +89,29 @@ public class PendingActionConfiguration : IEntityTypeConfiguration<PendingAction
             .IsRequired()
             ;
 
+        builder.Property(e => e.TargetEntity)
+            .HasColumnType("nvarchar(128)")
+            .HasMaxLength(128)
+            ;
+
+        builder.Property(e => e.TargetId)
+            .HasColumnType("bigint")
+            ;
+
         builder.HasIndex(e => new { e.CreatedUtc })
             .HasDatabaseName("IX_PendingActions_Created")
             ;
 
-        builder.HasIndex(e => new { e.Priority, e.CreatedUtc })
+        builder.HasIndex(e => new { e.CreatedUtc })
             .HasDatabaseName("IX_PendingActions_Priority")
             ;
 
         builder.HasIndex(e => new { e.Status })
             .HasDatabaseName("IX_PendingActions_Status")
+            ;
+
+        builder.HasIndex(e => new { e.TargetEntity, e.TargetId })
+            .HasDatabaseName("IX_PendingActions_TargetEntity")
             ;
     }
 }

@@ -18,5 +18,5 @@ public interface IConceptEvolution
     string? EvolutionReason { get; set; }
     DateTime RecordedAt { get; set; }
     int TenantId { get; set; }
-    Concept Concept { get; set; }
+    Concept1 Concept { get; set; }
 }

@@ -8,6 +8,7 @@ public interface IInferenceRequest
     long InferenceId { get; set; }
     DateTime RequestTimestamp { get; set; }
     DateTime? CompletionTimestamp { get; set; }
+    int TenantId { get; set; }
     string? TaskType { get; set; }
     string? InputData { get; set; }
     byte[]? InputHash { get; set; }
@@ -18,6 +19,10 @@ public interface IInferenceRequest
     string? EnsembleStrategy { get; set; }
     string? OutputData { get; set; }
     string? OutputMetadata { get; set; }
+    double? Temperature { get; set; }
+    int? TopK { get; set; }
+    double? TopP { get; set; }
+    int? MaxTokens { get; set; }
     int? TotalDurationMs { get; set; }
     bool CacheHit { get; set; }
     byte? UserRating { get; set; }
@@ -26,6 +31,8 @@ public interface IInferenceRequest
     string? SlaTier { get; set; }
     int? EstimatedResponseTimeMs { get; set; }
     int? ModelId { get; set; }
+    ICollection<InferenceAtomUsage> InferenceAtomUsages { get; set; }
+    ICollection<InferenceFeedback> InferenceFeedbacks { get; set; }
     ICollection<InferenceStep> InferenceSteps { get; set; }
     Model? Model { get; set; }
 }

@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "Base configuration for Hartonomous deployments (all environments)",
+
+  "database": {
+    "name": "Hartonomous",
+    "timeout": 300,
+    "commandTimeout": 120,
+    "dacpac": {
+      "blockOnDataLoss": false,
+      "dropObjectsNotInSource": false,
+      "dropConstraintsNotInSource": false,
+      "dropIndexesNotInSource": false,
+      "verifyDeployment": true,
+      "allowIncompatiblePlatform": true,
+      "includeCompositeObjects": true
+    },
+    "clr": {
+      "enableStrictSecurity": true,
+      "trustworthy": false,
+      "deploymentMode": "master"
+    }
+  },
+
+  "build": {
+    "configuration": "Release",
+    "verbosity": "minimal",
+    "noRestore": false,
+    "solutionFile": "Hartonomous.sln",
+    "testSolutionFile": "Hartonomous.Tests.sln"
+  },
+
+  "scaffolding": {
+    "outputDir": "Entities",
+    "context": "HartonomousDbContext",
+    "contextDir": ".",
+    "namespace": "Hartonomous.Data.Entities",
+    "force": true,
+    "noOnConfiguring": true,
+    "noPluralize": true
+  },
+
+  "clr": {
+    "certificateName": "HartonomousCLRCert",
+    "loginName": "HartonomousCLRLogin",
+    "dependenciesPath": "dependencies",
+    "signingEnabled": true
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "logLevel": "Info",
+    "enableFileLogging": false
+  },
+
+  "deployment": {
+    "skipPrerequisiteCheck": false,
+    "skipValidation": false,
+    "continueOnError": false,
+    "retryCount": 0,
+    "retryDelaySeconds": 10
+  },
+
+  "neo4j": {
+    "enabled": false,
+    "database": "neo4j"
+  },
+
+  "application": {
+    "buildEnabled": true,
+    "deployEnabled": false
+  },
+
+  "workers": {
+    "cesConsumer": {
+      "enabled": false
+    },
+    "neo4jSync": {
+      "enabled": false
+    },
+    "embeddingGenerator": {
+      "enabled": false
+    },
+    "modelIngestion": {
+      "enabled": false
+    }
+  }
+}

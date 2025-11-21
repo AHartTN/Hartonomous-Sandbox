@@ -1,249 +1,242 @@
-# ?? **HARTONOMOUS DEPLOYMENT GUIDE**
+# Scripts Directory
 
-**Single Command Deployment - No Confusion**
-
----
-
-## **?? QUICK START**
-
-### **Fresh Database Deployment**:
-```powershell
-.\scripts\Deploy-Master.ps1 -Server localhost
-```
-
-### **Update Existing Database**:
-```powershell
-.\scripts\Deploy-Master.ps1 -Server localhost -SkipDatabaseCreation
-```
+**Enterprise-grade PowerShell deployment scripts for Hartonomous**
 
 ---
 
-## **?? DEPLOYMENT ARCHITECTURE**
+## ?? Structure
 
 ```
-Deploy-Master.ps1 (Entry Point)
-    ??? deploy-hartonomous.ps1 (Unified Deployment)
-            ??? 1. Pre-Flight Checks
-            ??? 2. Build DACPAC
-            ??? 3. Configure CLR Security
-            ??? 4. Deploy DACPAC (Schema + CLR)
-            ??? 5. Deploy External CLR Dependencies
-            ??? 6. Scaffold EF Core Entities
-            ??? 7. Build .NET Solution
-            ??? 8. Deploy Stored Procedures
-            ??? 9. Validation
-```
-
----
-
-## **? WHAT YOU GET**
-
-After running `Deploy-Master.ps1`:
-
-1. ? **Database Created** (if needed)
-2. ? **Schema Deployed** (all tables, views, functions)
-3. ? **CLR Assemblies Registered** (Hartonomous.Clr + dependencies)
-4. ? **Procedures Deployed** (all stored procedures)
-5. ? **Entities Scaffolded** (EF Core entities from schema)
-6. ? **Solution Built** (all projects compile)
-7. ? **Validated** (post-deployment checks)
-
----
-
-## **?? SCRIPT INVENTORY**
-
-### **PRIMARY SCRIPTS** (Use These):
-- `Deploy-Master.ps1` - **SINGLE ENTRY POINT** for all deployments
-- `deploy-hartonomous.ps1` - Comprehensive unified deployment (called by Master)
-
-### **SUPPORTING SCRIPTS** (Called Automatically):
-- `Initialize-CLRSigning.ps1` - CLR certificate setup
-- `Deploy-CLRCertificate.ps1` - Deploy cert to SQL Server
-- `Build-WithSigning.ps1` - Build with strong-name signing
-- `deploy-dacpac.ps1` - DACPAC deployment only
-- `scaffold-entities.ps1` - EF Core scaffolding
-- `Test-PipelineConfiguration.ps1` - Pipeline validation
-- `Run-CoreTests.ps1` - Test execution
-
-### **DEPRECATED** (Don't Use):
-- `Deploy-All.ps1` - Replaced by Deploy-Master.ps1
-- Individual deployment scripts - Now integrated into deploy-hartonomous.ps1
-
----
-
-## **?? PREREQUISITES**
-
-### **Required Tools**:
-```powershell
-# Check if you have all required tools
-dotnet --version        # .NET 10 SDK
-sqlcmd -?               # SQL Server CLI
-sqlpackage /?           # DACPAC deployment
-dotnet ef --version     # EF Core tools
-```
-
-### **Install Missing Tools**:
-```powershell
-# .NET SDK
-winget install Microsoft.DotNet.SDK.10
-
-# SQL Server command line tools
-winget install Microsoft.SQLServer.Tools
-
-# EF Core tools
-dotnet tool install --global dotnet-ef --version 10.0.0
+scripts/
+??? README.md                          ? This file
+?
+??? build-dacpac.ps1                   ? Build database DACPAC
+??? verify-dacpac.ps1                  ? Validate DACPAC integrity
+?
+??? Initialize-CLRSigning.ps1          ? Create/manage CLR signing certificate  
+??? Sign-CLRAssemblies.ps1             ? Sign CLR assemblies
+??? Deploy-CLRCertificate.ps1          ? Deploy certificate to SQL Server
+??? deploy-clr-assemblies.ps1          ? Deploy external CLR dependencies
+?
+??? Deploy-Database.ps1                ? Unified database deployment
+??? Deploy.ps1                         ? Local development orchestrator
+?
+??? grant-agent-permissions.ps1        ? Grant SQL permissions to pipeline agents
+??? install-sqlpackage.ps1             ? Install SqlPackage CLI tool
+??? scaffold-entities.ps1              ? Generate EF Core entities from database
+??? Run-CoreTests.ps1                  ? Quick validation tests
+?
+??? neo4j/
+?   ??? Deploy-Neo4jSchema.ps1         ? Deploy Neo4j graph schema
+?
+??? operations/
+?   ??? Seed-HartonomousRepo.ps1       ? Seed test data
+?   ??? Test-RLHFCycle.ps1             ? Test RLHF feedback loop
+?
+??? .archive/                          ? Archived scripts (24 scripts)
+    ??? (one-time setup, legacy, duplicates)
 ```
 
 ---
 
-## **?? DETAILED OPTIONS**
+## ?? Usage by Scenario
 
-### **Deploy-Master.ps1 Parameters**:
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `-Server` | localhost | SQL Server instance |
-| `-Database` | Hartonomous | Database name |
-| `-SkipDatabaseCreation` | false | Skip DB creation (for existing DB) |
-| `-SkipCLR` | false | Skip CLR assembly deployment |
-| `-SkipScaffold` | false | Skip EF Core entity scaffolding |
-| `-SkipBuild` | false | Skip .NET solution build |
-
-### **Examples**:
+### **Local Development (F5 Debugging)**
 
 ```powershell
-# Deploy to production server
-.\scripts\Deploy-Master.ps1 -Server prodserver.database.windows.net -Database Hartonomous
+# Full deployment to localhost
+.\scripts\Deploy.ps1
 
-# Update existing database only (skip creation)
-.\scripts\Deploy-Master.ps1 -Server localhost -SkipDatabaseCreation
-
-# Fast deployment (skip scaffolding and build)
-.\scripts\Deploy-Master.ps1 -Server localhost -SkipScaffold -SkipBuild
-
-# Schema only (no CLR)
-.\scripts\Deploy-Master.ps1 -Server localhost -SkipCLR
-```
-
----
-
-## **?? TROUBLESHOOTING**
-
-### **"Cannot connect to SQL Server"**
-```powershell
-# Test connection
-Test-NetConnection -ComputerName localhost -Port 1433
-
-# Check SQL Server is running
-Get-Service MSSQLSERVER
-```
-
-### **"MSBuild not found"**
-- Install Visual Studio 2022 with SQL Server Data Tools (SSDT)
-- Or install VS Build Tools 2022
-
-### **"DACPAC deployment failed"**
-```powershell
-# Check DACPAC exists
-Test-Path "src\Hartonomous.Database\bin\Release\Hartonomous.Database.dacpac"
-
-# Rebuild DACPAC manually
+# Just build and deploy database
 .\scripts\build-dacpac.ps1
+.\scripts\Deploy-Database.ps1 -Server localhost -Database Hartonomous
+
+# Scaffold entities after schema changes
+.\scripts\scaffold-entities.ps1 -Server localhost -Database Hartonomous
 ```
 
-### **"Entity scaffolding failed"**
-- Ensure database is deployed first
-- Check connection string
-- Verify dotnet-ef is installed
+### **CI/CD Pipeline (Azure Pipelines)**
 
----
+Scripts are automatically called by `azure-pipelines.yml`:
 
-## **?? DEPLOYMENT SCENARIOS**
+- **Stage 1 (Build)**: `build-dacpac.ps1`, `Initialize-CLRSigning.ps1`, `Sign-CLRAssemblies.ps1`, `verify-dacpac.ps1`
+- **Stage 2 (Deploy DB)**: `Deploy-CLRCertificate.ps1`, `grant-agent-permissions.ps1`, `deploy-clr-assemblies.ps1`, `install-sqlpackage.ps1`
+- **Stage 3 (Scaffold)**: `scaffold-entities.ps1`
+- **Stage 5 (Deploy Apps)**: Inline Bash tasks (no scripts)
 
-### **Scenario 1: Local Development (First Time)**
+### **Testing & Validation**
+
 ```powershell
-# Fresh deployment
-.\scripts\Deploy-Master.ps1 -Server localhost
+# Run quick validation tests
+.\scripts\Run-CoreTests.ps1
 
-# Start API
-cd src\Hartonomous.Api
-dotnet run
+# Test RLHF cycle
+.\scripts\operations\Test-RLHFCycle.ps1
 ```
 
-### **Scenario 2: Update After Code Changes**
+### **Neo4j Graph Database**
+
 ```powershell
-# Update existing database
-.\scripts\Deploy-Master.ps1 -Server localhost -SkipDatabaseCreation
-```
-
-### **Scenario 3: Production Deployment**
-```powershell
-# 1. Backup production database first!
-sqlcmd -S prodserver -Q "BACKUP DATABASE Hartonomous TO DISK='C:\Backups\Hartonomous_backup.bak'"
-
-# 2. Deploy update
-.\scripts\Deploy-Master.ps1 -Server prodserver -SkipDatabaseCreation
-
-# 3. Validate
-.\scripts\Test-HartonomousDeployment-Simple.ps1 -Server prodserver
-```
-
-### **Scenario 4: CI/CD Pipeline**
-```yaml
-# .github/workflows/deploy.yml
-- name: Deploy Hartonomous
-  run: |
-    .\scripts\Deploy-Master.ps1 `
-      -Server ${{ secrets.SQL_SERVER }} `
-      -Database Hartonomous `
-      -SkipDatabaseCreation
+# Deploy graph schema
+.\scripts\neo4j\Deploy-Neo4jSchema.ps1 -Neo4jUri "bolt://localhost:7687"
 ```
 
 ---
 
-## **? POST-DEPLOYMENT CHECKLIST**
+## ?? Script Descriptions
 
-After deployment completes:
+### **Build Scripts**
 
-- [ ] Verify database exists: `sqlcmd -S localhost -Q "SELECT DB_ID('Hartonomous')"`
-- [ ] Check table count: `sqlcmd -S localhost -d Hartonomous -Q "SELECT COUNT(*) FROM sys.tables"`
-- [ ] Verify CLR enabled: `sqlcmd -S localhost -Q "EXEC sp_configure 'clr enabled'"`
-- [ ] Test API: `curl http://localhost:5000/health`
-- [ ] Run tests: `.\scripts\Run-CoreTests.ps1`
+#### `build-dacpac.ps1`
+Builds the database DACPAC from SQL project using MSBuild.
 
----
+**Called by**: Azure Pipelines Stage 1, local dev  
+**Output**: `src/Hartonomous.Database/bin/Release/Hartonomous.Database.dacpac`
 
-## **?? DEPLOYMENT TIMELINE**
+#### `verify-dacpac.ps1`
+Validates DACPAC integrity and structure.
 
-Typical deployment duration (local SSD, localhost):
-
-| Phase | Duration |
-|-------|----------|
-| Pre-Flight Checks | ~5s |
-| Build DACPAC | ~30s |
-| Deploy DACPAC | ~15s |
-| Deploy CLR | ~20s |
-| Scaffold Entities | ~10s |
-| Build Solution | ~20s |
-| Deploy Procedures | ~10s |
-| Validation | ~5s |
-| **Total** | **~2 minutes** |
+**Called by**: Azure Pipelines Stage 1
 
 ---
 
-## **?? SUPPORT**
+### **CLR Signing Scripts**
 
-### **Documentation**:
-- `docs/CI_CD_PIPELINE_GUIDE.md` - Complete CI/CD guide
-- `docs/ENTERPRISE_DEPLOYMENT.md` - Production deployment
-- `docs/DEPLOYMENT_AUDIT_REFACTOR.md` - Script architecture
+#### `Initialize-CLRSigning.ps1`
+Creates self-signed certificate for CLR assembly signing. Idempotent (safe to run multiple times).
 
-### **Common Issues**:
-- Build errors: Check `docs/BUILD_TROUBLESHOOTING.md`
-- Test failures: See `tests/README.md`
-- Pipeline issues: Review `docs/CI_CD_PIPELINE_GUIDE.md`
+**Called by**: Azure Pipelines Stage 1, local dev  
+**Output**: Certificate in `Cert:\LocalMachine\My`, exports to `certificates/`
+
+#### `Sign-CLRAssemblies.ps1`
+Auto-discovers and signs CLR assemblies with certificate.
+
+**Called by**: Azure Pipelines Stage 1  
+**How**: Scans build output, signs unsigned DLLs with `signtool.exe`
+
+#### `Deploy-CLRCertificate.ps1`
+Deploys signing certificate to SQL Server, enables CLR Strict Security.
+
+**Called by**: Azure Pipelines Stage 2  
+**What**: Creates certificate, login, grants UNSAFE ASSEMBLY permission
+
+#### `deploy-clr-assemblies.ps1`
+Deploys external CLR dependency assemblies to SQL Server in correct dependency order.
+
+**Called by**: Azure Pipelines Stage 2  
+**Dependencies**: 16 external DLLs (MathNet.Numerics, System.Memory, etc.)
 
 ---
 
-**REMEMBER**: Always use `Deploy-Master.ps1` as the entry point. No other deployment script should be called directly.
+### **Database Deployment Scripts**
+
+#### `Deploy-Database.ps1`
+Unified database deployment: CLR + DACPAC in one command.
+
+**Called by**: Local dev, manual deployments  
+**What**: Orchestrates entire database deployment flow
+
+#### `Deploy.ps1`
+Local development orchestrator for full-stack deployment.
+
+**Called by**: Local F5 debugging  
+**What**: Deploys database, scaffolds entities, builds solution
+
+---
+
+### **Utility Scripts**
+
+#### `grant-agent-permissions.ps1`
+Grants SQL Server permissions to pipeline agent service accounts.
+
+**Called by**: Azure Pipelines Stage 2  
+**What**: Grants `dbowner` to Network Service or pipeline service principal
+
+#### `install-sqlpackage.ps1`
+Installs SqlPackage CLI tool if not present.
+
+**Called by**: Azure Pipelines Stage 2  
+**What**: Downloads and installs latest SqlPackage via dotnet tool
+
+#### `scaffold-entities.ps1`
+Generates EF Core entity classes from deployed database schema.
+
+**Called by**: Azure Pipelines Stage 3, local dev  
+**Output**: `src/Hartonomous.Data.Entities/*.cs` files
+
+#### `Run-CoreTests.ps1`
+Quick validation tests (database connectivity, basic queries).
+
+**Called by**: Manual testing, validation  
+**Duration**: ~10 seconds
+
+---
+
+### **Neo4j Scripts**
+
+#### `neo4j/Deploy-Neo4jSchema.ps1`
+Deploys Neo4j graph database schema (constraints, indexes, reference data).
+
+**Called by**: Manual deployment, setup  
+**What**: Creates 9 constraints, 13 indexes, 15 reference nodes
+
+---
+
+### **Operations Scripts**
+
+#### `operations/Seed-HartonomousRepo.ps1`
+Seeds test data for development and testing.
+
+**Called by**: Manual setup, testing  
+**What**: Inserts sample atoms, embeddings, relationships
+
+#### `operations/Test-RLHFCycle.ps1`
+Tests RLHF (Reinforcement Learning from Human Feedback) loop.
+
+**Called by**: Manual testing, validation  
+**What**: Simulates observe ? orient ? decide ? act cycle
+
+---
+
+## ??? Archived Scripts
+
+24 scripts moved to `.archive/` directory:
+
+- **Legacy orchestrators**: Deploy-All.ps1, deploy-hartonomous.ps1, Deploy-Idempotent.ps1, Deploy-Master.ps1
+- **Duplicate scripts**: Build-WithSigning.ps1, deploy-dacpac.ps1, Deploy-Local.ps1, deploy-local-dev.ps1
+- **One-time setup**: Configure-GitHubActionsServicePrincipals.ps1, Grant-ArcManagedIdentityAccess.ps1, 01-create-infrastructure.ps1
+- **Testing utilities**: Test-HartonomousDeployment.ps1, Test-PipelineConfiguration.ps1, Validate-Build.ps1
+- **Code generation**: generate-clr-wrappers.ps1, Audit-Legacy-Code.ps1, Purge-Legacy-Code.ps1
+
+**Why archived**: Replaced by pipeline explicit tasks, duplicates, or one-time use only.
+
+**Can be restored**: If needed, scripts are in `.archive/` (not deleted).
+
+---
+
+## ?? Quick Reference
+
+| Task | Command |
+|------|---------|
+| **Build database** | `.\build-dacpac.ps1` |
+| **Deploy database** | `.\Deploy-Database.ps1 -Server localhost` |
+| **Scaffold entities** | `.\scaffold-entities.ps1 -Server localhost` |
+| **Full local deploy** | `.\Deploy.ps1` |
+| **Run tests** | `.\Run-CoreTests.ps1` |
+| **Deploy Neo4j** | `.\neo4j\Deploy-Neo4jSchema.ps1` |
+
+---
+
+## ?? Related Documentation
+
+- **Pipeline**: `azure-pipelines.yml` - Complete CI/CD workflow
+- **Deployment**: `docs/operations/deployment.md` - Deployment guide
+- **CLR Signing**: `scripts/README-CLR-SIGNING.md` - CLR signing infrastructure
+- **Neo4j**: `scripts/neo4j/README.md` - Neo4j schema documentation
+
+---
+
+**Last Updated**: 2025-11-21  
+**Status**: ? Production-Ready  
+**Scripts**: 12 active, 24 archived
 

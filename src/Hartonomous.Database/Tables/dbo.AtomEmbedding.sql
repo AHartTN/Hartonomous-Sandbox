@@ -14,7 +14,7 @@ CREATE TABLE [dbo].[AtomEmbedding] (
     [SpatialKey]        GEOMETRY       NOT NULL,
     
     -- Full-dimensional vector for similarity search - for VECTOR_DISTANCE operations
-    [EmbeddingVector]   VECTOR(1998)   NULL,  -- Full embedding vector for cosine/euclidean distance
+    [EmbeddingVector]   VECTOR(1998)   NULL,  -- Full embedding vector for cosine/euclidean distance (OpenAI standard)
 
     -- Grid-based spatial bucketing for coarse-grained queries
     [SpatialBucketX]    INT            NULL,

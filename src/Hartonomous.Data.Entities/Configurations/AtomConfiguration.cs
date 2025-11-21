@@ -20,8 +20,16 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
             .HasMaxLength(64)
             ;
 
+        builder.Property(e => e.BatchId)
+            .HasColumnType("uniqueidentifier")
+            ;
+
         builder.Property(e => e.CanonicalText)
             .HasColumnType("nvarchar(max)")
+            ;
+
+        builder.Property(e => e.ConceptId)
+            .HasColumnType("bigint")
             ;
 
         builder.Property(e => e.ContentHash)
@@ -49,6 +57,10 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
             .HasColumnType("bigint")
             ;
 
+        builder.Property(e => e.SourceId)
+            .HasColumnType("bigint")
+            ;
+
         builder.Property(e => e.SourceType)
             .HasColumnType("nvarchar(100)")
             .HasMaxLength(100)
@@ -66,6 +78,20 @@ public class AtomConfiguration : IEntityTypeConfiguration<Atom>
 
         builder.Property(e => e.TenantId)
             .HasColumnType("int")
+            ;
+
+        builder.HasOne(d => d.Concept)
+            .WithMany(p => p.Atoms)
+            .HasForeignKey(d => new { d.ConceptId })
+            .OnDelete(DeleteBehavior.ClientSetNull)
+            ;
+
+        builder.HasIndex(e => new { e.BatchId })
+            .HasDatabaseName("IX_Atom_BatchId")
+            ;
+
+        builder.HasIndex(e => new { e.ConceptId })
+            .HasDatabaseName("IX_Atom_ConceptId")
             ;
 
         builder.HasIndex(e => new { e.ContentType })

@@ -51,6 +51,26 @@ public class BillingInvoiceConfiguration : IEntityTypeConfiguration<BillingInvoi
             .IsRequired()
             ;
 
+        builder.Property(e => e.StripeHostedUrl)
+            .HasColumnType("nvarchar(500)")
+            .HasMaxLength(500)
+            ;
+
+        builder.Property(e => e.StripeInvoiceId)
+            .HasColumnType("nvarchar(255)")
+            .HasMaxLength(255)
+            ;
+
+        builder.Property(e => e.StripePdfUrl)
+            .HasColumnType("nvarchar(500)")
+            .HasMaxLength(500)
+            ;
+
+        builder.Property(e => e.StripeStatus)
+            .HasColumnType("nvarchar(50)")
+            .HasMaxLength(50)
+            ;
+
         builder.Property(e => e.Subtotal)
             .HasColumnType("decimal(18,2)")
             ;
@@ -71,12 +91,21 @@ public class BillingInvoiceConfiguration : IEntityTypeConfiguration<BillingInvoi
             .HasDatabaseName("IX_BillingInvoices_Status")
             ;
 
+        builder.HasIndex(e => new { e.StripeInvoiceId })
+            .HasDatabaseName("IX_BillingInvoices_StripeId")
+            ;
+
         builder.HasIndex(e => new { e.TenantId, e.GeneratedUtc })
             .HasDatabaseName("IX_BillingInvoices_Tenant")
             ;
 
         builder.HasIndex(e => new { e.InvoiceNumber })
             .HasDatabaseName("UQ_BillingInvoices_Number")
+            .IsUnique()
+            ;
+
+        builder.HasIndex(e => new { e.StripeInvoiceId })
+            .HasDatabaseName("UQ_BillingInvoices_StripeId")
             .IsUnique()
             ;
     }

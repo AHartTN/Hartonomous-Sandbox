@@ -17,8 +17,8 @@ BEGIN
     DECLARE @Samples TABLE (
         SampleId INT,
         Response NVARCHAR(MAX),
-        ResponsePathVector VECTOR(1536),
-        ResponseAnswerVector VECTOR(1536),
+        ResponsePathVector VECTOR(1998),
+        ResponseAnswerVector VECTOR(1998),
         Confidence FLOAT,
         SampleTime DATETIME2
     );
@@ -28,8 +28,8 @@ BEGIN
     WHILE @SampleId <= @NumSamples
     BEGIN
         DECLARE @SampleResponse NVARCHAR(MAX);
-        DECLARE @PathEmbedding VECTOR(1536);
-        DECLARE @AnswerEmbedding VECTOR(1536);
+        DECLARE @PathEmbedding VECTOR(1998);
+        DECLARE @AnswerEmbedding VECTOR(1998);
         DECLARE @EmbeddingDim INT;
 
         EXEC dbo.sp_GenerateText
