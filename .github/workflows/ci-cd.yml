@@ -145,12 +145,23 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           
-          Write-Host "Signing CLR assemblies (auto-discovery)..."
+          Write-Host "Signing CLR assemblies..."
           
-          # Call script - it will throw on error due to ErrorActionPreference
+          # The DACPAC build outputs to src\Hartonomous.Database\bin\Release\
+          # Sign-CLRAssemblies.ps1 expects to find DLLs there
+          $buildOutput = "src\Hartonomous.Database\bin\Release"
+          
+          if (-not (Test-Path $buildOutput)) {
+            throw "Build output not found at: $buildOutput. DACPAC build may have failed."
+          }
+          
+          # List DLLs found
+          $dlls = Get-ChildItem -Path $buildOutput -Filter "*.dll" -Recurse
+          Write-Host "Found $($dlls.Count) DLL files to sign"
+          
+          # Call signing script
           & ./scripts/Sign-CLRAssemblies.ps1 -Configuration Release -Verbose
           
-          # Check if script succeeded (if we get here, it did)
           Write-Host "✓ CLR assemblies signed"
       
       - name: Upload DACPAC artifact
