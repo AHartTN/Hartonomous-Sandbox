@@ -438,11 +438,6 @@ jobs:
           name: scaffolded-entities
           path: src/Hartonomous.Data.Entities/
       
-      - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: ${{ env.DOTNET_VERSION }}
-      
       - name: Display .NET Info
         run: dotnet --info
       
