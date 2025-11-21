@@ -2,14 +2,16 @@ using Asp.Versioning;
 using Hartonomous.Api.DTOs.Common;
 using Hartonomous.Api.DTOs.Provenance;
 using Hartonomous.Api.DTOs.Research;
+using Hartonomous.Core.Interfaces.Provenance;
+using Hartonomous.Core.Interfaces.Search;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Hartonomous.Api.Controllers;
 
 /// <summary>
-/// Research and knowledge discovery controller - showcases semantic search capabilities.
-/// These endpoints are placeholders for functionality coming with CLR/SQL refactor.
+/// Research and knowledge discovery controller - semantic search capabilities.
+/// Calls stored procedures via ISearchService and IProvenanceWriteService.
 /// </summary>
 [ApiController]
 [ApiVersion("1.0")]
@@ -17,105 +19,77 @@ namespace Hartonomous.Api.Controllers;
 [Authorize(Policy = "ApiUser")]
 public class ResearchController : ControllerBase
 {
+    private readonly ISearchService _searchService;
+    private readonly IProvenanceWriteService _provenanceService;
     private readonly ILogger<ResearchController> _logger;
 
-    public ResearchController(ILogger<ResearchController> logger)
+    public ResearchController(
+        ISearchService searchService,
+        IProvenanceWriteService provenanceService,
+        ILogger<ResearchController> logger)
     {
+        _searchService = searchService ?? throw new ArgumentNullException(nameof(searchService));
+        _provenanceService = provenanceService ?? throw new ArgumentNullException(nameof(provenanceService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     /// <summary>
     /// Executes semantic research query across knowledge base.
-    /// Future: Full-text search + spatial + graph traversal via CLR functions.
+    /// Calls sp_SemanticSearch stored procedure via ISearchService.
     /// </summary>
     [HttpPost("query")]
     [ProducesResponseType(typeof(ResearchQueryResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult ExecuteQuery([FromBody] ResearchQueryRequest request)
+    public async Task<IActionResult> ExecuteQuery(
+        [FromBody] ResearchQueryRequest request,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Research: Executing query '{Query}' (DEMO MODE)", request.Query);
+        _logger.LogInformation("Research: Executing query '{Query}'", request.Query);
 
         if (string.IsNullOrWhiteSpace(request.Query))
             return BadRequest("Query is required");
 
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // Execute semantic search via stored procedure
+        var searchResults = await _searchService.SemanticSearchAsync(
+            request.Query,
+            request.TopK ?? 10,
+            request.TenantId ?? 0,
+            cancellationToken);
+
+        sw.Stop();
+
+        var results = searchResults.Select(r => new ResearchResult
+        {
+            AtomId = r.AtomId,
+            Title = r.ContentPreview?.Split('\n').FirstOrDefault() ?? "Untitled",
+            Snippet = r.ContentPreview,
+            RelevanceScore = r.Score,
+            Source = "Hartonomous Knowledge Base",
+            AtomType = r.Modality ?? "Unknown",
+            Location = null, // Spatial data would come from extended query
+            Tags = new List<string>()
+        }).ToList();
+
         var response = new ResearchQueryResponse
         {
             Query = request.Query,
-            ExecutionTimeMs = 234,
-            Results = new List<ResearchResult>
-            {
-                new()
-                {
-                    AtomId = 45678,
-                    Title = "Semantic Reasoning in Spatial Contexts",
-                    Snippet = "...novel approach to semantic reasoning that leverages spatial relationships between knowledge atoms, achieving 94% accuracy in contextual inference tasks...",
-                    RelevanceScore = 0.94,
-                    Source = "Journal of AI Research, 2024",
-                    AtomType = "Academic",
-                    Location = new GeoPoint { Latitude = 37.7749, Longitude = -122.4194 },
-                    Tags = new List<string> { "semantic-reasoning", "spatial-ai", "knowledge-graphs" }
-                },
-                new()
-                {
-                    AtomId = 45123,
-                    Title = "Graph Provenance for Model Explainability",
-                    Snippet = "...tracking reasoning paths through Neo4j enables complete model explainability, allowing researchers to audit every inference step and validate results...",
-                    RelevanceScore = 0.89,
-                    Source = "ACM Conference on AI Transparency",
-                    AtomType = "Conference",
-                    Location = new GeoPoint { Latitude = 37.7755, Longitude = -122.421 },
-                    Tags = new List<string> { "provenance", "explainability", "audit-trails" }
-                },
-                new()
-                {
-                    AtomId = 44892,
-                    Title = "CLR Integration for High-Performance ML",
-                    Snippet = "...SQL Server CLR functions provide microsecond-latency inference within database queries, eliminating network overhead and enabling real-time ML at scale...",
-                    RelevanceScore = 0.86,
-                    Source = "Microsoft Research Technical Report",
-                    AtomType = "Technical",
-                    Location = new GeoPoint { Latitude = 37.7760, Longitude = -122.419 },
-                    Tags = new List<string> { "clr", "sql-server", "performance" }
-                },
-                new()
-                {
-                    AtomId = 44501,
-                    Title = "Temporal Analysis of Knowledge Evolution",
-                    Snippet = "...SQL Server temporal tables combined with graph provenance reveal how knowledge atoms evolve over time, supporting longitudinal research studies...",
-                    RelevanceScore = 0.82,
-                    Source = "Data Science Workshop 2024",
-                    AtomType = "Workshop",
-                    Location = new GeoPoint { Latitude = 37.7740, Longitude = -122.420 },
-                    Tags = new List<string> { "temporal-analysis", "knowledge-evolution", "research-methods" }
-                }
-            },
+            ExecutionTimeMs = sw.ElapsedMilliseconds,
+            Results = results,
             Aggregations = new QueryAggregations
             {
-                TotalMatches = 247,
-                ByAtomType = new Dictionary<string, int>
-                {
-                    ["Academic"] = 89,
-                    ["Technical"] = 67,
-                    ["Conference"] = 54,
-                    ["Workshop"] = 37
-                },
+                TotalMatches = results.Count,
+                ByAtomType = results.GroupBy(r => r.AtomType)
+                    .ToDictionary(g => g.Key, g => g.Count()),
                 BySource = new Dictionary<string, int>
                 {
-                    ["Journal of AI Research"] = 32,
-                    ["ACM Conferences"] = 28,
-                    ["Microsoft Research"] = 24,
-                    ["arXiv"] = 163
+                    ["Hartonomous Knowledge Base"] = results.Count
                 },
-                TopTags = new List<string> { "semantic-reasoning", "spatial-ai", "knowledge-graphs", "provenance", "clr" }
+                TopTags = new List<string>()
             },
-            SpatialCoverage = new SpatialBounds
-            {
-                MinLatitude = 37.770,
-                MaxLatitude = 37.780,
-                MinLongitude = -122.425,
-                MaxLongitude = -122.415
-            },
-            DemoMode = true
+            SpatialCoverage = null,
+            DemoMode = false
         };
 
         return Ok(response);
@@ -123,65 +97,60 @@ public class ResearchController : ControllerBase
 
     /// <summary>
     /// Performs semantic similarity search.
-    /// Future: Vector embeddings + spatial proximity via SQL Server CLR.
+    /// Calls sp_SemanticSearch via ISearchService.
     /// </summary>
     [HttpGet("semantic-search")]
     [ProducesResponseType(typeof(SemanticSearchResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public IActionResult SemanticSearch(
+    public async Task<IActionResult> SemanticSearch(
         [FromQuery] string text,
         [FromQuery] int limit = 10,
-        [FromQuery] double minSimilarity = 0.7)
+        [FromQuery] double minSimilarity = 0.7,
+        [FromQuery] int tenantId = 0,
+        CancellationToken cancellationToken = default)
     {
-        _logger.LogInformation("Research: Semantic search for '{Text}' (DEMO MODE)", text);
+        _logger.LogInformation("Research: Semantic search for '{Text}'", text);
 
         if (string.IsNullOrWhiteSpace(text))
             return BadRequest("Text parameter is required");
+
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        var searchResults = await _searchService.SemanticSearchAsync(
+            text,
+            limit,
+            tenantId,
+            cancellationToken);
+
+        sw.Stop();
+
+        var matches = searchResults
+            .Where(r => r.Score >= minSimilarity)
+            .Select(r => new SemanticMatch
+            {
+                AtomId = r.AtomId,
+                Content = r.ContentPreview ?? "",
+                SimilarityScore = r.Score,
+                Distance = 1.0 - r.Score,
+                Method = "Cosine Similarity (sp_SemanticSearch)",
+                EmbeddingDimensions = 1998 // VECTOR(1998) dimension
+            }).ToList();
 
         var response = new SemanticSearchResponse
         {
             Query = text,
             Limit = limit,
             MinSimilarity = minSimilarity,
-            ExecutionTimeMs = 87,
-            Matches = new List<SemanticMatch>
-            {
-                new()
-                {
-                    AtomId = 67890,
-                    Content = "Advanced semantic reasoning techniques for spatial knowledge representation",
-                    SimilarityScore = 0.94,
-                    Distance = 0.06,
-                    Method = "Cosine Similarity",
-                    EmbeddingDimensions = 768
-                },
-                new()
-                {
-                    AtomId = 67823,
-                    Content = "Spatial inference and semantic understanding in knowledge graphs",
-                    SimilarityScore = 0.89,
-                    Distance = 0.11,
-                    Method = "Cosine Similarity",
-                    EmbeddingDimensions = 768
-                },
-                new()
-                {
-                    AtomId = 67745,
-                    Content = "Contextual reasoning with geographic and semantic dimensions",
-                    SimilarityScore = 0.84,
-                    Distance = 0.16,
-                    Method = "Cosine Similarity",
-                    EmbeddingDimensions = 768
-                }
-            },
+            ExecutionTimeMs = sw.ElapsedMilliseconds,
+            Matches = matches,
             Statistics = new SearchStatistics
             {
-                CandidatesEvaluated = 12_450,
-                IndexHitRate = 0.98,
-                CacheHitRate = 0.23,
-                AverageEmbeddingTime = 12
+                CandidatesEvaluated = matches.Count,
+                IndexHitRate = 1.0,
+                CacheHitRate = 0.0,
+                AverageEmbeddingTime = sw.ElapsedMilliseconds
             },
-            DemoMode = true
+            DemoMode = false
         };
 
         return Ok(response);

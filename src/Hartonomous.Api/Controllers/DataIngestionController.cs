@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -8,7 +7,9 @@ using System.Threading.Tasks;
 using Asp.Versioning;
 using Hartonomous.Api.DTOs.Ingestion;
 using Hartonomous.Api.Extensions;
+using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Services;
 using Hartonomous.Infrastructure.Atomizers;
 using Hartonomous.Infrastructure.FileType;
 using Hartonomous.Infrastructure.Services;
@@ -33,20 +34,23 @@ public class DataIngestionController : ControllerBase
     private readonly IFileTypeDetector _fileTypeDetector;
     private readonly IEnumerable<IAtomizer<byte[]>> _atomizers;
     private readonly IAtomBulkInsertService _bulkInsertService;
+    private readonly IBackgroundJobService _backgroundJobService;
+    private readonly IIngestionService _ingestionService;
     private readonly ILogger<DataIngestionController> _logger;
-    
-    // In-memory job tracking (TODO: move to persistent storage)
-    private static readonly ConcurrentDictionary<string, IngestionJob> _jobs = new();
 
     public DataIngestionController(
         IFileTypeDetector fileTypeDetector,
         IEnumerable<IAtomizer<byte[]>> atomizers,
         IAtomBulkInsertService bulkInsertService,
+        IBackgroundJobService backgroundJobService,
+        IIngestionService ingestionService,
         ILogger<DataIngestionController> logger)
     {
         _fileTypeDetector = fileTypeDetector ?? throw new ArgumentNullException(nameof(fileTypeDetector));
         _atomizers = atomizers ?? throw new ArgumentNullException(nameof(atomizers));
         _bulkInsertService = bulkInsertService ?? throw new ArgumentNullException(nameof(bulkInsertService));
+        _backgroundJobService = backgroundJobService ?? throw new ArgumentNullException(nameof(backgroundJobService));
+        _ingestionService = ingestionService ?? throw new ArgumentNullException(nameof(ingestionService));
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
@@ -65,7 +69,15 @@ public class DataIngestionController : ControllerBase
         if (file == null || file.Length == 0)
             return BadRequest("No file provided");
 
-        var jobId = Guid.NewGuid().ToString();
+        // Create persistent job record
+        var jobGuid = await _backgroundJobService.CreateJobAsync(
+            "FileIngestion",
+            $"{{\"fileName\":\"{file.FileName}\",\"sizeBytes\":{file.Length}}}",
+            tenantId,
+            cancellationToken);
+        var jobId = jobGuid.ToString();
+
+        // Local job tracking for response (also persisted via service)
         var job = new IngestionJob
         {
             JobId = jobId,
@@ -75,7 +87,6 @@ public class DataIngestionController : ControllerBase
             StartedAt = DateTime.UtcNow,
             TenantId = tenantId
         };
-        _jobs[jobId] = job;
 
         try
         {
@@ -156,6 +167,14 @@ public class DataIngestionController : ControllerBase
             job.CompletedAt = DateTime.UtcNow;
             job.DurationMs = (long)(job.CompletedAt.Value - job.StartedAt).TotalMilliseconds;
 
+            // Update persistent job status
+            await _backgroundJobService.UpdateJobAsync(
+                jobGuid,
+                "Completed",
+                $"{{\"totalAtoms\":{job.TotalAtoms},\"uniqueAtoms\":{job.UniqueAtoms},\"durationMs\":{job.DurationMs}}}",
+                null,
+                cancellationToken);
+
             _logger.LogInformation(
                 "Ingestion completed: {JobId}, {TotalAtoms} atoms ({UniqueAtoms} unique), {DurationMs}ms",
                 jobId,
@@ -171,8 +190,8 @@ public class DataIngestionController : ControllerBase
                 {
                     total = job.TotalAtoms,
                     unique = job.UniqueAtoms,
-                    deduplicationRate = job.TotalAtoms > 0 
-                        ? (1.0 - (double)job.UniqueAtoms / job.TotalAtoms) * 100 
+                    deduplicationRate = job.TotalAtoms > 0
+                        ? (1.0 - (double)job.UniqueAtoms / job.TotalAtoms) * 100
                         : 0
                 },
                 durationMs = job.DurationMs,
@@ -186,6 +205,14 @@ public class DataIngestionController : ControllerBase
             job.ErrorMessage = ex.Message;
             job.CompletedAt = DateTime.UtcNow;
 
+            // Update persistent job status
+            await _backgroundJobService.UpdateJobAsync(
+                jobGuid,
+                "Failed",
+                null,
+                ex.Message,
+                cancellationToken);
+
             throw; // Problem Details middleware will handle
         }
     }
@@ -195,27 +222,25 @@ public class DataIngestionController : ControllerBase
     /// GET /api/ingestion/jobs/{jobId}
     /// </summary>
     [HttpGet("jobs/{jobId}")]
-    public IActionResult GetJobStatus(string jobId)
+    public async Task<IActionResult> GetJobStatus(string jobId, CancellationToken cancellationToken = default)
     {
-        if (!_jobs.TryGetValue(jobId, out var job))
+        if (!Guid.TryParse(jobId, out var jobGuid))
+            return BadRequest("Invalid job ID format");
+
+        var job = await _backgroundJobService.GetJobAsync(jobGuid, cancellationToken);
+        if (job == null)
             return NotFound("Job not found");
 
         return Ok(new
         {
             jobId = job.JobId,
-            fileName = job.FileName,
+            jobType = job.JobType,
             status = job.Status,
-            detectedType = job.DetectedType,
-            detectedCategory = job.DetectedCategory,
-            atoms = new
-            {
-                total = job.TotalAtoms,
-                unique = job.UniqueAtoms
-            },
-            startedAt = job.StartedAt,
+            parameters = job.ParametersJson,
+            result = job.ResultJson,
+            tenantId = job.TenantId,
+            createdAt = job.CreatedAt,
             completedAt = job.CompletedAt,
-            durationMs = job.DurationMs,
-            childJobs = job.ChildJobs,
             error = job.ErrorMessage
         });
     }

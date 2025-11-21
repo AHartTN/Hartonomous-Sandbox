@@ -1,16 +1,32 @@
 using Hartonomous.Core.Configuration;
+using Hartonomous.Core.Interfaces.Atomization;
+using Hartonomous.Core.Interfaces.BackgroundJob;
+using Hartonomous.Core.Interfaces.Billing;
+using Hartonomous.Core.Interfaces.Concept;
+using Hartonomous.Core.Interfaces.Generation;
+using Hartonomous.Core.Interfaces.Inference;
+using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Interfaces.ModelWeight;
+using Hartonomous.Core.Interfaces.Ooda;
 using Hartonomous.Core.Interfaces.Provenance;
 using Hartonomous.Core.Interfaces.Reasoning;
+using Hartonomous.Core.Interfaces.Reconstruction;
+using Hartonomous.Core.Interfaces.Search;
+using Hartonomous.Core.Interfaces.Semantic;
 using Hartonomous.Core.Interfaces.SpatialSearch;
+using Hartonomous.Core.Interfaces.Stream;
 using Hartonomous.Core.Interfaces.Validation;
-using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Infrastructure.Health;
-using Hartonomous.Infrastructure.Services.Provenance;
-using Hartonomous.Infrastructure.Services.Reasoning;
-using Hartonomous.Infrastructure.Services.SpatialSearch;
-using Hartonomous.Infrastructure.Services.Validation;
+using Hartonomous.Infrastructure.Services.BackgroundJob;
+using Hartonomous.Infrastructure.Services.Generation;
 using Hartonomous.Infrastructure.Services.Ingestion;
 using Hartonomous.Infrastructure.Services.Ingestion.Strategies;
+using Hartonomous.Infrastructure.Services.Ooda;
+using Hartonomous.Infrastructure.Services.Provenance;
+using Hartonomous.Infrastructure.Services.Reasoning;
+using Hartonomous.Infrastructure.Services.Search;
+using Hartonomous.Infrastructure.Services.SpatialSearch;
+using Hartonomous.Infrastructure.Services.Validation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -73,6 +89,21 @@ public static class ServiceCollectionExtensions
 
         // Validation services
         services.AddScoped<IValidationService, ValidationService>();
+
+        // OODA Loop services (autonomous self-optimization)
+        services.AddScoped<IOodaService, SqlOodaService>();
+
+        // Search services (semantic, hybrid, fusion, etc.)
+        services.AddScoped<ISearchService, SqlSearchService>();
+
+        // Generation services (text, multi-modal, attention)
+        services.AddScoped<IGenerationService, SqlGenerationService>();
+
+        // Background job services (replaces in-memory tracking)
+        services.AddScoped<IBackgroundJobService, SqlBackgroundJobService>();
+
+        // Provenance write services
+        services.AddScoped<IProvenanceWriteService, SqlProvenanceWriteService>();
 
         // Content type strategy services (Strategy pattern for OCP compliance)
         services.AddSingleton<IContentTypeStrategyRegistry, ContentTypeStrategyRegistry>();
