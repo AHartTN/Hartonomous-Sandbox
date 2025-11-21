@@ -45,13 +45,25 @@ echo ""
 
 # Create tool cache directory with correct permissions
 TOOL_CACHE="$RUNNER_HOME/actions-tool-cache"
-if [ ! -d "$TOOL_CACHE" ]; then
-    echo "Creating tool cache directory..."
+echo -n "Tool cache... "
+if [ -d "$TOOL_CACHE" ]; then
+    # Verify permissions
+    if [ "$(stat -c '%U' "$TOOL_CACHE")" = "$RUNNER_USER" ]; then
+        echo "OK ($TOOL_CACHE)"
+    else
+        echo "fixing ownership"
+        chown -R "$RUNNER_USER:$RUNNER_USER" "$TOOL_CACHE"
+        chmod 755 "$TOOL_CACHE"
+        echo "        Fixed: $TOOL_CACHE"
+    fi
+else
+    echo "creating"
     mkdir -p "$TOOL_CACHE"
     chown -R "$RUNNER_USER:$RUNNER_USER" "$TOOL_CACHE"
     chmod 755 "$TOOL_CACHE"
-    echo "  Created: $TOOL_CACHE"
+    echo "        Created: $TOOL_CACHE"
 fi
+echo ""
 
 # Git
 echo -n "[1/2] Git... "
@@ -69,6 +81,13 @@ echo -n "[2/2] Docker... "
 if command -v docker &>/dev/null; then
     VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
     
+    # Ensure docker group exists
+    if ! getent group docker >/dev/null; then
+        echo "creating docker group"
+        groupadd docker
+        echo "        "
+    fi
+    
     # Test if user can actually run docker commands
     if sudo -u "$RUNNER_USER" docker ps &>/dev/null; then
         echo "OK ($VER, permissions OK)"
@@ -82,6 +101,12 @@ else
     apt-get update -qq
     apt-get install -y docker.io >/dev/null 2>&1
     systemctl enable --now docker >/dev/null 2>&1
+    
+    # Ensure docker group exists
+    if ! getent group docker >/dev/null; then
+        groupadd docker
+    fi
+    
     usermod -aG docker "$RUNNER_USER"
     VER=$(docker --version | cut -d' ' -f3 | tr -d ',')
     echo "        Installed: $VER"
