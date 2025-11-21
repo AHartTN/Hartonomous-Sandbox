@@ -56,6 +56,6 @@ public class DatabaseConnectionTests : DatabaseTestBase
 
         // Assert
         result.Should().NotBeNull();
-        result.ToString().Should().Contain("POINT");
+        result!.ToString().Should().Contain("POINT"); // ! suppresses null warning after NotBeNull assertion
     }
 }

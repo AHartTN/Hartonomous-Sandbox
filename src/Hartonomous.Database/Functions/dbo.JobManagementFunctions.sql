@@ -105,7 +105,3 @@ BEGIN
     RETURN 0.0;
 END;
 GO
-
-PRINT '? PHASE 7.3: Job management CLR stub functions created';
-PRINT '? NOTE: fn_BinaryToFloat32 is a stub (returns 0.0) - implement IEEE 754 decode for production';
-GO

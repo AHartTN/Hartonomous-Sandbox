@@ -26,6 +26,3 @@ RETURN (
         AND ae.EmbeddingVector IS NOT NULL
 );
 GO
-
-PRINT '? PHASE 7.3: fn_BindAtomsToCentroid created';
-GO
