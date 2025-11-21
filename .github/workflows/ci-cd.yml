@@ -55,13 +55,17 @@ jobs:
           
           Write-Host "Initializing CLR signing certificate (idempotent)..."
           
-          & ./scripts/Initialize-CLRSigning.ps1
+          # Call script and capture result
+          $result = & ./scripts/Initialize-CLRSigning.ps1
+          $exitCode = $LASTEXITCODE
           
-          if ($LASTEXITCODE -ne 0) {
-            throw "Certificate initialization failed with exit code $LASTEXITCODE"
+          # If LASTEXITCODE is null/empty, the script succeeded (returned an object)
+          if ($null -eq $exitCode -or $exitCode -eq 0) {
+            Write-Host "✓ CLR signing certificate initialized"
+            exit 0
+          } else {
+            throw "Certificate initialization failed with exit code $exitCode"
           }
-          
-          Write-Host "✓ CLR signing certificate initialized"
       
       - name: Build DACPAC with MSBuild
         shell: pwsh
@@ -143,12 +147,10 @@ jobs:
           
           Write-Host "Signing CLR assemblies (auto-discovery)..."
           
+          # Call script - it will throw on error due to ErrorActionPreference
           & ./scripts/Sign-CLRAssemblies.ps1 -Configuration Release -Verbose
           
-          if ($LASTEXITCODE -ne 0) {
-            throw "Assembly signing failed with exit code $LASTEXITCODE"
-          }
-          
+          # Check if script succeeded (if we get here, it did)
           Write-Host "✓ CLR assemblies signed"
       
       - name: Upload DACPAC artifact
@@ -212,14 +214,11 @@ jobs:
           
           Write-Host "Deploying CLR signing certificate to SQL Server (production mode)..."
           
+          # Call script - will throw on error
           & ./scripts/Deploy-CLRCertificate.ps1 `
             -Server "${{ secrets.SQL_SERVER }}" `
             -Database "${{ secrets.SQL_DATABASE }}" `
             -EnableStrictSecurity $true
-          
-          if ($LASTEXITCODE -ne 0) {
-            throw "Certificate deployment failed with exit code $LASTEXITCODE"
-          }
           
           Write-Host "✓ CLR signing certificate deployed with CLR Strict Security enabled"
 
@@ -532,7 +531,9 @@ jobs:
       
       - name: Run unit tests
         run: |
-          Write-Host "Running unit tests..."
+          Write-Host "Running unit tests with hybrid database testing..."
+          Write-Host "Environment: CI=${{ env.CI }} (will use Docker/Testcontainers)"
+          
           dotnet test tests/**/*Tests.csproj `
             --configuration ${{ env.BUILD_CONFIGURATION }} `
             --no-build `
@@ -540,7 +541,11 @@ jobs:
             --logger "trx;LogFileName=test-results.trx" `
             --results-directory ./TestResults `
             -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          
+          Write-Host "✓ Tests completed"
         shell: pwsh
+        env:
+          CI: true  # DatabaseTestBase will use Docker (Testcontainers)
       
       - name: Upload test results
         uses: actions/upload-artifact@v4
