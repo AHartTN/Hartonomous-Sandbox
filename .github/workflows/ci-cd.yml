@@ -432,6 +432,11 @@ jobs:
         with:
           fetch-depth: 0
       
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
       - name: Download scaffolded entities
         uses: actions/download-artifact@v4
         with:
