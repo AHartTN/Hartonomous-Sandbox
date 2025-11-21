@@ -21,8 +21,13 @@ CREATE TABLE [dbo].[BillingInvoice] (
     
     CONSTRAINT [PK_BillingInvoices] PRIMARY KEY CLUSTERED ([InvoiceId] ASC),
     CONSTRAINT [UQ_BillingInvoices_Number] UNIQUE NONCLUSTERED ([InvoiceNumber]),
-    CONSTRAINT [UQ_BillingInvoices_StripeId] UNIQUE NONCLUSTERED ([StripeInvoiceId]) WHERE [StripeInvoiceId] IS NOT NULL,
     INDEX [IX_BillingInvoices_Tenant] ([TenantId], [GeneratedUtc] DESC),
     INDEX [IX_BillingInvoices_Status] ([Status], [GeneratedUtc] DESC),
     INDEX [IX_BillingInvoices_StripeId] ([StripeInvoiceId]) INCLUDE ([InvoiceId], [TenantId], [Status])
 );
+GO
+
+CREATE UNIQUE NONCLUSTERED INDEX [UQ_BillingInvoices_StripeId]
+    ON [dbo].[BillingInvoice]([StripeInvoiceId])
+    WHERE [StripeInvoiceId] IS NOT NULL;
+GO
