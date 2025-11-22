@@ -280,30 +280,30 @@ function Deploy-ExternalAssemblies {
     foreach ($dll in $sortedDlls) {
         $assemblyName = $dll.BaseName
         
-        # Check if assembly already exists in master database
+        # Check if assembly already exists in target database
         $checkQuery = "SELECT COUNT(*) AS AssemblyCount FROM sys.assemblies WHERE name = '$assemblyName'"
-        $existingResult = Invoke-SqlCmdSafe -Query $checkQuery -DatabaseName 'master'
-        
+        $existingResult = Invoke-SqlCmdSafe -Query $checkQuery -DatabaseName $Database
+
         if ($existingResult.AssemblyCount -gt 0) {
-            Write-Log "  ⊙ Assembly '$assemblyName' already exists in master, skipping" -Level Debug
+            Write-Log "  ⊙ Assembly '$assemblyName' already exists in [$Database], skipping" -Level Debug
             $skippedCount++
             continue
         }
 
-        Write-Log "  → Deploying assembly to master: $assemblyName" -Level Info
-        
+        Write-Log "  → Deploying assembly to [$Database]: $assemblyName" -Level Info
+
         try {
             $bytes = [System.IO.File]::ReadAllBytes($dll.FullName)
             $hexString = '0x' + [System.BitConverter]::ToString($bytes).Replace('-', '')
-            
-            # Deploy to master database with UNSAFE permission
+
+            # Deploy to target database with UNSAFE permission
             $createAssemblySql = @"
-CREATE ASSEMBLY [$assemblyName] 
-FROM $hexString 
+CREATE ASSEMBLY [$assemblyName]
+FROM $hexString
 WITH PERMISSION_SET = UNSAFE;
 "@
-            Invoke-SqlCmdSafe -Query $createAssemblySql -DatabaseName 'master' -QueryTimeout 600
-            Write-Log "  ✓ Deployed to master: $assemblyName" -Level Success
+            Invoke-SqlCmdSafe -Query $createAssemblySql -DatabaseName $Database -QueryTimeout 600
+            Write-Log "  ✓ Deployed to [$Database]: $assemblyName" -Level Success
             $deployedCount++
         }
         catch {
@@ -312,8 +312,8 @@ WITH PERMISSION_SET = UNSAFE;
             throw
         }
     }
-    
-    Write-Log "External assemblies: $deployedCount deployed to master, $skippedCount already existed" -Level Success
+
+    Write-Log "External assemblies: $deployedCount deployed to [$Database], $skippedCount already existed" -Level Success
 }
 
 function Deploy-Dacpac {
