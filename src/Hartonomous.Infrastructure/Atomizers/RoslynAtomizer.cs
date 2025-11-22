@@ -1,10 +1,10 @@
-using System.Security.Cryptography;
 using System.Text;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Atomizers.Visitors;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
@@ -12,12 +12,13 @@ namespace Hartonomous.Infrastructure.Atomizers;
 /// C# code atomizer using Roslyn for semantic AST parsing.
 /// Extracts classes, methods, properties, and relationships with full semantic understanding.
 /// </summary>
-public class RoslynAtomizer : IAtomizer<byte[]>
+public class RoslynAtomizer : BaseAtomizer<byte[]>
 {
-    private const int MaxAtomSize = 64;
-    public int Priority => 25; // Higher priority than regex-based CodeFileAtomizer
+    public RoslynAtomizer(ILogger<RoslynAtomizer> logger) : base(logger) { }
 
-    public bool CanHandle(string contentType, string? fileExtension)
+    public override int Priority => 25;
+
+    public override bool CanHandle(string contentType, string? fileExtension)
     {
         if (contentType?.Contains("x-csharp") == true || contentType?.Contains("csharp") == true)
             return true;
@@ -29,98 +30,66 @@ public class RoslynAtomizer : IAtomizer<byte[]>
         return ext is "cs" or "csx";
     }
 
-    public async Task<AtomizationResult> AtomizeAsync(byte[] input, SourceMetadata source, CancellationToken cancellationToken)
+    protected override async Task AtomizeCoreAsync(
+        byte[] input,
+        SourceMetadata source,
+        List<AtomData> atoms,
+        List<AtomComposition> compositions,
+        List<string> warnings,
+        CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var atoms = new List<AtomData>();
-        var compositions = new List<AtomComposition>();
-        var warnings = new List<string>();
-
+        string code;
         try
         {
-            string code;
-            try
-            {
-                code = Encoding.UTF8.GetString(input);
-            }
-            catch
-            {
-                warnings.Add("UTF-8 decode failed, using Latin1 fallback");
-                code = Encoding.GetEncoding("ISO-8859-1").GetString(input);
-            }
-
-            var fileHash = HashUtilities.ComputeSHA256(input);
-            var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
-            var root = await tree.GetRootAsync(cancellationToken);
-
-            // Create file-level atom
-            var fileAtom = CreateFileAtom(source, input, fileHash, code);
-            atoms.Add(fileAtom);
-
-            // Extract semantic elements
-            var visitor = new CSharpSemanticVisitor(atoms, compositions, fileHash, warnings);
-            visitor.Visit(root);
-
-            sw.Stop();
-            var uniqueHashes = atoms.Select(a => Convert.ToBase64String(a.ContentHash)).Distinct().Count();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = uniqueHashes,
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(RoslynAtomizer),
-                    DetectedFormat = "csharp",
-                    Warnings = warnings.Count > 0 ? warnings : null
-                }
-            };
+            code = Encoding.UTF8.GetString(input);
         }
-        catch (Exception ex)
+        catch
         {
-            sw.Stop();
-            warnings.Add($"Roslyn parsing failed: {ex.Message}");
-            var uniqueHashes = atoms.Select(a => Convert.ToBase64String(a.ContentHash)).Distinct().Count();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = uniqueHashes,
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(RoslynAtomizer),
-                    DetectedFormat = "csharp",
-                    Warnings = warnings
-                }
-            };
+            warnings.Add("UTF-8 decode failed, using Latin1 fallback");
+            code = Encoding.GetEncoding("ISO-8859-1").GetString(input);
         }
+
+        var fileHash = CreateFileMetadataAtom(input, source, atoms);
+        var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
+        var root = await tree.GetRootAsync(cancellationToken);
+
+        var visitor = new CSharpSemanticVisitor(atoms, compositions, fileHash, warnings);
+        visitor.Visit(root);
     }
 
-    private static AtomData CreateFileAtom(SourceMetadata source, byte[] input, byte[] fileHash, string code)
+    protected override string GetDetectedFormat() => "csharp (Roslyn AST)";
+
+    protected override string GetModality() => "code";
+
+    protected override byte[] GetFileMetadataBytes(byte[] input, SourceMetadata source)
     {
-        var fileMetadataBytes = Encoding.UTF8.GetBytes($"csharp:{source.FileName}:{input.Length}");
-        return new AtomData
+        return Encoding.UTF8.GetBytes($"csharp:{source.FileName}:{input.Length}");
+    }
+
+    protected override string GetCanonicalFileText(byte[] input, SourceMetadata source)
+    {
+        return $"{source.FileName ?? "code.cs"} ({input.Length:N0} bytes)";
+    }
+
+    protected override string GetFileMetadataJson(byte[] input, SourceMetadata source)
+    {
+        string code;
+        try
         {
-            AtomicValue = fileMetadataBytes.Length <= MaxAtomSize ? fileMetadataBytes : fileMetadataBytes.Take(MaxAtomSize).ToArray(),
-            ContentHash = fileHash,
-            Modality = "code",
-            Subtype = "csharp-file",
-            ContentType = source.ContentType ?? "text/x-csharp",
-            CanonicalText = $"{source.FileName ?? "code.cs"} ({input.Length:N0} bytes)",
-            Metadata = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                language = "csharp",
-                size = input.Length,
-                fileName = source.FileName,
-                lines = code.Split('\n').Length,
-                parsingEngine = "Roslyn"
-            })
-        };
+            code = Encoding.UTF8.GetString(input);
+        }
+        catch
+        {
+            code = "";
+        }
+
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            language = "csharp",
+            size = input.Length,
+            fileName = source.FileName,
+            lines = string.IsNullOrEmpty(code) ? 0 : code.Split('\n').Length,
+            parsingEngine = "Roslyn"
+        });
     }
 }
