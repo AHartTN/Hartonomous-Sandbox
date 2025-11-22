@@ -232,9 +232,9 @@ function Deploy-ExternalAssemblies {
         return
     }
 
-    # CRITICAL: Hartonomous.Database.dll and SqlClrFunctions.dll are NOT external dependencies
+    # CRITICAL: Hartonomous.Database.dll and Hartonomous.Clr.dll are NOT external dependencies
     # They are deployed BY the DACPAC, not before it
-    $excludedAssemblies = @('Hartonomous.Database', 'SqlClrFunctions', 'Hartonomous.Clr')
+    $excludedAssemblies = @('Hartonomous.Database', 'Hartonomous.Clr')
     $dependencyDlls = $dependencyDlls | Where-Object { $excludedAssemblies -notcontains $_.BaseName }
     
     if ($dependencyDlls.Count -eq 0) {
@@ -242,30 +242,30 @@ function Deploy-ExternalAssemblies {
         return
     }
     
-    # Define strict dependency order based on DEPENDENCY-MATRIX.md analysis
-    # GAC assemblies (System.Drawing, System.Runtime.Serialization, System.ValueTuple,
-    # SMDiagnostics, System.ServiceModel.Internals) are EXCLUDED - already in GAC
+    # Define strict dependency order based on dependency analysis
+    # SQL CLR requires ALL assemblies deployed to database, even if they exist in Windows GAC
     $orderedAssemblies = @(
         # Level 1: No dependencies (deploy first)
         'System.Runtime.CompilerServices.Unsafe'
         'System.Buffers'
-        
+        'System.Runtime.Serialization' # Required by Newtonsoft.Json and MathNet.Numerics
+
         # Level 2: Depends only on GAC assemblies
         'System.Numerics.Vectors'      # Depends on System.Numerics (GAC)
-        
+
         # Level 3: Depends on Level 1 + Level 2
         'System.Memory'                # Depends on: Unsafe, Buffers, Numerics.Vectors
-        
+
         # Level 4: Depends on System.Memory
         'System.Collections.Immutable' # Depends on System.Memory
-        
+
         # Level 5: Depends on System.Collections.Immutable
         'System.Reflection.Metadata'   # Depends on System.Collections.Immutable
-        
-        # Level 6: Third-party libraries (depend only on GAC assemblies)
+
+        # Level 6: Third-party libraries
         'Microsoft.SqlServer.Types'    # Depends on System, System.Data, System.Xml (all GAC)
-        'Newtonsoft.Json'              # Depends on System, System.Core, System.Data, etc. (all GAC)
-        'MathNet.Numerics'             # Depends on System.Numerics (GAC), System.Runtime.Serialization (GAC)
+        'Newtonsoft.Json'              # Depends on System.Runtime.Serialization
+        'MathNet.Numerics'             # Depends on System.Runtime.Serialization
     )
     
     # Sort DLLs by defined order, unknown assemblies go last alphabetically
