@@ -12,6 +12,7 @@ using Hartonomous.Core.Interfaces.Search;
 using Hartonomous.Core.Interfaces.Semantic;
 using Hartonomous.Core.Services;
 using Hartonomous.Data.Entities;
+using Hartonomous.Infrastructure.Data;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Infrastructure.Services.Atomization;
 using Hartonomous.Infrastructure.Services.Billing;
@@ -42,6 +43,9 @@ public static class BusinessServiceRegistration
         this IServiceCollection services,
         bool includeIngestion = true)
     {
+        // ===== SQL Connection Factory (CRITICAL: Singleton) =====
+        services.AddSingleton<ISqlConnectionFactory, SqlConnectionFactory>();
+
         // ===== PHASE 0.3: DbContext Registration (MUST be Scoped) =====
         services.AddDbContext<HartonomousDbContext>((sp, options) =>
         {

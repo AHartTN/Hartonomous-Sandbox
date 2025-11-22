@@ -1,7 +1,6 @@
-using Azure.Core;
-using Azure.Identity;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Atomization;
+using Hartonomous.Infrastructure.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -21,18 +20,15 @@ namespace Hartonomous.Infrastructure.Services.Atomization;
 /// </summary>
 public sealed class SqlAtomizationService : IAtomizationService
 {
-    private readonly string _connectionString;
-    private readonly TokenCredential _credential;
+    private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<SqlAtomizationService> _logger;
 
     public SqlAtomizationService(
         ILogger<SqlAtomizationService> logger,
-        IOptions<DatabaseOptions> options)
+        ISqlConnectionFactory connectionFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        var databaseOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _connectionString = databaseOptions.HartonomousDb;
-        _credential = new DefaultAzureCredential();
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
     #region Code Atomization
@@ -50,8 +46,7 @@ public sealed class SqlAtomizationService : IAtomizationService
             "AtomizeCode: AtomId {AtomId}, Language {Language}, TenantId {TenantId}",
             atomId, language, tenantId);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_AtomizeCode", connection)
         {
@@ -84,8 +79,7 @@ public sealed class SqlAtomizationService : IAtomizationService
             "AtomizeText: AtomId {AtomId}, TenantId {TenantId}",
             atomId, tenantId);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_AtomizeText_Governed", connection)
         {
@@ -116,8 +110,7 @@ public sealed class SqlAtomizationService : IAtomizationService
             "AtomizeImage: AtomId {AtomId}, TenantId {TenantId}",
             atomId, tenantId);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_AtomizeImage_Governed", connection)
         {
@@ -148,8 +141,7 @@ public sealed class SqlAtomizationService : IAtomizationService
             "AtomizeModel: AtomId {AtomId}, TenantId {TenantId}",
             atomId, tenantId);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_AtomizeModel_Governed", connection)
         {
@@ -177,8 +169,7 @@ public sealed class SqlAtomizationService : IAtomizationService
 
         _logger.LogInformation("TokenizeText: Length {Length}", text.Length);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_TokenizeText", connection)
         {
@@ -218,8 +209,7 @@ public sealed class SqlAtomizationService : IAtomizationService
             "TextToEmbedding: Length {Length}, Model {Model}",
             text.Length, modelName ?? "default");
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_TextToEmbedding", connection)
         {
@@ -252,24 +242,6 @@ public sealed class SqlAtomizationService : IAtomizationService
             dimension, embedding.Length);
 
         return (embedding, dimension);
-    }
-
-    #endregion
-
-    #region Helper Methods
-
-    private async Task SetupConnectionAsync(SqlConnection connection, CancellationToken cancellationToken)
-    {
-        // Use managed identity if no password in connection string
-        if (!_connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase) &&
-            !_connectionString.Contains("Integrated Security=true", StringComparison.OrdinalIgnoreCase))
-        {
-            var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
-            var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
-            connection.AccessToken = token.Token;
-        }
-
-        await connection.OpenAsync(cancellationToken);
     }
 
     #endregion
