@@ -194,7 +194,7 @@ jobs:
           name: deployment-scripts
           path: ./scripts
 
-      - name: Azure Login
+      - name: Azure Login (OIDC)
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -205,7 +205,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          
+
           Write-Host "Deploying CLR signing certificate to SQL Server (production mode)..."
           
           # Call script - Deploy-CLRCertificate.ps1 only accepts -Server and -EnableStrictSecurity
