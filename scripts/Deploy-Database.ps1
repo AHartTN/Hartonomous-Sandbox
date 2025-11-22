@@ -232,11 +232,9 @@ function Deploy-ExternalAssemblies {
         return
     }
 
-    # CRITICAL: Exclude assemblies that are DACPAC-generated or already in SQL Server
-    # - Hartonomous.Database.dll, Hartonomous.Clr.dll: deployed BY the DACPAC
-    # - Newtonsoft.Json, Microsoft.SqlServer.Types: shipped with SQL Server 2025
-    # - System.Runtime.Serialization: v4.0.0.0 already in SQL Server system assemblies
-    $excludedAssemblies = @('Hartonomous.Database', 'Hartonomous.Clr', 'Newtonsoft.Json', 'Microsoft.SqlServer.Types', 'System.Runtime.Serialization')
+    # CRITICAL: Hartonomous.Database.dll and Hartonomous.Clr.dll are NOT external dependencies
+    # They are deployed BY the DACPAC, not before it
+    $excludedAssemblies = @('Hartonomous.Database', 'Hartonomous.Clr')
     $dependencyDlls = $dependencyDlls | Where-Object { $excludedAssemblies -notcontains $_.BaseName }
     
     if ($dependencyDlls.Count -eq 0) {
@@ -262,8 +260,10 @@ function Deploy-ExternalAssemblies {
         # Level 5: Depends on System.Collections.Immutable
         'System.Reflection.Metadata'   # Depends on System.Collections.Immutable
 
-        # Level 6: Third-party libraries (excluded - already in SQL Server)
-        # 'Microsoft.SqlServer.Types', 'Newtonsoft.Json', 'MathNet.Numerics'
+        # Level 6: GAC assemblies that need explicit deployment for MathNet.Numerics
+        'System.Runtime.Serialization' # Required by MathNet.Numerics (GAC v4.0 needs database registration)
+
+        # Level 7: Third-party libraries
         'MathNet.Numerics'             # Depends on System.Runtime.Serialization (SQL Server v4.0)
     )
     
