@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Hartonomous.Core.Models.Media;
 using Hartonomous.Infrastructure.Services.Vision;
 
 namespace Hartonomous.Infrastructure.Services.Vision;

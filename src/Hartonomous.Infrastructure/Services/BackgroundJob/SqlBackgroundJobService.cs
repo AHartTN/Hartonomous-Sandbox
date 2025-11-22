@@ -3,7 +3,6 @@ using Azure.Identity;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Data.Entities;
-using Hartonomous.Data.Entities.Entities;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -14,6 +13,7 @@ using System.Data;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using BackgroundJobEntity = Hartonomous.Data.Entities.Entities.BackgroundJob;
 
 namespace Hartonomous.Infrastructure.Services.BackgroundJob;
 
@@ -46,7 +46,7 @@ public sealed class SqlBackgroundJobService : IBackgroundJobService
         int tenantId,
         CancellationToken cancellationToken = default)
     {
-        var job = new BackgroundJob
+        var job = new BackgroundJobEntity
         {
             JobType = jobType,
             Status = 0, // Pending

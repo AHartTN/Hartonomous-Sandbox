@@ -1,5 +1,6 @@
 using FFMpegCore;
 using FFMpegCore.Enums;
+using Hartonomous.Core.Models.Media;
 using System;
 using System.Collections.Generic;
 using System.IO;

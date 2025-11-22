@@ -24,7 +24,7 @@ public static class ErrorDetailFactory
     }
 
     public static ErrorDetail Validation(string message, string? target = null, IReadOnlyDictionary<string, object?>? properties = null)
-        => Create(ErrorCodes.Validation.InvalidRequest, message, target, properties);
+        => Create(ValidationErrors.InvalidRequest, message, target, properties);
 
     public static ErrorDetail MissingField(string fieldName)
     {
@@ -33,7 +33,7 @@ public static class ErrorDetailFactory
             throw new ArgumentException("Field name cannot be null or whitespace.", nameof(fieldName));
         }
 
-        return Create(ErrorCodes.Validation.MissingRequiredField, $"The field '{fieldName}' is required.", fieldName);
+        return Create(ValidationErrors.MissingRequiredField, $"The field '{fieldName}' is required.", fieldName);
     }
 
     public static ErrorDetail InvalidFieldValue(string fieldName, string reason)
@@ -48,7 +48,7 @@ public static class ErrorDetailFactory
             throw new ArgumentException("Reason cannot be null or whitespace.", nameof(reason));
         }
 
-        return Create(ErrorCodes.Validation.InvalidFieldValue, reason, fieldName, new Dictionary<string, object?>
+        return Create(ValidationErrors.InvalidFieldValue, reason, fieldName, new Dictionary<string, object?>
         {
             ["field"] = fieldName,
             ["reason"] = reason
@@ -62,7 +62,7 @@ public static class ErrorDetailFactory
             throw new ArgumentException("Resource type cannot be null or whitespace.", nameof(resourceType));
         }
 
-        return Create(ErrorCodes.NotFound.Resource, $"{resourceType} was not found.", resourceId, new Dictionary<string, object?>
+        return Create(NotFoundErrors.Resource, $"{resourceType} was not found.", resourceId, new Dictionary<string, object?>
         {
             ["resourceType"] = resourceType,
             ["resourceId"] = resourceId
@@ -76,7 +76,7 @@ public static class ErrorDetailFactory
             throw new ArgumentException("Resource type cannot be null or whitespace.", nameof(resourceType));
         }
 
-        return Create(ErrorCodes.Conflict.ResourceConflict, $"{resourceType} is in a conflicting state.", resourceId, new Dictionary<string, object?>
+        return Create(ConflictErrors.ResourceConflict, $"{resourceType} is in a conflicting state.", resourceId, new Dictionary<string, object?>
         {
             ["resourceType"] = resourceType,
             ["resourceId"] = resourceId

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System.Data;
+using BackgroundJobEntity = Hartonomous.Data.Entities.Entities.BackgroundJob;
 
 namespace Hartonomous.Infrastructure.Services;
 
@@ -33,7 +34,7 @@ public class BackgroundJobService : IBackgroundJobService
     {
         var correlationId = Guid.NewGuid();
         
-        var job = new BackgroundJob
+        var job = new BackgroundJobEntity
         {
             JobType = jobType,
             Payload = parametersJson,

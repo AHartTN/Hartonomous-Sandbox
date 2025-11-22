@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Models.Audio;
+using Hartonomous.Core.Models.Media;
 using Hartonomous.Infrastructure.Services;
 using Hartonomous.Infrastructure.Services.Vision;
 

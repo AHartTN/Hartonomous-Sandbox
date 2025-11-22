@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Models.Telemetry;
 using Hartonomous.Infrastructure.Atomizers;
 using Hartonomous.Infrastructure.Services;
 using Microsoft.Extensions.Hosting;
