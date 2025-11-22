@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
+using Hartonomous.Core.Utilities;
 using System.Text;
 
 namespace Hartonomous.Api.Middleware;
@@ -55,9 +55,6 @@ public class CorrelationIdMiddleware
     /// </summary>
     private static Guid GenerateGuidFromString(string input)
     {
-        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(input ?? string.Empty));
-        var guidBytes = new byte[16];
-        Array.Copy(hash, guidBytes, 16);
-        return new Guid(guidBytes);
+        return HashUtilities.ComputeDeterministicGuid(input);
     }
 }

@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Atomizers.Visitors;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
@@ -48,7 +49,7 @@ public class RoslynAtomizer : IAtomizer<byte[]>
                 code = Encoding.GetEncoding("ISO-8859-1").GetString(input);
             }
 
-            var fileHash = SHA256.HashData(input);
+            var fileHash = HashUtilities.ComputeSHA256(input);
             var tree = CSharpSyntaxTree.ParseText(code, cancellationToken: cancellationToken);
             var root = await tree.GetRootAsync(cancellationToken);
 

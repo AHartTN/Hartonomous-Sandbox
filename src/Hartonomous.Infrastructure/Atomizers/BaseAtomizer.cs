@@ -1,6 +1,6 @@
 using System.Diagnostics;
-using System.Security.Cryptography;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
@@ -278,20 +278,7 @@ public abstract class BaseAtomizer<TInput> : IAtomizer<TInput>
     /// <returns>64-byte fingerprint.</returns>
     protected static byte[] ComputeFingerprint(byte[] content)
     {
-        var fingerprint = new byte[MaxAtomSize];
-        
-        // First 32 bytes: SHA256 hash
-        using (var sha256 = SHA256.Create())
-        {
-            var hash = sha256.ComputeHash(content);
-            Array.Copy(hash, 0, fingerprint, 0, 32);
-        }
-        
-        // Last 32 bytes: First 32 bytes of content (or padded zeros)
-        int copyLength = Math.Min(32, content.Length);
-        Array.Copy(content, 0, fingerprint, 32, copyLength);
-        
-        return fingerprint;
+        return HashUtilities.ComputeFingerprint(content, MaxAtomSize);
     }
 
     /// <summary>
@@ -301,8 +288,7 @@ public abstract class BaseAtomizer<TInput> : IAtomizer<TInput>
     /// <returns>The SHA256 hash (32 bytes).</returns>
     protected static byte[] CreateContentHash(byte[] data)
     {
-        using var sha256 = SHA256.Create();
-        return sha256.ComputeHash(data);
+        return HashUtilities.ComputeSHA256(data);
     }
 
     /// <summary>

@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Utilities;
 using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
@@ -142,7 +142,7 @@ public class TextAtomizer : BaseAtomizer<byte[]>
             // (or create all atoms if you want full fidelity)
             if (!char.IsWhiteSpace(ch))
             {
-                var charHash = SHA256.HashData(charBytes);
+                var charHash = HashUtilities.ComputeSHA256(charBytes);
                 var charAtom = new AtomData
                 {
                     AtomicValue = charBytes,

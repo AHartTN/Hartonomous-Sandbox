@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Models.Media;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Services.Vision;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
@@ -84,7 +84,7 @@ public class ImageAtomizer : IAtomizer<byte[]>
             }
 
             // Create parent atom for the entire image with JSON metadata
-            var imageHash = SHA256.HashData(input);
+            var imageHash = HashUtilities.ComputeSHA256(input);
             var imageMetadataBytes = Encoding.UTF8.GetBytes($"image:{source.FileName}:{width}x{height}");
             
             // Serialize metadata to JSON for Atom.Metadata field (native json data type)
@@ -132,7 +132,7 @@ public class ImageAtomizer : IAtomizer<byte[]>
                     
                     // Create 4-byte RGBA atom
                     var pixelBytes = new byte[] { pixel.R, pixel.G, pixel.B, pixel.A };
-                    var pixelHash = SHA256.HashData(pixelBytes);
+                    var pixelHash = HashUtilities.ComputeSHA256(pixelBytes);
                     var pixelHashStr = Convert.ToBase64String(pixelHash);
 
                     // Only add unique pixel atoms to list (content-addressable deduplication)

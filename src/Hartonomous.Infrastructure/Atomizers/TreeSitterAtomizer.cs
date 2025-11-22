@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Atomizers.Configuration;
 
 namespace Hartonomous.Infrastructure.Atomizers;
@@ -68,7 +69,7 @@ public class TreeSitterAtomizer : IAtomizer<byte[]>
                 language = "unknown";
             }
 
-            var fileHash = SHA256.HashData(input);
+            var fileHash = HashUtilities.ComputeSHA256(input);
 
             // Create file-level atom
             var fileAtom = CreateFileAtom(source, input, fileHash, code, language);
@@ -190,7 +191,7 @@ public class TreeSitterAtomizer : IAtomizer<byte[]>
                 continue;
 
             var contentBytes = Encoding.UTF8.GetBytes($"{language}:{elementType}:{elementName}");
-            var elementHash = SHA256.HashData(contentBytes);
+            var elementHash = HashUtilities.ComputeSHA256(contentBytes);
 
             if (atoms.Any(a => a.ContentHash.SequenceEqual(elementHash)))
                 continue;

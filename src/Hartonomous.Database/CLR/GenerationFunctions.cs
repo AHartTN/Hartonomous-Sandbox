@@ -5,6 +5,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.Diagnostics;
+using Hartonomous.Core.Utilities;
 using Microsoft.SqlServer.Server;
 
 namespace Hartonomous.Clr
@@ -479,26 +480,7 @@ ORDER BY ae.CreatedAt DESC;
         /// </summary>
         private static int ComputeEmbeddingSeed(byte[] embedding)
         {
-            if (embedding == null || embedding.Length == 0)
-                return 42; // Fallback seed
-            
-            // Use FNV-1a hash for deterministic seed from embedding bytes
-            unchecked
-            {
-                const uint FnvPrime = 16777619;
-                const uint FnvOffsetBasis = 2166136261;
-                
-                uint hash = FnvOffsetBasis;
-                int step = Math.Max(1, embedding.Length / 64); // Sample every Nth byte for large embeddings
-                
-                for (int i = 0; i < embedding.Length; i += step)
-                {
-                    hash ^= embedding[i];
-                    hash *= FnvPrime;
-                }
-                
-                return (int)hash;
-            }
+            return HashUtilities.ComputeFNV1aHash(embedding);
         }
     }
 }

@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Utilities;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
@@ -78,7 +78,7 @@ public class CodeFileAtomizer : IAtomizer<byte[]>
             var language = DetectLanguage(source.ContentType, source.FileName);
             
             // Create parent atom for the code file
-            var fileHash = SHA256.HashData(input);
+            var fileHash = HashUtilities.ComputeSHA256(input);
             var fileMetadataBytes = Encoding.UTF8.GetBytes($"code:{language}:{source.FileName}:{input.Length}");
             
             var fileAtom = new AtomData
@@ -214,7 +214,7 @@ public class CodeFileAtomizer : IAtomizer<byte[]>
         {
             var importStatement = match.Groups[1].Value.Trim();
             var importBytes = Encoding.UTF8.GetBytes(importStatement);
-            var importHash = SHA256.HashData(importBytes);
+            var importHash = HashUtilities.ComputeSHA256(importBytes);
             
             var importAtom = new AtomData
             {
@@ -370,7 +370,7 @@ public class CodeFileAtomizer : IAtomizer<byte[]>
                 continue;
             
             var elementBytes = Encoding.UTF8.GetBytes($"{elementType}:{elementName}");
-            var elementHash = SHA256.HashData(elementBytes);
+            var elementHash = HashUtilities.ComputeSHA256(elementBytes);
             
             var elementAtom = new AtomData
             {
@@ -425,7 +425,7 @@ public class CodeFileAtomizer : IAtomizer<byte[]>
                 continue;
             
             var commentBytes = Encoding.UTF8.GetBytes(commentText);
-            var commentHash = SHA256.HashData(commentBytes);
+            var commentHash = HashUtilities.ComputeSHA256(commentBytes);
             
             var commentAtom = new AtomData
             {
