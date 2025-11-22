@@ -1,11 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Utilities;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
@@ -13,205 +14,103 @@ namespace Hartonomous.Infrastructure.Atomizers;
 /// Atomizes machine learning model files (ONNX, TensorFlow, PyTorch, etc.) by extracting architecture, 
 /// layer information, weights metadata, and computational graph structure.
 /// </summary>
-public class ModelFileAtomizer : IAtomizer<byte[]>
+public class ModelFileAtomizer : BaseAtomizer<byte[]>
 {
-    private const int MaxAtomSize = 64;
-    public int Priority => 50;
+    public ModelFileAtomizer(ILogger<ModelFileAtomizer> logger) : base(logger) { }
 
-    public bool CanHandle(string contentType, string? fileExtension)
+    public override int Priority => 50;
+
+    public override bool CanHandle(string contentType, string? fileExtension)
     {
-        // AI model content types
-        if (contentType == "application/x-onnx" || 
-            contentType == "application/x-tensorflow" ||
-            contentType == "application/x-pytorch" ||
-            contentType == "application/octet-stream")
-        {
-            // Need to check extension for octet-stream
-        }
-
         var modelExtensions = new[] { 
-            // GGUF/GGML (llama.cpp, Ollama, LM Studio)
-            "gguf", "ggml",
-            
-            // ONNX (Microsoft, cross-platform)
-            "onnx",
-            
-            // TensorFlow formats
-            "pb",            // TensorFlow SavedModel/GraphDef
-            "tflite",        // TensorFlow Lite
-            "tfjs",          // TensorFlow.js
-            "tfrec",         // TensorFlow Records
-            "ckpt",          // TensorFlow checkpoint
-            
-            // PyTorch formats
-            "pth", "pt",     // PyTorch model state
-            "bin",           // PyTorch binary (also used by Hugging Face)
-            "pkl", "pickle", // Pickled PyTorch models
-            
-            // Hugging Face / Transformers
-            "safetensors",   // SafeTensors (Hugging Face standard)
-            
-            // Keras
-            "h5", "hdf5",    // Keras/HDF5 format
-            "keras",         // Keras native format
-            
-            // Core ML (Apple)
-            "mlmodel",       // Core ML model
-            "mlpackage",     // Core ML package
-            
-            // NNEF (Neural Network Exchange Format)
-            "nnef",
-            
-            // Caffe
-            "caffemodel",    // Caffe model
-            "prototxt",      // Caffe model definition
-            
-            // MXNet
-            "params",        // MXNet parameters
-            "json",          // MXNet symbol (if in model context)
-            
-            // PaddlePaddle
-            "pdmodel",       // PaddlePaddle model
-            "pdparams",      // PaddlePaddle parameters
-            "pdopt",         // PaddlePaddle optimizer
-            
-            // OpenVINO
-            "xml",           // OpenVINO IR (if in model context)
-            
-            // Darknet (YOLO)
-            "weights",       // Darknet weights
-            "cfg",           // Darknet config
-            
-            // JAX/Flax
-            "msgpack",       // JAX serialized models
-            
-            // NCNN (Tencent)
-            "param",         // NCNN parameter
-            
-            // TNN (Tencent)
-            "tnnproto",      // TNN model proto
-            "tnnmodel",      // TNN model
-            
-            // Model Optimizer / Quantized
-            "ot",            // ONNX quantized
-            "q8",            // 8-bit quantized
-            "q4",            // 4-bit quantized
-            "awq",           // Activation-aware Weight Quantization
-            "gptq",          // GPTQ quantized models
-            
-            // LLM-specific formats
-            "ggjtv3", "ggjtv2", "ggjtv1",  // Legacy GGML formats
-            "llamafile",     // Mozilla llamafile
-            "exl2",          // ExLlamaV2 format
-            "marlin",        // Marlin quantization format
-            
-            // Misc
-            "mar",           // MXNet model archive
-            "bmodel",        // Sophon model
-            "tmfile",        // Tengine model
-            "tflite",        // TensorFlow Lite
-            "dlc"            // Qualcomm DLC
+            "gguf", "ggml", "onnx", "pb", "tflite", "tfjs", "tfrec", "ckpt", "pth", "pt", "bin", 
+            "pkl", "pickle", "safetensors", "h5", "hdf5", "keras", "mlmodel", "mlpackage", "nnef", 
+            "caffemodel", "prototxt", "params", "json", "pdmodel", "pdparams", "pdopt", "xml", 
+            "weights", "cfg", "msgpack", "param", "tnnproto", "tnnmodel", "ot", "q8", "q4", "awq", 
+            "gptq", "ggjtv3", "ggjtv2", "ggjtv1", "llamafile", "exl2", "marlin", "mar", "bmodel", 
+            "tmfile", "dlc"
         };
         
         return fileExtension != null && modelExtensions.Contains(fileExtension.ToLowerInvariant());
     }
 
-    public async Task<AtomizationResult> AtomizeAsync(byte[] input, SourceMetadata source, CancellationToken cancellationToken)
+    protected override async Task AtomizeCoreAsync(
+        byte[] input,
+        SourceMetadata source,
+        List<AtomData> atoms,
+        List<AtomComposition> compositions,
+        List<string> warnings,
+        CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var atoms = new List<AtomData>();
-        var compositions = new List<AtomComposition>();
-        var warnings = new List<string>();
+        var modelType = DetectModelType(source.ContentType, source.FileName, input);
+        var modelHash = CreateFileMetadataAtom(input, source, atoms);
 
-        try
+        switch (modelType)
         {
-            // Create parent atom for the model file
-            var modelHash = SHA256.HashData(input);
-            var modelType = DetectModelType(source.ContentType, source.FileName, input);
-            var modelMetadataBytes = Encoding.UTF8.GetBytes($"model:{modelType}:{source.FileName}:{input.Length}");
-            
-            var modelAtom = new AtomData
-            {
-                AtomicValue = modelMetadataBytes.Length <= MaxAtomSize ? modelMetadataBytes : modelMetadataBytes.Take(MaxAtomSize).ToArray(),
-                ContentHash = modelHash,
-                Modality = "ml-model",
-                Subtype = $"{modelType}-model",
-                ContentType = source.ContentType ?? "application/octet-stream",
-                CanonicalText = $"{source.FileName ?? "model"} ({input.Length:N0} bytes)",
-                Metadata = BuildModelMetadata(input, modelType, source.FileName)
-            };
-            atoms.Add(modelAtom);
-
-            // Extract model structure based on type
-            switch (modelType)
-            {
-                case "gguf":
-                    await ExtractGgufStructureAsync(input, modelHash, atoms, compositions, warnings, cancellationToken);
-                    break;
-                case "ggml":
-                    ExtractGgmlStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "onnx":
-                    await ExtractOnnxStructureAsync(input, modelHash, atoms, compositions, warnings, cancellationToken);
-                    break;
-                case "tensorflow":
-                    ExtractTensorFlowStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "pytorch":
-                    ExtractPyTorchStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "h5":
-                case "keras":
-                    ExtractKerasStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "safetensors":
-                    ExtractSafeTensorsStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "coreml":
-                    ExtractCoreMLStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "tflite":
-                    ExtractTFLiteStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "caffe":
-                    ExtractCaffeStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "mxnet":
-                    ExtractMXNetStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                case "openvino":
-                    ExtractOpenVINOStructure(input, modelHash, atoms, compositions, warnings);
-                    break;
-                default:
-                    warnings.Add($"Model type '{modelType}' structure extraction not yet implemented");
-                    ExtractGenericBinaryMetadata(input, modelHash, atoms, compositions);
-                    break;
-            }
-
-            sw.Stop();
-
-            var uniqueHashes = atoms.Select(a => Convert.ToBase64String(a.ContentHash)).Distinct().Count();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = uniqueHashes,
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(ModelFileAtomizer),
-                    DetectedFormat = modelType.ToUpperInvariant(),
-                    Warnings = warnings.Count > 0 ? warnings : null
-                }
-            };
+            case "gguf":
+                await ExtractGgufStructureAsync(input, modelHash, atoms, compositions, warnings, cancellationToken);
+                break;
+            case "ggml":
+                ExtractGgmlStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "onnx":
+                await ExtractOnnxStructureAsync(input, modelHash, atoms, compositions, warnings, cancellationToken);
+                break;
+            case "tensorflow":
+                ExtractTensorFlowStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "pytorch":
+                ExtractPyTorchStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "h5":
+            case "keras":
+                ExtractKerasStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "safetensors":
+                ExtractSafeTensorsStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "coreml":
+                ExtractCoreMLStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "tflite":
+                ExtractTFLiteStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "caffe":
+                ExtractCaffeStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "mxnet":
+                ExtractMXNetStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            case "openvino":
+                ExtractOpenVINOStructure(input, modelHash, atoms, compositions, warnings);
+                break;
+            default:
+                warnings.Add($"Model type '{modelType}' structure extraction not yet implemented");
+                ExtractGenericBinaryMetadata(input, modelHash, atoms, compositions);
+                break;
         }
-        catch (Exception ex)
-        {
-            warnings.Add($"Model atomization failed: {ex.Message}");
-            throw;
-        }
+    }
+
+    protected override string GetDetectedFormat() => "ML model";
+    protected override string GetModality() => "ml-model";
+
+    protected override byte[] GetFileMetadataBytes(byte[] input, SourceMetadata source)
+    {
+        var modelType = DetectModelType(source.ContentType, source.FileName, input);
+        return Encoding.UTF8.GetBytes($"model:{modelType}:{source.FileName}:{input.Length}");
+    }
+
+    protected override string GetCanonicalFileText(byte[] input, SourceMetadata source)
+    {
+        return $"{source.FileName ?? "model"} ({input.Length:N0} bytes)";
+    }
+
+    protected override string GetFileMetadataJson(byte[] input, SourceMetadata source)
+    {
+        var modelType = DetectModelType(source.ContentType, source.FileName, input);
+        var entropy = CalculateEntropy(input.Take(Math.Min(8192, input.Length)).ToArray());
+        
+        return $"{{\"type\":\"{modelType}\",\"size\":{input.Length},\"fileName\":\"{source.FileName ?? "unknown"}\",\"entropy\":{entropy:F2},\"compressed\":{(entropy > 7.5 ? "true" : "false")}}}";
     }
 
     private string DetectModelType(string? contentType, string? fileName, byte[] data)
@@ -262,7 +161,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             
             // Quantized formats
             if (ext == "q4" || ext == "q8" || ext == "awq" || ext == "gptq") return "quantized";
-            if (ext == "exl2") return "exllama";
+            if (ext == "exl2" || ext == "exllama") return "exllama";
         }
 
         // Check magic bytes for definitive identification
@@ -328,26 +227,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
         return "unknown";
     }
 
-    private string BuildModelMetadata(byte[] input, string modelType, string? fileName)
-    {
-        var metadata = new StringBuilder();
-        metadata.Append("{");
-        metadata.Append($"\"type\":\"{modelType}\",");
-        metadata.Append($"\"size\":{input.Length},");
-        metadata.Append($"\"fileName\":\"{fileName ?? "unknown"}\"");
-        
-        // Calculate entropy (indicates compression/encryption)
-        var entropy = CalculateEntropy(input.Take(Math.Min(8192, input.Length)).ToArray());
-        metadata.Append($",\"entropy\":{entropy:F2}");
-        
-        // Compressed models have higher entropy
-        if (entropy > 7.5)
-            metadata.Append(",\"compressed\":true");
-        
-        metadata.Append("}");
-        return metadata.ToString();
-    }
-
+    // All extraction methods below this point - replace HashUtilities.ComputeSHA256 with HashUtilities.ComputeSHA256
     private async Task ExtractOnnxStructureAsync(
         byte[] input,
         byte[] modelHash,
@@ -364,7 +244,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             // Look for node definitions (simplified heuristic)
             var text = Encoding.UTF8.GetString(input, 0, Math.Min(input.Length, 100000));
             
-            // Count layer types (Conv, Gemm, Relu, etc.)
+            // Count layer types (Conv, Gemm, Relu, MaxPool, BatchNormalization, Add, Softmax)
             var layerTypes = new[] { "Conv", "Gemm", "Relu", "MaxPool", "BatchNormalization", "Add", "Softmax" };
             var layerCounts = new Dictionary<string, int>();
             
@@ -380,7 +260,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             foreach (var (layerType, count) in layerCounts)
             {
                 var layerBytes = Encoding.UTF8.GetBytes($"layer:{layerType}:{count}");
-                var layerHash = SHA256.HashData(layerBytes);
+                var layerHash = HashUtilities.ComputeSHA256(layerBytes);
                 
                 var layerAtom = new AtomData
                 {
@@ -442,7 +322,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             
             // Create metadata atom
             var metadataBytes = Encoding.UTF8.GetBytes($"gguf:v{version}:tensors:{tensorCount}:metadata:{metadataCount}");
-            var metadataHash = SHA256.HashData(metadataBytes);
+            var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
             
             var metadataAtom = new AtomData
             {
@@ -481,7 +361,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
                 if (key.Contains("model") || key.Contains("architecture") || key.Contains("context") || key.Contains("quantization"))
                 {
                     var kvBytes = Encoding.UTF8.GetBytes($"gguf:kv:{key}");
-                    var kvHash = SHA256.HashData(kvBytes);
+                    var kvHash = HashUtilities.ComputeSHA256(kvBytes);
                     
                     var kvAtom = new AtomData
                     {
@@ -544,7 +424,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             var version = BitConverter.ToUInt32(input, 4);
             
             var metadataBytes = Encoding.UTF8.GetBytes($"ggml:{magic}:v{version}");
-            var metadataHash = SHA256.HashData(metadataBytes);
+            var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
             
             var metadataAtom = new AtomData
             {
@@ -603,7 +483,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             foreach (var (opType, count) in opCounts)
             {
                 var opBytes = Encoding.UTF8.GetBytes($"tflite:{opType}:{count}");
-                var opHash = SHA256.HashData(opBytes);
+                var opHash = HashUtilities.ComputeSHA256(opBytes);
                 
                 var opAtom = new AtomData
                 {
@@ -659,7 +539,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
                     if (entry.FullName.EndsWith(".mlmodel", StringComparison.OrdinalIgnoreCase))
                     {
                         var entryBytes = Encoding.UTF8.GetBytes($"coreml:{entry.FullName}");
-                        var entryHash = SHA256.HashData(entryBytes);
+                        var entryHash = HashUtilities.ComputeSHA256(entryBytes);
                         
                         var entryAtom = new AtomData
                         {
@@ -693,7 +573,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
                 if (header.Contains("neuralNetwork"))
                 {
                     var metadataBytes = Encoding.UTF8.GetBytes("coreml:neuralNetwork");
-                    var metadataHash = SHA256.HashData(metadataBytes);
+                    var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
                     
                     var metadataAtom = new AtomData
                     {
@@ -755,7 +635,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             foreach (var (layerType, count) in layerCounts)
             {
                 var layerBytes = Encoding.UTF8.GetBytes($"caffe:{layerType}:{count}");
-                var layerHash = SHA256.HashData(layerBytes);
+                var layerHash = HashUtilities.ComputeSHA256(layerBytes);
                 
                 var layerAtom = new AtomData
                 {
@@ -817,7 +697,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
                 foreach (var (opType, count) in opCounts)
                 {
                     var opBytes = Encoding.UTF8.GetBytes($"mxnet:{opType}:{count}");
-                    var opHash = SHA256.HashData(opBytes);
+                    var opHash = HashUtilities.ComputeSHA256(opBytes);
                     
                     var opAtom = new AtomData
                     {
@@ -845,7 +725,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             {
                 // Binary .params file
                 var metadataBytes = Encoding.UTF8.GetBytes("mxnet:params");
-                var metadataHash = SHA256.HashData(metadataBytes);
+                var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
                 
                 var metadataAtom = new AtomData
                 {
@@ -904,7 +784,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             foreach (var (layerType, count) in layerCounts)
             {
                 var layerBytes = Encoding.UTF8.GetBytes($"openvino:{layerType}:{count}");
-                var layerHash = SHA256.HashData(layerBytes);
+                var layerHash = HashUtilities.ComputeSHA256(layerBytes);
                 
                 var layerAtom = new AtomData
                 {
@@ -963,7 +843,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
             foreach (var (opType, count) in opCounts)
             {
                 var opBytes = Encoding.UTF8.GetBytes($"tfop:{opType}:{count}");
-                var opHash = SHA256.HashData(opBytes);
+                var opHash = HashUtilities.ComputeSHA256(opBytes);
                 
                 var opAtom = new AtomData
                 {
@@ -1011,7 +891,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
         if (header.Contains("torch"))
         {
             var metadataBytes = Encoding.UTF8.GetBytes("pytorch:model");
-            var metadataHash = SHA256.HashData(metadataBytes);
+            var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
             
             var metadataAtom = new AtomData
             {
@@ -1049,7 +929,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
         // HDF5 has structured hierarchy - groups and datasets
         // For now, just note that it's an H5 file
         var metadataBytes = Encoding.UTF8.GetBytes("keras:h5:model");
-        var metadataHash = SHA256.HashData(metadataBytes);
+        var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
         
         var metadataAtom = new AtomData
         {
@@ -1101,7 +981,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
                 var tensorCount = CountOccurrences(headerJson, "\"dtype\"");
                 
                 var metadataBytes = Encoding.UTF8.GetBytes($"safetensors:{tensorCount}");
-                var metadataHash = SHA256.HashData(metadataBytes);
+                var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
                 
                 var metadataAtom = new AtomData
                 {
@@ -1141,7 +1021,7 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
         var entropy = CalculateEntropy(input.Take(Math.Min(8192, input.Length)).ToArray());
         
         var metadataBytes = Encoding.UTF8.GetBytes($"binary:entropy:{entropy:F2}");
-        var metadataHash = SHA256.HashData(metadataBytes);
+        var metadataHash = HashUtilities.ComputeSHA256(metadataBytes);
         
         var metadataAtom = new AtomData
         {
@@ -1196,3 +1076,4 @@ public class ModelFileAtomizer : IAtomizer<byte[]>
         return count;
     }
 }
+
