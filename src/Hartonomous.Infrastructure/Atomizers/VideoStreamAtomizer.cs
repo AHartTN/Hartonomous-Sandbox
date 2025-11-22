@@ -1,150 +1,118 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Models.Video;
+using Hartonomous.Core.Utilities;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
-/// <summary>
-/// Atomizes video frames from streaming sources.
-/// Extracts frames as pixel atoms with temporal positions.
-/// </summary>
-public class VideoStreamAtomizer : IAtomizer<VideoFrame>
+public class VideoStreamAtomizer : BaseAtomizer<VideoFrame>
 {
-    private const int MaxAtomSize = 64;
-    public int Priority => 70;
+    public VideoStreamAtomizer(ILogger<VideoStreamAtomizer> logger) : base(logger) { }
 
-    public bool CanHandle(string contentType, string? fileExtension)
-    {
-        return false; // Invoked explicitly via VideoFrame
-    }
+    public override int Priority => 70;
 
-    public async Task<AtomizationResult> AtomizeAsync(
+    public override bool CanHandle(string contentType, string? fileExtension) => false;
+
+    protected override async Task AtomizeCoreAsync(
         VideoFrame frame,
         SourceMetadata source,
+        List<AtomData> atoms,
+        List<AtomComposition> compositions,
+        List<string> warnings,
         CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var atoms = new List<AtomData>();
-        var compositions = new List<AtomComposition>();
-        var warnings = new List<string>();
-
-        try
+        var frameIdBytes = Encoding.UTF8.GetBytes(frame.FrameId);
+        var frameHash = HashUtilities.ComputeSHA256(frameIdBytes);
+        
+        var frameAtom = new AtomData
         {
-            // Create frame metadata atom
-            var frameIdBytes = Encoding.UTF8.GetBytes(frame.FrameId);
-            var frameHash = SHA256.HashData(frameIdBytes);
-            var frameAtom = new AtomData
-            {
-                AtomicValue = frameIdBytes,
-                ContentHash = frameHash,
-                Modality = "video",
-                Subtype = "frame-id",
-                ContentType = "video/x-raw-rgb",
-                CanonicalText = frame.FrameId,
-                Metadata = $"{{\"streamId\":\"{frame.StreamId}\",\"width\":{frame.Width},\"height\":{frame.Height},\"timestamp\":\"{frame.Timestamp:O}\"}}"
-            };
-            atoms.Add(frameAtom);
+            AtomicValue = frameIdBytes,
+            ContentHash = frameHash,
+            Modality = "video",
+            Subtype = "frame-id",
+            ContentType = "video/x-raw-rgb",
+            CanonicalText = frame.FrameId,
+            Metadata = $"{{\"streamId\":\"{frame.StreamId}\",\"width\":{frame.Width},\"height\":{frame.Height},\"timestamp\":\"{frame.Timestamp:O}\"}}"
+        };
+        atoms.Add(frameAtom);
 
-            // Atomize pixels (RGBA format - 4 bytes per pixel)
-            if (frame.PixelData == null || frame.PixelData.Length != frame.Width * frame.Height * 4)
-            {
-                warnings.Add($"Invalid pixel data: expected {frame.Width * frame.Height * 4} bytes, got {frame.PixelData?.Length ?? 0}");
-                return new AtomizationResult
-                {
-                    Atoms = atoms,
-                    Compositions = compositions,
-                    ProcessingInfo = new ProcessingMetadata
-                    {
-                        TotalAtoms = atoms.Count,
-                        UniqueAtoms = atoms.Count,
-                        DurationMs = sw.ElapsedMilliseconds,
-                        AtomizerType = nameof(VideoStreamAtomizer),
-                        DetectedFormat = $"Video Frame {frame.Width}x{frame.Height}",
-                        Warnings = warnings
-                    }
-                };
-            }
-
-            int pixelIndex = 0;
-            var pixelHashes = new HashSet<string>();
-
-            for (int y = 0; y < frame.Height; y++)
-            {
-                for (int x = 0; x < frame.Width; x++)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    int offset = (y * frame.Width + x) * 4;
-                    var rgba = new byte[4];
-                    Array.Copy(frame.PixelData, offset, rgba, 0, 4);
-
-                    var pixelHash = SHA256.HashData(rgba);
-                    var pixelHashStr = Convert.ToBase64String(pixelHash);
-
-                    // Deduplicate identical pixels
-                    if (!pixelHashes.Contains(pixelHashStr))
-                    {
-                        pixelHashes.Add(pixelHashStr);
-                        
-                        var pixelAtom = new AtomData
-                        {
-                            AtomicValue = rgba,
-                            ContentHash = pixelHash,
-                            Modality = "video",
-                            Subtype = "pixel-rgba",
-                            ContentType = "video/x-raw-rgb",
-                            CanonicalText = $"rgba({rgba[0]},{rgba[1]},{rgba[2]},{rgba[3]})",
-                            Metadata = $"{{\"r\":{rgba[0]},\"g\":{rgba[1]},\"b\":{rgba[2]},\"a\":{rgba[3]}}}"
-                        };
-                        atoms.Add(pixelAtom);
-                    }
-
-                    // Link frame → pixel with spatial position
-                    compositions.Add(new AtomComposition
-                    {
-                        ParentAtomHash = frameHash,
-                        ComponentAtomHash = pixelHash,
-                        SequenceIndex = pixelIndex,
-                        Position = new SpatialPosition
-                        {
-                            X = x,
-                            Y = y,
-                            Z = 0,
-                            M = frame.Timestamp.Ticks / 10000000.0 // Seconds as M (temporal) coordinate
-                        }
-                    });
-
-                    pixelIndex++;
-                }
-            }
-
-            sw.Stop();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = pixelHashes.Count + 1, // +1 for frame atom
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(VideoStreamAtomizer),
-                    DetectedFormat = $"Video Frame {frame.Width}x{frame.Height} ({pixelIndex} pixels)",
-                    Warnings = warnings.Count > 0 ? warnings : null
-                }
-            };
-        }
-        catch (Exception ex)
+        if (frame.PixelData == null || frame.PixelData.Length != frame.Width * frame.Height * 4)
         {
-            warnings.Add($"Video frame atomization failed: {ex.Message}");
-            throw;
+            warnings.Add($"Invalid pixel data: expected {frame.Width * frame.Height * 4} bytes, got {frame.PixelData?.Length ?? 0}");
+            return;
         }
+
+        int pixelIndex = 0;
+        var pixelHashes = new HashSet<string>();
+
+        for (int y = 0; y < frame.Height; y++)
+        {
+            for (int x = 0; x < frame.Width; x++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                int offset = (y * frame.Width + x) * 4;
+                var rgba = new byte[4];
+                Array.Copy(frame.PixelData, offset, rgba, 0, 4);
+
+                var pixelHash = HashUtilities.ComputeSHA256(rgba);
+                var pixelHashStr = Convert.ToBase64String(pixelHash);
+
+                if (!pixelHashes.Contains(pixelHashStr))
+                {
+                    pixelHashes.Add(pixelHashStr);
+                    
+                    var pixelAtom = new AtomData
+                    {
+                        AtomicValue = rgba,
+                        ContentHash = pixelHash,
+                        Modality = "video",
+                        Subtype = "pixel-rgba",
+                        ContentType = "video/x-raw-rgb",
+                        CanonicalText = $"rgba({rgba[0]},{rgba[1]},{rgba[2]},{rgba[3]})",
+                        Metadata = $"{{\"r\":{rgba[0]},\"g\":{rgba[1]},\"b\":{rgba[2]},\"a\":{rgba[3]}}}"
+                    };
+                    atoms.Add(pixelAtom);
+                }
+
+                CreateAtomComposition(
+                    frameHash,
+                    pixelHash,
+                    pixelIndex,
+                    compositions,
+                    x: x,
+                    y: y,
+                    z: 0,
+                    m: frame.Timestamp.Ticks / 10000000.0);
+
+                pixelIndex++;
+            }
+        }
+
+        await Task.CompletedTask;
+    }
+
+    protected override string GetDetectedFormat() => "video frame stream";
+    protected override string GetModality() => "video";
+
+    protected override byte[] GetFileMetadataBytes(VideoFrame input, SourceMetadata source)
+    {
+        return Encoding.UTF8.GetBytes($"video-frame:{input.FrameId}:{input.Width}x{input.Height}");
+    }
+
+    protected override string GetCanonicalFileText(VideoFrame input, SourceMetadata source)
+    {
+        return $"{input.FrameId} ({input.Width}×{input.Height})";
+    }
+
+    protected override string GetFileMetadataJson(VideoFrame input, SourceMetadata source)
+    {
+        return $"{{\"streamId\":\"{input.StreamId}\",\"frameId\":\"{input.FrameId}\",\"width\":{input.Width},\"height\":{input.Height},\"timestamp\":\"{input.Timestamp:O}\"}}";
     }
 }
