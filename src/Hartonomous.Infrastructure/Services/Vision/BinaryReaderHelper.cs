@@ -234,4 +234,168 @@ public static class BinaryReaderHelper
 
         return Encoding.ASCII.GetString(data, offset, 4);
     }
+
+    /// <summary>
+    /// Read protobuf varint (variable-length integer) - 32-bit version.
+    /// Used in ONNX, TensorFlow, and other protobuf-based formats.
+    /// </summary>
+    public static int ReadVarint32(Stream stream)
+    {
+        int result = 0;
+        int shift = 0;
+        
+        while (true)
+        {
+            int b = stream.ReadByte();
+            if (b == -1)
+                throw new EndOfStreamException();
+            
+            result |= (b & 0x7F) << shift;
+            
+            if ((b & 0x80) == 0)
+                return result;
+            
+            shift += 7;
+            if (shift >= 32)
+                throw new InvalidDataException("Varint too large for Int32");
+        }
+    }
+
+    /// <summary>
+    /// Read protobuf varint (variable-length integer) - 64-bit version.
+    /// </summary>
+    public static long ReadVarint64(Stream stream)
+    {
+        long result = 0;
+        int shift = 0;
+        
+        while (true)
+        {
+            int b = stream.ReadByte();
+            if (b == -1)
+                throw new EndOfStreamException();
+            
+            result |= (long)(b & 0x7F) << shift;
+            
+            if ((b & 0x80) == 0)
+                return result;
+            
+            shift += 7;
+            if (shift >= 64)
+                throw new InvalidDataException("Varint too large for Int64");
+        }
+    }
+
+    /// <summary>
+    /// Read zigzag-encoded signed varint.
+    /// Used in protobuf for efficient encoding of signed integers.
+    /// </summary>
+    public static int ReadSignedVarint32(Stream stream)
+    {
+        uint value = (uint)ReadVarint32(stream);
+        return (int)((value >> 1) ^ -(int)(value & 1));
+    }
+
+    /// <summary>
+    /// Read zigzag-encoded signed varint - 64-bit version.
+    /// </summary>
+    public static long ReadSignedVarint64(Stream stream)
+    {
+        ulong value = (ulong)ReadVarint64(stream);
+        return (long)((value >> 1) ^ (ulong)(-(long)(value & 1)));
+    }
+
+    /// <summary>
+    /// Align stream position to specified byte boundary.
+    /// Returns the aligned position.
+    /// </summary>
+    public static long AlignPosition(Stream stream, int alignment)
+    {
+        long currentPos = stream.Position;
+        long remainder = currentPos % alignment;
+        
+        if (remainder == 0)
+            return currentPos;
+
+        long alignedPos = currentPos + (alignment - remainder);
+        stream.Position = alignedPos;
+        return alignedPos;
+    }
+
+    /// <summary>
+    /// Calculate aligned offset without modifying stream position.
+    /// </summary>
+    public static long AlignOffset(long offset, int alignment)
+    {
+        long remainder = offset % alignment;
+        return remainder == 0 ? offset : offset + (alignment - remainder);
+    }
+
+    /// <summary>
+    /// Read IEEE 754 half-precision (16-bit) float.
+    /// Converts to float32 for C# compatibility.
+    /// </summary>
+    public static float ReadFloat16(byte[] data, int offset)
+    {
+        ushort half = ReadUInt16(data, offset, littleEndian: true);
+        
+        uint sign = (uint)((half >> 15) & 0x1);
+        uint exponent = (uint)((half >> 10) & 0x1F);
+        uint mantissa = (uint)(half & 0x3FF);
+        
+        if (exponent == 0)
+        {
+            if (mantissa == 0)
+                return sign == 1 ? -0.0f : 0.0f;
+            exponent = 1;
+        }
+        else if (exponent == 31)
+        {
+            return mantissa == 0 
+                ? (sign == 1 ? float.NegativeInfinity : float.PositiveInfinity)
+                : float.NaN;
+        }
+        
+        uint f32 = (sign << 31) | ((exponent + 112) << 23) | (mantissa << 13);
+        return BitConverter.ToSingle(BitConverter.GetBytes(f32), 0);
+    }
+
+    /// <summary>
+    /// Read BFloat16 (Brain Floating Point) format.
+    /// Used in ML frameworks like TensorFlow.
+    /// </summary>
+    public static float ReadBFloat16(byte[] data, int offset)
+    {
+        ushort bf16 = ReadUInt16(data, offset, littleEndian: true);
+        uint f32Bits = (uint)bf16 << 16;
+        return BitConverter.ToSingle(BitConverter.GetBytes(f32Bits), 0);
+    }
+
+    /// <summary>
+    /// Read signed integers with endianness support.
+    /// </summary>
+    public static short ReadInt16(byte[] data, int offset, bool littleEndian = true)
+    {
+        return (short)ReadUInt16(data, offset, littleEndian);
+    }
+
+    public static int ReadInt32(byte[] data, int offset, bool littleEndian = true)
+    {
+        return (int)ReadUInt32(data, offset, littleEndian);
+    }
+
+    public static long ReadInt64(byte[] data, int offset, bool littleEndian = true)
+    {
+        return (long)ReadUInt64(data, offset, littleEndian);
+    }
+
+    /// <summary>
+    /// Read signed rational (EXIF SRATIONAL format).
+    /// </summary>
+    public static double ReadSignedRational(byte[] data, int offset, bool littleEndian = true)
+    {
+        var numerator = ReadInt32(data, offset, littleEndian);
+        var denominator = ReadInt32(data, offset + 4, littleEndian);
+        return denominator != 0 ? (double)numerator / denominator : 0;
+    }
 }
