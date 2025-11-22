@@ -6,6 +6,8 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Interfaces.Vision;
+using Hartonomous.Core.Models.Vision;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
