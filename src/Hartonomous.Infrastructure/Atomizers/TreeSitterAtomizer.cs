@@ -1,9 +1,9 @@
-using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Utilities;
 using Hartonomous.Infrastructure.Atomizers.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
@@ -11,10 +11,11 @@ namespace Hartonomous.Infrastructure.Atomizers;
 /// Polyglot code atomizer using regex patterns (Tree-sitter style parsing).
 /// Supports Python, JavaScript, TypeScript, Go, Rust, Ruby, Java, and more.
 /// </summary>
-public class TreeSitterAtomizer : IAtomizer<byte[]>
+public class TreeSitterAtomizer : BaseAtomizer<byte[]>
 {
-    private const int MaxAtomSize = 64;
-    public int Priority => 22; // Higher than CodeFileAtomizer but lower than RoslynAtomizer for C#
+    public TreeSitterAtomizer(ILogger<TreeSitterAtomizer> logger) : base(logger) { }
+
+    public override int Priority => 22;
 
     private static readonly Dictionary<string, LanguageConfig> SupportedLanguages = new()
     {
@@ -31,7 +32,7 @@ public class TreeSitterAtomizer : IAtomizer<byte[]>
         ["scala"] = new("scala") { FunctionPattern = @"def\s+(\w+)\s*[<\(:\[]", ClassPattern = @"class\s+(\w+)|trait\s+(\w+)|object\s+(\w+)" }
     };
 
-    public bool CanHandle(string contentType, string? fileExtension)
+    public override bool CanHandle(string contentType, string? fileExtension)
     {
         if (string.IsNullOrEmpty(fileExtension))
             return false;
@@ -40,95 +41,92 @@ public class TreeSitterAtomizer : IAtomizer<byte[]>
         return SupportedLanguages.Values.Any(lang => lang.Extensions.Contains(ext));
     }
 
-    public async Task<AtomizationResult> AtomizeAsync(byte[] input, SourceMetadata source, CancellationToken cancellationToken)
+    protected override async Task AtomizeCoreAsync(
+        byte[] input,
+        SourceMetadata source,
+        List<AtomData> atoms,
+        List<AtomComposition> compositions,
+        List<string> warnings,
+        CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var atoms = new List<AtomData>();
-        var compositions = new List<AtomComposition>();
-        var warnings = new List<string>();
-        var sequenceIndex = 0;
-
+        string code;
         try
         {
-            string code;
-            try
-            {
-                code = Encoding.UTF8.GetString(input);
-            }
-            catch
-            {
-                warnings.Add("UTF-8 decode failed, using Latin1 fallback");
-                code = Encoding.GetEncoding("ISO-8859-1").GetString(input);
-            }
-
-            var language = DetectLanguage(source.FileName);
-            LanguageConfig? config = null;
-            if (language == null || !SupportedLanguages.TryGetValue(language, out config))
-            {
-                warnings.Add($"Unsupported language for file: {source.FileName}");
-                language = "unknown";
-            }
-
-            var fileHash = HashUtilities.ComputeSHA256(input);
-
-            // Create file-level atom
-            var fileAtom = CreateFileAtom(source, input, fileHash, code, language);
-            atoms.Add(fileAtom);
-
-            if (config != null)
-            {
-                // Extract classes/types
-                if (!string.IsNullOrEmpty(config.ClassPattern))
-                {
-                    ExtractElements(code, config.ClassPattern, "class", language, fileHash, atoms, compositions, ref sequenceIndex);
-                }
-
-                // Extract functions/methods
-                if (!string.IsNullOrEmpty(config.FunctionPattern))
-                {
-                    ExtractElements(code, config.FunctionPattern, "function", language, fileHash, atoms, compositions, ref sequenceIndex);
-                }
-            }
-
-            sw.Stop();
-            var uniqueHashes = atoms.Select(a => Convert.ToBase64String(a.ContentHash)).Distinct().Count();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = uniqueHashes,
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(TreeSitterAtomizer),
-                    DetectedFormat = language,
-                    Warnings = warnings.Count > 0 ? warnings : null
-                }
-            };
+            code = Encoding.UTF8.GetString(input);
         }
-        catch (Exception ex)
+        catch
         {
-            sw.Stop();
-            warnings.Add($"Tree-sitter parsing failed: {ex.Message}");
-            var uniqueHashes = atoms.Select(a => Convert.ToBase64String(a.ContentHash)).Distinct().Count();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = uniqueHashes,
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(TreeSitterAtomizer),
-                    DetectedFormat = "unknown",
-                    Warnings = warnings
-                }
-            };
+            warnings.Add("UTF-8 decode failed, using Latin1 fallback");
+            code = Encoding.GetEncoding("ISO-8859-1").GetString(input);
         }
+
+        var language = DetectLanguage(source.FileName);
+        LanguageConfig? config = null;
+        if (language == null || !SupportedLanguages.TryGetValue(language, out config))
+        {
+            warnings.Add($"Unsupported language for file: {source.FileName}");
+            language = "unknown";
+        }
+
+        var fileHash = CreateFileMetadataAtom(input, source, atoms);
+
+        if (config != null)
+        {
+            var sequenceIndex = 0;
+            
+            if (!string.IsNullOrEmpty(config.ClassPattern))
+            {
+                ExtractElements(code, config.ClassPattern, "class", language, fileHash, atoms, compositions, ref sequenceIndex);
+            }
+
+            if (!string.IsNullOrEmpty(config.FunctionPattern))
+            {
+                ExtractElements(code, config.FunctionPattern, "function", language, fileHash, atoms, compositions, ref sequenceIndex);
+            }
+        }
+
+        await Task.CompletedTask;
+    }
+
+    protected override string GetDetectedFormat()
+    {
+        return "polyglot code (Tree-sitter regex)";
+    }
+
+    protected override string GetModality() => "code";
+
+    protected override byte[] GetFileMetadataBytes(byte[] input, SourceMetadata source)
+    {
+        var language = DetectLanguage(source.FileName) ?? "unknown";
+        return Encoding.UTF8.GetBytes($"{language}:{source.FileName}:{input.Length}");
+    }
+
+    protected override string GetCanonicalFileText(byte[] input, SourceMetadata source)
+    {
+        return $"{source.FileName ?? "code"} ({input.Length:N0} bytes)";
+    }
+
+    protected override string GetFileMetadataJson(byte[] input, SourceMetadata source)
+    {
+        var language = DetectLanguage(source.FileName) ?? "unknown";
+        string code;
+        try
+        {
+            code = Encoding.UTF8.GetString(input);
+        }
+        catch
+        {
+            code = "";
+        }
+        
+        return System.Text.Json.JsonSerializer.Serialize(new
+        {
+            language,
+            size = input.Length,
+            fileName = source.FileName,
+            lines = string.IsNullOrEmpty(code) ? 0 : code.Split('\n').Length,
+            parsingEngine = "TreeSitter-Regex"
+        });
     }
 
     private static string? DetectLanguage(string? fileName)
@@ -140,29 +138,7 @@ public class TreeSitterAtomizer : IAtomizer<byte[]>
         return SupportedLanguages.FirstOrDefault(kv => kv.Value.Extensions.Contains(ext)).Key;
     }
 
-    private static AtomData CreateFileAtom(SourceMetadata source, byte[] input, byte[] fileHash, string code, string language)
-    {
-        var fileMetadataBytes = Encoding.UTF8.GetBytes($"{language}:{source.FileName}:{input.Length}");
-        return new AtomData
-        {
-            AtomicValue = fileMetadataBytes.Length <= MaxAtomSize ? fileMetadataBytes : fileMetadataBytes.Take(MaxAtomSize).ToArray(),
-            ContentHash = fileHash,
-            Modality = "code",
-            Subtype = $"{language}-file",
-            ContentType = source.ContentType ?? $"text/x-{language}",
-            CanonicalText = $"{source.FileName ?? "code"} ({input.Length:N0} bytes)",
-            Metadata = System.Text.Json.JsonSerializer.Serialize(new
-            {
-                language,
-                size = input.Length,
-                fileName = source.FileName,
-                lines = code.Split('\n').Length,
-                parsingEngine = "TreeSitter-Regex"
-            })
-        };
-    }
-
-    private static void ExtractElements(
+    private void ExtractElements(
         string code,
         string pattern,
         string elementType,
@@ -191,36 +167,21 @@ public class TreeSitterAtomizer : IAtomizer<byte[]>
                 continue;
 
             var contentBytes = Encoding.UTF8.GetBytes($"{language}:{elementType}:{elementName}");
-            var elementHash = HashUtilities.ComputeSHA256(contentBytes);
-
-            if (atoms.Any(a => a.ContentHash.SequenceEqual(elementHash)))
-                continue;
-
-            var atom = new AtomData
-            {
-                AtomicValue = contentBytes.Length <= MaxAtomSize ? contentBytes : contentBytes.Take(MaxAtomSize).ToArray(),
-                ContentHash = elementHash,
-                Modality = "code",
-                Subtype = $"{language}-{elementType}",
-                ContentType = $"text/x-{language}",
-                CanonicalText = elementName,
-                Metadata = System.Text.Json.JsonSerializer.Serialize(new
+            var elementHash = CreateContentAtom(
+                contentBytes,
+                "code",
+                $"{language}-{elementType}",
+                elementName,
+                System.Text.Json.JsonSerializer.Serialize(new
                 {
                     language,
                     type = elementType,
                     name = elementName,
                     parsingEngine = "TreeSitter-Regex"
-                })
-            };
+                }),
+                atoms);
 
-            atoms.Add(atom);
-            compositions.Add(new AtomComposition
-            {
-                ParentAtomHash = fileHash,
-                ComponentAtomHash = elementHash,
-                SequenceIndex = sequenceIndex++,
-                Position = new SpatialPosition { X = 0, Y = 0, Z = 0 }
-            });
+            CreateAtomComposition(fileHash, elementHash, sequenceIndex++, compositions);
         }
     }
 
