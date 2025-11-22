@@ -25,9 +25,9 @@ public class AudioFileAtomizer : IAtomizer<byte[]>
 
     public int Priority => 25;
 
-    public AudioFileAtomizer()
+    public AudioFileAtomizer(AudioStreamAtomizer audioStreamAtomizer)
     {
-        _audioStreamAtomizer = new AudioStreamAtomizer();
+        _audioStreamAtomizer = audioStreamAtomizer ?? throw new ArgumentNullException(nameof(audioStreamAtomizer));
     }
 
     public bool CanHandle(string contentType, string? fileExtension)
