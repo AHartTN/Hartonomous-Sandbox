@@ -28,10 +28,10 @@ public class VideoFileAtomizer : IAtomizer<byte[]>
 
     public int Priority => 30;
 
-    public VideoFileAtomizer()
+    public VideoFileAtomizer(ImageAtomizer imageAtomizer, AudioStreamAtomizer audioStreamAtomizer)
     {
-        _imageAtomizer = new ImageAtomizer();
-        _audioStreamAtomizer = new AudioStreamAtomizer();
+        _imageAtomizer = imageAtomizer ?? throw new ArgumentNullException(nameof(imageAtomizer));
+        _audioStreamAtomizer = audioStreamAtomizer ?? throw new ArgumentNullException(nameof(audioStreamAtomizer));
     }
 
     public bool CanHandle(string contentType, string? fileExtension)
