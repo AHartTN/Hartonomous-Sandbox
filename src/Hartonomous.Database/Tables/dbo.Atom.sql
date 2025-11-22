@@ -1,6 +1,7 @@
 -- =============================================
 -- Atoms: Core Atomic Storage
 -- Enterprise-grade atomic decomposition with full metadata support
+-- GREENFIELD IMPLEMENTATION - Includes fractal geometry from day 1
 -- =============================================
 CREATE TABLE [dbo].[Atom] (
     [AtomId]          BIGINT           IDENTITY (1, 1) NOT NULL,
@@ -24,6 +25,16 @@ CREATE TABLE [dbo].[Atom] (
 
     -- Schema-level governance: Max 64 bytes enforces atomic decomposition
     [AtomicValue]     VARBINARY(64)    NULL,
+
+    -- Fractal Geometry: Self-indexing spatial representation
+    [SpatialKey]      GEOMETRY         NULL,  -- 3D spatial position with Hilbert M-value
+    [HilbertValue]    AS (
+        CASE 
+            WHEN [SpatialKey] IS NOT NULL 
+            THEN [dbo].[fn_ComputeHilbertValue]([SpatialKey], 21)
+            ELSE NULL
+        END
+    ) PERSISTED,  -- Computed column: 1D locality-preserving index
 
     -- Ingestion tracking
     [BatchId]         UNIQUEIDENTIFIER NULL,  -- Ingestion batch identifier for bulk operations
@@ -75,4 +86,22 @@ CREATE NONCLUSTERED INDEX [IX_Atom_ConceptId]
     ON [dbo].[Atom]([ConceptId])
     INCLUDE ([AtomId], [TenantId], [Modality])
     WHERE [ConceptId] IS NOT NULL;
+GO
+
+-- Spatial index for geometry-based queries
+CREATE SPATIAL INDEX [SIX_Atom_SpatialKey]
+ON [dbo].[Atom]([SpatialKey])
+USING GEOMETRY_AUTO_GRID
+WITH (
+    BOUNDING_BOX = (-10000, -10000, -10000, 10000, 10000, 10000),
+    CELLS_PER_OBJECT = 16,
+    PAD_INDEX = ON
+);
+GO
+
+-- B-tree index for Hilbert curve range scans
+CREATE NONCLUSTERED INDEX [IX_Atom_HilbertValue]
+ON [dbo].[Atom]([HilbertValue] ASC)
+INCLUDE ([AtomId], [TenantId], [SpatialKey])
+WHERE [HilbertValue] IS NOT NULL;
 GO
