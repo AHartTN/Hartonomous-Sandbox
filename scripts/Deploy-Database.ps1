@@ -270,7 +270,13 @@ function Deploy-ExternalAssemblies {
     # Sort DLLs by defined order, unknown assemblies go last alphabetically
     $sortedDlls = $dependencyDlls | Sort-Object {
         $index = $orderedAssemblies.IndexOf($_.BaseName)
-        if ($index -ge 0) { $index } else { 1000 + $_.Name }
+        if ($index -ge 0) { 
+            # Format as 4-digit number so sorting works correctly: 0000, 0001, etc.
+            "{0:D4}" -f $index
+        } else { 
+            # Unknown assemblies: prefix with 9999 + name for alphabetical sorting
+            "9999_$($_.Name)"
+        }
     }
 
     $deployedCount = 0
