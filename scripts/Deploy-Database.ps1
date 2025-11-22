@@ -92,16 +92,8 @@ function Invoke-SqlCmdSafe {
         [int]$QueryTimeout = 300
     )
 
-    # Force TCP/IP protocol when using AccessToken (Azure AD auth requires TCP/IP, not Shared Memory)
-    # If server is localhost or ., resolve to actual machine name
-    $serverInstance = $Server
-    if ($AccessToken -and ($Server -eq 'localhost' -or $Server -eq '.' -or $Server -eq '(local)')) {
-        $serverInstance = $env:COMPUTERNAME
-        Write-Log "Resolved localhost to: $serverInstance (required for Azure AD token auth)" -Level Debug
-    }
-
     $sqlParams = @{
-        ServerInstance    = $serverInstance
+        ServerInstance    = $Server
         Database          = $DatabaseName
         AccessToken       = $AccessToken
         ConnectionTimeout = 30
@@ -345,15 +337,8 @@ function Deploy-Dacpac {
     
     Write-Log "Using SqlPackage: $sqlPackagePath" -Level Debug
 
-    # Resolve localhost to machine name for Azure AD token auth (requires TCP/IP, not Shared Memory)
-    $serverInstance = $Server
-    if ($Server -eq 'localhost' -or $Server -eq '.' -or $Server -eq '(local)') {
-        $serverInstance = $env:COMPUTERNAME
-        Write-Log "Resolved localhost to: $serverInstance (Azure AD auth requires TCP/IP)" -Level Debug
-    }
-
     # Build connection string (without AccessToken - passed separately)
-    $connectionString = "Server=$serverInstance;Database=$Database;Encrypt=True;TrustServerCertificate=True;"
+    $connectionString = "Server=$Server;Database=$Database;Encrypt=True;TrustServerCertificate=True;"
     
     $sqlPackageArgs = @(
         "/Action:Publish",
