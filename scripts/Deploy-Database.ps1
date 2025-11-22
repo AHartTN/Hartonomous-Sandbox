@@ -197,7 +197,16 @@ function Invoke-PreDeploymentCleanup {
     Runs pre-deployment cleanup to drop CLR-dependent objects for idempotency.
     #>
     Write-Log "Running pre-deployment cleanup..." -Level Info
-    
+
+    # Check if database exists first
+    $dbCheckQuery = "SELECT COUNT(*) FROM sys.databases WHERE name = '$Database'"
+    $dbExists = Invoke-SqlCmdSafe -Query $dbCheckQuery -DatabaseName 'master'
+
+    if ($dbExists.Column1 -eq 0) {
+        Write-Log "Database [$Database] does not exist yet - skipping pre-deployment cleanup" -Level Info
+        return
+    }
+
     $preDeployScript = Join-Path $ScriptsPath "Pre-Deployment.sql"
     if (-not (Test-Path $preDeployScript)) {
         Write-Log "Pre-Deployment.sql not found, skipping cleanup" -Level Warning
