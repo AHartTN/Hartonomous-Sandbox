@@ -105,63 +105,26 @@ curl -X POST https://localhost:5001/api/ingest/huggingface \
 
 ## 📚 Documentation
 
+**[Complete Documentation Hub](docs/README.md)**
+
+### Business & Vision
+- **[Executive Summary](docs/business/README.md)** - Market opportunity, competitive advantage, $150B TAM
+- **[Industry Use Cases](docs/business/use-cases.md)** - 7 real-world applications with ROI analysis
+
+### Architecture & Implementation
+- **[System Architecture](docs/architecture/README.md)** - Database-centric design, dual spatial indices, OODA loop
+- **[Atomization Engine](docs/architecture/atomization.md)** - 64-byte atoms, 18+ atomizers, 99.8% deduplication
+- **[OODA Autonomous Loop](docs/architecture/ooda-loop.md)** - Self-healing database implementation
+
 ### Getting Started
-- **[Quickstart Guide](docs/getting-started/quickstart.md)** - 5-minute setup and first query
-- **[Installation](docs/getting-started/installation.md)** - Detailed installation instructions
-- **[Configuration](docs/getting-started/configuration.md)** - Connection strings, Azure services, authentication
-- **[First Ingestion](docs/getting-started/first-ingestion.md)** - Step-by-step model/document ingestion
+- **[Quick Start Guide](docs/getting-started/README.md)** - 10-minute installation with first query
 
-### Architecture
-- **[Semantic-First Architecture](docs/architecture/semantic-first.md)** - O(log N) + O(K) pattern, spatial indices
-- **[OODA Autonomous Loop](docs/architecture/ooda-loop.md)** - Self-healing, autonomous optimization
-- **[Spatial Geometry](docs/architecture/spatial-geometry.md)** - Landmark projection, Voronoi partitioning
-- **[Model Atomization](docs/architecture/model-atomization.md)** - Content-addressable atoms, CAS deduplication
-- **[Catalog Management](docs/architecture/catalog-management.md)** - Multi-file models (HuggingFace, Ollama)
-- **[Model Parsers](docs/architecture/model-parsers.md)** - GGUF, SafeTensors, ONNX, PyTorch, TensorFlow
-- **[Inference & Generation](docs/architecture/inference.md)** - Spatial KNN, autoregressive decoding
-- **[Training & Fine-Tuning](docs/architecture/training.md)** - Gradient descent on geometry
-- **[Archive Handling](docs/architecture/archive-handler.md)** - ZIP/TAR/GZIP extraction with security
+### API Integration
+- **[REST API Reference](docs/api/README.md)** - Complete endpoint documentation with examples
 
-### Implementation
-- **[Database Schema](docs/implementation/database-schema.md)** - Core tables, indices, temporal tables
-- **[T-SQL Pipelines](docs/implementation/t-sql-pipelines.md)** - Service Broker, OODA queues, message processing
-- **[CLR Functions](docs/implementation/clr-functions.md)** - 49 SIMD-optimized functions, SAFE permission level
-- **[Neo4j Integration](docs/implementation/neo4j-integration.md)** - Provenance graph, Merkle DAG sync
-- **[Worker Services](docs/implementation/worker-services.md)** - Background processing, ingestion, sync
-- **[Testing Strategy](docs/implementation/testing.md)** - Unit, CLR, integration, E2E testing
+---
 
-### Operations
-- **[Deployment](docs/operations/deployment.md)** - Azure Arc, DACPAC deployment, GitHub Actions
-- **[Monitoring](docs/operations/monitoring.md)** - Application Insights, performance counters, health checks
-- **[Backup & Recovery](docs/operations/backup-recovery.md)** - Database backup, Neo4j backup, disaster recovery
-- **[Performance Tuning](docs/operations/performance-tuning.md)** - Index optimization, query plans, columnstore
-- **[Troubleshooting](docs/operations/troubleshooting.md)** - Common issues, error codes, diagnostics
-- **[Cognitive Kernel Seeding](docs/operations/kernel-seeding.md)** - Bootstrap testing framework (4 epochs)
-
-### API Reference
-- **[Ingestion Endpoints](docs/api/ingestion.md)** - File, URL, database, model platform ingestion
-- **[Query Endpoints](docs/api/query.md)** - Spatial search, semantic queries, cross-modal
-- **[Reasoning Endpoints](docs/api/reasoning.md)** - A* pathfinding, OODA loop, hypothesis generation
-- **[Provenance Endpoints](docs/api/provenance.md)** - Atom lineage, Merkle DAG traversal
-- **[Streaming Endpoints](docs/api/streaming.md)** - Server-sent events for long-running operations
-
-### Atomizers
-- **[AI Model Platforms](docs/atomizers/ai-model-platforms.md)** - Ollama, HuggingFace atomizers
-- **[Document Atomizers](docs/atomizers/documents.md)** - PDF, Markdown, text splitting strategies
-- **[Image Atomizers](docs/atomizers/images.md)** - OCR, object detection, scene analysis
-- **[Video Atomizers](docs/atomizers/videos.md)** - Frame extraction, shot detection, audio transcription
-- **[Code Atomizers](docs/atomizers/code.md)** - AST parsing, function extraction, dependency analysis
-
-### Contributing
-- **[Contributing Guide](docs/contributing/contributing.md)** - How to contribute, code standards
-- **[Development Setup](docs/contributing/development-setup.md)** - Local development environment
-- **[Code Standards](docs/contributing/code-standards.md)** - C#, T-SQL, PowerShell style guides
-- **[Pull Request Process](docs/contributing/pull-requests.md)** - PR templates, review process
-
-### Planning (Current Development)
-- **[Architectural Validation](docs/planning/ARCHITECTURAL-VALIDATION-REPORT.md)** - Microsoft pattern validation
-- **[Refactoring Plan](docs/planning/ARCHITECTURAL-REFACTORING-PLAN.md)** - SOLID, Clean Architecture refactoring
-- **[App Layer Production Plan](docs/planning/APP-LAYER-PRODUCTION-PLAN.md)** - Production readiness roadmap
+**Legacy Documentation Archive**: [docs/.archive/](docs/.archive/) (reference only)
 
 ## 🎓 Key Concepts
 

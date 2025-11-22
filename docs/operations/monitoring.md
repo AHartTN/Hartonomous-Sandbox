@@ -1,1340 +1,512 @@
-# Hartonomous Monitoring & Observability Guide
+# Monitoring and Observability
 
-**Application Insights | Performance Counters | Health Checks | Alert Rules | Dashboards**
+**Production Monitoring Strategy for Hartonomous**
 
----
+## Monitoring Architecture
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Application Insights Integration](#application-insights-integration)
-3. [Performance Counters](#performance-counters)
-4. [Health Check Endpoints](#health-check-endpoints)
-5. [Spatial Index Health Metrics](#spatial-index-health-metrics)
-6. [OODA Loop Monitoring](#ooda-loop-monitoring)
-7. [Alert Rules](#alert-rules)
-8. [Dashboard Creation](#dashboard-creation)
-9. [Log Analytics Queries](#log-analytics-queries)
-10. [Troubleshooting](#troubleshooting)
-
----
-
-## Overview
-
-Hartonomous monitoring strategy uses **multi-layered observability**:
-
-- **Application Insights**: API telemetry, custom events, distributed tracing
-- **SQL Server DMVs**: Query performance, index usage, CLR execution
-- **Custom Health Checks**: Database connectivity, spatial index health, Neo4j sync status
-- **Performance Counters**: SQL Server metrics, spatial query latency, OODA loop throughput
-- **Azure Monitor**: Alerts, dashboards, automated responses
-
-**Key Metrics**:
-- ✅ Spatial query latency (target: <18ms for 1B atoms)
-- ✅ OODA loop cycle time (15-minute scheduled + on-demand event-driven)
-- ✅ CLR function execution time (deterministic projection, Hilbert curves)
-- ✅ Spatial index fragmentation (R-Tree rebuilds when >30%)
-- ✅ Neo4j sync lag (target: <10 seconds)
-
----
-
-## Application Insights Integration
-
-### Setup
-
-#### 1. Create Application Insights Resource
-
-```powershell
-# Create App Insights in Azure
-az monitor app-insights component create `
-    --app "hartonomous-prod" `
-    --location "eastus" `
-    --resource-group "rg-hartonomous-prod" `
-    --application-type "web" `
-    --kind "web"
-
-# Get instrumentation key
-$instrumentationKey = az monitor app-insights component show `
-    --app "hartonomous-prod" `
-    --resource-group "rg-hartonomous-prod" `
-    --query "instrumentationKey" -o tsv
-
-# Get connection string
-$connectionString = az monitor app-insights component show `
-    --app "hartonomous-prod" `
-    --resource-group "rg-hartonomous-prod" `
-    --query "connectionString" -o tsv
+```
+┌─────────────────────────────────────────────────────┐
+│  Application Insights (Azure)                       │
+│  • Request telemetry                                │
+│  • Exception tracking                               │
+│  • Custom events                                    │
+│  • Performance counters                             │
+└────────────────┬────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────┐
+│  SQL Server DMVs (Dynamic Management Views)         │
+│  • Query stats                                      │
+│  • Index usage                                      │
+│  • Blocking/deadlocks                               │
+│  • CLR performance                                  │
+└────────────────┬────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────┐
+│  Neo4j Monitoring                                   │
+│  • Cypher query performance                         │
+│  • Memory usage                                     │
+│  • Transaction throughput                           │
+└────────────────┬────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────┐
+│  Windows Performance Counters                       │
+│  • CPU, Memory, Disk I/O                            │
+│  • .NET CLR metrics                                 │
+│  • ASP.NET request queue                            │
+└─────────────────────────────────────────────────────┘
 ```
 
-#### 2. Configure ASP.NET Core Application
+## Key Metrics
 
-**File**: `src/Hartonomous.Api/Program.cs`
+### API Performance
 
+**Request Latency (P50, P95, P99)**:
 ```csharp
-using Microsoft.ApplicationInsights.Extensibility;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Add Application Insights
-builder.Services.AddApplicationInsightsTelemetry(options =>
-{
-    options.ConnectionString = builder.Configuration["ApplicationInsights:ConnectionString"];
-    options.EnableAdaptiveSampling = true;
-    options.EnableDependencyTrackingTelemetryModule = true;
-    options.EnablePerformanceCounterCollectionModule = true;
-});
-
-// Configure telemetry processors
-builder.Services.AddSingleton<ITelemetryInitializer, CustomTelemetryInitializer>();
-
-var app = builder.Build();
-
-// ... middleware configuration
+// Tracked automatically by Application Insights
+// Query in Azure Portal:
+requests
+| where timestamp > ago(1h)
+| summarize
+    P50 = percentile(duration, 50),
+    P95 = percentile(duration, 95),
+    P99 = percentile(duration, 99)
+  by operation_Name
+| order by P95 desc
 ```
 
-**Custom Telemetry Initializer**:
+**Target SLAs**:
+- Ingestion endpoints: P95 < 5s, P99 < 15s
+- Search endpoints: P95 < 100ms, P99 < 500ms
+- Inference endpoints: P95 < 2s, P99 < 10s
 
-```csharp
-public class CustomTelemetryInitializer : ITelemetryInitializer
-{
-    public void Initialize(ITelemetry telemetry)
-    {
-        // Add custom properties to all telemetry
-        if (telemetry is ISupportProperties props)
-        {
-            props.Properties["Environment"] = Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT");
-            props.Properties["MachineName"] = Environment.MachineName;
-            props.Properties["HartonomousVersion"] = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-        }
-    }
-}
+**Throughput**:
+```kusto
+requests
+| where timestamp > ago(1h)
+| summarize RequestsPerMinute = count() / 60
 ```
 
-#### 3. Configure appsettings.json
-
-```json
-{
-  "ApplicationInsights": {
-    "ConnectionString": "InstrumentationKey=xxx;IngestionEndpoint=https://eastus-1.in.applicationinsights.azure.com/;LiveEndpoint=https://eastus.livediagnostics.monitor.azure.com/"
-  },
-  "Logging": {
-    "LogLevel": {
-      "Default": "Information",
-      "Microsoft.AspNetCore": "Warning",
-      "Microsoft.ApplicationInsights": "Warning"
-    },
-    "ApplicationInsights": {
-      "LogLevel": {
-        "Default": "Information",
-        "Hartonomous": "Trace"
-      }
-    }
-  }
-}
+**Error Rate**:
+```kusto
+requests
+| where timestamp > ago(1h)
+| summarize
+    Total = count(),
+    Errors = countif(success == false),
+    ErrorRate = 100.0 * countif(success == false) / count()
 ```
 
-### Custom Events and Metrics
+### Database Performance
 
-#### Track Inference Requests
-
-```csharp
-using Microsoft.ApplicationInsights;
-using Microsoft.ApplicationInsights.DataContracts;
-
-public class InferenceService
-{
-    private readonly TelemetryClient _telemetry;
-    
-    public InferenceService(TelemetryClient telemetry)
-    {
-        _telemetry = telemetry;
-    }
-    
-    public async Task<string> GenerateResponse(string prompt, int maxTokens)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        
-        try
-        {
-            // Execute spatial next token query
-            var result = await ExecuteSpatialInference(prompt, maxTokens);
-            
-            stopwatch.Stop();
-            
-            // Track successful inference
-            _telemetry.TrackEvent("InferenceCompleted", new Dictionary<string, string>
-            {
-                {"PromptLength", prompt.Length.ToString()},
-                {"TokensGenerated", result.TokenCount.ToString()},
-                {"Model", "Spatial-O(logN)"},
-                {"Duration", stopwatch.ElapsedMilliseconds.ToString()}
-            });
-            
-            // Track custom metric
-            _telemetry.TrackMetric("InferenceLatency", stopwatch.ElapsedMilliseconds);
-            _telemetry.TrackMetric("TokensPerSecond", result.TokenCount / (stopwatch.ElapsedMilliseconds / 1000.0));
-            
-            return result.GeneratedText;
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            
-            // Track exception with context
-            var exceptionTelemetry = new ExceptionTelemetry(ex)
-            {
-                SeverityLevel = SeverityLevel.Error
-            };
-            exceptionTelemetry.Properties.Add("PromptLength", prompt.Length.ToString());
-            exceptionTelemetry.Properties.Add("MaxTokens", maxTokens.ToString());
-            exceptionTelemetry.Metrics.Add("Duration", stopwatch.ElapsedMilliseconds);
-            
-            _telemetry.TrackException(exceptionTelemetry);
-            
-            throw;
-        }
-    }
-}
-```
-
-#### Track OODA Loop Cycles
-
-```csharp
-public class OodaLoopService
-{
-    private readonly TelemetryClient _telemetry;
-    
-    public async Task ExecuteOodaCycle()
-    {
-        using var operation = _telemetry.StartOperation<DependencyTelemetry>("OODA-Cycle");
-        
-        try
-        {
-            // Observe
-            var analyzeStopwatch = Stopwatch.StartNew();
-            var observations = await ObserveSystem();
-            analyzeStopwatch.Stop();
-            _telemetry.TrackMetric("OODA-Analyze-Duration", analyzeStopwatch.ElapsedMilliseconds);
-            _telemetry.TrackEvent("OODA-Analyze", new Dictionary<string, string>
-            {
-                {"ObservationCount", observations.Count.ToString()}
-            });
-            
-            // Orient
-            var orientStopwatch = Stopwatch.StartNew();
-            var hypotheses = await OrientAndHypothesize(observations);
-            orientStopwatch.Stop();
-            _telemetry.TrackMetric("OODA-Hypothesize-Duration", orientStopwatch.ElapsedMilliseconds);
-            _telemetry.TrackEvent("OODA-Hypothesize", new Dictionary<string, string>
-            {
-                {"HypothesisCount", hypotheses.Count.ToString()}
-            });
-            
-            // Decide
-            var decideStopwatch = Stopwatch.StartNew();
-            var actions = await Decide(hypotheses);
-            decideStopwatch.Stop();
-            _telemetry.TrackMetric("OODA-Decide-Duration", decideStopwatch.ElapsedMilliseconds);
-            
-            // Act
-            var actStopwatch = Stopwatch.StartNew();
-            var results = await Act(actions);
-            actStopwatch.Stop();
-            _telemetry.TrackMetric("OODA-Act-Duration", actStopwatch.ElapsedMilliseconds);
-            _telemetry.TrackEvent("OODA-Act", new Dictionary<string, string>
-            {
-                {"ActionsExecuted", results.Count.ToString()},
-                {"SuccessRate", (results.Count(r => r.Success) / (double)results.Count).ToString("P")}
-            });
-            
-            // Learn
-            await Learn(results);
-            
-            operation.Telemetry.Success = true;
-        }
-        catch (Exception ex)
-        {
-            operation.Telemetry.Success = false;
-            _telemetry.TrackException(ex);
-            throw;
-        }
-    }
-}
-```
-
----
-
-## Performance Counters
-
-### SQL Server Performance Counters
-
-#### Critical Counters to Monitor
-
-**Spatial Index Performance**:
+**Query Performance** (SQL Server DMV):
 ```sql
--- Query spatial index statistics
-SELECT 
-    OBJECT_NAME(i.object_id) AS TableName,
-    i.name AS IndexName,
-    i.type_desc AS IndexType,
-    s.index_level,
-    s.page_count,
-    s.avg_fragmentation_in_percent,
-    s.avg_page_space_used_in_percent,
-    s.record_count
-FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'DETAILED') s
-INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-WHERE i.type_desc = 'SPATIAL'
-ORDER BY s.avg_fragmentation_in_percent DESC;
-```
-
-**CLR Function Execution Time**:
-```sql
--- Monitor CLR function performance
-SELECT 
-    OBJECT_NAME(object_id) AS FunctionName,
-    cached_time,
-    last_execution_time,
-    execution_count,
-    total_worker_time / execution_count AS avg_cpu_time_us,
-    total_elapsed_time / execution_count AS avg_elapsed_time_us,
-    total_logical_reads / execution_count AS avg_logical_reads,
-    total_physical_reads / execution_count AS avg_physical_reads
-FROM sys.dm_exec_function_stats
-WHERE OBJECT_NAME(object_id) LIKE 'clr_%'
-ORDER BY total_worker_time DESC;
-```
-
-**Query Performance**:
-```sql
--- Top 10 slowest queries
-SELECT TOP 10
-    qs.execution_count,
-    qs.total_elapsed_time / qs.execution_count AS avg_elapsed_time_us,
-    qs.total_worker_time / qs.execution_count AS avg_cpu_time_us,
-    qs.total_logical_reads / qs.execution_count AS avg_logical_reads,
+-- Top 20 slowest queries in last hour
+SELECT TOP 20
     SUBSTRING(qt.text, (qs.statement_start_offset/2)+1,
         ((CASE qs.statement_end_offset
             WHEN -1 THEN DATALENGTH(qt.text)
             ELSE qs.statement_end_offset
-        END - qs.statement_start_offset)/2) + 1) AS query_text,
-    qp.query_plan
+        END - qs.statement_start_offset)/2) + 1) AS QueryText,
+    qs.execution_count AS Executions,
+    qs.total_elapsed_time / 1000000.0 AS TotalElapsedSec,
+    qs.total_elapsed_time / qs.execution_count / 1000.0 AS AvgDurationMs,
+    qs.total_logical_reads / qs.execution_count AS AvgLogicalReads,
+    qs.last_execution_time
 FROM sys.dm_exec_query_stats qs
 CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
-CROSS APPLY sys.dm_exec_query_plan(qs.plan_handle) qp
-WHERE qt.text LIKE '%AtomEmbedding%' OR qt.text LIKE '%SpatialKey%'
-ORDER BY avg_elapsed_time_us DESC;
+WHERE qs.last_execution_time > DATEADD(hour, -1, GETUTCDATE())
+ORDER BY qs.total_elapsed_time / qs.execution_count DESC;
 ```
 
-**OODA Loop Queue Depth**:
+**Index Usage**:
 ```sql
--- Service Broker queue monitoring
-SELECT 
-    q.name AS QueueName,
-    q.is_receive_enabled,
-    q.is_enqueue_enabled,
-    COUNT(c.conversation_handle) AS MessageCount,
-    MAX(c.state_desc) AS ConversationState
-FROM sys.service_queues q
-LEFT JOIN sys.conversation_endpoints c ON q.object_id = c.service_id
-WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')
-GROUP BY q.name, q.is_receive_enabled, q.is_enqueue_enabled;
+-- Unused indices (candidates for removal)
+SELECT
+    OBJECT_NAME(i.object_id) AS TableName,
+    i.name AS IndexName,
+    i.type_desc,
+    us.user_seeks,
+    us.user_scans,
+    us.user_lookups,
+    us.user_updates
+FROM sys.indexes i
+LEFT JOIN sys.dm_db_index_usage_stats us ON i.object_id = us.object_id AND i.index_id = us.index_id
+WHERE OBJECTPROPERTY(i.object_id, 'IsUserTable') = 1
+  AND i.index_id > 0
+  AND (us.user_seeks + us.user_scans + us.user_lookups) = 0
+  AND us.user_updates > 100  -- High write cost, no read benefit
+ORDER BY us.user_updates DESC;
 ```
 
-### Custom Performance Counters (T-SQL)
-
-#### Create Monitoring Stored Procedure
-
+**Blocking and Deadlocks**:
 ```sql
-CREATE OR ALTER PROCEDURE dbo.sp_CollectPerformanceMetrics
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    -- Spatial query performance
-    INSERT INTO dbo.PerformanceMetrics (MetricName, MetricValue, CollectedAt)
-    SELECT 
-        'SpatialQueryAvgLatency' AS MetricName,
-        AVG(total_elapsed_time / execution_count) AS MetricValue,
-        GETUTCDATE() AS CollectedAt
-    FROM sys.dm_exec_query_stats qs
-    CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
-    WHERE qt.text LIKE '%STIntersects%' OR qt.text LIKE '%STDistance%';
-    
-    -- CLR function execution count
-    INSERT INTO dbo.PerformanceMetrics (MetricName, MetricValue, CollectedAt)
-    SELECT 
-        'CLR_' + OBJECT_NAME(object_id) AS MetricName,
-        execution_count AS MetricValue,
-        GETUTCDATE() AS CollectedAt
-    FROM sys.dm_exec_function_stats
-    WHERE OBJECT_NAME(object_id) LIKE 'clr_%';
-    
-    -- Spatial index fragmentation
-    INSERT INTO dbo.PerformanceMetrics (MetricName, MetricValue, CollectedAt)
-    SELECT 
-        'SpatialIndexFragmentation_' + OBJECT_NAME(s.object_id) AS MetricName,
-        s.avg_fragmentation_in_percent AS MetricValue,
-        GETUTCDATE() AS CollectedAt
-    FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') s
-    INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-    WHERE i.type_desc = 'SPATIAL';
-    
-    -- OODA queue depth
-    INSERT INTO dbo.PerformanceMetrics (MetricName, MetricValue, CollectedAt)
-    SELECT 
-        'OODA_QueueDepth_' + q.name AS MetricName,
-        COUNT(c.conversation_handle) AS MetricValue,
-        GETUTCDATE() AS CollectedAt
-    FROM sys.service_queues q
-    LEFT JOIN sys.conversation_endpoints c ON q.object_id = c.service_id
-    WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')
-    GROUP BY q.name;
-END
-GO
-
--- Schedule collection every 5 minutes
-EXEC msdb.dbo.sp_add_job @job_name = 'CollectPerformanceMetrics';
-EXEC msdb.dbo.sp_add_jobstep 
-    @job_name = 'CollectPerformanceMetrics',
-    @step_name = 'Collect',
-    @subsystem = 'TSQL',
-    @command = 'EXEC dbo.sp_CollectPerformanceMetrics',
-    @database_name = 'Hartonomous';
-
-EXEC msdb.dbo.sp_add_schedule 
-    @schedule_name = 'Every5Minutes',
-    @freq_type = 4,          -- Daily
-    @freq_interval = 1,      -- Every day
-    @freq_subday_type = 4,   -- Minutes
-    @freq_subday_interval = 5;
-
-EXEC msdb.dbo.sp_attach_schedule 
-    @job_name = 'CollectPerformanceMetrics',
-    @schedule_name = 'Every5Minutes';
-
-EXEC msdb.dbo.sp_add_jobserver @job_name = 'CollectPerformanceMetrics';
+-- Current blocking chains
+SELECT
+    t1.resource_type,
+    t1.resource_database_id,
+    t1.resource_associated_entity_id,
+    t1.request_mode,
+    t1.request_session_id,
+    t2.blocking_session_id,
+    OBJECT_NAME(p.object_id) AS BlockedObjectName,
+    h1.text AS BlockedQuery,
+    h2.text AS BlockingQuery
+FROM sys.dm_tran_locks t1
+JOIN sys.dm_os_waiting_tasks t2 ON t1.lock_owner_address = t2.resource_address
+LEFT JOIN sys.partitions p ON p.partition_id = t1.resource_associated_entity_id
+LEFT JOIN sys.dm_exec_connections c1 ON t1.request_session_id = c1.session_id
+LEFT JOIN sys.dm_exec_connections c2 ON t2.blocking_session_id = c2.session_id
+CROSS APPLY sys.dm_exec_sql_text(c1.most_recent_sql_handle) h1
+CROSS APPLY sys.dm_exec_sql_text(c2.most_recent_sql_handle) h2;
 ```
 
----
+**Spatial Index Performance**:
+```sql
+-- Spatial index selectivity
+SELECT
+    OBJECT_NAME(i.object_id) AS TableName,
+    i.name AS IndexName,
+    s.user_seeks,
+    s.user_scans,
+    s.avg_fragmentation_in_percent,
+    s.page_count
+FROM sys.indexes i
+JOIN sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'DETAILED') s
+    ON i.object_id = s.object_id AND i.index_id = s.index_id
+WHERE i.type_desc = 'SPATIAL'
+ORDER BY s.user_seeks + s.user_scans DESC;
+```
 
-## Health Check Endpoints
+### Storage Metrics
 
-### ASP.NET Core Health Checks
+**Atom Count Growth**:
+```sql
+-- Daily atom ingestion rate
+SELECT
+    CAST(CreatedAt AS DATE) AS Date,
+    COUNT(*) AS AtomsCreated,
+    COUNT(DISTINCT TenantId) AS ActiveTenants,
+    SUM(DATALENGTH(AtomicValue)) / 1024.0 / 1024.0 AS MBIngested
+FROM dbo.Atom
+WHERE CreatedAt > DATEADD(day, -30, GETUTCDATE())
+GROUP BY CAST(CreatedAt AS DATE)
+ORDER BY Date DESC;
+```
 
-#### Configure Health Checks
+**Deduplication Effectiveness**:
+```sql
+-- Deduplication savings
+WITH AtomStats AS (
+    SELECT
+        COUNT(*) AS TotalReferences,
+        COUNT(DISTINCT ContentHash) AS UniqueAtoms,
+        SUM(ReferenceCount) AS TotalReferenceCount,
+        SUM(DATALENGTH(AtomicValue)) AS UniqueBytes
+    FROM dbo.Atom
+)
+SELECT
+    TotalReferences,
+    UniqueAtoms,
+    CAST((1.0 - CAST(UniqueAtoms AS FLOAT) / TotalReferences) * 100 AS DECIMAL(5,2)) AS DeduplicationPercent,
+    UniqueBytes / 1024.0 / 1024.0 / 1024.0 AS UniqueGB,
+    (TotalReferenceCount * 64) / 1024.0 / 1024.0 / 1024.0 AS EquivalentGB_Without_CAS,
+    CAST((1.0 - CAST(UniqueBytes AS FLOAT) / (TotalReferenceCount * 64)) * 100 AS DECIMAL(5,2)) AS StorageSavingsPercent
+FROM AtomStats;
+```
 
-**File**: `src/Hartonomous.Api/Program.cs`
+**Database Size**:
+```sql
+-- Database file sizes and growth
+SELECT
+    name AS FileName,
+    size * 8.0 / 1024 AS SizeMB,
+    CASE WHEN max_size = -1 THEN 'Unlimited' ELSE CAST(max_size * 8.0 / 1024 AS VARCHAR) END AS MaxSizeMB,
+    growth * 8.0 / 1024 AS GrowthMB,
+    type_desc
+FROM sys.database_files;
 
+-- Table sizes
+SELECT
+    s.name AS SchemaName,
+    t.name AS TableName,
+    p.rows AS RowCount,
+    SUM(a.total_pages) * 8 / 1024 AS TotalSpaceMB,
+    SUM(a.used_pages) * 8 / 1024 AS UsedSpaceMB,
+    (SUM(a.total_pages) - SUM(a.used_pages)) * 8 / 1024 AS UnusedSpaceMB
+FROM sys.tables t
+JOIN sys.schemas s ON t.schema_id = s.schema_id
+JOIN sys.indexes i ON t.object_id = i.object_id
+JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+JOIN sys.allocation_units a ON p.partition_id = a.container_id
+GROUP BY s.name, t.name, p.rows
+ORDER BY TotalSpaceMB DESC;
+```
+
+### OODA Loop Effectiveness
+
+**Autonomous Improvement Success Rate**:
+```sql
+-- OODA loop performance (last 30 days)
+SELECT
+    ActionType,
+    COUNT(*) AS TotalActions,
+    SUM(CASE WHEN Status = 'Success' THEN 1 ELSE 0 END) AS SuccessCount,
+    CAST(SUM(CASE WHEN Status = 'Success' THEN 1 ELSE 0 END) AS FLOAT) / COUNT(*) * 100 AS SuccessRate,
+    AVG(ActualImprovement) AS AvgImprovement,
+    AVG(DurationMs) AS AvgDurationMs
+FROM dbo.AutonomousImprovementHistory
+WHERE CreatedAt > DATEADD(day, -30, GETUTCDATE())
+GROUP BY ActionType
+ORDER BY TotalActions DESC;
+```
+
+**Hypothesis Accuracy**:
+```sql
+-- Compare expected vs actual improvement
+SELECT
+    pa.ActionType,
+    pa.ExpectedImprovement,
+    aih.ActualImprovement,
+    CASE
+        WHEN aih.ActualImprovement >= CAST(SUBSTRING(pa.ExpectedImprovement, 1, CHARINDEX('%', pa.ExpectedImprovement) - 1) AS DECIMAL)
+        THEN 'Met or Exceeded'
+        ELSE 'Below Expectation'
+    END AS Performance
+FROM dbo.PendingActions pa
+JOIN dbo.AutonomousImprovementHistory aih ON pa.ActionId = aih.ActionId
+WHERE pa.Status = 'Executed'
+  AND aih.ActualImprovement IS NOT NULL;
+```
+
+## Health Checks
+
+### Built-In Health Check Endpoint
+
+**Endpoint**: `GET /health`
+
+**Implementation** (ASP.NET Core):
 ```csharp
-using Microsoft.Extensions.Diagnostics.HealthChecks;
-
-var builder = WebApplication.CreateBuilder(args);
-
-// Add health checks
+// Program.cs
 builder.Services.AddHealthChecks()
     .AddSqlServer(
-        connectionString: builder.Configuration.GetConnectionString("SqlServer"),
+        connectionString: builder.Configuration.GetConnectionString("DefaultConnection"),
         name: "database",
-        failureStatus: HealthStatus.Unhealthy,
-        tags: new[] { "db", "sql" })
-    .AddNeo4j(
-        neo4jConnectionString: builder.Configuration.GetConnectionString("Neo4j"),
-        neo4jCredentials: (
-            builder.Configuration["Neo4j:Username"],
-            builder.Configuration["Neo4j:Password"]),
-        name: "neo4j",
-        failureStatus: HealthStatus.Degraded,
-        tags: new[] { "db", "graph" })
-    .AddCheck<SpatialIndexHealthCheck>("spatial-indexes", tags: new[] { "spatial" })
-    .AddCheck<OodaLoopHealthCheck>("ooda-loop", tags: new[] { "ooda" });
+        timeout: TimeSpan.FromSeconds(5))
+    .AddCheck("neo4j", new Neo4jHealthCheck(builder.Configuration), timeout: TimeSpan.FromSeconds(5));
 
-var app = builder.Build();
-
-// Map health check endpoints
-app.MapHealthChecks("/health");
-app.MapHealthChecks("/health/ready", new HealthCheckOptions
+app.MapHealthChecks("/health", new HealthCheckOptions
 {
-    Predicate = check => check.Tags.Contains("db")
-});
-app.MapHealthChecks("/health/live", new HealthCheckOptions
-{
-    Predicate = _ => false  // Only basic liveness
+    ResponseWriter = async (context, report) =>
+    {
+        context.Response.ContentType = "application/json";
+        var result = JsonSerializer.Serialize(new
+        {
+            status = report.Status.ToString(),
+            results = report.Entries.ToDictionary(
+                e => e.Key,
+                e => e.Value.Status.ToString()
+            ),
+            totalDuration = report.TotalDuration.ToString()
+        });
+        await context.Response.WriteAsync(result);
+    }
 });
 ```
 
-#### Custom Health Checks
-
-**Spatial Index Health Check**:
-
-```csharp
-public class SpatialIndexHealthCheck : IHealthCheck
-{
-    private readonly IConfiguration _configuration;
-    
-    public SpatialIndexHealthCheck(IConfiguration configuration)
-    {
-        _configuration = configuration;
-    }
-    
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context, 
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var connection = new SqlConnection(_configuration.GetConnectionString("SqlServer"));
-            await connection.OpenAsync(cancellationToken);
-            
-            // Check spatial index fragmentation
-            var fragmentationQuery = @"
-                SELECT 
-                    OBJECT_NAME(s.object_id) AS TableName,
-                    i.name AS IndexName,
-                    s.avg_fragmentation_in_percent AS Fragmentation
-                FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') s
-                INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-                WHERE i.type_desc = 'SPATIAL';";
-            
-            using var command = new SqlCommand(fragmentationQuery, connection);
-            using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            
-            var data = new Dictionary<string, object>();
-            var maxFragmentation = 0.0;
-            
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var tableName = reader.GetString(0);
-                var indexName = reader.GetString(1);
-                var fragmentation = reader.GetDouble(2);
-                
-                data[$"{tableName}.{indexName}"] = $"{fragmentation:F2}%";
-                
-                if (fragmentation > maxFragmentation)
-                    maxFragmentation = fragmentation;
-            }
-            
-            // Healthy: <10%, Degraded: 10-30%, Unhealthy: >30%
-            if (maxFragmentation > 30)
-            {
-                return HealthCheckResult.Unhealthy(
-                    $"Spatial index fragmentation critical: {maxFragmentation:F2}% (rebuild required)",
-                    data: data);
-            }
-            
-            if (maxFragmentation > 10)
-            {
-                return HealthCheckResult.Degraded(
-                    $"Spatial index fragmentation elevated: {maxFragmentation:F2}% (consider reorganize)",
-                    data: data);
-            }
-            
-            return HealthCheckResult.Healthy(
-                $"All spatial indexes healthy (max fragmentation: {maxFragmentation:F2}%)",
-                data: data);
-        }
-        catch (Exception ex)
-        {
-            return HealthCheckResult.Unhealthy("Spatial index health check failed", ex);
-        }
-    }
+**Monitoring Health Check**:
+```powershell
+# PowerShell script to check health
+$response = Invoke-RestMethod -Uri "https://api.hartonomous.local/health" -Method Get
+if ($response.status -ne "Healthy") {
+    Send-MailMessage -To "ops@company.com" -Subject "Hartonomous Health Check Failed" -Body ($response | ConvertTo-Json)
 }
 ```
 
-**OODA Loop Health Check**:
+### Custom Health Checks
 
-```csharp
-public class OodaLoopHealthCheck : IHealthCheck
-{
-    private readonly IConfiguration _configuration;
-    
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context, 
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            using var connection = new SqlConnection(_configuration.GetConnectionString("SqlServer"));
-            await connection.OpenAsync(cancellationToken);
-            
-            // Check Service Broker queue status
-            var queueStatusQuery = @"
-                SELECT 
-                    q.name AS QueueName,
-                    q.is_receive_enabled AS ReceiveEnabled,
-                    q.is_enqueue_enabled AS EnqueueEnabled,
-                    COUNT(c.conversation_handle) AS MessageCount
-                FROM sys.service_queues q
-                LEFT JOIN sys.conversation_endpoints c ON q.object_id = c.service_id
-                WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')
-                GROUP BY q.name, q.is_receive_enabled, q.is_enqueue_enabled;";
-            
-            using var command = new SqlCommand(queueStatusQuery, connection);
-            using var reader = await command.ExecuteReaderAsync(cancellationToken);
-            
-            var data = new Dictionary<string, object>();
-            var totalMessages = 0;
-            var disabledQueues = new List<string>();
-            
-            while (await reader.ReadAsync(cancellationToken))
-            {
-                var queueName = reader.GetString(0);
-                var receiveEnabled = reader.GetBoolean(1);
-                var enqueueEnabled = reader.GetBoolean(2);
-                var messageCount = reader.GetInt32(3);
-                
-                data[queueName] = new
-                {
-                    MessageCount = messageCount,
-                    ReceiveEnabled = receiveEnabled,
-                    EnqueueEnabled = enqueueEnabled
-                };
-                
-                totalMessages += messageCount;
-                
-                if (!receiveEnabled || !enqueueEnabled)
-                    disabledQueues.Add(queueName);
-            }
-            
-            // Check last OODA cycle execution
-            var lastCycleQuery = @"
-                SELECT TOP 1 CompletedAt
-                FROM dbo.OodaCycleHistory
-                ORDER BY CompletedAt DESC;";
-            
-            using var cycleCommand = new SqlCommand(lastCycleQuery, connection);
-            var lastCycle = await cycleCommand.ExecuteScalarAsync(cancellationToken) as DateTime?;
-            
-            if (lastCycle.HasValue)
-            {
-                var timeSinceLastCycle = DateTime.UtcNow - lastCycle.Value;
-                data["LastCycleMinutesAgo"] = timeSinceLastCycle.TotalMinutes;
-                
-                // Alert if no cycle in 30 minutes (2× expected 15-minute interval)
-                if (timeSinceLastCycle.TotalMinutes > 30)
-                {
-                    return HealthCheckResult.Degraded(
-                        $"OODA loop hasn't executed in {timeSinceLastCycle.TotalMinutes:F0} minutes",
-                        data: data);
-                }
-            }
-            
-            if (disabledQueues.Any())
-            {
-                return HealthCheckResult.Unhealthy(
-                    $"OODA queues disabled: {string.Join(", ", disabledQueues)}",
-                    data: data);
-            }
-            
-            if (totalMessages > 10000)
-            {
-                return HealthCheckResult.Degraded(
-                    $"OODA queue backlog: {totalMessages} messages pending",
-                    data: data);
-            }
-            
-            return HealthCheckResult.Healthy(
-                $"OODA loop healthy ({totalMessages} messages in queues)",
-                data: data);
-        }
-        catch (Exception ex)
-        {
-            return HealthCheckResult.Unhealthy("OODA loop health check failed", ex);
-        }
-    }
-}
+**OODA Loop Activity**:
+```sql
+-- Alert if OODA loop hasn't run in 2 hours
+IF NOT EXISTS (
+    SELECT 1
+    FROM dbo.LearningMetrics
+    WHERE CreatedAt > DATEADD(hour, -2, GETUTCDATE())
+)
+BEGIN
+    -- Raise alert (could integrate with monitoring system)
+    RAISERROR('OODA loop inactive for 2+ hours', 16, 1);
+END
 ```
 
-### Health Check Response Format
+**Worker Service Activity**:
+```sql
+-- Check CES Consumer last activity
+IF NOT EXISTS (
+    SELECT 1
+    FROM dbo.IngestionJob
+    WHERE CompletedAt > DATEADD(hour, -1, GETUTCDATE())
+      AND JobStatus = 'Completed'
+)
+BEGIN
+    -- Check if there are pending jobs
+    IF EXISTS (SELECT 1 FROM dbo.IngestionJob WHERE JobStatus = 'Pending')
+    BEGIN
+        RAISERROR('CES Consumer may be stuck - pending jobs exist but none completed in last hour', 16, 1);
+    END
+END
+```
 
-**Endpoint**: `/health`
+## Alerting Rules
 
+### Critical Alerts (Page On-Call)
+
+1. **API Down**: Health check returns Unhealthy for 2 consecutive minutes
+2. **Database Down**: Connection failure for 1 minute
+3. **Deadlock Storm**: > 10 deadlocks in 5 minutes
+4. **Disk Space**: < 10% free on database drive
+5. **OODA Loop Failure**: 3+ consecutive failed autonomous actions
+
+### Warning Alerts (Email/Slack)
+
+1. **High Error Rate**: API error rate > 5% for 10 minutes
+2. **Slow Queries**: P95 latency > 2× baseline for 15 minutes
+3. **Index Fragmentation**: Spatial index fragmentation > 30%
+4. **Memory Pressure**: SQL Server available memory < 20%
+5. **Worker Lag**: CES queue depth > 1000 messages
+
+### Informational Alerts (Dashboard Only)
+
+1. **Ingestion Spike**: 10× normal ingestion rate
+2. **New Concept Discovered**: OODA loop creates new concept cluster
+3. **Storage Growth**: Daily growth > 100GB
+4. **Deduplication Drop**: Deduplication rate < 50% (baseline: 80%)
+
+## Dashboard Queries
+
+### Application Insights Workbook
+
+```kusto
+// Ingestion Pipeline Performance
+requests
+| where operation_Name startswith "POST /api/v1/ingestion"
+| summarize
+    Count = count(),
+    P50 = percentile(duration, 50),
+    P95 = percentile(duration, 95),
+    ErrorRate = 100.0 * countif(success == false) / count()
+  by bin(timestamp, 5m), operation_Name
+| render timechart
+
+// Atom Growth Rate
+customEvents
+| where name == "AtomIngested"
+| summarize AtomsPerMinute = count() / 60 by bin(timestamp, 1h)
+| render timechart
+
+// OODA Loop Actions
+customEvents
+| where name == "OODA_Action_Executed"
+| extend ActionType = tostring(customDimensions.ActionType)
+| summarize Count = count() by ActionType, bin(timestamp, 1d)
+| render barchart
+```
+
+### SQL Server Monitoring View
+
+```sql
+CREATE VIEW monitoring.SystemHealth AS
+SELECT
+    'QueryPerformance' AS MetricCategory,
+    'SlowQueries' AS MetricName,
+    COUNT(*) AS Value,
+    GETUTCDATE() AS Timestamp
+FROM sys.dm_exec_query_stats
+WHERE total_elapsed_time / execution_count > 1000000  -- > 1 second avg
+
+UNION ALL
+
+SELECT
+    'Storage',
+    'DeduplicationRate',
+    CAST((1.0 - CAST(COUNT(DISTINCT ContentHash) AS FLOAT) / COUNT(*)) * 100 AS INT),
+    GETUTCDATE()
+FROM dbo.Atom
+
+UNION ALL
+
+SELECT
+    'OODA',
+    'SuccessRate',
+    CAST(SUM(CASE WHEN Status = 'Success' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS INT),
+    GETUTCDATE()
+FROM dbo.AutonomousImprovementHistory
+WHERE CreatedAt > DATEADD(hour, -24, GETUTCDATE());
+```
+
+## Log Aggregation
+
+### Structured Logging (Serilog)
+
+**Configuration**:
 ```json
 {
-  "status": "Healthy",
-  "totalDuration": "00:00:00.1234567",
-  "entries": {
-    "database": {
-      "status": "Healthy",
-      "duration": "00:00:00.0456789",
-      "tags": ["db", "sql"]
+  "Serilog": {
+    "Using": ["Serilog.Sinks.Console", "Serilog.Sinks.ApplicationInsights"],
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "System": "Warning",
+        "Hartonomous": "Debug"
+      }
     },
-    "neo4j": {
-      "status": "Healthy",
-      "duration": "00:00:00.0123456",
-      "tags": ["db", "graph"]
-    },
-    "spatial-indexes": {
-      "status": "Healthy",
-      "description": "All spatial indexes healthy (max fragmentation: 5.23%)",
-      "duration": "00:00:00.0891234",
-      "data": {
-        "AtomEmbedding.IX_AtomEmbedding_Spatial": "5.23%",
-        "TensorAtom.IX_TensorAtom_Spatial": "3.87%"
-      },
-      "tags": ["spatial"]
-    },
-    "ooda-loop": {
-      "status": "Healthy",
-      "description": "OODA loop healthy (47 messages in queues)",
-      "duration": "00:00:00.0234567",
-      "data": {
-        "AnalyzeQueue": {
-          "MessageCount": 12,
-          "ReceiveEnabled": true,
-          "EnqueueEnabled": true
-        },
-        "HypothesizeQueue": {
-          "MessageCount": 15,
-          "ReceiveEnabled": true,
-          "EnqueueEnabled": true
-        },
-        "ActQueue": {
-          "MessageCount": 10,
-          "ReceiveEnabled": true,
-          "EnqueueEnabled": true
-        },
-        "LearnQueue": {
-          "MessageCount": 10,
-          "ReceiveEnabled": true,
-          "EnqueueEnabled": true
-        },
-        "LastCycleMinutesAgo": 7.5
-      },
-      "tags": ["ooda"]
-    }
+    "WriteTo": [
+      { "Name": "Console" },
+      {
+        "Name": "ApplicationInsights",
+        "Args": {
+          "connectionString": "InstrumentationKey=...",
+          "telemetryConverter": "Serilog.Sinks.ApplicationInsights.TelemetryConverters.TraceTelemetryConverter, Serilog.Sinks.ApplicationInsights"
+        }
+      }
+    ],
+    "Enrich": ["FromLogContext", "WithMachineName", "WithThreadId"]
   }
 }
 ```
 
----
+### Log Queries
 
-## Spatial Index Health Metrics
-
-### Monitoring Queries
-
-#### Spatial Index Fragmentation
-
-```sql
--- Check fragmentation levels for all spatial indexes
-SELECT 
-    OBJECT_SCHEMA_NAME(s.object_id) AS SchemaName,
-    OBJECT_NAME(s.object_id) AS TableName,
-    i.name AS IndexName,
-    i.type_desc AS IndexType,
-    s.index_level AS Level,
-    s.page_count AS Pages,
-    s.avg_fragmentation_in_percent AS FragmentationPercent,
-    s.avg_page_space_used_in_percent AS PageFullnessPercent,
-    s.record_count AS Records,
-    CASE 
-        WHEN s.avg_fragmentation_in_percent < 10 THEN 'Healthy'
-        WHEN s.avg_fragmentation_in_percent < 30 THEN 'Reorganize'
-        ELSE 'Rebuild'
-    END AS RecommendedAction
-FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'DETAILED') s
-INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-WHERE i.type_desc = 'SPATIAL'
-ORDER BY s.avg_fragmentation_in_percent DESC;
-```
-
-#### Spatial Index Usage Statistics
-
-```sql
--- Monitor spatial index usage patterns
-SELECT 
-    OBJECT_NAME(s.object_id) AS TableName,
-    i.name AS IndexName,
-    s.user_seeks AS Seeks,
-    s.user_scans AS Scans,
-    s.user_lookups AS Lookups,
-    s.user_updates AS Updates,
-    s.last_user_seek AS LastSeek,
-    s.last_user_scan AS LastScan,
-    CASE 
-        WHEN s.user_seeks + s.user_scans + s.user_lookups = 0 THEN 'Unused'
-        WHEN s.user_seeks + s.user_scans + s.user_lookups < s.user_updates THEN 'More writes than reads'
-        ELSE 'Actively used'
-    END AS UsagePattern
-FROM sys.dm_db_index_usage_stats s
-INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-WHERE i.type_desc = 'SPATIAL'
-    AND s.database_id = DB_ID()
-ORDER BY (s.user_seeks + s.user_scans + s.user_lookups) DESC;
-```
-
-#### Spatial Query Performance
-
-```sql
--- Analyze spatial query performance (last hour)
-WITH SpatialQueries AS (
-    SELECT 
-        qs.execution_count,
-        qs.total_elapsed_time / qs.execution_count AS avg_elapsed_time_us,
-        qs.total_worker_time / qs.execution_count AS avg_cpu_time_us,
-        qs.total_logical_reads / qs.execution_count AS avg_logical_reads,
-        qs.total_physical_reads / qs.execution_count AS avg_physical_reads,
-        qs.last_execution_time,
-        SUBSTRING(qt.text, (qs.statement_start_offset/2)+1,
-            ((CASE qs.statement_end_offset
-                WHEN -1 THEN DATALENGTH(qt.text)
-                ELSE qs.statement_end_offset
-            END - qs.statement_start_offset)/2) + 1) AS query_text
-    FROM sys.dm_exec_query_stats qs
-    CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) qt
-    WHERE (qt.text LIKE '%STIntersects%' OR qt.text LIKE '%STDistance%' OR qt.text LIKE '%STWithin%')
-        AND qs.last_execution_time > DATEADD(HOUR, -1, GETUTCDATE())
-)
-SELECT 
-    execution_count,
-    avg_elapsed_time_us / 1000.0 AS avg_elapsed_time_ms,
-    avg_cpu_time_us / 1000.0 AS avg_cpu_time_ms,
-    avg_logical_reads,
-    avg_physical_reads,
-    last_execution_time,
-    LEFT(query_text, 200) AS query_preview
-FROM SpatialQueries
-ORDER BY avg_elapsed_time_us DESC;
-```
-
-### Automated Index Maintenance
-
-```sql
-CREATE OR ALTER PROCEDURE dbo.sp_MaintainSpatialIndexes
-    @FragmentationThreshold FLOAT = 30.0,
-    @ReorganizeThreshold FLOAT = 10.0
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    DECLARE @TableName NVARCHAR(256);
-    DECLARE @IndexName NVARCHAR(256);
-    DECLARE @Fragmentation FLOAT;
-    DECLARE @SQL NVARCHAR(MAX);
-    
-    DECLARE IndexCursor CURSOR FOR
-    SELECT 
-        OBJECT_SCHEMA_NAME(s.object_id) + '.' + OBJECT_NAME(s.object_id) AS TableName,
-        i.name AS IndexName,
-        s.avg_fragmentation_in_percent AS Fragmentation
-    FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') s
-    INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-    WHERE i.type_desc = 'SPATIAL'
-        AND s.avg_fragmentation_in_percent >= @ReorganizeThreshold;
-    
-    OPEN IndexCursor;
-    FETCH NEXT FROM IndexCursor INTO @TableName, @IndexName, @Fragmentation;
-    
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        IF @Fragmentation >= @FragmentationThreshold
-        BEGIN
-            -- Rebuild index
-            SET @SQL = 'ALTER INDEX [' + @IndexName + '] ON ' + @TableName + ' REBUILD WITH (ONLINE = OFF);';
-            PRINT 'Rebuilding: ' + @IndexName + ' (' + CAST(@Fragmentation AS NVARCHAR(10)) + '% fragmentation)';
-        END
-        ELSE
-        BEGIN
-            -- Reorganize index
-            SET @SQL = 'ALTER INDEX [' + @IndexName + '] ON ' + @TableName + ' REORGANIZE;';
-            PRINT 'Reorganizing: ' + @IndexName + ' (' + CAST(@Fragmentation AS NVARCHAR(10)) + '% fragmentation)';
-        END
-        
-        EXEC sp_executesql @SQL;
-        
-        FETCH NEXT FROM IndexCursor INTO @TableName, @IndexName, @Fragmentation;
-    END
-    
-    CLOSE IndexCursor;
-    DEALLOCATE IndexCursor;
-    
-    -- Update statistics
-    EXEC sp_updatestats;
-END
-GO
-
--- Schedule weekly spatial index maintenance
-EXEC msdb.dbo.sp_add_job @job_name = 'SpatialIndexMaintenance';
-EXEC msdb.dbo.sp_add_jobstep 
-    @job_name = 'SpatialIndexMaintenance',
-    @step_name = 'Maintain',
-    @subsystem = 'TSQL',
-    @command = 'EXEC dbo.sp_MaintainSpatialIndexes @FragmentationThreshold = 30.0, @ReorganizeThreshold = 10.0',
-    @database_name = 'Hartonomous';
-
-EXEC msdb.dbo.sp_add_schedule 
-    @schedule_name = 'WeeklySunday2AM',
-    @freq_type = 8,          -- Weekly
-    @freq_interval = 1,      -- Sunday
-    @freq_recurrence_factor = 1,
-    @active_start_time = 020000;
-
-EXEC msdb.dbo.sp_attach_schedule 
-    @job_name = 'SpatialIndexMaintenance',
-    @schedule_name = 'WeeklySunday2AM';
-
-EXEC msdb.dbo.sp_add_jobserver @job_name = 'SpatialIndexMaintenance';
-```
-
----
-
-## OODA Loop Monitoring
-
-### Service Broker Queue Monitoring
-
-```sql
--- Comprehensive OODA loop monitoring query
-WITH QueueStats AS (
-    SELECT 
-        q.name AS QueueName,
-        q.is_receive_enabled AS ReceiveEnabled,
-        q.is_enqueue_enabled AS EnqueueEnabled,
-        COUNT(c.conversation_handle) AS MessageCount,
-        MAX(c.state_desc) AS ConversationState,
-        MAX(c.is_initiator) AS IsInitiator
-    FROM sys.service_queues q
-    LEFT JOIN sys.conversation_endpoints c ON q.object_id = c.service_id
-    WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')
-    GROUP BY q.name, q.is_receive_enabled, q.is_enqueue_enabled
-),
-CycleHistory AS (
-    SELECT 
-        CompletedAt,
-        CycleDurationMs,
-        ObservationCount,
-        HypothesisCount,
-        ActionCount,
-        SuccessRate,
-        ROW_NUMBER() OVER (ORDER BY CompletedAt DESC) AS RowNum
-    FROM dbo.OodaCycleHistory
-)
-SELECT 
-    qs.QueueName,
-    qs.MessageCount,
-    qs.ReceiveEnabled,
-    qs.EnqueueEnabled,
-    qs.ConversationState,
-    ch.CompletedAt AS LastCycleAt,
-    DATEDIFF(MINUTE, ch.CompletedAt, GETUTCDATE()) AS MinutesSinceLastCycle,
-    ch.CycleDurationMs,
-    ch.ObservationCount,
-    ch.HypothesisCount,
-    ch.ActionCount,
-    ch.SuccessRate
-FROM QueueStats qs
-CROSS JOIN CycleHistory ch
-WHERE ch.RowNum = 1
-ORDER BY qs.QueueName;
-```
-
-### OODA Performance Metrics
-
-```sql
--- OODA loop performance trends (last 24 hours)
-SELECT 
-    DATEPART(HOUR, CompletedAt) AS Hour,
-    COUNT(*) AS CycleCount,
-    AVG(CycleDurationMs) AS AvgDurationMs,
-    MIN(CycleDurationMs) AS MinDurationMs,
-    MAX(CycleDurationMs) AS MaxDurationMs,
-    AVG(ObservationCount) AS AvgObservations,
-    AVG(HypothesisCount) AS AvgHypotheses,
-    AVG(ActionCount) AS AvgActions,
-    AVG(SuccessRate) AS AvgSuccessRate
-FROM dbo.OodaCycleHistory
-WHERE CompletedAt >= DATEADD(HOUR, -24, GETUTCDATE())
-GROUP BY DATEPART(HOUR, CompletedAt)
-ORDER BY Hour;
-```
-
-### Alert on OODA Stalls
-
-```sql
--- Create alert for stalled OODA loop
-CREATE OR ALTER PROCEDURE dbo.sp_AlertOodaStall
-AS
-BEGIN
-    DECLARE @LastCycle DATETIME;
-    DECLARE @MinutesSinceLastCycle INT;
-    
-    SELECT TOP 1 @LastCycle = CompletedAt
-    FROM dbo.OodaCycleHistory
-    ORDER BY CompletedAt DESC;
-    
-    SET @MinutesSinceLastCycle = DATEDIFF(MINUTE, @LastCycle, GETUTCDATE());
-    
-    IF @MinutesSinceLastCycle > 30  -- Alert if no cycle in 30 minutes
-    BEGIN
-        DECLARE @AlertMessage NVARCHAR(MAX) = 
-            'OODA loop has not executed in ' + CAST(@MinutesSinceLastCycle AS NVARCHAR(10)) + ' minutes. Last cycle: ' + CONVERT(NVARCHAR(30), @LastCycle, 121);
-        
-        -- Send alert (configure Database Mail first)
-        EXEC msdb.dbo.sp_send_dbmail 
-            @profile_name = 'HartonomousAlerts',
-            @recipients = 'ops@hartonomous.com',
-            @subject = 'CRITICAL: OODA Loop Stalled',
-            @body = @AlertMessage;
-        
-        -- Log to Application Insights (via HTTP endpoint if configured)
-        -- Or write to EventLog table for monitoring service to pick up
-        INSERT INTO dbo.EventLog (EventType, Message, Severity, CreatedAt)
-        VALUES ('OODA_STALL', @AlertMessage, 'CRITICAL', GETUTCDATE());
-    END
-END
-GO
-
--- Schedule every 15 minutes
-EXEC msdb.dbo.sp_add_job @job_name = 'MonitorOodaLoop';
-EXEC msdb.dbo.sp_add_jobstep 
-    @job_name = 'MonitorOodaLoop',
-    @step_name = 'CheckStall',
-    @subsystem = 'TSQL',
-    @command = 'EXEC dbo.sp_AlertOodaStall',
-    @database_name = 'Hartonomous';
-
-EXEC msdb.dbo.sp_add_schedule 
-    @schedule_name = 'Every15Minutes',
-    @freq_type = 4,
-    @freq_interval = 1,
-    @freq_subday_type = 4,
-    @freq_subday_interval = 15;
-
-EXEC msdb.dbo.sp_attach_schedule 
-    @job_name = 'MonitorOodaLoop',
-    @schedule_name = 'Every15Minutes';
-
-EXEC msdb.dbo.sp_add_jobserver @job_name = 'MonitorOodaLoop';
-```
-
----
-
-## Alert Rules
-
-### Azure Monitor Alerts
-
-#### Create Alert Rules (Azure CLI)
-
-**Spatial Query Latency Alert**:
-```powershell
-# Alert when avg spatial query latency > 50ms
-az monitor metrics alert create `
-    --name "Spatial Query Latency High" `
-    --resource-group "rg-hartonomous-prod" `
-    --scopes "/subscriptions/{sub-id}/resourceGroups/rg-hartonomous-prod/providers/Microsoft.Insights/components/hartonomous-prod" `
-    --condition "avg customMetrics/SpatialQueryLatency > 50" `
-    --window-size 5m `
-    --evaluation-frequency 1m `
-    --severity 2 `
-    --description "Average spatial query latency exceeded 50ms threshold"
-```
-
-**OODA Loop Failure Rate Alert**:
-```powershell
-# Alert when OODA success rate < 80%
-az monitor metrics alert create `
-    --name "OODA Success Rate Low" `
-    --resource-group "rg-hartonomous-prod" `
-    --scopes "/subscriptions/{sub-id}/resourceGroups/rg-hartonomous-prod/providers/Microsoft.Insights/components/hartonomous-prod" `
-    --condition "avg customMetrics/OodaSuccessRate < 0.8" `
-    --window-size 15m `
-    --evaluation-frequency 5m `
-    --severity 1 `
-    --description "OODA loop success rate dropped below 80%"
-```
-
-**Neo4j Sync Lag Alert**:
-```powershell
-# Alert when Neo4j sync lag > 60 seconds
-az monitor metrics alert create `
-    --name "Neo4j Sync Lag" `
-    --resource-group "rg-hartonomous-prod" `
-    --scopes "/subscriptions/{sub-id}/resourceGroups/rg-hartonomous-prod/providers/Microsoft.Insights/components/hartonomous-prod" `
-    --condition "max customMetrics/Neo4jSyncLagSeconds > 60" `
-    --window-size 5m `
-    --evaluation-frequency 1m `
-    --severity 2 `
-    --description "Neo4j sync lag exceeded 60 seconds"
-```
-
-### Action Groups
-
-Create action group for alert notifications:
-
-```powershell
-# Create action group with email + webhook
-az monitor action-group create `
-    --name "hartonomous-ops" `
-    --resource-group "rg-hartonomous-prod" `
-    --short-name "HartOps" `
-    --email-receiver name="Ops Team" email-address="ops@hartonomous.com" `
-    --webhook-receiver name="Slack" service-uri="https://hooks.slack.com/services/xxx"
-```
-
----
-
-## Dashboard Creation
-
-### Azure Portal Dashboard
-
-#### Create Monitoring Dashboard (JSON)
-
-**File**: `hartonomous-monitoring-dashboard.json`
-
-```json
-{
-  "properties": {
-    "lenses": {
-      "0": {
-        "order": 0,
-        "parts": {
-          "0": {
-            "position": { "x": 0, "y": 0, "colSpan": 6, "rowSpan": 4 },
-            "metadata": {
-              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
-              "settings": {
-                "content": {
-                  "options": {
-                    "chart": {
-                      "metrics": [{
-                        "resourceMetadata": { "id": "/subscriptions/{sub-id}/resourceGroups/rg-hartonomous-prod/providers/Microsoft.Insights/components/hartonomous-prod" },
-                        "name": "customMetrics/SpatialQueryLatency",
-                        "aggregationType": 4,
-                        "namespace": "microsoft.insights/components",
-                        "metricVisualization": {
-                          "displayName": "Spatial Query Latency (ms)"
-                        }
-                      }],
-                      "title": "Spatial Query Performance",
-                      "titleKind": 1,
-                      "visualization": { "chartType": 2 }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "1": {
-            "position": { "x": 6, "y": 0, "colSpan": 6, "rowSpan": 4 },
-            "metadata": {
-              "type": "Extension/HubsExtension/PartType/MonitorChartPart",
-              "settings": {
-                "content": {
-                  "options": {
-                    "chart": {
-                      "metrics": [{
-                        "resourceMetadata": { "id": "/subscriptions/{sub-id}/resourceGroups/rg-hartonomous-prod/providers/Microsoft.Insights/components/hartonomous-prod" },
-                        "name": "customMetrics/InferenceLatency",
-                        "aggregationType": 4,
-                        "metricVisualization": {
-                          "displayName": "Inference Latency (ms)"
-                        }
-                      }],
-                      "title": "Inference Performance",
-                      "titleKind": 1,
-                      "visualization": { "chartType": 2 }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "metadata": {
-      "model": {
-        "timeRange": { "value": { "relative": { "duration": 24, "timeUnit": 1 } } }
-      }
-    }
-  },
-  "name": "Hartonomous Monitoring",
-  "type": "Microsoft.Portal/dashboards",
-  "location": "eastus",
-  "tags": { "hidden-title": "Hartonomous Monitoring" }
-}
-```
-
-Deploy dashboard:
-```powershell
-az portal dashboard create `
-    --resource-group "rg-hartonomous-prod" `
-    --name "HartonomousMonitoring" `
-    --input-path "hartonomous-monitoring-dashboard.json"
-```
-
----
-
-## Log Analytics Queries
-
-### KQL Queries for Common Scenarios
-
-#### Slow Inference Requests
-
+**Error Investigation**:
 ```kusto
-customMetrics
-| where name == "InferenceLatency"
-| where value > 1000  // > 1 second
-| extend PromptLength = toint(customDimensions.PromptLength)
-| extend TokensGenerated = toint(customDimensions.TokensGenerated)
-| project timestamp, value, PromptLength, TokensGenerated
-| order by value desc
-| take 50
-```
-
-#### OODA Loop Failures
-
-```kusto
-customEvents
-| where name == "OODA-Act"
-| extend SuccessRate = todouble(customDimensions.SuccessRate)
-| where SuccessRate < 0.8
-| project timestamp, SuccessRate, customDimensions.ActionsExecuted
+traces
+| where severityLevel >= 3  -- Error and above
+| where timestamp > ago(1h)
+| where message contains "Atomization"
+| project timestamp, message, severityLevel, customDimensions
 | order by timestamp desc
 ```
 
-#### Spatial Index Fragmentation Trends
-
+**Performance Investigation**:
 ```kusto
-customMetrics
-| where name startswith "SpatialIndexFragmentation_"
-| summarize avg(value), max(value), min(value) by bin(timestamp, 1h), name
-| render timechart
+dependencies
+| where name contains "SQL"
+| where duration > 1000  -- > 1 second
+| summarize
+    Count = count(),
+    AvgDuration = avg(duration),
+    P95 = percentile(duration, 95)
+  by target, name
+| order by P95 desc
+```
+
+## Grafana Dashboard (Alternative to Application Insights)
+
+### SQL Server Data Source
+
+**Query for Ingestion Rate**:
+```sql
+SELECT
+    $__timeGroup(CreatedAt, '5m', 0) AS time,
+    COUNT(*) AS "Atoms Ingested"
+FROM dbo.Atom
+WHERE $__timeFilter(CreatedAt)
+GROUP BY $__timeGroup(CreatedAt, '5m', 0)
+ORDER BY time;
+```
+
+**Query for OODA Success Rate**:
+```sql
+SELECT
+    $__timeGroup(CreatedAt, '1h', 0) AS time,
+    CAST(SUM(CASE WHEN Status = 'Success' THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS INT) AS "Success Rate %"
+FROM dbo.AutonomousImprovementHistory
+WHERE $__timeFilter(CreatedAt)
+GROUP BY $__timeGroup(CreatedAt, '1h', 0)
+ORDER BY time;
 ```
 
 ---
 
-## Troubleshooting
-
-### High Spatial Query Latency
-
-**Symptoms**: Spatial queries taking >100ms
-
-**Diagnosis**:
-```sql
--- Check spatial index fragmentation
-SELECT 
-    OBJECT_NAME(s.object_id) AS TableName,
-    i.name AS IndexName,
-    s.avg_fragmentation_in_percent
-FROM sys.dm_db_index_physical_stats(DB_ID(), NULL, NULL, NULL, 'LIMITED') s
-INNER JOIN sys.indexes i ON s.object_id = i.object_id AND s.index_id = i.index_id
-WHERE i.type_desc = 'SPATIAL';
-
--- Check spatial query plan
-SET STATISTICS IO ON;
-SET STATISTICS TIME ON;
-
-SELECT TOP 100 AtomId
-FROM dbo.AtomEmbedding
-WHERE SpatialKey.STIntersects(geometry::Point(50, 50, 0).STBuffer(10)) = 1;
-```
-
-**Resolution**:
-```sql
--- Rebuild fragmented spatial indexes
-ALTER INDEX IX_AtomEmbedding_Spatial ON dbo.AtomEmbedding REBUILD;
-
--- Update statistics
-UPDATE STATISTICS dbo.AtomEmbedding;
-```
-
-### OODA Loop Queue Backlog
-
-**Symptoms**: MessageCount > 10,000 in OODA queues
-
-**Diagnosis**:
-```sql
--- Check queue depths
-SELECT 
-    q.name,
-    COUNT(c.conversation_handle) AS MessageCount,
-    q.is_receive_enabled,
-    q.is_enqueue_enabled
-FROM sys.service_queues q
-LEFT JOIN sys.conversation_endpoints c ON q.object_id = c.service_id
-WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')
-GROUP BY q.name, q.is_receive_enabled, q.is_enqueue_enabled;
-
--- Check internal activation status
-SELECT 
-    q.name,
-    q.max_readers,
-    COUNT(ac.conversation_handle) AS ActiveConversations
-FROM sys.service_queues q
-LEFT JOIN sys.dm_broker_activated_tasks ac ON q.object_id = ac.queue_id
-WHERE q.name IN ('AnalyzeQueue', 'HypothesizeQueue', 'ActQueue', 'LearnQueue')
-GROUP BY q.name, q.max_readers;
-```
-
-**Resolution**:
-```sql
--- Increase max readers (if CPU allows)
-ALTER QUEUE AnalyzeQueue WITH ACTIVATION (MAX_QUEUE_READERS = 5);
-
--- Temporarily disable enqueue if overwhelming
-ALTER QUEUE AnalyzeQueue WITH STATUS = OFF;
-
--- Process backlog, then re-enable
-ALTER QUEUE AnalyzeQueue WITH STATUS = ON;
-```
-
-### Neo4j Sync Lag
-
-**Symptoms**: Neo4jSyncLagSeconds > 60
-
-**Diagnosis**:
-```sql
--- Check Neo4j sync queue
-SELECT 
-    COUNT(*) AS PendingSync,
-    MIN(CreatedAt) AS OldestMessage,
-    DATEDIFF(SECOND, MIN(CreatedAt), GETUTCDATE()) AS LagSeconds
-FROM dbo.Neo4jSyncQueue
-WHERE Status = 'Pending';
-
--- Check failed sync attempts
-SELECT TOP 20 
-    EntityType,
-    EntityId,
-    ErrorMessage,
-    RetryCount,
-    CreatedAt
-FROM dbo.Neo4jSyncLog
-WHERE Status = 'Failed'
-ORDER BY CreatedAt DESC;
-```
-
-**Resolution**:
-```powershell
-# Restart Neo4j service
-Restart-Service neo4j
-
-# Verify Neo4j connectivity
-Invoke-RestMethod -Uri "http://localhost:7474/db/data/" -Method Get
-
-# Retry failed syncs
-Invoke-Sqlcmd -Query "EXEC dbo.sp_RetryFailedNeo4jSync" -ServerInstance localhost -Database Hartonomous
-```
-
----
-
-## Summary
-
-**Key Monitoring Components**:
-
-1. ✅ **Application Insights**: API telemetry, custom events, distributed tracing
-2. ✅ **Performance Counters**: SQL Server DMVs, spatial index stats, CLR execution
-3. ✅ **Health Checks**: `/health`, `/health/database`, `/health/neo4j`, custom checks
-4. ✅ **Alert Rules**: Spatial latency, OODA failures, Neo4j lag
-5. ✅ **Dashboards**: Azure Portal dashboards, KQL queries
-
-**Operational Targets**:
-- Spatial query latency: <18ms (1B atoms)
-- OODA cycle time: 15-minute scheduled interval
-- Spatial index fragmentation: <10% (reorganize at 10-30%, rebuild >30%)
-- Neo4j sync lag: <10 seconds
-- OODA success rate: >80%
-
-**Next Steps**:
-- See `docs/operations/backup-recovery.md` for disaster recovery procedures
-- See `docs/operations/performance-tuning.md` for optimization strategies
+**Document Version**: 2.0
+**Last Updated**: January 2025
