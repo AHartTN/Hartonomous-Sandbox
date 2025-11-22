@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Models.Audio;
+using Hartonomous.Core.Utilities;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
@@ -14,160 +15,132 @@ namespace Hartonomous.Infrastructure.Atomizers;
 /// Atomizes audio samples from streaming sources.
 /// Converts PCM audio data into individual sample atoms with temporal positions.
 /// </summary>
-public class AudioStreamAtomizer : IAtomizer<AudioBuffer>
+public class AudioStreamAtomizer : BaseAtomizer<AudioBuffer>
 {
-    private const int MaxAtomSize = 64;
-    public int Priority => 70;
+    public AudioStreamAtomizer(ILogger<AudioStreamAtomizer> logger) : base(logger) { }
 
-    public bool CanHandle(string contentType, string? fileExtension)
+    public override int Priority => 70;
+
+    public override bool CanHandle(string contentType, string? fileExtension)
     {
-        return false; // Invoked explicitly via AudioBuffer
+        return false;
     }
 
-    public async Task<AtomizationResult> AtomizeAsync(
+    protected override async Task AtomizeCoreAsync(
         AudioBuffer buffer,
         SourceMetadata source,
+        List<AtomData> atoms,
+        List<AtomComposition> compositions,
+        List<string> warnings,
         CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var atoms = new List<AtomData>();
-        var compositions = new List<AtomComposition>();
-        var warnings = new List<string>();
-
-        try
+        var bufferIdBytes = Encoding.UTF8.GetBytes(buffer.BufferId);
+        var bufferHash = HashUtilities.ComputeSHA256(bufferIdBytes);
+        
+        var bufferAtom = new AtomData
         {
-            // Create buffer metadata atom
-            var bufferIdBytes = Encoding.UTF8.GetBytes(buffer.BufferId);
-            var bufferHash = SHA256.HashData(bufferIdBytes);
-            var bufferAtom = new AtomData
-            {
-                AtomicValue = bufferIdBytes,
-                ContentHash = bufferHash,
-                Modality = "audio",
-                Subtype = "buffer-id",
-                ContentType = $"audio/x-raw-int{buffer.BitsPerSample}",
-                CanonicalText = buffer.BufferId,
-                Metadata = $"{{\"streamId\":\"{buffer.StreamId}\",\"sampleRate\":{buffer.SampleRate},\"channels\":{buffer.Channels},\"bitsPerSample\":{buffer.BitsPerSample},\"timestamp\":\"{buffer.Timestamp:O}\"}}"
-            };
-            atoms.Add(bufferAtom);
+            AtomicValue = bufferIdBytes,
+            ContentHash = bufferHash,
+            Modality = "audio",
+            Subtype = "buffer-id",
+            ContentType = $"audio/x-raw-int{buffer.BitsPerSample}",
+            CanonicalText = buffer.BufferId,
+            Metadata = $"{{\"streamId\":\"{buffer.StreamId}\",\"sampleRate\":{buffer.SampleRate},\"channels\":{buffer.Channels},\"bitsPerSample\":{buffer.BitsPerSample},\"timestamp\":\"{buffer.Timestamp:O}\"}}"
+        };
+        atoms.Add(bufferAtom);
 
-            // Determine bytes per sample
-            int bytesPerSample = buffer.BitsPerSample / 8;
-            int expectedLength = buffer.SampleCount * buffer.Channels * bytesPerSample;
+        int bytesPerSample = buffer.BitsPerSample / 8;
+        int expectedLength = buffer.SampleCount * buffer.Channels * bytesPerSample;
 
-            if (buffer.Samples == null || buffer.Samples.Length != expectedLength)
+        if (buffer.Samples == null || buffer.Samples.Length != expectedLength)
+        {
+            warnings.Add($"Invalid sample data: expected {expectedLength} bytes, got {buffer.Samples?.Length ?? 0}");
+            return;
+        }
+
+        int sampleIndex = 0;
+        var sampleHashes = new HashSet<string>();
+
+        for (int i = 0; i < buffer.SampleCount; i++)
+        {
+            for (int channel = 0; channel < buffer.Channels; channel++)
             {
-                warnings.Add($"Invalid sample data: expected {expectedLength} bytes, got {buffer.Samples?.Length ?? 0}");
-                return new AtomizationResult
+                cancellationToken.ThrowIfCancellationRequested();
+
+                int offset = (i * buffer.Channels + channel) * bytesPerSample;
+                var sampleBytes = new byte[bytesPerSample];
+                Array.Copy(buffer.Samples, offset, sampleBytes, 0, bytesPerSample);
+
+                var sampleHash = HashUtilities.ComputeSHA256(sampleBytes);
+                var sampleHashStr = Convert.ToBase64String(sampleHash);
+
+                if (!sampleHashes.Contains(sampleHashStr))
                 {
-                    Atoms = atoms,
-                    Compositions = compositions,
-                    ProcessingInfo = new ProcessingMetadata
+                    sampleHashes.Add(sampleHashStr);
+
+                    string canonicalValue;
+                    if (buffer.BitsPerSample == 16)
                     {
-                        TotalAtoms = atoms.Count,
-                        UniqueAtoms = atoms.Count,
-                        DurationMs = sw.ElapsedMilliseconds,
-                        AtomizerType = nameof(AudioStreamAtomizer),
-                        DetectedFormat = $"Audio Buffer {buffer.SampleRate}Hz {buffer.Channels}ch",
-                        Warnings = warnings
+                        short sampleValue = BitConverter.ToInt16(sampleBytes, 0);
+                        canonicalValue = sampleValue.ToString();
                     }
-                };
-            }
-
-            int sampleIndex = 0;
-            var sampleHashes = new HashSet<string>();
-
-            for (int i = 0; i < buffer.SampleCount; i++)
-            {
-                for (int channel = 0; channel < buffer.Channels; channel++)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-
-                    int offset = (i * buffer.Channels + channel) * bytesPerSample;
-                    var sampleBytes = new byte[bytesPerSample];
-                    Array.Copy(buffer.Samples, offset, sampleBytes, 0, bytesPerSample);
-
-                    var sampleHash = SHA256.HashData(sampleBytes);
-                    var sampleHashStr = Convert.ToBase64String(sampleHash);
-
-                    // Deduplicate identical samples
-                    if (!sampleHashes.Contains(sampleHashStr))
+                    else if (buffer.BitsPerSample == 32)
                     {
-                        sampleHashes.Add(sampleHashStr);
-
-                        // Convert sample bytes to numeric value for canonical text
-                        string canonicalValue;
-                        if (buffer.BitsPerSample == 16)
-                        {
-                            short sampleValue = BitConverter.ToInt16(sampleBytes, 0);
-                            canonicalValue = sampleValue.ToString();
-                        }
-                        else if (buffer.BitsPerSample == 32)
-                        {
-                            int sampleValue = BitConverter.ToInt32(sampleBytes, 0);
-                            canonicalValue = sampleValue.ToString();
-                        }
-                        else
-                        {
-                            canonicalValue = BitConverter.ToString(sampleBytes).Replace("-", "");
-                        }
-
-                        var sampleAtom = new AtomData
-                        {
-                            AtomicValue = sampleBytes,
-                            ContentHash = sampleHash,
-                            Modality = "audio",
-                            Subtype = $"sample-pcm{buffer.BitsPerSample}",
-                            ContentType = $"audio/x-raw-int{buffer.BitsPerSample}",
-                            CanonicalText = canonicalValue,
-                            Metadata = $"{{\"bitsPerSample\":{buffer.BitsPerSample},\"channel\":{channel}}}"
-                        };
-                        atoms.Add(sampleAtom);
+                        int sampleValue = BitConverter.ToInt32(sampleBytes, 0);
+                        canonicalValue = sampleValue.ToString();
+                    }
+                    else
+                    {
+                        canonicalValue = BitConverter.ToString(sampleBytes).Replace("-", "");
                     }
 
-                    // Link buffer → sample with temporal position
-                    // X = channel, Y = sample index, Z = 0, M = timestamp in seconds
-                    double sampleTime = buffer.Timestamp.Ticks / 10000000.0 + (i / (double)buffer.SampleRate);
-                    
-                    compositions.Add(new AtomComposition
+                    var sampleAtom = new AtomData
                     {
-                        ParentAtomHash = bufferHash,
-                        ComponentAtomHash = sampleHash,
-                        SequenceIndex = sampleIndex,
-                        Position = new SpatialPosition
-                        {
-                            X = channel,
-                            Y = i,
-                            Z = 0,
-                            M = sampleTime
-                        }
-                    });
-
-                    sampleIndex++;
+                        AtomicValue = sampleBytes,
+                        ContentHash = sampleHash,
+                        Modality = "audio",
+                        Subtype = $"sample-pcm{buffer.BitsPerSample}",
+                        ContentType = $"audio/x-raw-int{buffer.BitsPerSample}",
+                        CanonicalText = canonicalValue,
+                        Metadata = $"{{\"bitsPerSample\":{buffer.BitsPerSample},\"channel\":{channel}}}"
+                    };
+                    atoms.Add(sampleAtom);
                 }
+
+                double sampleTime = buffer.Timestamp.Ticks / 10000000.0 + (i / (double)buffer.SampleRate);
+                
+                CreateAtomComposition(
+                    bufferHash,
+                    sampleHash,
+                    sampleIndex,
+                    compositions,
+                    x: channel,
+                    y: i,
+                    z: 0,
+                    m: sampleTime);
+
+                sampleIndex++;
             }
-
-            sw.Stop();
-
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = sampleHashes.Count + 1, // +1 for buffer atom
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(AudioStreamAtomizer),
-                    DetectedFormat = $"Audio Buffer {buffer.SampleRate}Hz {buffer.Channels}ch {buffer.BitsPerSample}bit ({sampleIndex} samples)",
-                    Warnings = warnings.Count > 0 ? warnings : null
-                }
-            };
         }
-        catch (Exception ex)
-        {
-            warnings.Add($"Audio buffer atomization failed: {ex.Message}");
-            throw;
-        }
+
+        await Task.CompletedTask;
+    }
+
+    protected override string GetDetectedFormat() => "audio buffer stream";
+    protected override string GetModality() => "audio";
+
+    protected override byte[] GetFileMetadataBytes(AudioBuffer input, SourceMetadata source)
+    {
+        return Encoding.UTF8.GetBytes($"audio-buffer:{input.BufferId}:{input.SampleCount}");
+    }
+
+    protected override string GetCanonicalFileText(AudioBuffer input, SourceMetadata source)
+    {
+        return $"{input.BufferId} ({input.SampleCount} samples)";
+    }
+
+    protected override string GetFileMetadataJson(AudioBuffer input, SourceMetadata source)
+    {
+        return $"{{\"streamId\":\"{input.StreamId}\",\"bufferId\":\"{input.BufferId}\",\"sampleRate\":{input.SampleRate},\"channels\":{input.Channels},\"bitsPerSample\":{input.BitsPerSample},\"sampleCount\":{input.SampleCount}}}";
     }
 }
