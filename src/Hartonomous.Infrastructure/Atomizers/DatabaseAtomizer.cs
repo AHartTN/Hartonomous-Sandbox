@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Models.Database;
 using Microsoft.Data.SqlClient;
 
 namespace Hartonomous.Infrastructure.Atomizers;
