@@ -2,6 +2,14 @@
 -- before the DACPAC deployment. This prevents "object already exists" errors
 -- and handles dependency chains correctly by dropping them in the reverse order of creation.
 
+-- Check if database exists, exit early if not (nothing to clean up)
+IF NOT EXISTS (SELECT 1 FROM sys.databases WHERE name = '$(DatabaseName)')
+BEGIN
+    PRINT 'Database [$(DatabaseName)] does not exist yet - skipping pre-deployment cleanup';
+    RETURN;
+END
+GO
+
 USE [$(DatabaseName)];
 GO
 
