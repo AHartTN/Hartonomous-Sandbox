@@ -2,113 +2,95 @@ using System;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
 using Hartonomous.Core.Models.Database;
+using Hartonomous.Core.Utilities;
 using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Logging;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
-/// <summary>
-/// Atomizes database content by extracting schema metadata, tables, columns, and row data.
-/// Supports SQL Server with extensibility for other databases.
-/// Converts relational data into atoms with spatial relationships.
-/// </summary>
-public class DatabaseAtomizer : IAtomizer<DatabaseConnectionInfo>
+public class DatabaseAtomizer : BaseAtomizer<DatabaseConnectionInfo>
 {
-    private const int MaxAtomSize = 64;
-    public int Priority => 40;
+    public DatabaseAtomizer(ILogger<DatabaseAtomizer> logger) : base(logger) { }
 
-    public bool CanHandle(string contentType, string? fileExtension)
-    {
-        // This atomizer is invoked explicitly via connection info, not file type
-        return false;
-    }
+    public override int Priority => 40;
 
-    public async Task<AtomizationResult> AtomizeAsync(
+    public override bool CanHandle(string contentType, string? fileExtension) => false;
+
+    protected override async Task AtomizeCoreAsync(
         DatabaseConnectionInfo connectionInfo,
         SourceMetadata source,
+        List<AtomData> atoms,
+        List<AtomComposition> compositions,
+        List<string> warnings,
         CancellationToken cancellationToken)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var atoms = new List<AtomData>();
-        var compositions = new List<AtomComposition>();
-        var warnings = new List<string>();
+        using var connection = new SqlConnection(connectionInfo.ConnectionString);
+        await connection.OpenAsync(cancellationToken);
 
-        try
+        var dbNameBytes = Encoding.UTF8.GetBytes(connection.Database);
+        var dbHash = HashUtilities.ComputeSHA256(dbNameBytes);
+        
+        var dbAtom = new AtomData
         {
-            using var connection = new SqlConnection(connectionInfo.ConnectionString);
-            await connection.OpenAsync(cancellationToken);
+            AtomicValue = dbNameBytes,
+            ContentHash = dbHash,
+            Modality = "database",
+            Subtype = "database-name",
+            ContentType = "application/x-sql",
+            CanonicalText = connection.Database,
+            Metadata = $"{{\"server\":\"{connection.DataSource}\",\"database\":\"{connection.Database}\"}}"
+        };
+        atoms.Add(dbAtom);
 
-            // Create database metadata atom (just the name)
-            var dbNameBytes = Encoding.UTF8.GetBytes(connection.Database);
-            var dbHash = SHA256.HashData(dbNameBytes);
-            var dbAtom = new AtomData
+        var tables = await GetTablesAsync(connection, cancellationToken);
+        
+        int tableIndex = 0;
+        foreach (var table in tables)
+        {
+            if (tableIndex >= connectionInfo.MaxTables)
             {
-                AtomicValue = dbNameBytes,
-                ContentHash = dbHash,
-                Modality = "database",
-                Subtype = "database-name",
-                ContentType = "application/x-sql",
-                CanonicalText = connection.Database,
-                Metadata = $"{{\"server\":\"{connection.DataSource}\",\"database\":\"{connection.Database}\"}}"
-            };
-            atoms.Add(dbAtom);
-
-            // Get all tables
-            var tables = await GetTablesAsync(connection, cancellationToken);
-            
-            int tableIndex = 0;
-            foreach (var table in tables)
-            {
-                // Process each table (limit to avoid overwhelming)
-                if (tableIndex >= connectionInfo.MaxTables)
-                {
-                    warnings.Add($"Limiting to {connectionInfo.MaxTables} tables");
-                    break;
-                }
-
-                var tableResult = await AtomizeTableAsync(
-                    connection,
-                    table.Schema,
-                    table.Name,
-                    dbHash,
-                    tableIndex,
-                    connectionInfo.MaxRowsPerTable,
-                    cancellationToken);
-
-                atoms.AddRange(tableResult.atoms);
-                compositions.AddRange(tableResult.compositions);
-                warnings.AddRange(tableResult.warnings);
-
-                tableIndex++;
+                warnings.Add($"Limiting to {connectionInfo.MaxTables} tables");
+                break;
             }
 
-            sw.Stop();
+            var tableResult = await AtomizeTableAsync(
+                connection,
+                table.Schema,
+                table.Name,
+                dbHash,
+                tableIndex,
+                connectionInfo.MaxRowsPerTable,
+                cancellationToken);
 
-            return new AtomizationResult
-            {
-                Atoms = atoms,
-                Compositions = compositions,
-                ProcessingInfo = new ProcessingMetadata
-                {
-                    TotalAtoms = atoms.Count,
-                    UniqueAtoms = atoms.Select(a => Convert.ToBase64String(a.ContentHash)).Distinct().Count(),
-                    DurationMs = sw.ElapsedMilliseconds,
-                    AtomizerType = nameof(DatabaseAtomizer),
-                    DetectedFormat = $"SQL Server - {tables.Count} tables",
-                    Warnings = warnings.Count > 0 ? warnings : null
-                }
-            };
+            atoms.AddRange(tableResult.atoms);
+            compositions.AddRange(tableResult.compositions);
+            warnings.AddRange(tableResult.warnings);
+
+            tableIndex++;
         }
-        catch (Exception ex)
-        {
-            warnings.Add($"Database atomization failed: {ex.Message}");
-            throw;
-        }
+    }
+
+    protected override string GetDetectedFormat() => "SQL Server database";
+    protected override string GetModality() => "database";
+
+    protected override byte[] GetFileMetadataBytes(DatabaseConnectionInfo input, SourceMetadata source)
+    {
+        return Encoding.UTF8.GetBytes($"database:sqlserver:{input.MaxTables}");
+    }
+
+    protected override string GetCanonicalFileText(DatabaseConnectionInfo input, SourceMetadata source)
+    {
+        return $"SQL Server ({input.MaxTables} tables max)";
+    }
+
+    protected override string GetFileMetadataJson(DatabaseConnectionInfo input, SourceMetadata source)
+    {
+        return $"{{\"type\":\"sqlserver\",\"maxTables\":{input.MaxTables},\"maxRowsPerTable\":{input.MaxRowsPerTable}}}";
     }
 
     private async Task<List<(string Schema, string Name)>> GetTablesAsync(
@@ -150,61 +132,35 @@ public class DatabaseAtomizer : IAtomizer<DatabaseConnectionInfo>
 
         try
         {
-            // Create table name atom
             var tableFullName = $"{schema}.{tableName}";
             var tableBytes = Encoding.UTF8.GetBytes(tableFullName);
-            var tableHash = SHA256.HashData(tableBytes);
-            var tableAtom = new AtomData
-            {
-                AtomicValue = tableBytes,
-                ContentHash = tableHash,
-                Modality = "database",
-                Subtype = "table-name",
-                ContentType = "application/x-sql",
-                CanonicalText = tableFullName,
-                Metadata = $"{{\"schema\":\"{schema}\",\"table\":\"{tableName}\"}}"
-            };
-            atoms.Add(tableAtom);
+            var tableHash = CreateContentAtom(
+                tableBytes,
+                "database",
+                "table-name",
+                tableFullName,
+                $"{{\"schema\":\"{schema}\",\"table\":\"{tableName}\"}}",
+                atoms);
 
-            // Link table to database
-            compositions.Add(new AtomComposition
-            {
-                ParentAtomHash = dbHash,
-                ComponentAtomHash = tableHash,
-                SequenceIndex = tableIndex,
-                Position = new SpatialPosition { X = 0, Y = tableIndex, Z = 0 }
-            });
+            CreateAtomComposition(dbHash, tableHash, tableIndex, compositions, y: tableIndex);
 
-            // Get columns
             var columns = await GetColumnsAsync(connection, schema, tableName, cancellationToken);
 
             int colIndex = 0;
             foreach (var column in columns)
             {
                 var colBytes = Encoding.UTF8.GetBytes(column.Name);
-                var colHash = SHA256.HashData(colBytes);
-                var colAtom = new AtomData
-                {
-                    AtomicValue = colBytes,
-                    ContentHash = colHash,
-                    Modality = "database",
-                    Subtype = "column-name",
-                    ContentType = "application/x-sql",
-                    CanonicalText = column.Name,
-                    Metadata = $"{{\"name\":\"{column.Name}\",\"dataType\":\"{column.DataType}\",\"nullable\":{column.IsNullable.ToString().ToLower()}}}"
-                };
-                atoms.Add(colAtom);
+                var colHash = CreateContentAtom(
+                    colBytes,
+                    "database",
+                    "column-name",
+                    column.Name,
+                    $"{{\"name\":\"{column.Name}\",\"dataType\":\"{column.DataType}\",\"nullable\":{column.IsNullable.ToString().ToLower()}}}",
+                    atoms);
 
-                compositions.Add(new AtomComposition
-                {
-                    ParentAtomHash = tableHash,
-                    ComponentAtomHash = colHash,
-                    SequenceIndex = colIndex++,
-                    Position = new SpatialPosition { X = colIndex, Y = 0, Z = 0 }
-                });
+                CreateAtomComposition(tableHash, colHash, colIndex++, compositions, x: colIndex);
             }
 
-            // Get sample rows
             var query = $"SELECT TOP {maxRows} * FROM [{schema}].[{tableName}];";
             using var command = new SqlCommand(query, connection);
             using var reader = await command.ExecuteReaderAsync(cancellationToken);
@@ -212,10 +168,10 @@ public class DatabaseAtomizer : IAtomizer<DatabaseConnectionInfo>
             int rowIndex = 0;
             while (await reader.ReadAsync(cancellationToken))
             {
-                // Create row metadata atom (composite key or first column value)
                 var rowKey = reader.GetValue(0)?.ToString() ?? $"row_{rowIndex}";
                 var rowBytes = Encoding.UTF8.GetBytes($"{tableFullName}:row{rowIndex}");
-                var rowHash = SHA256.HashData(Encoding.UTF8.GetBytes($"{tableFullName}:{rowKey}:{rowIndex}"));
+                var rowHash = HashUtilities.ComputeSHA256(Encoding.UTF8.GetBytes($"{tableFullName}:{rowKey}:{rowIndex}"));
+                
                 var rowAtom = new AtomData
                 {
                     AtomicValue = rowBytes,
@@ -228,15 +184,8 @@ public class DatabaseAtomizer : IAtomizer<DatabaseConnectionInfo>
                 };
                 atoms.Add(rowAtom);
 
-                compositions.Add(new AtomComposition
-                {
-                    ParentAtomHash = tableHash,
-                    ComponentAtomHash = rowHash,
-                    SequenceIndex = rowIndex,
-                    Position = new SpatialPosition { X = 0, Y = rowIndex, Z = 0 }
-                });
+                CreateAtomComposition(tableHash, rowHash, rowIndex, compositions, y: rowIndex);
 
-                // Atomize cell values
                 for (int i = 0; i < reader.FieldCount; i++)
                 {
                     var value = reader.GetValue(i);
@@ -246,35 +195,19 @@ public class DatabaseAtomizer : IAtomizer<DatabaseConnectionInfo>
                     var cellValueStr = value.ToString() ?? "";
                     var cellBytes = Encoding.UTF8.GetBytes(cellValueStr);
                     
-                    // Truncate large values
                     if (cellBytes.Length > MaxAtomSize)
                         cellBytes = cellBytes.Take(MaxAtomSize).ToArray();
 
-                    var cellHash = SHA256.HashData(cellBytes);
-                    var cellAtom = new AtomData
-                    {
-                        AtomicValue = cellBytes,
-                        ContentHash = cellHash,
-                        Modality = "database",
-                        Subtype = "cell-value",
-                        ContentType = "text/plain",
-                        CanonicalText = cellValueStr.Length > 100 ? cellValueStr[..100] + "..." : cellValueStr,
-                        Metadata = $"{{\"column\":\"{reader.GetName(i)}\",\"dataType\":\"{value.GetType().Name}\"}}"
-                    };
+                    var canonicalText = cellValueStr.Length > 100 ? cellValueStr[..100] + "..." : cellValueStr;
+                    var cellHash = CreateContentAtom(
+                        cellBytes,
+                        "database",
+                        "cell-value",
+                        canonicalText,
+                        $"{{\"column\":\"{reader.GetName(i)}\",\"dataType\":\"{value.GetType().Name}\"}}",
+                        atoms);
 
-                    // Only add if unique
-                    if (!atoms.Any(a => a.ContentHash.SequenceEqual(cellHash)))
-                    {
-                        atoms.Add(cellAtom);
-                    }
-
-                    compositions.Add(new AtomComposition
-                    {
-                        ParentAtomHash = rowHash,
-                        ComponentAtomHash = cellHash,
-                        SequenceIndex = i,
-                        Position = new SpatialPosition { X = i, Y = rowIndex, Z = 0 }
-                    });
+                    CreateAtomComposition(rowHash, cellHash, i, compositions, x: i, y: rowIndex);
                 }
 
                 rowIndex++;
