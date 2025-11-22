@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Infrastructure.Atomizers.Configuration;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 

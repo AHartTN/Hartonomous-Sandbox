@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Models.Telemetry;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 

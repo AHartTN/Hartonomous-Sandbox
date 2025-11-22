@@ -7,6 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Hartonomous.Core.Interfaces.Ingestion;
+using Hartonomous.Core.Models.Telemetry;
 
 namespace Hartonomous.Infrastructure.Atomizers;
 
@@ -197,39 +198,4 @@ public class TelemetryAtomizer : IAtomizer<TelemetryDataPoint>
             throw;
         }
     }
-}
-
-/// <summary>
-/// Represents a single telemetry data point from a device/sensor.
-/// </summary>
-public class TelemetryDataPoint
-{
-    public required string DeviceId { get; set; }
-    public string? DeviceType { get; set; } // "scada", "security-camera", "iot-sensor", "plc", etc.
-    public string? Location { get; set; }
-    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
-    public long SequenceNumber { get; set; }
-    public required List<TelemetryMetric> Metrics { get; set; }
-    public List<TelemetryEvent>? Events { get; set; }
-}
-
-/// <summary>
-/// Individual measurement/metric from a sensor.
-/// </summary>
-public class TelemetryMetric
-{
-    public required string Name { get; set; } // "temperature", "pressure", "motion_detected", etc.
-    public required object Value { get; set; } // Supports double, float, int, long, bool, string
-    public string? Unit { get; set; } // "°C", "PSI", "RPM", "%", etc.
-}
-
-/// <summary>
-/// Event/alert from a device.
-/// </summary>
-public class TelemetryEvent
-{
-    public required string Message { get; set; }
-    public required string Severity { get; set; } // "Info", "Warning", "Error", "Critical"
-    public string? Code { get; set; }
-    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 }
