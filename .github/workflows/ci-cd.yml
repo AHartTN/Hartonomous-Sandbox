@@ -303,7 +303,6 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Verify .NET SDK
-        shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           
@@ -329,9 +328,9 @@ jobs:
           } else {
             Write-Host "✓ .NET SDK version meets minimum requirement (${{ env.DOTNET_VERSION }})"
           }
+        shell: pwsh
       
       - name: Install EF Core tools
-        shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           
@@ -366,3 +365,193 @@ jobs:
           } else {
             throw "dotnet-ef installation failed - executable not found at $efExe"
           }
+        shell: pwsh
+      
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      
+      - name: Get SQL Access Token
+        id: get-token
+        shell: pwsh
+        run: |
+          $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
+          echo "::add-mask::$token"
+          "token=$token" >> $env:GITHUB_OUTPUT
+      
+      - name: Scaffold EF Core Entities
+        shell: pwsh
+        env:
+          AZURE_SQL_ACCESS_TOKEN: ${{ steps.get-token.outputs.token }}
+          SQL_SERVER: ${{ env.SQL_SERVER }}
+          SQL_DATABASE: ${{ env.SQL_DATABASE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          
+          Write-Host "Scaffolding EF Core entities from database schema..."
+          Write-Host "Access token length: $($env:AZURE_SQL_ACCESS_TOKEN.Length) characters"
+          
+          $scriptPath = Join-Path $env:GITHUB_WORKSPACE "scripts\scaffold-entities.ps1"
+          
+          & $scriptPath `
+            -Server "${{ env.SQL_SERVER }}" `
+            -Database "${{ env.SQL_DATABASE }}" `
+            -UseAzureAD
+          
+          Write-Host "✓ EF Core entities scaffolded"
+      
+      - name: Upload scaffolded entities
+        uses: actions/upload-artifact@v4
+        with:
+          name: scaffolded-entities
+          path: src/Hartonomous.Data.Entities/
+          retention-days: 7
+
+  build-and-test:
+    name: Build and Test .NET Solution
+    runs-on: [self-hosted, linux]
+    needs: scaffold-entities
+    
+    env:
+      DOTNET_INSTALL_DIR: /var/workload/GitHub/github-runner/actions-tool-cache/dotnet
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Download scaffolded entities
+        uses: actions/download-artifact@v4
+        with:
+          name: scaffolded-entities
+          path: src/Hartonomous.Data.Entities/
+      
+      - name: Display .NET Info
+        run: dotnet --info
+      
+      - name: Restore NuGet packages
+        run: dotnet restore Hartonomous.Tests.sln --verbosity minimal
+        shell: pwsh
+      
+      - name: Build solution
+        run: |
+          Write-Host "Building solution in ${{ env.BUILD_CONFIGURATION }} mode..."
+          dotnet build Hartonomous.Tests.sln `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-restore `
+            --verbosity minimal
+        shell: pwsh
+
+      - name: Install Playwright browsers
+        run: pwsh tests/Hartonomous.EndToEndTests/bin/Release/net10.0/playwright.ps1 install chromium
+        shell: pwsh
+
+      - name: Run unit tests
+        run: |
+          Write-Host "Running unit tests with hybrid database testing..."
+          Write-Host "Environment: CI=${{ env.CI }} (will use Docker/Testcontainers)"
+          
+          dotnet test Hartonomous.Tests.sln `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --no-build `
+            --collect:"XPlat Code Coverage" `
+            --logger "trx;LogFileName=test-results.trx" `
+            --results-directory ./TestResults `
+            -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=opencover
+          
+          Write-Host "✓ Tests completed"
+        shell: pwsh
+        env:
+          CI: true  # DatabaseTestBase will use Docker (Testcontainers)
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: TestResults/
+          retention-days: 7
+      
+      - name: Build summary
+        if: always()
+        shell: pwsh
+        run: |
+          Write-Host "`n=== Build Summary ==="
+          
+          $testResults = Get-ChildItem -Path "TestResults" -Filter "*.trx" -Recurse | Select-Object -First 1
+          
+          if ($testResults) {
+            [xml]$trx = Get-Content $testResults.FullName
+            $counters = $trx.TestRun.ResultSummary.Counters
+            
+            Write-Host "Tests Total: $($counters.total)"
+            Write-Host "Tests Passed: $($counters.passed)"
+            Write-Host "Tests Failed: $($counters.failed)"
+            Write-Host "Tests Skipped: $($counters.notExecuted)"
+            
+            $summary = @"
+          ## Test Results
+          - ✅ Passed: $($counters.passed)
+          - ❌ Failed: $($counters.failed)
+          - ⏭️ Skipped: $($counters.notExecuted)
+          - 📊 Total: $($counters.total)
+          "@
+            
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value $summary
+          }
+
+  build-applications:
+    name: Build Applications
+    runs-on: [self-hosted, linux]
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download scaffolded entities
+        uses: actions/download-artifact@v4
+        with:
+          name: scaffolded-entities
+          path: src/Hartonomous.Data.Entities/
+      
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+      
+      - name: Restore dependencies
+        run: dotnet restore Hartonomous.Tests.sln
+      
+      - name: Publish Hartonomous.Api
+        shell: pwsh
+        run: |
+          Write-Host "Publishing Hartonomous.Api..."
+          
+          $outputPath = Join-Path $env:GITHUB_WORKSPACE "artifacts\api"
+          
+          dotnet publish src/Hartonomous.Api/Hartonomous.Api.csproj `
+            --configuration ${{ env.BUILD_CONFIGURATION }} `
+            --output $outputPath `
+            --no-restore `
+            /p:PublishSingleFile=false `
+            /p:PublishTrimmed=false
+          
+          Write-Host "✓ Hartonomous.Api published to: $outputPath"
+      
+      - name: Upload application artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: applications
+          path: artifacts/
+          retention-days: 7
