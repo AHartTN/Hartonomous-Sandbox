@@ -1,3 +1,5 @@
+using Hartonomous.Core.Models.Vision;
+
 namespace Hartonomous.Core.Interfaces.Vision;
 
 /// <summary>

@@ -3,7 +3,7 @@ using Hartonomous.DatabaseTests.Infrastructure;
 using Microsoft.Data.SqlClient;
 using System.Data;
 using Xunit;
-using Xunit.Abstracts;
+using Xunit.Abstractions;
 
 namespace Hartonomous.DatabaseTests.Tests.StoredProcedures;
 
