@@ -391,8 +391,8 @@ namespace Hartonomous.Clr.MachineLearning
             for (int i = 0; i < points.Length; i++)
             {
                 // Find K nearest neighbors in original space
-                var spatialNeighbors = new System.Collections.Generic.List<int>();
-                var distances = new System.Collections.Generic.List<(int idx, double dist)>();
+                var spatialNeighbors = new List<int>();
+                var distances = new List<(int idx, double dist)>();
 
                 for (int j = 0; j < points.Length; j++)
                 {
@@ -406,8 +406,8 @@ namespace Hartonomous.Clr.MachineLearning
                     spatialNeighbors.Add(distances[n].idx);
 
                 // Find K nearest neighbors on curve
-                var curveNeighbors = new System.Collections.Generic.List<int>();
-                var curveDistances = new System.Collections.Generic.List<(int idx, ulong dist)>();
+                var curveNeighbors = new List<int>();
+                var curveDistances = new List<(int idx, ulong dist)>();
 
                 for (int j = 0; j < curveIndices.Length; j++)
                 {

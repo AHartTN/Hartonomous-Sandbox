@@ -1,6 +1,5 @@
 using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Data.Entities;
-using Hartonomous.Data.Entities.Entities;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -34,7 +33,7 @@ public class BackgroundJobService : IBackgroundJobService
     {
         var correlationId = Guid.NewGuid();
         
-        var job = new Hartonomous.Data.Entities.Entities.BackgroundJob
+        var job = new BackgroundJob
         {
             JobType = jobType,
             Payload = parametersJson,

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Hartonomous.Clr.Core;
 
 namespace Hartonomous.Clr.MachineLearning
@@ -78,7 +79,7 @@ namespace Hartonomous.Clr.MachineLearning
                 return Array.Empty<PatternResult>();
 
             int total = sequence.Length;
-            var patternsList = new System.Collections.Generic.List<PatternResult>();
+            var patternsList = new List<PatternResult>();
 
             // Scan for patterns
             for (int i = 0; i <= total - patternLength; i++)

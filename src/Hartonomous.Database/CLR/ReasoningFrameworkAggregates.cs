@@ -59,7 +59,7 @@ namespace Hartonomous.Clr
                 return;
 
             int step = stepNumber.Value;
-            var node = new MachineLearning.TreeOfThought.ReasoningNode
+            var node = new TreeOfThought.ReasoningNode
             {
                 StepNumber = step,
                 Vector = vec,
@@ -94,7 +94,7 @@ namespace Hartonomous.Clr
                 return SqlString.Null;
 
             // Use extracted TreeOfThought algorithm
-            var result = MachineLearning.TreeOfThought.FindBestPath(
+            var result = TreeOfThought.FindBestPath(
                 nodes,
                 VectorUtilities.CosineSimilarity,
                 VectorUtilities.EuclideanDistance);
@@ -131,7 +131,7 @@ namespace Hartonomous.Clr
 
             for (int i = 0; i < count; i++)
             {
-                var node = new MachineLearning.TreeOfThought.ReasoningNode
+                var node = new TreeOfThought.ReasoningNode
                 {
                     StepNumber = r.ReadInt32(),
                     Confidence = r.ReadDouble(),

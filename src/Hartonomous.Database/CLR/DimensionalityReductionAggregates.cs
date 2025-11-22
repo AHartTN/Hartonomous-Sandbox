@@ -6,6 +6,7 @@ using System.Linq;
 using Microsoft.SqlServer.Server;
 using Newtonsoft.Json;
 using Hartonomous.Clr.Core;
+using Hartonomous.Clr.MachineLearning;
 
 namespace Hartonomous.Clr
 {
@@ -297,8 +298,7 @@ namespace Hartonomous.Clr
             int d = Math.Min(targetDims, 3); // Limit to 2D or 3D
 
             // Use bridge library for PROPER t-SNE implementation
-            // Replaces: "Simplified t-SNE" that was actually random projection
-            var tsne = new Hartonomous.Clr.MachineLearning.TSNEProjection(seed: 42);
+            var tsne = new TSNEProjection(seed: 42);
             
             // Convert List<float[]> to float[][]
             var vectorArray = vectors.ToArray();

@@ -1,5 +1,6 @@
 using Microsoft.SqlServer.Server;
 using Hartonomous.Clr.Contracts;
+using Hartonomous.Clr.Core;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -124,9 +125,9 @@ namespace Hartonomous.Clr.TensorOperations
         /// <summary>
         /// Loads multiple tensors in a single batch operation.
         /// </summary>
-        public System.Collections.Generic.Dictionary<string, float[]> LoadWeightsBatch(System.Collections.Generic.Dictionary<string, string> tensorPatterns)
+        public Dictionary<string, float[]> LoadWeightsBatch(Dictionary<string, string> tensorPatterns)
         {
-            var results = new System.Collections.Generic.Dictionary<string, float[]>();
+            var results = new Dictionary<string, float[]>();
 
             foreach (var kvp in tensorPatterns)
             {
@@ -143,7 +144,7 @@ namespace Hartonomous.Clr.TensorOperations
         /// <summary>
         /// Gets metadata for a tensor without loading the full weights.
         /// </summary>
-        public Hartonomous.Clr.Core.TensorMetadata GetMetadata(string tensorNamePattern)
+        public TensorMetadata GetMetadata(string tensorNamePattern)
         {
             try
             {
@@ -165,7 +166,7 @@ namespace Hartonomous.Clr.TensorOperations
                         {
                             if (reader.Read())
                             {
-                                return new Hartonomous.Clr.Core.TensorMetadata
+                                return new TensorMetadata
                                 {
                                     TensorName = reader.GetString(0),
                                     TensorShape = reader.GetString(1),
