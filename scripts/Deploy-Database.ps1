@@ -232,9 +232,11 @@ function Deploy-ExternalAssemblies {
         return
     }
 
-    # CRITICAL: Hartonomous.Database.dll and Hartonomous.Clr.dll are NOT external dependencies
-    # They are deployed BY the DACPAC, not before it
-    $excludedAssemblies = @('Hartonomous.Database', 'Hartonomous.Clr')
+    # CRITICAL: Exclude assemblies that are DACPAC-generated or already in SQL Server
+    # - Hartonomous.Database.dll, Hartonomous.Clr.dll: deployed BY the DACPAC
+    # - Newtonsoft.Json, Microsoft.SqlServer.Types: shipped with SQL Server 2025
+    # - System.Runtime.Serialization: v4.0.0.0 already in SQL Server system assemblies
+    $excludedAssemblies = @('Hartonomous.Database', 'Hartonomous.Clr', 'Newtonsoft.Json', 'Microsoft.SqlServer.Types', 'System.Runtime.Serialization')
     $dependencyDlls = $dependencyDlls | Where-Object { $excludedAssemblies -notcontains $_.BaseName }
     
     if ($dependencyDlls.Count -eq 0) {
@@ -243,12 +245,10 @@ function Deploy-ExternalAssemblies {
     }
     
     # Define strict dependency order based on dependency analysis
-    # SQL CLR requires ALL assemblies deployed to database, even if they exist in Windows GAC
     $orderedAssemblies = @(
         # Level 1: No dependencies (deploy first)
         'System.Runtime.CompilerServices.Unsafe'
         'System.Buffers'
-        'System.Runtime.Serialization' # Required by Newtonsoft.Json and MathNet.Numerics
 
         # Level 2: Depends only on GAC assemblies
         'System.Numerics.Vectors'      # Depends on System.Numerics (GAC)
@@ -262,10 +262,9 @@ function Deploy-ExternalAssemblies {
         # Level 5: Depends on System.Collections.Immutable
         'System.Reflection.Metadata'   # Depends on System.Collections.Immutable
 
-        # Level 6: Third-party libraries
-        'Microsoft.SqlServer.Types'    # Depends on System, System.Data, System.Xml (all GAC)
-        'Newtonsoft.Json'              # Depends on System.Runtime.Serialization
-        'MathNet.Numerics'             # Depends on System.Runtime.Serialization
+        # Level 6: Third-party libraries (excluded - already in SQL Server)
+        # 'Microsoft.SqlServer.Types', 'Newtonsoft.Json', 'MathNet.Numerics'
+        'MathNet.Numerics'             # Depends on System.Runtime.Serialization (SQL Server v4.0)
     )
     
     # Sort DLLs by defined order, unknown assemblies go last alphabetically
