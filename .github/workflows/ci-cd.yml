@@ -253,34 +253,23 @@ jobs:
           }
         shell: pwsh
 
-      - name: Get Azure AD Access Token for SQL
-        id: get_token
-        run: |
-          $token = (az account get-access-token --resource https://database.windows.net --query accessToken -o tsv)
-          if (-not $token) {
-            throw "Failed to retrieve Azure AD token for SQL Server."
-          }
-          echo "::add-mask::$token"
-          echo "token=$token" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-        shell: pwsh
-
       - name: Execute Unified Database Deployment
         run: |
           $ErrorActionPreference = 'Stop'
-          
+
           # Dynamically locate the DACPAC
           $dacpacPath = Get-ChildItem -Path "./artifacts/database" -Filter "*.dacpac" -File | Select-Object -First 1
-          
+
           if (-not $dacpacPath) {
             throw "DACPAC file not found in artifacts/database"
           }
-          
+
           Write-Host "Deploying DACPAC: $($dacpacPath.FullName)"
-          
+          Write-Host "Using Windows Authentication (GitHub Actions runner service account)"
+
           ./scripts/Deploy-Database.ps1 `
             -Server "${{ secrets.SQL_SERVER }}" `
             -Database "${{ secrets.SQL_DATABASE }}" `
-            -AccessToken "${{ steps.get_token.outputs.token }}" `
             -DacpacPath "$($dacpacPath.FullName)" `
             -DependenciesPath "./dependencies" `
             -ScriptsPath "./scripts/sql"

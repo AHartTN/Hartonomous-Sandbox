@@ -8,9 +8,8 @@ param (
     [ValidateNotNullOrEmpty()]
     [string]$Database,
 
-    [Parameter(Mandatory = $true)]
-    [ValidateNotNullOrEmpty()]
-    [string]$AccessToken,
+    [Parameter(Mandatory = $false)]
+    [string]$AccessToken = "",
 
     [Parameter(Mandatory = $true)]
     [ValidateScript({ Test-Path $_ -PathType Leaf })]
@@ -103,11 +102,15 @@ function Invoke-SqlCmdSafe {
     $sqlParams = @{
         ServerInstance    = $serverInstance
         Database          = $DatabaseName
-        AccessToken       = $AccessToken
         ConnectionTimeout = 30
         QueryTimeout      = $QueryTimeout
         TrustServerCertificate = $true
         ErrorAction       = 'Stop'
+    }
+
+    # Only add AccessToken if provided (otherwise use Windows Auth)
+    if ($AccessToken) {
+        $sqlParams.AccessToken = $AccessToken
     }
 
     # Add variables if provided
@@ -352,14 +355,17 @@ function Deploy-Dacpac {
         Write-Log "Resolved localhost to: $serverInstance (Azure AD auth requires TCP/IP)" -Level Debug
     }
 
-    # Build connection string (without AccessToken - passed separately)
-    $connectionString = "Server=$serverInstance;Database=$Database;Encrypt=True;TrustServerCertificate=True;"
-    
+    # Build connection string (use Windows Auth if no AccessToken)
+    if ($AccessToken) {
+        $connectionString = "Server=$serverInstance;Database=$Database;Encrypt=True;TrustServerCertificate=True;"
+    } else {
+        $connectionString = "Server=$serverInstance;Database=$Database;Integrated Security=True;Encrypt=True;TrustServerCertificate=True;"
+    }
+
     $sqlPackageArgs = @(
         "/Action:Publish",
         "/SourceFile:$DacpacPath",
         "/TargetConnectionString:$connectionString",
-        "/AccessToken:$AccessToken",
         "/p:BlockOnPossibleDataLoss=False",
         "/p:DropObjectsNotInSource=False",
         "/p:AllowIncompatiblePlatform=True",
@@ -371,7 +377,12 @@ function Deploy-Dacpac {
         "/p:IgnoreRoleMembership=False",
         "/v:DependenciesPath=$DependenciesPath"
     )
-    
+
+    # Add AccessToken only if provided (Azure AD auth)
+    if ($AccessToken) {
+        $sqlPackageArgs += "/AccessToken:$AccessToken"
+    }
+
     if ($DryRun) {
         Write-Log "[DRY RUN] Would execute: $sqlPackagePath $($sqlPackageArgs -join ' ')" -Level Warning
         return
