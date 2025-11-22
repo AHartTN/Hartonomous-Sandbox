@@ -1,6 +1,7 @@
 using System.Xml.Linq;
 using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
+using Hartonomous.Workers.Neo4jSync.Models;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Data.SqlClient;

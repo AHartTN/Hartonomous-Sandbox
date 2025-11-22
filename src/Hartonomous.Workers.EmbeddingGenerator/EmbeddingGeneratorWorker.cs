@@ -1,6 +1,7 @@
 using Hartonomous.Core.Interfaces.BackgroundJob;
 using Hartonomous.Data.Entities;
 using Hartonomous.Data.Entities.Entities;
+using Hartonomous.Workers.EmbeddingGenerator.Models;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Data.SqlClient;
@@ -417,14 +418,4 @@ public class EmbeddingGeneratorWorker : BackgroundService
         Buffer.BlockCopy(bytes, 0, floats, 0, bytes.Length);
         return floats;
     }
-}
-
-/// <summary>
-/// Parameters for embedding generation job
-/// </summary>
-internal class EmbeddingJobParameters
-{
-    public long AtomId { get; set; }
-    public int TenantId { get; set; }
-    public string? Modality { get; set; }
 }

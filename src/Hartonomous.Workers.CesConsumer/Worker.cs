@@ -1,6 +1,7 @@
 using System.Xml.Linq;
 using Hartonomous.Core.Services;
 using Hartonomous.Infrastructure.Services;
+using Hartonomous.Workers.CesConsumer.Models;
 using Microsoft.ApplicationInsights;
 using Microsoft.ApplicationInsights.DataContracts;
 using Microsoft.Data.SqlClient;

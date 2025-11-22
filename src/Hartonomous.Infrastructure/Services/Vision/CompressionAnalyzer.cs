@@ -1,4 +1,5 @@
 using System;
+using Hartonomous.Core.Models.Media;
 
 namespace Hartonomous.Infrastructure.Services.Vision;
 
