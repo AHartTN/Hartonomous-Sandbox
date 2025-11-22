@@ -1,10 +1,8 @@
-using Azure.Core;
-using Azure.Identity;
 using Hartonomous.Core.Configuration;
 using Hartonomous.Core.Interfaces.Discovery;
+using Hartonomous.Infrastructure.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using System;
 using System.Collections.Generic;
 using System.Data;
@@ -19,18 +17,15 @@ namespace Hartonomous.Infrastructure.Services.Discovery;
 /// </summary>
 public sealed class SqlDiscoveryService : IDiscoveryService
 {
-    private readonly string _connectionString;
-    private readonly TokenCredential _credential;
+    private readonly ISqlConnectionFactory _connectionFactory;
     private readonly ILogger<SqlDiscoveryService> _logger;
 
     public SqlDiscoveryService(
         ILogger<SqlDiscoveryService> logger,
-        IOptions<DatabaseOptions> options)
+        ISqlConnectionFactory connectionFactory)
     {
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
-        var databaseOptions = options?.Value ?? throw new ArgumentNullException(nameof(options));
-        _connectionString = databaseOptions.HartonomousDb;
-        _credential = new DefaultAzureCredential();
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
     }
 
     public async Task<ConceptClusteringResult> ClusterConceptsAsync(
@@ -55,8 +50,7 @@ public sealed class SqlDiscoveryService : IDiscoveryService
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_ClusterConcepts", connection)
         {
@@ -131,8 +125,7 @@ public sealed class SqlDiscoveryService : IDiscoveryService
             "DiscoverAndBind: AtomId {AtomId}, MaxConcepts {MaxConcepts}, Threshold {Threshold}",
             atomId, maxConcepts, confidenceThreshold);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_DiscoverAndBindConcepts", connection)
         {
@@ -172,8 +165,7 @@ public sealed class SqlDiscoveryService : IDiscoveryService
 
         _logger.LogInformation("BuildDomains: TenantId {TenantId}, MaxDepth {MaxDepth}", tenantId, maxDepth);
 
-        await using var connection = new SqlConnection(_connectionString);
-        await SetupConnectionAsync(connection, cancellationToken);
+        await using var connection = await _connectionFactory.CreateConnectionAsync(cancellationToken);
 
         await using var command = new SqlCommand("dbo.sp_BuildConceptDomains", connection)
         {
@@ -213,18 +205,5 @@ public sealed class SqlDiscoveryService : IDiscoveryService
             domainsCreated, actualMaxDepth, totalConcepts);
 
         return new ConceptDomainResult(domainsCreated, actualMaxDepth, totalConcepts);
-    }
-
-    private async Task SetupConnectionAsync(SqlConnection connection, CancellationToken cancellationToken)
-    {
-        if (!_connectionString.Contains("Password=", StringComparison.OrdinalIgnoreCase) &&
-            !_connectionString.Contains("Integrated Security=true", StringComparison.OrdinalIgnoreCase))
-        {
-            var tokenRequestContext = new TokenRequestContext(["https://database.windows.net/.default"]);
-            var token = await _credential.GetTokenAsync(tokenRequestContext, cancellationToken);
-            connection.AccessToken = token.Token;
-        }
-
-        await connection.OpenAsync(cancellationToken);
     }
 }
