@@ -36,6 +36,19 @@ public class HartonomousWebApplicationFactory : WebApplicationFactory<Program>, 
         
         builder.ConfigureServices(services =>
         {
+            // Disable authentication for integration tests
+            services.PostConfigure<Microsoft.AspNetCore.Authorization.AuthorizationOptions>(options =>
+            {
+                // Replace all policies with a policy that allows everything
+                options.DefaultPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                    .RequireAssertion(_ => true)
+                    .Build();
+                    
+                options.FallbackPolicy = new Microsoft.AspNetCore.Authorization.AuthorizationPolicyBuilder()
+                    .RequireAssertion(_ => true)
+                    .Build();
+            });
+            
             // Ensure localhost database connection for all test environments
             services.PostConfigure<DatabaseOptions>(options =>
             {
