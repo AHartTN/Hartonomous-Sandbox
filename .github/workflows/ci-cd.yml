@@ -364,4 +364,5 @@ jobs:
             Write-Host "✓ dotnet-ef installed successfully at: $efExe"
             & $efExe --version
           } else {
-            throw "dotnet-ef installation
+            throw "dotnet-ef installation failed - executable not found at $efExe"
+          }
