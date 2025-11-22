@@ -4,8 +4,10 @@ using System.Data.SqlClient;
 using System.Data.SqlTypes;
 using System.IO;
 using System.Text;
+using Hartonomous.Infrastructure.Services.Vision;
 using Microsoft.SqlServer.Server;
 using Microsoft.SqlServer.Types;
+using static Hartonomous.Infrastructure.Services.Vision.BinaryReaderHelper;
 
 namespace Hartonomous.Clr
 {
