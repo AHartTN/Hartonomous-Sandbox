@@ -1,11 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
+using Hartonomous.Clr.Contracts;
+using Hartonomous.Clr.Enums;
+using Hartonomous.Clr.Models;
+using static Hartonomous.Infrastructure.Services.Vision.BinaryReaderHelper;
 
 namespace Hartonomous.Clr.ModelParsers
 {
-    public static class GGUFParser
+    public class GGUFParser : IModelFormatReader
     {
         private enum GGUFType : uint
         {

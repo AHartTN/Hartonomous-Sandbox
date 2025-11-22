@@ -5,6 +5,7 @@ using System.Linq;
 using Hartonomous.Clr.Contracts;
 using Hartonomous.Clr.Enums;
 using Hartonomous.Clr.Models;
+using static Hartonomous.Infrastructure.Services.Vision.BinaryReaderHelper;
 
 namespace Hartonomous.Clr.ModelParsers
 {
@@ -222,7 +223,7 @@ namespace Hartonomous.Clr.ModelParsers
             return weights;
         }
 
-        #region Protobuf Parsing
+        #region Lightweight Protobuf Parsing
 
         private List<TensorInfo> ParseGraphDef(Stream stream)
         {
@@ -364,46 +365,6 @@ namespace Hartonomous.Clr.ModelParsers
                 10 => TensorDtype.Bool, // DT_BOOL
                 _ => TensorDtype.F32    // Default
             };
-        }
-
-        private int ReadVarint32(Stream stream)
-        {
-            int result = 0;
-            int shift = 0;
-
-            while (true)
-            {
-                int b = stream.ReadByte();
-                if (b == -1)
-                    throw new EndOfStreamException();
-
-                result |= (b & 0x7F) << shift;
-
-                if ((b & 0x80) == 0)
-                    return result;
-
-                shift += 7;
-            }
-        }
-
-        private long ReadVarint64(Stream stream)
-        {
-            long result = 0;
-            int shift = 0;
-
-            while (true)
-            {
-                int b = stream.ReadByte();
-                if (b == -1)
-                    throw new EndOfStreamException();
-
-                result |= (long)(b & 0x7F) << shift;
-
-                if ((b & 0x80) == 0)
-                    return result;
-
-                shift += 7;
-            }
         }
 
         #endregion
